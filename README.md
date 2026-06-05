@@ -31,14 +31,25 @@ For architecture and storage contracts, see [`docs/SPEC.md`](docs/SPEC.md).
 
 ```bash
 vg init --vault /path/to/vault
+vg init --vault-id main --vault /path/to/vault
+vg vault add work --path /path/to/other-vault
+vg vault list
 ```
 
-Configure the Vault path and Vault Graph state location.
+Configure one or more Vault roots and the Vault Graph state location. If no
+Vault ID is provided, `vg init --vault /path/to/vault` creates the active entry
+with `vault_id: default`.
+
+Commands that support Vault selection use the active Vault by default.
+`--vault-id ID` selects one Vault. `--all-vaults` expands to all enabled Vault
+IDs and must make that selection visible in output.
 
 ### Index
 
 ```bash
 vg index
+vg index --vault-id main
+vg index --all-vaults
 vg index --full
 vg index --dry-run
 ```
@@ -61,13 +72,14 @@ Watch Vault changes and keep indexes fresh.
 vg status
 ```
 
-Show configured paths, backend health, schema compatibility, index freshness,
-projection freshness, and warnings.
+Show configured Vault IDs and paths, backend health, schema compatibility, index
+freshness, projection freshness, and warnings.
 
 ### Ask
 
 ```bash
 vg ask "Why did we adopt GraphRAG?"
+vg ask --vault-id main "Why did we adopt GraphRAG?"
 ```
 
 Ask an evidence-first question against Vault-derived context. Answers should
@@ -77,6 +89,7 @@ separate evidence, inferred links, warnings, and suggested durable follow-up.
 
 ```bash
 vg related GraphRAG
+vg related --vault-id main GraphRAG
 ```
 
 Find documents, decisions, concepts, issues, systems, workflows, and entities
@@ -86,6 +99,7 @@ related to a target topic.
 
 ```bash
 vg context "Implement GraphRAG MVP"
+vg context --vault-id main "Implement GraphRAG MVP"
 ```
 
 Generate a scoped JSON or Markdown brief for a human or agent. Context packs are
@@ -95,6 +109,7 @@ working context, not durable knowledge.
 
 ```bash
 vg decision-trace GraphRAG
+vg decision-trace --vault-id main GraphRAG
 ```
 
 Trace a decision or topic through durable decisions, related evidence, source
@@ -114,30 +129,33 @@ Expose Vault Graph through MCP or HTTP.
 Initial MCP tools:
 
 - `search_vault(query, scope=None, limit=10)`
-- `ask_vault(question, mode="evidence-first")`
-- `find_related(target, depth=1, kinds=None)`
-- `get_decision_trace(decision_or_topic)`
+- `ask_vault(question, mode="evidence-first", scope=None)`
+- `find_related(target, scope=None, depth=1, kinds=None)`
+- `get_decision_trace(decision_or_topic, scope=None)`
 - `build_context_pack(goal, scope=None, max_tokens=None)`
 - `summarize_project_memory(scope=None)`
 - `get_open_questions(scope=None)`
-- `get_recent_changes(since=None)`
+- `get_recent_changes(since=None, scope=None)`
 - `explain_result(result_id)`
 - `check_index_status()`
 
 Initial MCP resources:
 
 ```text
-vault://documents/{path}
-vault://pages/{path}
-vault://sources/{id}
-vault://concepts/{name}
-vault://decisions/{id}
-vault://issues/{id}
-vault://timeline/recent
-vault://context/current
+vault://{vault_id}/documents/{path}
+vault://{vault_id}/pages/{path}
+vault://{vault_id}/sources/{id}
+vault://{vault_id}/concepts/{name}
+vault://{vault_id}/decisions/{id}
+vault://{vault_id}/issues/{id}
+vault://{vault_id}/timeline/recent
+vault://{vault_id}/context/current
 vault://context/packs/{id}
-vault://graph/entities/{id}
+vault://{vault_id}/graph/entities/{id}
 ```
+
+`vault://context/packs/{id}` is a generated artifact URI. The pack body records
+the `QueryScope` used when it was created.
 
 Initial MCP prompts:
 
@@ -153,12 +171,13 @@ Initial MCP prompts:
 
 Vault Graph user-facing features should preserve these guarantees:
 
-- read-only access to Vault by default
+- read-only access to Vault
 - local-first operation without mandatory hosted services
 - evidence-first answers
 - clear separation between stated facts and inferred links
 - warnings for stale, missing, contested, or deprecated material
 - reproducible indexes that can be deleted and rebuilt from Vault
+- Vault-scoped identity for multiple registered Vault roots
 - visible backend health and index freshness status
 - durable knowledge publication only through Vault
 

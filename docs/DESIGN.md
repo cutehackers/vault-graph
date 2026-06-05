@@ -92,7 +92,7 @@ fixtures.
 
 ### 4.1 Read-Only Vault Boundary
 
-Vault Graph may read configured Vault paths. It may write only to the configured
+Vault Graph may read registered Vault paths. It may write only to the configured
 Vault Graph state directory.
 
 Allowed writes:
@@ -155,15 +155,29 @@ The MVP local backends define the reference behavior:
 Scale-up adapters must preserve these contracts instead of changing the domain
 model.
 
+### 4.5 Multi-Vault Namespace
+
+One Vault Graph instance may index multiple registered Vault repositories. The
+default installation still behaves like a single-Vault system by creating one
+active `default` catalog entry.
+
+Every derived record must carry its Vault namespace. Documents, chunks, entities,
+evidence, warnings, and revisions carry `vault_id`; relationship records carry
+source, target, and evidence Vault IDs. Paths are unique only inside a Vault, so
+file identity is `(vault_id, path)`. Cross-Vault retrieval must be explicit in
+`QueryScope`; default queries use the active Vault only. Cross-Vault entity
+merging is outside the MVP and may appear only as evidence-linked inferred
+relationships.
+
 ## 5. Architecture Overview
 
 ```text
-Vault
-  raw/ wiki/ docs/ scratch/reports/
+VaultCatalog
+  vault_id -> Vault root
     |
     v
 VaultLoader
-  scans files, reads content, records hashes
+  scans enabled Vault roots, reads content, records hashes
     |
     v
 DocumentPipeline
@@ -219,7 +233,12 @@ boundary.
 Initial commands:
 
 - `vg init --vault /path/to/vault`
+- `vg init --vault-id main --vault /path/to/vault`
+- `vg vault add work --path /path/to/other-vault`
+- `vg vault list`
 - `vg index`
+- `vg index --vault-id main`
+- `vg index --all-vaults`
 - `vg index --full`
 - `vg index --dry-run`
 - `vg watch`
@@ -266,6 +285,7 @@ validation, publication gate, or release-gate checks.
 
 Core modules:
 
+- `vault_catalog.py`: loads registered Vault roots and active Vault selection
 - `vault_loader.py`: scans configured Vault roots and reads file content
 - `vault_frontmatter_reader.py`: reads Vault YAML frontmatter and derives
   projection fields and frontmatter hashes
@@ -440,9 +460,10 @@ separate memories and must not store durable knowledge.
 
 Runtime configuration should be explicit about:
 
-- Vault path
+- Vault catalog entries
 - Vault Graph state path
-- source scopes
+- active Vault ID
+- content scopes
 - entity schema
 - retrieval policy
 - embedding policy
@@ -451,7 +472,7 @@ Runtime configuration should be explicit about:
 
 Configuration files:
 
-- `configs/sources.yaml`
+- `configs/vaults.yaml`
 - `configs/entity_schema.yaml`
 - `configs/retrieval_policy.yaml`
 - `configs/embedding_policy.yaml`
@@ -466,7 +487,7 @@ Configuration loading order:
 4. command-line overrides
 
 Command-line overrides should be visible in status output so users can inspect
-which Vault and state paths are active.
+which Vault IDs, Vault paths, and state paths are active.
 
 ## 8. Domain Records
 
@@ -474,12 +495,43 @@ The implementation should prefer typed records at package boundaries. Backend
 implementations can serialize these records however they need, but application
 services should exchange common logical shapes.
 
-### 8.1 Evidence Reference
+### 8.1 Vault Catalog Entry
+
+A Vault catalog entry identifies one readable Vault repository root.
+
+Fields:
+
+- `vault_id`
+- `root_path`
+- `display_name`
+- `enabled`
+- `content_scopes`
+- `state_namespace`
+- `git_revision_policy`
+
+`VaultCatalogEntry` is not a Vault source registry record. It does not validate,
+publish, register, or mutate Vault source pages.
+
+### 8.2 Query Scope
+
+A query scope separates repository selection from content selection.
+
+Fields:
+
+- `vault_ids`
+- `content_scopes`
+- `include_cross_vault`
+
+When no query scope is provided, services use the active Vault only and
+`include_cross_vault=false`.
+
+### 8.3 Evidence Reference
 
 An evidence reference identifies why a result exists.
 
 Fields:
 
+- `vault_id`
 - `path`
 - `wiki_path`
 - `section`
@@ -493,12 +545,13 @@ Fields:
 - `confidence`
 - `warning`
 
-### 8.2 Document Snapshot
+### 8.4 Document Snapshot
 
 A document snapshot represents one indexed view of one Vault file.
 
 Fields:
 
+- `vault_id`
 - `document_id`
 - `path`
 - `kind`
@@ -512,12 +565,13 @@ Fields:
 - `vault_revision`
 - `index_revision`
 
-### 8.3 Chunk Snapshot
+### 8.5 Chunk Snapshot
 
 A chunk snapshot represents retrievable text derived from a document.
 
 Fields:
 
+- `vault_id`
 - `chunk_id`
 - `document_id`
 - `path`
@@ -529,12 +583,13 @@ Fields:
 - `chunker_version`
 - `index_revision`
 
-### 8.4 Entity Record
+### 8.6 Entity Record
 
 An entity record represents a derived node.
 
 Fields:
 
+- `vault_id`
 - `id`
 - `type`
 - `name`
@@ -549,7 +604,7 @@ Fields:
 - `content_hash`
 - `index_revision`
 
-### 8.5 Relationship Record
+### 8.7 Relationship Record
 
 A relationship record represents a derived edge.
 
@@ -557,8 +612,11 @@ Fields:
 
 - `id`
 - `type`
+- `source_vault_id`
 - `source_entity_id`
+- `target_vault_id`
 - `target_entity_id`
+- `evidence_vault_id`
 - `evidence_path`
 - `evidence_excerpt`
 - `status`
@@ -568,6 +626,10 @@ Fields:
 - `updated_at`
 - `index_revision`
 
+`id` must be derived from relationship type, source entity, target entity,
+source Vault ID, target Vault ID, evidence Vault ID, and evidence path. A
+relationship does not imply a durable cross-Vault equivalence claim.
+
 Allowed statuses:
 
 - `stated`
@@ -575,12 +637,13 @@ Allowed statuses:
 - `contested`
 - `deprecated`
 
-### 8.6 Retrieval Result
+### 8.8 Retrieval Result
 
 A retrieval result is a ranked candidate with evidence and explanation data.
 
 Fields:
 
+- `vault_id`
 - `result_id`
 - `kind`
 - `title`
@@ -594,7 +657,7 @@ Fields:
 - `backend`
 - `index_revision`
 
-### 8.7 Context Pack
+### 8.9 Context Pack
 
 A context pack is a structured brief generated for a goal.
 
@@ -602,7 +665,8 @@ Required fields:
 
 - `goal`
 - `scope`
-- `vault_revision`
+- `vaults`
+- `vault_revisions`
 - `index_revision`
 - `backend`
 - `store_revisions`
@@ -623,9 +687,12 @@ reorder sections for readability, but it must preserve the same content fields.
 
 ### 9.1 MetadataStore
 
-`MetadataStore` owns file identity, chunk identity, path mapping, content
-hashes, parser and chunker version state, source-state projections, Vault
-frontmatter snapshots, tombstones, and index revision tracking.
+`MetadataStore` owns file identity, chunk identity, `(vault_id, path)` mapping,
+content hashes, parser and chunker version state, source-state projections, Vault
+frontmatter snapshots, tombstones, and index revision tracking for derived
+records. `VaultCatalog` owns the authoritative `vault_id` to Vault root mapping.
+`MetadataStore` may keep revision-scoped catalog snapshots only for diagnostics
+and freshness reporting.
 
 Required operations:
 
@@ -650,6 +717,8 @@ Forbidden behavior:
 - replacing Vault source registration
 - validating Vault frontmatter as a publication gate
 - replacing Vault's `tools/wiki` validation workflow
+- treating paths as globally unique without `vault_id`
+- owning registered Vault root configuration
 
 ### 9.2 VectorStore
 
@@ -660,7 +729,7 @@ Required operations:
 
 - upsert embeddings for chunk IDs
 - delete or tombstone embeddings for stale chunks
-- run filtered vector search
+- run filtered vector search with `QueryScope`
 - validate embedding dimensions
 - validate embedding model and version
 - validate embedding policy version
@@ -669,8 +738,9 @@ Required operations:
 - report index freshness
 - export embedding manifests in the common logical vector shape
 
-Vector search must return chunk IDs and vector metadata. Callers must resolve
-chunk IDs through `MetadataStore` before returning evidence to users.
+Vector search must return `vault_id`, chunk IDs, and vector metadata. Callers
+must resolve chunk IDs through `MetadataStore` before returning evidence to
+users.
 
 ### 9.3 GraphStore
 
@@ -685,7 +755,7 @@ Required operations:
 - tombstone stale entities and relationships
 - resolve entity IDs to evidence-linked records
 - resolve edge IDs to evidence-linked records
-- query neighborhoods by entity
+- query neighborhoods by Vault-scoped entity
 - query edges by relationship type and status
 - report backend health
 - report schema compatibility
@@ -712,6 +782,7 @@ Required operations:
 
 Cache keys must include:
 
+- Vault IDs
 - index revision
 - graph store revision
 - parser version
@@ -734,7 +805,7 @@ records, revision rows, and projection caches.
 
 `vg index --full` should:
 
-1. scan all configured Vault sources
+1. scan VaultCatalog entries selected by the indexing scope
 2. compute file state and hashes
 3. parse and normalize all included documents
 4. rebuild metadata records
@@ -750,7 +821,7 @@ Full rebuild must not mutate Vault.
 
 `vg index` should:
 
-1. scan configured Vault sources
+1. scan VaultCatalog entries selected by the indexing scope
 2. compare file state with `MetadataStore`
 3. classify files as unchanged, changed, stale, deleted, or tombstoned
 4. parse only affected documents
@@ -768,7 +839,7 @@ revision planner should expand the affected set accordingly.
 
 `vg index --dry-run` should:
 
-1. scan configured Vault sources
+1. scan VaultCatalog entries selected by the indexing scope
 2. classify planned work
 3. validate backend availability
 4. report planned document, chunk, vector, graph, and projection changes
@@ -776,6 +847,11 @@ revision planner should expand the affected set accordingly.
 6. exit without mutating Vault Graph state
 
 Dry-run output is an operational planning artifact, not durable knowledge.
+
+The default indexing scope is the active Vault. A command such as `vg index
+--vault-id work` updates derived state for `work` and must not mark records from
+other registered Vaults stale. `vg index --all-vaults` is the explicit operation
+for a whole-catalog run.
 
 ### 10.4 Deleted And Stale Files
 
@@ -800,7 +876,7 @@ Retrieval combines multiple evidence signals while keeping output explainable.
 
 ```text
 Query
-  -> normalize query and scope
+  -> normalize query and QueryScope
   -> keyword and metadata candidate lookup
   -> vector candidate lookup
   -> graph candidate lookup
@@ -816,19 +892,28 @@ Every candidate must resolve to evidence before it is shown as a normal result.
 Candidates without enough evidence may appear only as warnings or inferred
 follow-up suggestions.
 
+If no `QueryScope` is provided, retrieval uses the active Vault only. Cross-Vault
+retrieval requires explicit `vault_ids`. Candidate merge and dedupe must use
+Vault-scoped identity; identical paths or entity names from different Vaults are
+not equivalent by default.
+
 ### 11.2 Vector Retrieval
 
-Vector retrieval searches `VectorStore` and returns vector IDs, chunk IDs,
-scores, filters, embedding model metadata, and index revision metadata.
+Vector retrieval searches `VectorStore` and returns vector IDs, Vault IDs, chunk
+IDs, scores, filters, embedding model metadata, and index revision metadata.
 
-The caller then resolves chunk IDs through `MetadataStore` to attach path,
-section, anchor, content hash, raw SHA-256, and Vault revision.
+The caller then resolves chunk IDs through `MetadataStore` to attach `vault_id`,
+path, section, anchor, content hash, raw SHA-256, and Vault revision.
 
 ### 11.3 Graph Retrieval
 
 Graph retrieval starts with entity lookup or candidate documents, expands
 neighborhoods through `GraphStore`, and may use `GraphProjection` for bounded
 algorithmic ranking.
+
+Cross-Vault graph traversal is opt-in. When a traversal crosses Vault IDs, the
+edge must include source and target Vault IDs plus evidence explaining why the
+relationship exists.
 
 Graph results must distinguish relationship status:
 
@@ -856,7 +941,7 @@ The ranking layer should preserve per-signal explanations so
 
 ### 11.5 Evidence-First Answering
 
-`ask_vault(question, mode="evidence-first")` should:
+`ask_vault(question, mode="evidence-first", scope=None)` should:
 
 1. run hybrid retrieval
 2. group evidence by source and claim
@@ -897,7 +982,7 @@ The builder should avoid:
 
 ```text
 Goal
-  -> scope normalization
+  -> QueryScope normalization
   -> hybrid retrieval
   -> decision and constraint extraction
   -> current-state summary
@@ -915,7 +1000,7 @@ warning that names the omitted category.
 
 ## 13. Decision Trace Design
 
-`get_decision_trace(decision_or_topic)` should prefer durable
+`get_decision_trace(decision_or_topic, scope=None)` should prefer durable
 `wiki/decisions/` pages when available.
 
 Flow:
@@ -982,38 +1067,43 @@ MCP is the primary agent integration surface.
 Initial resources:
 
 ```text
-vault://documents/{path}
-vault://pages/{path}
-vault://sources/{id}
-vault://concepts/{name}
-vault://decisions/{id}
-vault://issues/{id}
-vault://timeline/recent
-vault://context/current
+vault://{vault_id}/documents/{path}
+vault://{vault_id}/pages/{path}
+vault://{vault_id}/sources/{id}
+vault://{vault_id}/concepts/{name}
+vault://{vault_id}/decisions/{id}
+vault://{vault_id}/issues/{id}
+vault://{vault_id}/timeline/recent
+vault://{vault_id}/context/current
 vault://context/packs/{id}
-vault://graph/entities/{id}
+vault://{vault_id}/graph/entities/{id}
 ```
 
 Resources are read-only views over Vault or Vault Graph projections. Responses
-should include evidence metadata when relevant.
+should include `vault_id` and evidence metadata when relevant.
+`vault://context/packs/{id}` is a generated artifact URI; the pack body records
+the `QueryScope` used at creation time.
 
 ### 15.2 Tools
 
 Initial tools:
 
 - `search_vault(query, scope=None, limit=10)`
-- `ask_vault(question, mode="evidence-first")`
-- `find_related(target, depth=1, kinds=None)`
-- `get_decision_trace(decision_or_topic)`
+- `ask_vault(question, mode="evidence-first", scope=None)`
+- `find_related(target, scope=None, depth=1, kinds=None)`
+- `get_decision_trace(decision_or_topic, scope=None)`
 - `build_context_pack(goal, scope=None, max_tokens=None)`
 - `summarize_project_memory(scope=None)`
 - `get_open_questions(scope=None)`
-- `get_recent_changes(since=None)`
+- `get_recent_changes(since=None, scope=None)`
 - `explain_result(result_id)`
 - `check_index_status()`
 
 Tools call application services and return structured, evidence-linked data.
 They must not write to Vault.
+
+Tool `scope` arguments use `QueryScope`. Without scope, tools query only the
+active Vault. Cross-Vault retrieval requires explicit Vault IDs.
 
 ### 15.3 Prompts
 
@@ -1037,6 +1127,8 @@ output where useful.
 
 Recommended common options:
 
+- `--vault-id ID`
+- `--all-vaults`
 - `--vault PATH`
 - `--state PATH`
 - `--config PATH`
@@ -1046,8 +1138,12 @@ Recommended common options:
 Command behavior:
 
 - `vg init`: validates paths and writes Vault Graph configuration only
-- `vg index`: applies incremental derived-state updates
-- `vg index --full`: applies full derived-state rebuild
+- `vg vault add`: registers an additional readable Vault root
+- `vg vault list`: lists configured Vault IDs, paths, and enabled status
+- `vg index`: applies incremental derived-state updates for the active Vault
+- `vg index --vault-id ID`: applies derived-state updates for one Vault
+- `vg index --all-vaults`: applies derived-state updates for all enabled Vaults
+- `vg index --full`: applies full derived-state rebuild for the selected scope
 - `vg index --dry-run`: reports planned derived-state updates without mutation
 - `vg watch`: runs repeated incremental indexing
 - `vg status`: reports backend and revision health
@@ -1058,8 +1154,9 @@ Command behavior:
 - `vg serve --mcp`: starts the MCP server
 - `vg serve --http`: starts the HTTP server
 
-All commands should print active Vault and state paths when the operation could
-otherwise be ambiguous.
+All commands should print active Vault ID, Vault path, and state path when the
+operation could otherwise be ambiguous. Commands that operate across Vaults must
+make the selected Vault IDs visible.
 
 ## 17. HTTP Design
 
@@ -1087,6 +1184,8 @@ Vault Graph should prefer explicit warnings over silent degradation.
 
 Warning categories:
 
+- `unknown_vault_id`
+- `vault_disabled`
 - `stale_index`
 - `stale_projection`
 - `missing_evidence`
@@ -1107,8 +1206,9 @@ Errors should be raised at clear boundaries:
 - path boundary errors before filesystem writes
 - evidence resolution errors before rendering unsupported results
 
-When possible, user-facing errors should include the active Vault path, active
-state path, backend name, revision metadata, and a suggested safe next command.
+When possible, user-facing errors should include the active Vault ID, active
+Vault path, active state path, backend name, revision metadata, and a suggested
+safe next command.
 
 ## 19. Read-Only Enforcement
 
@@ -1117,8 +1217,8 @@ Read-only behavior should be enforced in three layers.
 ### 19.1 Path Guard
 
 All write operations must go through a path guard that allows writes only under
-the configured Vault Graph state path. The guard should reject writes to the
-configured Vault path.
+the configured Vault Graph state path. The guard should reject writes to every
+registered Vault path.
 
 ### 19.2 Store Boundary
 
@@ -1146,6 +1246,7 @@ whether a result is fresh.
 
 Revision fields:
 
+- `vault_id`
 - `vault_revision`
 - `index_revision`
 - `metadata_revision`
@@ -1178,6 +1279,8 @@ deterministic.
 
 Unit tests should cover:
 
+- Vault catalog loading and active Vault selection
+- QueryScope normalization
 - Vault frontmatter projection
 - Markdown section parsing
 - document normalization
@@ -1198,6 +1301,7 @@ Contract tests should cover:
 - future Postgres behavior against the metadata contract
 - future Qdrant behavior against the vector contract
 - future Neo4j behavior against the graph contract
+- Vault-scoped identity uniqueness across local and scale-up backends
 
 Scale-up backends should pass the same representative behavior tests as local
 backends.
@@ -1212,12 +1316,14 @@ Boundary tests should cover:
 - no writes outside the state path
 - dry-run planning without store mutation
 - projection cache invalidation on revision changes
+- partial indexing does not mark unrelated Vault IDs stale
 
 ### 21.4 Integration Tests
 
 Integration tests should cover:
 
 - full rebuild over a fixture Vault
+- full rebuild over two fixture Vaults with colliding relative paths
 - incremental rebuild after a changed document
 - tombstone behavior after a deleted document
 - search result evidence resolution
@@ -1247,7 +1353,7 @@ Before a phase is considered complete, verify:
 
 - Vault files are unchanged by Vault Graph commands
 - generated state can be deleted and rebuilt
-- result evidence resolves back to Vault paths and revisions
+- result evidence resolves back to Vault IDs, Vault paths, and revisions
 - status surfaces report backend health and freshness
 - warnings are visible for stale, missing, contested, or deprecated material
 - application services depend on storage interfaces rather than concrete
@@ -1262,6 +1368,8 @@ The design is satisfied when:
   mutation
 - `vg index` can build local metadata, vector, and graph projections without
   mutating Vault
+- `vg index --vault-id ID` updates only that Vault's derived state
+- `vg index --all-vaults` can rebuild all registered Vault projections
 - `vg status` reports backend health, schema compatibility, index freshness,
   and projection freshness
 - `vg ask` returns evidence-first answers with warnings instead of unsupported
@@ -1271,6 +1379,8 @@ The design is satisfied when:
   relationships
 - MCP tools expose the same read-only behavior as CLI commands
 - all derived indexes can be deleted and rebuilt from Vault
+- two registered Vaults with the same relative path do not collide in metadata,
+  vector, graph, MCP, or context-pack output
 
 Vault Graph is valuable only while it keeps Vault authoritative. Every module
 boundary, store contract, warning, and test should protect that rule.

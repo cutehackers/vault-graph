@@ -141,8 +141,8 @@ Every context pack and decision trace should include:
 
 ```text
                 +---------------------------+
-                |           Vault           |
-                | raw / wiki / docs / logs  |
+                |       VaultCatalog        |
+                | vault_id -> Vault root    |
                 +-------------+-------------+
                               |
                               v
@@ -196,7 +196,7 @@ vault-graph/
 ├── docs/
 │   └── SPEC.md
 ├── configs/
-│   ├── sources.yaml
+│   ├── vaults.yaml
 │   ├── entity_schema.yaml
 │   ├── retrieval_policy.yaml
 │   ├── embedding_policy.yaml
@@ -219,6 +219,7 @@ vault-graph/
 │       │   ├── mcp_server.py
 │       │   └── http_server.py
 │       ├── ingestion/
+│       │   ├── vault_catalog.py
 │       │   ├── vault_loader.py
 │       │   ├── markdown_parser.py
 │       │   ├── vault_frontmatter_reader.py
@@ -288,9 +289,65 @@ The default implementation is local-first. Files under `storage/local/` are requ
 
 `projection/` owns runtime algorithm projections only. It may read from `GraphStore` and write disposable cache files under `data/projection_cache/`, but it must not persist authoritative graph records.
 
-## 6. Core Capabilities
+## 6. Multi-Vault Model
 
-### 6.1 Project Memory Projection
+Vault Graph should support one running instance over one or more registered Vault
+repositories. Single-Vault use remains the default path: `vg init --vault
+/path/to/vault` creates a `default` Vault entry when no explicit `vault_id` is
+provided.
+
+The multi-Vault boundary is `VaultCatalog`. It is the only authority for the
+mapping from `vault_id` to Vault repository root. A catalog entry identifies a
+readable Vault repository root, not a Vault source page or durable source
+registry entry. `VaultCatalog` must never replace Vault's own source
+registration, source validation, frontmatter validation, publication gate,
+release gate, or Git history.
+
+Required `VaultCatalog` entry fields:
+
+- `vault_id`
+- `root_path`
+- `display_name`
+- `enabled`
+- `content_scopes`
+- `state_namespace`
+- `git_revision_policy`
+
+Identity rules:
+
+- `vault_id` is required on every document, chunk, entity, evidence, revision,
+  warning, and context-pack record.
+- Relationship and edge records must carry `source_vault_id`,
+  `target_vault_id`, and `evidence_vault_id`.
+- `path` is never globally unique by itself; file identity is `(vault_id, path)`.
+- `document_id`, `chunk_id`, `entity_id`, `edge_id`, and vector IDs must either
+  include their Vault namespace fields in stable derivation or be stored with
+  equivalent Vault-scoped uniqueness constraints.
+- Cross-Vault search is explicit. Default queries use the active Vault unless a
+  `QueryScope` names more Vault IDs.
+- Cross-Vault entity merging is outside the MVP. If retrieval connects records
+  across Vaults, the relationship must be an evidence-linked inferred edge, not a
+  durable equivalence claim.
+
+`QueryScope` separates repository selection from content selection:
+
+- `vault_ids`: one or more registered Vault IDs
+- `content_scopes`: `raw`, `wiki`, `docs`, `scratch/reports`, or narrower policy
+  scopes
+- `include_cross_vault`: false by default
+
+CLI `--all-vaults` options are expanded into an explicit list of enabled
+`vault_ids` before application services run. Stores and retrieval services do not
+interpret an implicit global scope.
+
+Scale-up backends must preserve the same logical model. Postgres may implement
+`vault_id` as a tenant key, Qdrant may implement it as payload filtering or
+collection sharding, and Neo4j may implement it as node and edge properties, but
+the application contract remains the same.
+
+## 7. Core Capabilities
+
+### 7.1 Project Memory Projection
 
 Question:
 
@@ -310,7 +367,7 @@ Response shape:
 
 This is a projection from Vault, not a separate memory database.
 
-### 6.2 Decision Tracking
+### 7.2 Decision Tracking
 
 Question:
 
@@ -331,7 +388,7 @@ Response shape:
 
 The system should prefer durable `wiki/decisions/` pages when they exist. It may use graph/vector retrieval to find supporting source pages, raw evidence, and related concepts.
 
-### 6.3 Context Management
+### 7.3 Context Management
 
 Question:
 
@@ -351,7 +408,7 @@ Response shape:
 - Warnings
 - Suggested next actions
 
-### 6.4 Agent Context Packs
+### 7.4 Agent Context Packs
 
 Context packs are structured briefs for agents.
 
@@ -359,6 +416,9 @@ Required fields:
 
 - `goal`
 - `scope`
+- `vaults`
+- `backend`
+- `store_revisions`
 - `current_state`
 - `relevant_pages`
 - `relevant_sources`
@@ -368,10 +428,10 @@ Required fields:
 - `warnings`
 - `evidence`
 - `generated_at`
-- `vault_revision`
+- `vault_revisions`
 - `index_revision`
 
-### 6.5 GraphRAG Exploration
+### 7.5 GraphRAG Exploration
 
 Question:
 
@@ -395,7 +455,7 @@ Returned answers must distinguish:
 - stale or deprecated material
 - missing evidence
 
-### 6.6 Knowledge Assetization
+### 7.6 Knowledge Assetization
 
 Vault Graph turns documents into queryable assets:
 
@@ -410,9 +470,9 @@ Document
 
 The final asset is still derived data. Durable knowledge remains in Vault.
 
-## 7. Entity Model
+## 8. Entity Model
 
-### 7.1 Core Entities
+### 8.1 Core Entities
 
 The entity model should align with Vault's durable page model first:
 
@@ -428,7 +488,7 @@ The entity model should align with Vault's durable page model first:
 - `Timeline`
 - `Map`
 
-### 7.2 Project Entities
+### 8.2 Project Entities
 
 Domain-specific entities may be extracted from page bodies and source text:
 
@@ -443,10 +503,11 @@ Domain-specific entities may be extracted from page bodies and source text:
 - `Person`
 - `TimelineEvent`
 
-### 7.3 Entity Fields
+### 8.3 Entity Fields
 
 Minimum entity fields:
 
+- `vault_id`
 - `id`
 - `type`
 - `name`
@@ -460,7 +521,7 @@ Minimum entity fields:
 - `extraction_method`
 - `content_hash`
 
-## 8. Relationship Model
+## 9. Relationship Model
 
 Core relationship types:
 
@@ -485,8 +546,11 @@ Relationship fields:
 
 - `id`
 - `type`
+- `source_vault_id`
 - `source_entity_id`
+- `target_vault_id`
 - `target_entity_id`
+- `evidence_vault_id`
 - `evidence_path`
 - `evidence_excerpt`
 - `status`
@@ -502,13 +566,15 @@ Allowed relationship statuses:
 - `contested`
 - `deprecated`
 
-## 9. Storage Strategy
+## 10. Storage Strategy
 
-### 9.1 MVP
+### 10.1 MVP
 
 Metadata:
 
-- SQLite persisted document, chunk, hash, parser state, source state projection, and index revision tables as `MetadataStore`
+- file-backed `VaultCatalog` configuration for registered Vault roots
+- SQLite persisted document, chunk, hash, parser state, source-state projection,
+  and index revision tables as `MetadataStore`
 
 Vector search:
 
@@ -521,7 +587,7 @@ Graph:
 - rustworkx in-memory graph projection rebuilt from `GraphStore`
 - optional serialized rustworkx cache keyed by `index_revision`, `parser_version`, `chunker_version`, and `extraction_policy_version`
 
-### 9.2 Scale-Up
+### 10.2 Scale-Up
 
 Metadata:
 
@@ -540,19 +606,31 @@ Graph algorithm runtime:
 - rustworkx for local subgraph traversal, ranking, and decision trace explanation when the working subgraph fits local memory
 - backend-native graph queries for large traversals that should not be materialized into process memory
 
-### 9.3 MetadataStore Boundary
+### 10.3 MetadataStore Boundary
 
 `MetadataStore` is the persisted metadata projection.
 
-For MVP, `MetadataStore` is SQLite tables derived from Vault files and indexer output. It stores document records, chunk records, Vault paths, wiki paths, source-page projection state, Vault frontmatter snapshots, content hashes, raw SHA-256 values where available, parser state, chunker state, and index revision metadata. It is rebuildable from Vault and must remain non-authoritative.
+For MVP, `MetadataStore` is SQLite tables derived from registered Vault files and
+indexer output. It stores document records, chunk records, Vault IDs, Vault
+paths, wiki paths, source-page projection state, Vault frontmatter snapshots,
+content hashes, raw SHA-256 values where available, parser state, chunker state,
+and index revision metadata. It is rebuildable from Vault and must remain
+non-authoritative. `VaultCatalog`, not `MetadataStore`, owns the authoritative
+`vault_id` to Vault root mapping.
 
 The boundary is mandatory:
 
-- `MetadataStore` owns file identity, chunk identity, path mapping, content hashes, parser/chunker version state, source-state projections, and index revision tracking.
+- `MetadataStore` owns file identity, chunk identity, `(vault_id, path)` mapping,
+  content hashes, parser/chunker version state, source-state projections, and
+  index revision tracking for derived records.
+- `MetadataStore` may record revision-scoped catalog snapshots for diagnostics,
+  but it must not become the source of truth for registered Vault roots.
 - `MetadataStore` must not mutate Vault files, source pages, wiki pages, docs, or scratch artifacts.
 - `MetadataStore` must not store durable semantic truth that is not traceable back to Vault files and evidence references.
 - `MetadataStore` must not become a frontmatter validator, source registry, publication gate, or replacement for Vault's own `tools/wiki` checks.
-- Query tools must resolve document and chunk IDs back to Vault paths, wiki paths, anchors, hashes, and revision metadata.
+- Query tools must resolve document and chunk IDs back to `vault_id`, Vault
+  paths, wiki paths, anchors, hashes, and revision metadata. Application services
+  resolve `vault_id` display metadata through `VaultCatalog`.
 - Postgres must be a scale-up `MetadataStore` implementation over the same logical record contract, not a different metadata model.
 
 Required `MetadataStore` capabilities:
@@ -564,34 +642,43 @@ Required `MetadataStore` capabilities:
 - report backend health, schema compatibility, and revision freshness
 - export or inspect records in the common logical metadata shape
 
-### 9.4 VectorStore Boundary
+### 10.4 VectorStore Boundary
 
 `VectorStore` is the persisted embedding and vector retrieval projection.
 
-For MVP, `VectorStore` is Chroma collections derived from `MetadataStore` chunks and local embedding output. It stores embedding vectors, vector IDs, document IDs, chunk IDs, embedding model metadata, embedding policy metadata, filters, and index revision metadata. It is rebuildable from Vault through `MetadataStore` and must remain non-authoritative.
+For MVP, `VectorStore` is Chroma collections derived from `MetadataStore` chunks
+and local embedding output. It stores embedding vectors, vector IDs, `vault_id`,
+document IDs, chunk IDs, embedding model metadata, embedding policy metadata,
+filters, and index revision metadata. It is rebuildable from Vault through
+`MetadataStore` and must remain non-authoritative.
 
 The boundary is mandatory:
 
 - `VectorStore` owns embedding persistence, vector search, embedding model version state, vector index revision tracking, and vector backend replacement.
 - `VectorStore` must not own document identity, chunk text authority, evidence authority, graph relationships, or durable wiki publication.
 - Query tools must resolve vector hits through `MetadataStore` before returning evidence.
-- Vector results must return Vault paths, wiki paths, chunk IDs, content hashes, embedding model versions, and retrieval scores.
+- Vector results must return `vault_id`, Vault paths, wiki paths, chunk IDs,
+  content hashes, embedding model versions, and retrieval scores.
 - Qdrant must be a scale-up `VectorStore` implementation over the same logical record contract, not a different retrieval authority.
 
 Required `VectorStore` capabilities:
 
 - upsert embeddings for chunk IDs from a specific metadata/index revision
 - delete or tombstone embeddings for stale chunks
-- run filtered vector search with model and revision metadata
+- run filtered vector search with `QueryScope`, model, and revision metadata
 - validate embedding dimensions, model name, model version, and embedding policy version
 - report backend health, collection/schema compatibility, and index freshness
 - export or inspect embedding manifests in the common logical vector shape
 
-### 9.5 GraphStore And GraphProjection Boundary
+### 10.5 GraphStore And GraphProjection Boundary
 
 `GraphStore` is the persisted graph projection.
 
-For MVP, `GraphStore` is SQLite tables derived from Vault files and indexer output. It stores node records, edge records, evidence references, relationship status, confidence, extraction metadata, and index revision metadata. It is rebuildable from Vault and must remain non-authoritative.
+For MVP, `GraphStore` is SQLite tables derived from Vault files and indexer
+output. It stores node records, edge records, `vault_id` fields, evidence
+references, relationship status, confidence, extraction metadata, and index
+revision metadata. It is rebuildable from Vault and must remain
+non-authoritative.
 
 `GraphProjection` is the runtime graph used for algorithms.
 
@@ -604,18 +691,23 @@ The boundary is mandatory:
 - Query tools must return evidence-linked results from `GraphStore`, not opaque rustworkx node IDs.
 - rustworkx must not be treated as the durable graph database.
 - Neo4j must not become a second source of truth; it is a scale-up `GraphStore` implementation over the same derived projection contract.
-- Scale-up backends must preserve the same node IDs, edge IDs, relationship types, evidence references, confidence fields, revision fields, and read-only Vault boundary as the MVP SQLite store.
+- Scale-up backends must preserve the same Vault IDs, node IDs, edge IDs,
+  relationship types, evidence references, confidence fields, revision fields,
+  and read-only Vault boundary as the MVP SQLite store.
 - Every backend must support full rebuild, incremental update, dry-run planning, stale projection detection, and reproducible export back to the common graph store contract.
 
-### 9.6 Scale-Up Boundary Requirements
+### 10.6 Scale-Up Boundary Requirements
 
 Scale-up must be adapter-driven, not architecture-changing.
 
 The MVP local stores are the reference contract:
 
-- `MetadataStore`: SQLite for documents, chunks, hashes, parser state, and index revisions.
-- `VectorStore`: Chroma for embeddings and vector retrieval metadata.
-- `GraphStore`: SQLite for graph nodes, edges, evidence, relationship status, confidence, and graph revisions.
+- `MetadataStore`: SQLite for documents, chunks, hashes, parser state, and index
+  revisions.
+- `VectorStore`: Chroma for embeddings and vector retrieval metadata, including
+  `vault_id` filters.
+- `GraphStore`: SQLite for graph nodes, edges, evidence, relationship status,
+  confidence, Vault IDs, and graph revisions.
 - `GraphProjection`: rustworkx for local in-memory graph algorithms over a bounded working subgraph.
 
 Scale-up backends may replace implementations, but not contracts:
@@ -628,16 +720,21 @@ Scale-up backends may replace implementations, but not contracts:
 All persistent store adapters must expose the same common revision model:
 
 - stable record IDs for the records they own
-- Vault path, wiki path, section or anchor, content hash, and raw SHA-256 where available
+- Vault ID, Vault path, wiki path, section or anchor, content hash, and raw
+  SHA-256 where available
 - parser, chunker, embedding, extraction, metadata store, vector store, and graph store versions where applicable
 - index revision, vault revision, backend name, backend schema version, and last validated timestamp
 - evidence references for every returned record that contributes to an answer, trace, warning, or context pack
 
 Each store also owns store-specific records:
 
-- `MetadataStore`: document IDs, chunk IDs, file state, source-state projection, parser state, chunker state, and tombstones
-- `VectorStore`: vector IDs, document IDs, chunk IDs, embedding model, embedding model version, embedding policy version, filters, and retrieval scores
-- `GraphStore`: entity IDs, edge IDs, relationship type, relationship status, confidence, extraction method, and evidence path
+- `MetadataStore`: document IDs, chunk IDs, file state, source-state projection,
+  parser state, chunker state, and tombstones
+- `VectorStore`: vector IDs, Vault IDs, document IDs, chunk IDs, embedding model,
+  embedding model version, embedding policy version, filters, and retrieval
+  scores
+- `GraphStore`: Vault IDs, entity IDs, edge IDs, relationship type, relationship
+  status, confidence, extraction method, and evidence path
 - `GraphProjection`: projection build ID, graph projection version, source graph revision, cache validity, and algorithm runtime metadata
 
 Scale-up must preserve local-first operation:
@@ -657,11 +754,12 @@ Scale-up must preserve reproducibility:
 
 Scale-up storage must remain replaceable. It must not change the source-of-truth boundary.
 
-## 10. Incremental Indexing
+## 11. Incremental Indexing
 
 Vault Graph tracks file state with:
 
 - `path`
+- `vault_id`
 - `kind`
 - `content_hash`
 - `raw_sha256`
@@ -681,7 +779,7 @@ Vault Graph tracks file state with:
 Indexing flow:
 
 ```text
-Scan Vault
+Scan VaultCatalog entries selected by the indexing scope
   -> Detect changes
   -> Read Vault frontmatter and parse markdown
   -> Normalize document
@@ -708,6 +806,12 @@ The indexer must support:
 - graph projection cache invalidation
 - dry-run mode
 
+For multiple registered Vaults, indexing plans work per `vault_id` and then
+record one logical index revision for the applied run. The default indexing
+scope is the active Vault. A partial run such as `vg index --vault-id work` must
+not mark unrelated Vaults stale. `vg index --all-vaults` is the explicit
+whole-catalog operation.
+
 ### Vault Source Boundary
 
 Incremental indexing must not replace Vault source registration.
@@ -720,11 +824,11 @@ Source registration, source drift handling, slug collision handling, durable dup
 
 If indexing detects an unregistered source, source drift, deleted source, possible duplicate, or extraction insight that should become durable, Vault Graph must report it as a warning, context-pack item, or explicit command suggestion. The durable follow-up must flow through Vault's normal source capture, semantic draft, validation, review, and Git history path.
 
-## 11. Read-Only Boundary
+## 12. Read-Only Boundary
 
 The project must enforce read-only behavior at multiple levels:
 
-- CLI defaults to read-only mode.
+- CLI operations are read-only with respect to Vault.
 - File operations are restricted to configured Vault Graph state directories.
 - Tests assert that indexing does not mutate Vault files.
 - MCP tools that return context do not write to Vault.
@@ -737,7 +841,7 @@ Non-goals for MVP:
 - automatic contradiction resolution
 - autonomous truth arbitration
 
-## 12. MCP Server
+## 13. MCP Server
 
 Vault Graph's main agent integration surface is MCP.
 
@@ -755,37 +859,40 @@ Supported clients:
 - OpenCode
 - custom agents
 
-## 13. MCP Resources
+## 14. MCP Resources
 
 Initial resource URIs:
 
 ```text
-vault://documents/{path}
-vault://pages/{path}
-vault://sources/{id}
-vault://concepts/{name}
-vault://decisions/{id}
-vault://issues/{id}
-vault://timeline/recent
-vault://context/current
+vault://{vault_id}/documents/{path}
+vault://{vault_id}/pages/{path}
+vault://{vault_id}/sources/{id}
+vault://{vault_id}/concepts/{name}
+vault://{vault_id}/decisions/{id}
+vault://{vault_id}/issues/{id}
+vault://{vault_id}/timeline/recent
+vault://{vault_id}/context/current
 vault://context/packs/{id}
-vault://graph/entities/{id}
+vault://{vault_id}/graph/entities/{id}
 ```
 
-Resource responses must include evidence metadata where relevant.
+Resource responses must include evidence metadata where relevant, including
+`vault_id` for any Vault-derived record. `vault://context/packs/{id}` is a
+generated artifact URI; each context pack stores the `QueryScope` used at
+creation time.
 
-## 14. MCP Tools
+## 15. MCP Tools
 
 Initial tools:
 
 - `search_vault(query, scope=None, limit=10)`
-- `ask_vault(question, mode="evidence-first")`
-- `find_related(target, depth=1, kinds=None)`
-- `get_decision_trace(decision_or_topic)`
+- `ask_vault(question, mode="evidence-first", scope=None)`
+- `find_related(target, scope=None, depth=1, kinds=None)`
+- `get_decision_trace(decision_or_topic, scope=None)`
 - `build_context_pack(goal, scope=None, max_tokens=None)`
 - `summarize_project_memory(scope=None)`
 - `get_open_questions(scope=None)`
-- `get_recent_changes(since=None)`
+- `get_recent_changes(since=None, scope=None)`
 - `explain_result(result_id)`
 - `check_index_status()`
 
@@ -797,7 +904,10 @@ Tool responses must separate:
 - warnings
 - suggested durable follow-up
 
-## 15. MCP Prompts
+Tool `scope` arguments use `QueryScope`. If no scope is provided, tools search
+the active Vault only. Cross-Vault retrieval requires explicit `vault_ids`.
+
+## 16. MCP Prompts
 
 Initial prompts:
 
@@ -811,28 +921,40 @@ Initial prompts:
 
 Prompts should instruct agents to treat Vault Graph output as working context and to publish durable knowledge only through Vault's validation workflow.
 
-## 16. CLI
+## 17. CLI
 
 Initial CLI:
 
 ```bash
 vg init --vault /path/to/vault
+vg init --vault-id main --vault /path/to/vault
+vg vault add work --path /path/to/other-vault
+vg vault list
 vg index
+vg index --vault-id main
+vg index --all-vaults
 vg index --full
 vg index --dry-run
 vg watch
 vg status
 vg ask "왜 GraphRAG를 도입했지?"
+vg ask --vault-id main "왜 GraphRAG를 도입했지?"
 vg related GraphRAG
+vg related --vault-id main GraphRAG
 vg context "GraphRAG MVP 구현"
+vg context --vault-id main "GraphRAG MVP 구현"
 vg decision-trace GraphRAG
+vg decision-trace --vault-id main GraphRAG
 vg serve --mcp
 vg serve --http
 ```
 
-CLI commands should be explicit about which Vault path and which index state path they use.
+CLI commands should be explicit about which Vault ID, Vault path, and index state
+path they use. Commands that accept `--vault-id` operate on one registered Vault.
+Commands that accept `--all-vaults` must expand to visible selected Vault IDs in
+their output. Commands without either option use the active Vault.
 
-## 17. Context Pack Contract
+## 18. Context Pack Contract
 
 A context pack is a structured JSON or Markdown artifact generated from Vault Graph retrieval.
 
@@ -841,8 +963,20 @@ Minimum JSON shape:
 ```json
 {
   "goal": "Implement GraphRAG MVP",
-  "scope": ["wiki", "docs"],
-  "vault_revision": "git-sha-or-file-snapshot-id",
+  "scope": {
+    "vault_ids": ["main"],
+    "content_scopes": ["wiki", "docs"],
+    "include_cross_vault": false
+  },
+  "vaults": [
+    {
+      "vault_id": "main",
+      "display_name": "Main Vault"
+    }
+  ],
+  "vault_revisions": {
+    "main": "git-sha-or-file-snapshot-id"
+  },
   "index_revision": "index-revision-id",
   "backend": {
     "metadata_store": "sqlite",
@@ -870,14 +1004,15 @@ Minimum JSON shape:
 
 Context packs should be small enough for an agent to read directly and rich enough to avoid a full Vault scan.
 
-## 18. Roadmap
+## 19. Roadmap
 
-### Phase 1: Vault Reader And MetadataStore
+### Phase 1: Vault Catalog, Vault Reader, And MetadataStore
 
-- Vault path configuration
+- Vault catalog configuration with a default single-Vault entry
 - Markdown parser and Vault frontmatter reader
 - source/page/document normalization
-- SQLite `MetadataStore` document, chunk, hash, source-state projection, and revision tables
+- SQLite `MetadataStore` document, chunk, hash, source-state projection, and
+  revision tables
 - `MetadataStore` interface and backend health checks
 - MetadataStore contract tests for future Postgres support
 - read-only boundary tests
@@ -935,18 +1070,22 @@ Context packs should be small enough for an agent to read directly and rich enou
 - Agent Workspace
 - Timeline View
 
-## 19. Success Criteria
+## 20. Success Criteria
 
 Vault Graph is successful when:
 
 - A user can point it at a Vault and build an index without mutating Vault.
+- A user can register multiple Vaults and index one Vault or all Vaults
+  explicitly.
+- Two Vaults with the same relative path do not collide in metadata, vector,
+  graph, MCP, or context-pack output.
 - An agent can request a context pack for a concrete task instead of reading the whole Vault.
 - Decision traces include evidence and distinguish stated facts from inferred links.
 - All indexes can be deleted and rebuilt from Vault.
 - Local-first operation works without internet access.
 - Retrieval output never bypasses Vault's durable publication workflow.
 
-## 20. Final Vision
+## 21. Final Vision
 
 Vault stores durable project knowledge.
 
