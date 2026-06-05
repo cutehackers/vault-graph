@@ -221,7 +221,7 @@ vault-graph/
 │       ├── ingestion/
 │       │   ├── vault_loader.py
 │       │   ├── markdown_parser.py
-│       │   ├── frontmatter_parser.py
+│       │   ├── vault_frontmatter_reader.py
 │       │   └── document_normalizer.py
 │       ├── extraction/
 │       │   ├── entity_extractor.py
@@ -544,13 +544,14 @@ Graph algorithm runtime:
 
 `MetadataStore` is the persisted metadata projection.
 
-For MVP, `MetadataStore` is SQLite tables derived from Vault files and indexer output. It stores document records, chunk records, Vault paths, wiki paths, source-page projection state, frontmatter snapshots, content hashes, raw SHA-256 values where available, parser state, chunker state, and index revision metadata. It is rebuildable from Vault and must remain non-authoritative.
+For MVP, `MetadataStore` is SQLite tables derived from Vault files and indexer output. It stores document records, chunk records, Vault paths, wiki paths, source-page projection state, Vault frontmatter snapshots, content hashes, raw SHA-256 values where available, parser state, chunker state, and index revision metadata. It is rebuildable from Vault and must remain non-authoritative.
 
 The boundary is mandatory:
 
 - `MetadataStore` owns file identity, chunk identity, path mapping, content hashes, parser/chunker version state, source-state projections, and index revision tracking.
 - `MetadataStore` must not mutate Vault files, source pages, wiki pages, docs, or scratch artifacts.
 - `MetadataStore` must not store durable semantic truth that is not traceable back to Vault files and evidence references.
+- `MetadataStore` must not become a frontmatter validator, source registry, publication gate, or replacement for Vault's own `tools/wiki` checks.
 - Query tools must resolve document and chunk IDs back to Vault paths, wiki paths, anchors, hashes, and revision metadata.
 - Postgres must be a scale-up `MetadataStore` implementation over the same logical record contract, not a different metadata model.
 
@@ -682,7 +683,7 @@ Indexing flow:
 ```text
 Scan Vault
   -> Detect changes
-  -> Parse frontmatter and markdown
+  -> Read Vault frontmatter and parse markdown
   -> Normalize document
   -> Chunk content
   -> Extract entities
@@ -711,11 +712,11 @@ The indexer must support:
 
 Incremental indexing must not replace Vault source registration.
 
-Vault Graph may cache `raw_sha256`, source-page metadata, registry status, duplicate signals, and stale-file signals only as read-only projections derived from Vault. These cached values help decide what to re-index; they are not a second source registry and must not become durable knowledge.
+Vault Graph may cache `raw_sha256`, source-page metadata, frontmatter fields, registry status, duplicate signals, and stale-file signals only as read-only projections derived from Vault. These cached values help decide what to re-index; they are not a second source registry, a frontmatter validation authority, or durable knowledge.
 
 Vault Graph must not create, edit, rename, delete, merge, redirect, deprecate, or publish Vault source pages or wiki pages during indexing. It must not write to `raw/`, `wiki/`, `docs/`, or `scratch/` as part of scan, parse, normalize, chunk, extraction, or index-update work.
 
-Source registration, source drift handling, slug collision handling, durable duplicate review, wiki index mutation, wiki log mutation, semantic draft publication, and release-gate validation remain owned by Vault's existing `tools/wiki` workflow.
+Source registration, source drift handling, slug collision handling, durable duplicate review, frontmatter schema validation, wiki index mutation, wiki log mutation, semantic draft publication, and release-gate validation remain owned by Vault's existing `tools/wiki` workflow.
 
 If indexing detects an unregistered source, source drift, deleted source, possible duplicate, or extraction insight that should become durable, Vault Graph must report it as a warning, context-pack item, or explicit command suggestion. The durable follow-up must flow through Vault's normal source capture, semantic draft, validation, review, and Git history path.
 
@@ -874,7 +875,7 @@ Context packs should be small enough for an agent to read directly and rich enou
 ### Phase 1: Vault Reader And MetadataStore
 
 - Vault path configuration
-- Markdown and frontmatter parser
+- Markdown parser and Vault frontmatter reader
 - source/page/document normalization
 - SQLite `MetadataStore` document, chunk, hash, source-state projection, and revision tables
 - `MetadataStore` interface and backend health checks
