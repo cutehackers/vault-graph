@@ -49,9 +49,10 @@ Vault
     |
     v
 Vault Graph
-  metadata index
-  vector index
-  graph index
+  MetadataStore
+  VectorStore
+  GraphStore
+  GraphProjection
   context packs
   MCP resources/tools/prompts
 ```
@@ -154,17 +155,23 @@ Every context pack and decision trace should include:
               |                               |
               v                               v
       +----------------+              +----------------+
-      | Metadata Index |              | Vector Index   |
+      | MetadataStore  |              | VectorStore    |
       | SQLite         |              | Chroma         |
       +-------+--------+              +-------+--------+
               |                               |
               v                               v
       +----------------+              +----------------+
-      | Graph Index    |<------------>| Hybrid Search  |
-      | NetworkX       |              | rank + explain |
+      | GraphStore     |<------------>| Hybrid Search  |
+      | SQLite edges   |              | rank + explain |
       +-------+--------+              +-------+--------+
-              |                               |
-              +---------------+---------------+
+              |
+              v
+      +----------------+
+      | GraphProjection|
+      | rustworkx      |
+      +-------+--------+
+              |
+              +---------------+
                               |
                               v
                 +---------------------------+
@@ -192,9 +199,20 @@ vault-graph/
 │   ├── sources.yaml
 │   ├── entity_schema.yaml
 │   ├── retrieval_policy.yaml
-│   └── embedding_policy.yaml
+│   ├── embedding_policy.yaml
+│   ├── storage_backends.yaml
+│   └── scaleup_backends.example.yaml
 ├── data/
-│   └── .gitkeep
+│   ├── metadata/
+│   │   └── .gitkeep
+│   ├── vector/
+│   │   └── .gitkeep
+│   ├── graph/
+│   │   └── .gitkeep
+│   ├── projection_cache/
+│   │   └── .gitkeep
+│   └── migrations/
+│       └── .gitkeep
 ├── src/
 │   └── vault_graph/
 │       ├── app/
@@ -215,7 +233,12 @@ vault-graph/
 │       │   ├── metadata_indexer.py
 │       │   ├── vector_indexer.py
 │       │   ├── graph_indexer.py
+│       │   ├── revision_planner.py
 │       │   └── incremental_indexer.py
+│       ├── projection/
+│       │   ├── graph_projection.py
+│       │   ├── rustworkx_projection.py
+│       │   └── projection_cache.py
 │       ├── retrieval/
 │       │   ├── vector_retriever.py
 │       │   ├── graph_retriever.py
@@ -228,17 +251,42 @@ vault-graph/
 │       │   ├── issue_memory.py
 │       │   └── timeline_memory.py
 │       ├── storage/
-│       │   ├── sqlite_store.py
-│       │   ├── vector_store.py
-│       │   └── graph_store.py
+│       │   ├── interfaces/
+│       │   │   ├── metadata_store.py
+│       │   │   ├── vector_store.py
+│       │   │   ├── graph_store.py
+│       │   │   └── store_health.py
+│       │   ├── local/
+│       │   │   ├── sqlite_metadata_store.py
+│       │   │   ├── chroma_vector_store.py
+│       │   │   └── sqlite_graph_store.py
+│       │   ├── adapters/
+│       │   │   ├── postgres_metadata_store.py
+│       │   │   ├── qdrant_vector_store.py
+│       │   │   └── neo4j_graph_store.py
+│       │   ├── migrations/
+│       │   │   ├── metadata_migrations.py
+│       │   │   ├── vector_migrations.py
+│       │   │   └── graph_migrations.py
+│       │   └── revisions.py
 │       └── cli/
 │           └── main.py
 └── tests/
     ├── test_loader.py
     ├── test_incremental_indexing.py
     ├── test_context_pack.py
-    └── test_read_only_boundary.py
+    ├── test_read_only_boundary.py
+    ├── test_metadata_store_contract.py
+    ├── test_vector_store_contract.py
+    ├── test_graph_store_contract.py
+    └── test_graph_projection_cache.py
 ```
+
+The default implementation is local-first. Files under `storage/local/` are required for MVP. Files under `storage/adapters/` define optional scale-up adapter boundaries for Postgres, Qdrant, and Neo4j; they must not make hosted services mandatory for the default workflow.
+
+`storage/interfaces/` owns the stable store contracts. Indexing, retrieval, MCP tools, and context pack builders must depend on these interfaces instead of importing local or scale-up backend implementations directly.
+
+`projection/` owns runtime algorithm projections only. It may read from `GraphStore` and write disposable cache files under `data/projection_cache/`, but it must not persist authoritative graph records.
 
 ## 6. Core Capabilities
 
@@ -460,16 +508,18 @@ Allowed relationship statuses:
 
 Metadata:
 
-- SQLite
+- SQLite persisted document, chunk, hash, parser state, source state projection, and index revision tables as `MetadataStore`
 
 Vector search:
 
-- Chroma
+- Chroma persisted embeddings and vector retrieval metadata as `VectorStore`
 - local embedding model by default
 
 Graph:
 
-- NetworkX persisted from SQLite-derived edge tables or serialized graph state
+- SQLite persisted node, edge, evidence, and graph revision tables as `GraphStore`
+- rustworkx in-memory graph projection rebuilt from `GraphStore`
+- optional serialized rustworkx cache keyed by `index_revision`, `parser_version`, `chunker_version`, and `extraction_policy_version`
 
 ### 9.2 Scale-Up
 
@@ -483,7 +533,126 @@ Vector search:
 
 Graph:
 
-- Neo4j
+- Neo4j or another external graph backend behind the `GraphStore` interface
+
+Graph algorithm runtime:
+
+- rustworkx for local subgraph traversal, ranking, and decision trace explanation when the working subgraph fits local memory
+- backend-native graph queries for large traversals that should not be materialized into process memory
+
+### 9.3 MetadataStore Boundary
+
+`MetadataStore` is the persisted metadata projection.
+
+For MVP, `MetadataStore` is SQLite tables derived from Vault files and indexer output. It stores document records, chunk records, Vault paths, wiki paths, source-page projection state, frontmatter snapshots, content hashes, raw SHA-256 values where available, parser state, chunker state, and index revision metadata. It is rebuildable from Vault and must remain non-authoritative.
+
+The boundary is mandatory:
+
+- `MetadataStore` owns file identity, chunk identity, path mapping, content hashes, parser/chunker version state, source-state projections, and index revision tracking.
+- `MetadataStore` must not mutate Vault files, source pages, wiki pages, docs, or scratch artifacts.
+- `MetadataStore` must not store durable semantic truth that is not traceable back to Vault files and evidence references.
+- Query tools must resolve document and chunk IDs back to Vault paths, wiki paths, anchors, hashes, and revision metadata.
+- Postgres must be a scale-up `MetadataStore` implementation over the same logical record contract, not a different metadata model.
+
+Required `MetadataStore` capabilities:
+
+- upsert document snapshots and chunk snapshots for an index revision
+- list changed, stale, deleted, and tombstoned documents
+- resolve document IDs and chunk IDs to evidence locations
+- record parser, chunker, index, and backend schema versions
+- report backend health, schema compatibility, and revision freshness
+- export or inspect records in the common logical metadata shape
+
+### 9.4 VectorStore Boundary
+
+`VectorStore` is the persisted embedding and vector retrieval projection.
+
+For MVP, `VectorStore` is Chroma collections derived from `MetadataStore` chunks and local embedding output. It stores embedding vectors, vector IDs, document IDs, chunk IDs, embedding model metadata, embedding policy metadata, filters, and index revision metadata. It is rebuildable from Vault through `MetadataStore` and must remain non-authoritative.
+
+The boundary is mandatory:
+
+- `VectorStore` owns embedding persistence, vector search, embedding model version state, vector index revision tracking, and vector backend replacement.
+- `VectorStore` must not own document identity, chunk text authority, evidence authority, graph relationships, or durable wiki publication.
+- Query tools must resolve vector hits through `MetadataStore` before returning evidence.
+- Vector results must return Vault paths, wiki paths, chunk IDs, content hashes, embedding model versions, and retrieval scores.
+- Qdrant must be a scale-up `VectorStore` implementation over the same logical record contract, not a different retrieval authority.
+
+Required `VectorStore` capabilities:
+
+- upsert embeddings for chunk IDs from a specific metadata/index revision
+- delete or tombstone embeddings for stale chunks
+- run filtered vector search with model and revision metadata
+- validate embedding dimensions, model name, model version, and embedding policy version
+- report backend health, collection/schema compatibility, and index freshness
+- export or inspect embedding manifests in the common logical vector shape
+
+### 9.5 GraphStore And GraphProjection Boundary
+
+`GraphStore` is the persisted graph projection.
+
+For MVP, `GraphStore` is SQLite tables derived from Vault files and indexer output. It stores node records, edge records, evidence references, relationship status, confidence, extraction metadata, and index revision metadata. It is rebuildable from Vault and must remain non-authoritative.
+
+`GraphProjection` is the runtime graph used for algorithms.
+
+For MVP, `GraphProjection` is a rustworkx graph built from `GraphStore` rows. It is used for traversal, path finding, ranking, neighborhood expansion, and decision trace prototypes. It may be serialized only as a cache. A serialized rustworkx graph must be disposable and must be invalidated when any graph store row, parser version, chunker version, extraction policy version, or index revision changes.
+
+The boundary is mandatory:
+
+- `GraphStore` owns persistence, revision tracking, evidence linkage, and backend replacement.
+- `GraphProjection` owns in-process graph algorithms and temporary working subgraphs.
+- Query tools must return evidence-linked results from `GraphStore`, not opaque rustworkx node IDs.
+- rustworkx must not be treated as the durable graph database.
+- Neo4j must not become a second source of truth; it is a scale-up `GraphStore` implementation over the same derived projection contract.
+- Scale-up backends must preserve the same node IDs, edge IDs, relationship types, evidence references, confidence fields, revision fields, and read-only Vault boundary as the MVP SQLite store.
+- Every backend must support full rebuild, incremental update, dry-run planning, stale projection detection, and reproducible export back to the common graph store contract.
+
+### 9.6 Scale-Up Boundary Requirements
+
+Scale-up must be adapter-driven, not architecture-changing.
+
+The MVP local stores are the reference contract:
+
+- `MetadataStore`: SQLite for documents, chunks, hashes, parser state, and index revisions.
+- `VectorStore`: Chroma for embeddings and vector retrieval metadata.
+- `GraphStore`: SQLite for graph nodes, edges, evidence, relationship status, confidence, and graph revisions.
+- `GraphProjection`: rustworkx for local in-memory graph algorithms over a bounded working subgraph.
+
+Scale-up backends may replace implementations, but not contracts:
+
+- Postgres may replace SQLite-backed metadata when larger teams need concurrent access or stronger operational tooling.
+- Qdrant may replace Chroma-backed vector retrieval when vector volume, filtering, or serving latency requires it.
+- Neo4j may replace SQLite-backed graph persistence when graph traversal volume or query complexity exceeds local SQL traversal.
+- rustworkx may remain as a local algorithm adapter for explainable working subgraphs even when Neo4j is the graph store.
+
+All persistent store adapters must expose the same common revision model:
+
+- stable record IDs for the records they own
+- Vault path, wiki path, section or anchor, content hash, and raw SHA-256 where available
+- parser, chunker, embedding, extraction, metadata store, vector store, and graph store versions where applicable
+- index revision, vault revision, backend name, backend schema version, and last validated timestamp
+- evidence references for every returned record that contributes to an answer, trace, warning, or context pack
+
+Each store also owns store-specific records:
+
+- `MetadataStore`: document IDs, chunk IDs, file state, source-state projection, parser state, chunker state, and tombstones
+- `VectorStore`: vector IDs, document IDs, chunk IDs, embedding model, embedding model version, embedding policy version, filters, and retrieval scores
+- `GraphStore`: entity IDs, edge IDs, relationship type, relationship status, confidence, extraction method, and evidence path
+- `GraphProjection`: projection build ID, graph projection version, source graph revision, cache validity, and algorithm runtime metadata
+
+Scale-up must preserve local-first operation:
+
+- A default installation must run without hosted services.
+- Optional remote or server backends must have explicit configuration.
+- If an optional backend is unavailable, Vault Graph should fail with a clear backend health error or fall back to the local store only when configured to do so.
+- Backend health, schema compatibility, index revision freshness, and projection freshness must be visible through CLI/MCP status surfaces.
+
+Scale-up must preserve reproducibility:
+
+- Every persistent backend must support full rebuild from Vault.
+- Every persistent backend must support dry-run migration planning before mutation.
+- Every persistent backend must support export or inspection in the common logical record shape.
+- Contract tests must compare local SQLite/Chroma/rustworkx results against scale-up backend results for representative metadata lookup, vector retrieval, graph traversal, ranking, context-pack, and decision-trace queries.
+- Query responses must include the backend name, index revision, and evidence references used to produce the result.
 
 Scale-up storage must remain replaceable. It must not change the source-of-truth boundary.
 
@@ -498,9 +667,13 @@ Vault Graph tracks file state with:
 - `frontmatter_hash`
 - `parser_version`
 - `chunker_version`
+- `metadata_store_schema_version`
+- `vector_store_schema_version`
 - `embedding_model`
 - `embedding_model_version`
 - `extraction_policy_version`
+- `graph_store_schema_version`
+- `graph_projection_version`
 - `last_indexed_at`
 - `last_seen_at`
 
@@ -514,9 +687,10 @@ Scan Vault
   -> Chunk content
   -> Extract entities
   -> Extract relationships
-  -> Update metadata index
-  -> Update vector index
-  -> Update graph index
+  -> Update MetadataStore document, chunk, hash, and revision rows
+  -> Update VectorStore embeddings and vector revision metadata
+  -> Update GraphStore node, edge, evidence, and revision rows
+  -> Invalidate or rebuild GraphProjection cache
   -> Record index revision
 ```
 
@@ -527,6 +701,10 @@ The indexer must support:
 - stale file detection
 - deleted file tombstones
 - parser or embedding policy migration
+- metadata store schema migration
+- vector store schema migration
+- graph store schema migration
+- graph projection cache invalidation
 - dry-run mode
 
 ### Vault Source Boundary
@@ -665,6 +843,18 @@ Minimum JSON shape:
   "scope": ["wiki", "docs"],
   "vault_revision": "git-sha-or-file-snapshot-id",
   "index_revision": "index-revision-id",
+  "backend": {
+    "metadata_store": "sqlite",
+    "vector_store": "chroma",
+    "graph_store": "sqlite",
+    "graph_projection": "rustworkx"
+  },
+  "store_revisions": {
+    "metadata": "metadata-revision-id",
+    "vector": "vector-revision-id",
+    "graph": "graph-revision-id",
+    "projection": "projection-cache-or-build-id"
+  },
   "generated_at": "2026-06-04T00:00:00+09:00",
   "current_state": [],
   "relevant_pages": [],
@@ -681,30 +871,37 @@ Context packs should be small enough for an agent to read directly and rich enou
 
 ## 18. Roadmap
 
-### Phase 1: Vault Reader And Metadata Index
+### Phase 1: Vault Reader And MetadataStore
 
 - Vault path configuration
 - Markdown and frontmatter parser
 - source/page/document normalization
-- SQLite metadata index
+- SQLite `MetadataStore` document, chunk, hash, source-state projection, and revision tables
+- `MetadataStore` interface and backend health checks
+- MetadataStore contract tests for future Postgres support
 - read-only boundary tests
 
 ### Phase 2: Vector Search And Hybrid Retrieval
 
 - chunking policy
 - local embedding integration
-- Chroma vector store
+- Chroma `VectorStore` collections
+- `VectorStore` interface and backend health checks
 - vector search
 - hybrid keyword/vector retrieval
 - evidence-first answer format
+- VectorStore contract tests for future Qdrant support
 
 ### Phase 3: Entity And Relationship Graph
 
 - entity extraction
 - relationship extraction
-- NetworkX graph projection
-- graph traversal retrieval
+- SQLite `GraphStore` node, edge, evidence, and revision tables
+- rustworkx `GraphProjection` adapter
+- graph traversal retrieval from `GraphStore` evidence with rustworkx ranking support
 - decision trace prototype
+- projection cache invalidation tests
+- GraphStore backend contract tests for future Neo4j support
 
 ### Phase 4: Context Pack Builder
 
@@ -726,6 +923,9 @@ Context packs should be small enough for an agent to read directly and rich enou
 - decision explorer
 - timeline explorer
 - issue explorer
+- storage backend health view
+- projection freshness view
+- scale-up backend adapter readiness checks
 
 ### Phase 7: Optional UI
 
