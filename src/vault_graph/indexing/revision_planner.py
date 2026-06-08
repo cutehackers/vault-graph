@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from vault_graph.ingestion.document_normalizer import ChunkSnapshot
+
 
 @dataclass(frozen=True)
 class MetadataRevisionPlan:
@@ -10,3 +12,9 @@ class MetadataRevisionPlan:
     unchanged_paths: tuple[tuple[str, str], ...]
     deleted_paths: tuple[tuple[str, str], ...]
     warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MetadataIndexPreview:
+    plan: MetadataRevisionPlan
+    chunks_after_apply: tuple[ChunkSnapshot, ...]

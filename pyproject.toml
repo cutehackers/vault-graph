@@ -9,6 +9,9 @@ description = "Read-only, rebuildable knowledge access layer over Vault."
 requires-python = ">=3.12"
 dependencies = [
   "PyYAML>=6.0.2",
+  "chromadb>=1.5.9,<2.0",
+  "fastembed>=0.8.0,<1.0",
+  "huggingface-hub>=0.31,<1.0",
   "typer>=0.12.5",
 ]
 

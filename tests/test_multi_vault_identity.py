@@ -1,12 +1,29 @@
 from pathlib import Path
 
+from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
+from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
+from tests.test_vector_indexer import SPEC
 from vault_graph.cli.main import app
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 
-def test_two_vaults_with_same_relative_path_do_not_collide(tmp_path: Path) -> None:
+class _ConfiguredDeterministicTextEmbeddings(DeterministicTextEmbeddings):
+    class Config:
+        embedding_batch_size = 256
+        embedding_parallelism = None
+        embedding_lazy_load = True
+
+    config = Config()
+
+
+def _fake_text_embeddings(_: object) -> _ConfiguredDeterministicTextEmbeddings:
+    return _ConfiguredDeterministicTextEmbeddings(SPEC)
+
+
+def test_two_vaults_with_same_relative_path_do_not_collide(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _fake_text_embeddings)
     first = tmp_path / "first"
     second = tmp_path / "second"
     (first / "wiki").mkdir(parents=True)

@@ -15,8 +15,7 @@ from vault_graph.storage.interfaces.vector_store import (
 
 class InMemoryVectorStore:
     def __init__(self) -> None:
-        self._records: dict[tuple[str, str], VectorEmbeddingRecord] = {}
-        self._embedding_spec: EmbeddingModelSpec | None = None
+        self._records: dict[str, VectorEmbeddingRecord] = {}
 
     def apply_vector_revision(
         self,
@@ -27,20 +26,28 @@ class InMemoryVectorStore:
     ) -> None:
         if not vector_index_revision:
             raise VectorStoreError("vector_index_revision is required")
-        next_embedding_spec = self._validated_embedding_spec(records)
+        _validate_single_record_spec(records)
         for record in records:
             if record.vector_index_revision != vector_index_revision:
                 raise VectorStoreError("record vector_index_revision must match revision being applied")
         for tombstone in tombstones:
-            self._records.pop((tombstone.vault_id, tombstone.chunk_id), None)
+            existing = self._records.get(tombstone.vector_id)
+            if (
+                existing is not None
+                and existing.vault_id == tombstone.vault_id
+                and existing.chunk_id == tombstone.chunk_id
+                and existing.embedding.model_spec == tombstone.embedding_spec
+            ):
+                self._records.pop(tombstone.vector_id, None)
         for record in records:
-            self._records[(record.vault_id, record.chunk_id)] = record
-        self._embedding_spec = next_embedding_spec
+            self._records[record.vector_id] = record
 
     def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:
-        if self._embedding_spec is not None and query.embedding_spec != self._embedding_spec:
-            raise VectorStoreError("embedding model spec mismatch")
-        scoped_records = tuple(record for record in self._records.values() if _record_in_scope(record, query.scope))
+        scoped_records = tuple(
+            record
+            for record in self._records.values()
+            if record.embedding.model_spec == query.embedding_spec and _record_in_scope(record, query.scope)
+        )
         scored = sorted(
             ((_dot_product(query.query_vector, record.embedding), record) for record in scoped_records),
             key=lambda item: (-item[0], item[1].vault_id, item[1].chunk_id, item[1].vector_id),
@@ -84,21 +91,15 @@ class InMemoryVectorStore:
                 chunk_id=record.chunk_id,
                 content_scope=record.content_scope,
                 embedding_spec=record.embedding.model_spec,
+                source_chunk_hash=record.source_chunk_hash,
+                chunker_version=record.chunker_version,
                 metadata_index_revision=record.metadata_index_revision,
                 vector_index_revision=record.vector_index_revision,
                 backend="memory-vector",
+                backend_schema_version=record.backend_schema_version,
             )
             for record in records
         )
-
-    def _validated_embedding_spec(self, records: tuple[VectorEmbeddingRecord, ...]) -> EmbeddingModelSpec | None:
-        next_embedding_spec = self._embedding_spec
-        for record in records:
-            if next_embedding_spec is None:
-                next_embedding_spec = record.embedding.model_spec
-            elif next_embedding_spec != record.embedding.model_spec:
-                raise VectorStoreError("embedding model spec mismatch")
-        return next_embedding_spec
 
 
 def _record_in_scope(record: VectorEmbeddingRecord, scope: QueryScope) -> bool:
@@ -112,6 +113,12 @@ def _content_scope_in_scope(*, record_scope: str, query_scopes: tuple[str, ...])
     return any(
         record_scope == query_scope or record_scope.startswith(f"{query_scope}/") for query_scope in query_scopes
     )
+
+
+def _validate_single_record_spec(records: tuple[VectorEmbeddingRecord, ...]) -> None:
+    specs: set[EmbeddingModelSpec] = {record.embedding.model_spec for record in records}
+    if len(specs) > 1:
+        raise VectorStoreError("embedding model spec mismatch")
 
 
 def _dot_product(left: EmbeddingVector, right: EmbeddingVector) -> float:

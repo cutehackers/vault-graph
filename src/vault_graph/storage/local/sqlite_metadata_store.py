@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
@@ -190,6 +191,34 @@ class SQLiteMetadataStore:
                 vault_ids,
             ).fetchall()
         return tuple(_document_state_from_row(row) for row in rows)
+
+    def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]:
+        if not scope.vault_ids:
+            return ()
+        if not self._database_path.exists():
+            return ()
+        vault_placeholders = ", ".join("?" for _ in scope.vault_ids)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
+                       c.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision
+                FROM chunks c
+                INNER JOIN documents d
+                  ON d.vault_id = c.vault_id
+                 AND d.document_id = c.document_id
+                 AND d.path = c.path
+                WHERE c.vault_id IN ({vault_placeholders})
+                  AND d.is_tombstoned = 0
+                ORDER BY c.vault_id, c.path, c.chunk_id
+                """,
+                scope.vault_ids,
+            ).fetchall()
+        return tuple(
+            _chunk_snapshot_from_row(row)
+            for row in rows
+            if _path_in_content_scope(path=str(row["path"]), content_scopes=scope.content_scopes)
+        )
 
     def resolve_document(self, document_id: str) -> DocumentSnapshot | None:
         if not self._database_path.exists():
@@ -383,6 +412,10 @@ def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
         chunker_version=str(row["chunker_version"]),
         index_revision=str(row["index_revision"]) if row["index_revision"] is not None else None,
     )
+
+
+def _path_in_content_scope(*, path: str, content_scopes: tuple[str, ...]) -> bool:
+    return any(path == content_scope or path.startswith(f"{content_scope}/") for content_scope in content_scopes)
 
 
 def _evidence_reference_from_row(row: sqlite3.Row) -> EvidenceReference:

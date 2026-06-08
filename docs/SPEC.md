@@ -1179,8 +1179,11 @@ Sustainability and consistency requirements:
 Default embedding policy:
 
 - `model_name`: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
-- `model_version`: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42` recorded in
-  `EmbeddingModelSpec`
+- `model_version`: `faf4aa4225822f3bc6376869cb1164e8e3feedd0` recorded in
+  `EmbeddingModelSpec` as the pinned FastEmbed ONNX artifact revision
+- `source_model_revision`: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42` recorded
+  as provenance for the original `sentence-transformers` model
+- `artifact_repo_id`: `qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q`
 - `dimensions`: `384`
 - `spec_version`: `fastembed-multilingual-minilm-l12-v2-cosine-v1`
 - runtime: local CPU through `FastEmbedTextEmbeddings`
@@ -1490,3 +1493,239 @@ Required tests before implementing this TODO:
   locator
 - missing optional extraction dependencies produce clear status output
 - extraction caches, if any, are outside registered Vault roots
+
+## TODO: Markdown Chunking Strategy Migration
+
+Phase 2B uses `heading-section-v1` so local vector indexing can ship against a
+simple, explainable chunk boundary. That policy is intentionally a starting
+point, not the final Markdown retrieval strategy. Future chunking must evolve
+through versioned chunker policies so existing metadata, vector manifests, and
+retrieval behavior can migrate without changing `VectorStore` or making Vault
+Graph a durable knowledge source.
+
+This section is a future migration guide only. It does not add Phase 2B
+implementation scope, does not enable `vg search`, and does not change the
+accepted Phase 2B rule that vector indexing uses Markdown `heading-section-v1`
+chunks.
+
+The long-term direction is:
+
+```text
+heading-section-v1
+  -> markdown-block-window-v2
+  -> hierarchical-retrieval-v3
+```
+
+Each policy version must produce deterministic chunk IDs for the same Vault
+file, reader version, parser version, chunker version, source text, and
+chunker configuration. A chunker version or configuration change that alters
+chunk boundaries or chunk text must stale affected metadata and vector records
+through the normal reconcile path.
+
+### `heading-section-v1`
+
+`heading-section-v1` treats each Markdown heading section as the retrievable
+chunk boundary.
+
+Strengths:
+
+- easy to understand and inspect
+- preserves Markdown heading structure naturally
+- makes evidence resolution straightforward because each chunk maps to one
+  section or anchor
+- keeps Phase 2B focused on rebuildable local vector indexing rather than
+  ranking quality work
+
+Known limits:
+
+- large sections can exceed embedding input limits or dilute semantic signal
+- small sections can lack enough local context for reliable retrieval
+- uneven section sizes create uneven vector granularity and ranking behavior
+- a small edit inside a large section stales the whole section vector
+
+Phase 2B should keep this policy as the default until vector indexing,
+manifest export, stale detection, and `vg status` diagnostics are stable.
+
+### `markdown-block-window-v2`
+
+`markdown-block-window-v2` should keep Markdown structure as authority but use a
+token-budgeted block window as the embedding unit.
+
+The parser should first produce structural blocks:
+
+- heading breadcrumb
+- paragraph
+- list
+- table
+- block quote
+- code fence
+- frontmatter-derived searchable fields, if any
+
+The chunker should then group adjacent blocks inside a heading section until a
+target token budget is reached. It should avoid splitting semantic blocks when
+possible. A table, list, or code fence should remain intact unless it exceeds
+the hard maximum by itself, in which case the split rule must be deterministic
+and recorded in the chunker policy.
+
+Recommended configuration fields:
+
+- `target_tokens`
+- `min_tokens`
+- `max_tokens`
+- `overlap_tokens`
+- `preserve_code_fences`
+- `preserve_tables`
+- `include_heading_breadcrumb`
+
+The chunk text embedded by `TextEmbeddings` should include a compact breadcrumb
+prefix, for example:
+
+```text
+Document title > Parent heading > Current heading
+
+Chunk body...
+```
+
+The breadcrumb is search context, not durable content. Evidence rendering must
+still resolve the chunk through `MetadataStore` and show the original Vault
+path, heading, anchor, content hash, and line or block locator when available.
+
+Chunk identity should be stable across unrelated edits. A recommended logical
+identity shape is:
+
+```text
+vault_id + document_id + heading_path + block_range + chunker_version
+```
+
+The chunk content hash should be computed from the exact embedded chunk text
+plus chunker configuration that affects text. This lets one changed block stale
+only the affected block-window chunks instead of every vector in a large
+heading section.
+
+Migration from `heading-section-v1` to `markdown-block-window-v2` must be a
+full chunker-version migration for selected scopes:
+
+1. Metadata indexing parses Markdown into structural blocks.
+2. The new chunker produces `markdown-block-window-v2` chunk snapshots.
+3. `MetadataStore` records the new chunker version and current chunk IDs.
+4. `VectorIndexer` compares live chunks with the vector manifest.
+5. Old `heading-section-v1` vectors inside the selected scope are tombstoned.
+6. New `markdown-block-window-v2` chunks are embedded and upserted.
+7. `vg status` reports chunker version, stale vector count, and the selected
+   reconcile scope.
+
+The migration must not require a cross-store transaction. If metadata migration
+succeeds but vector reindexing fails, the vector projection is stale or
+unavailable and must recover on the next `vg index`.
+
+Required tests before implementing `markdown-block-window-v2`:
+
+- deterministic chunk IDs for unchanged Markdown
+- stable chunk IDs for unrelated edits in other sections
+- large sections split under `max_tokens`
+- small sections receive heading breadcrumb context
+- code fences and tables are preserved or split by explicit deterministic rules
+- chunker-version changes stale affected metadata and vector records
+- old-version vectors are tombstoned only inside the selected `QueryScope`
+- evidence resolution still returns the original Vault path and anchor
+- no Vault file is written, renamed, deleted, or rewritten
+
+### `hierarchical-retrieval-v3`
+
+`hierarchical-retrieval-v3` should separate the search unit from the context
+assembly unit.
+
+This is a Phase 2C+ retrieval-policy direction, not a Phase 2B indexing
+deliverable.
+
+Fine-grained chunks should be used for recall:
+
+- block-window chunks from `markdown-block-window-v2`
+- stable chunk IDs
+- vector and keyword candidate lookup
+- content-scope filtering before result limits
+
+Parent context should be used for understanding:
+
+- heading section
+- parent heading chain
+- sibling chunks near the hit
+- document-level metadata
+- explicit links and future graph relationships
+
+The retrieval layer, not `VectorStore`, owns this expansion. `VectorStore`
+continues to return semantic candidate metadata only. `MetadataStore` resolves
+chunk IDs to evidence and provides the parent or neighboring context needed for
+ranking, explanations, search output, and future context packs.
+
+Recommended retrieval flow:
+
+```text
+QueryScope
+  -> keyword candidate lookup
+  -> vector candidate lookup
+  -> candidate merge and dedupe by chunk ID
+  -> MetadataStore evidence resolution
+  -> parent and neighbor context expansion
+  -> ranking and context-budget selection
+  -> evidence-linked result or context-pack item
+```
+
+The system should keep both levels explicit in result explanations:
+
+- `matched_chunk_id`: the fine chunk that matched the query
+- `context_chunk_ids`: neighboring chunks included for context
+- `parent_section`: heading section used for expansion
+- `retrieval_reason`: keyword, vector, graph, or hybrid signal
+- `warnings`: stale, missing, oversized, truncated, or conflicting evidence
+
+This makes ranking tunable without changing vector storage. It also prevents
+large sections from dominating vector search while still giving agents enough
+context to work safely.
+
+Migration from `markdown-block-window-v2` to `hierarchical-retrieval-v3` should
+not force a vector rebuild if chunk IDs, chunk text, chunker version, and
+embedding model spec are unchanged. It is primarily a retrieval-policy
+migration. It should be versioned separately from the chunker:
+
+- `chunker_version` controls chunk boundaries and vector staleness.
+- `retrieval_policy_version` controls candidate fusion, context expansion, and
+  context-budget selection.
+- `context_pack_schema_version` controls rendered pack fields.
+
+If `hierarchical-retrieval-v3` requires additional metadata such as block
+offsets, parent-child section links, or neighbor chunk ordering, metadata
+indexing may need a schema migration. That schema migration must not by itself
+stale vectors unless the embedded chunk text or chunk IDs change.
+
+Required tests before implementing `hierarchical-retrieval-v3`:
+
+- vector hits still resolve through `MetadataStore`
+- parent and neighbor expansion respects `QueryScope`
+- context expansion does not cross Vaults unless explicit `vault_ids` are used
+- retrieval explanations distinguish matched chunks from expanded context
+- context budgets truncate deterministically
+- stale or missing parent context produces visible warnings
+- retrieval-policy changes do not stale vectors when chunk text is unchanged
+- graph expansion, when added later, joins as another retrieval signal rather
+  than a vector-store responsibility
+
+### Migration Guardrails
+
+Chunking and retrieval evolution must follow these guardrails:
+
+- Keep Markdown as the only required reader until the non-Markdown adapter TODO
+  graduates separately.
+- Keep chunking inside the metadata/indexing pipeline. Do not move chunk
+  boundary decisions into `VectorStore`.
+- Keep `VectorStore` ignorant of path, title, rendered text, and evidence
+  authority.
+- Keep every policy version inspectable through status or manifest export.
+- Keep old projections disposable and rebuildable from Vault.
+- Do not silently mix different `EmbeddingModelSpec` values in one search.
+- Do not silently mix incompatible chunker versions in one retrieval policy.
+- Prefer full selected-scope reindexing for chunker migrations and lightweight
+  retrieval-policy migrations when only ranking or context expansion changes.
+- Record enough run metadata to explain whether a stale result came from source
+  text, parser version, chunker version, embedding model spec, store schema, or
+  retrieval policy.

@@ -17,8 +17,11 @@ class VectorEmbeddingRecord:
     chunk_id: str
     content_scope: str
     embedding: EmbeddingVector
+    source_chunk_hash: str
+    chunker_version: str
     metadata_index_revision: str
     vector_index_revision: str
+    backend_schema_version: str
 
     def __post_init__(self) -> None:
         _require_non_empty(self.vector_id, "vector_id")
@@ -26,17 +29,23 @@ class VectorEmbeddingRecord:
         _require_non_empty(self.document_id, "document_id")
         _require_non_empty(self.chunk_id, "chunk_id")
         _require_non_empty(self.content_scope, "content_scope")
+        _require_non_empty(self.source_chunk_hash, "source_chunk_hash")
+        _require_non_empty(self.chunker_version, "chunker_version")
         _require_non_empty(self.metadata_index_revision, "metadata_index_revision")
         _require_non_empty(self.vector_index_revision, "vector_index_revision")
+        _require_non_empty(self.backend_schema_version, "backend_schema_version")
         _validate_content_scope(vault_id=self.vault_id, content_scope=self.content_scope)
 
 
 @dataclass(frozen=True)
 class VectorTombstone:
+    vector_id: str
     vault_id: str
     chunk_id: str
+    embedding_spec: EmbeddingModelSpec
 
     def __post_init__(self) -> None:
+        _require_non_empty(self.vector_id, "vector_id")
         _require_non_empty(self.vault_id, "vault_id")
         _require_non_empty(self.chunk_id, "chunk_id")
 
@@ -91,9 +100,12 @@ class VectorManifestRecord:
     chunk_id: str
     content_scope: str
     embedding_spec: EmbeddingModelSpec
+    source_chunk_hash: str
+    chunker_version: str
     metadata_index_revision: str
     vector_index_revision: str
     backend: str
+    backend_schema_version: str
 
     def __post_init__(self) -> None:
         _require_non_empty(self.vector_id, "vector_id")
@@ -101,9 +113,12 @@ class VectorManifestRecord:
         _require_non_empty(self.document_id, "document_id")
         _require_non_empty(self.chunk_id, "chunk_id")
         _require_non_empty(self.content_scope, "content_scope")
+        _require_non_empty(self.source_chunk_hash, "source_chunk_hash")
+        _require_non_empty(self.chunker_version, "chunker_version")
         _require_non_empty(self.metadata_index_revision, "metadata_index_revision")
         _require_non_empty(self.vector_index_revision, "vector_index_revision")
         _require_non_empty(self.backend, "backend")
+        _require_non_empty(self.backend_schema_version, "backend_schema_version")
         _validate_content_scope(vault_id=self.vault_id, content_scope=self.content_scope)
 
 

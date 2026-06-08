@@ -47,8 +47,9 @@ Phase 2B use by default?
 
 **Decision:** Use `FastEmbedTextEmbeddings` with
 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` as the default
-local embedding implementation and model, pinned to model revision
-`e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
+local embedding implementation and model, pinned to FastEmbed artifact revision
+`faf4aa4225822f3bc6376869cb1164e8e3feedd0`. The source model provenance
+revision is `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
 
 **Reason:** Vault Graph must stay local-first and useful for mixed Korean and
 English Vault content. A small 384-dimensional multilingual model keeps the
@@ -61,7 +62,8 @@ replacement boundary.
 - Model artifacts are cached outside registered Vault roots.
 - Missing model artifacts may be downloaded on first use, but Vault Graph must
   not silently fall back to another model.
-- Model revision, dimensions, or spec changes make the vector projection stale.
+- FastEmbed artifact revision, dimensions, or spec changes make the vector
+  projection stale.
 
 ## 2026-06-08 - Use Evidence-First Graph-Ready Hybrid Retrieval
 

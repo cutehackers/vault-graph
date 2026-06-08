@@ -3,6 +3,85 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-08 - Phase 2B Implementation Correction
+
+**Trigger:** Phase 2B implementation dependency probe found that FastEmbed 0.8.0
+does not expose `specific_model_path` in the `TextEmbedding` wrapper signature.
+
+**Scope:** `docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md`
+and Phase 2B vector contract tests.
+
+**Core Values Protected:**
+
+- local embeddings remain revision-pinned instead of silently loading an
+  unpinned model
+- vector revisions remain internally consistent
+- implementation corrections stay separate from accepted product decisions
+
+**Changes Applied:**
+
+- Changed the FastEmbed API probe to verify actual `specific_model_path`
+  propagation through `TextEmbedding(**kwargs)` into the concrete ONNX model.
+- Clarified vector test fixture setup so `record.vector_index_revision` matches
+  the revision being applied.
+- Corrected the metadata chunk-listing test example so chunk text follows the
+  existing `heading-section-v1` contract: headings are section metadata, not
+  repeated inside chunk text.
+- Corrected the default FastEmbed version identity so
+  `EmbeddingModelSpec.model_version` pins the actual FastEmbed ONNX artifact
+  revision (`faf4aa4225822f3bc6376869cb1164e8e3feedd0`) while the original
+  `sentence-transformers` revision remains provenance metadata.
+- Hardened Chroma dry-run/status reads so read-only paths inspect
+  `chroma.sqlite3` without opening `PersistentClient` or creating Chroma state.
+- Added Chroma collection schema metadata validation for Vault Graph
+  collections.
+- Changed vector embedding batch input IDs to include `vault_id` plus
+  `chunk_id`, preserving the storage contract where chunk IDs are unique only
+  inside a Vault.
+- Added production Chroma revision-consistency validation so direct adapter
+  calls cannot persist records under a mismatched vector revision.
+- Added CLI coverage for vector-step failure after metadata success.
+
+**Verification:**
+
+- `uv run --python 3.12 python - <<'PY' ... PY` FastEmbed propagation probe
+- `uv run --python 3.12 pytest tests/test_vector_store_contract.py -q`
+
+## 2026-06-08 - Phase 2B Implementation Plan Review Hardening
+
+**Trigger:** Subagent review found Phase 2B implementation-plan gaps before
+coding.
+
+**Scope:** `docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md`.
+
+**Core Values Protected:**
+
+- vector state remains scope-local, rebuildable, and recoverable
+- multi-vault content scopes stay explicit
+- dry-run remains read-only and non-initializing
+- Chroma and FastEmbed remain replaceable behind stable boundaries
+
+**Changes Applied:**
+
+- Added metadata preview planning so vector dry-run can see post-metadata chunks
+  without writing SQLite state.
+- Added per-Vault effective-scope requirements and tests for vector reconcile.
+- Changed vector status planning from global state to scope/model-spec keyed
+  status records.
+- Added Chroma no-create read tests for dry-run, exact tombstone matching, and
+  dependency API probes for FastEmbed revision-pinned loading.
+- Kept existing `IndexService.plan/apply` compatibility and added
+  `run_plan/run_apply` for Phase 2B orchestration.
+- Added cache-path read-only guard coverage and corrected Typer missing-command
+  assertions to use `result.output`.
+
+**Verification:**
+
+- subagent review focused on product/spec consistency
+- subagent review focused on implementation feasibility
+- self-review against the Phase 2B design acceptance criteria
+- `git diff --check`
+
 ## 2026-06-08 - Phase 2B Spec Consistency Update
 
 **Trigger:** Phase 2B local vector indexing decisions required the core product,
@@ -42,7 +121,8 @@ design, feature, and decision documents to agree before implementation planning.
 - Closed the Phase 2B default embedding decision by accepting
   `FastEmbedTextEmbeddings` with
   `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` as the default
-  local embedding path, pinned to revision
+  local embedding path, pinned to FastEmbed artifact revision
+  `faf4aa4225822f3bc6376869cb1164e8e3feedd0`; source-model provenance remains
   `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
 - Added CPU embedding throughput tuning guidance for `embedding_batch_size`,
   parallelism, lazy loading, dry-run output, and failure behavior.

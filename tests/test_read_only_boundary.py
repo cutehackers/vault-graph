@@ -1,15 +1,32 @@
 from pathlib import Path
 
+from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
+from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
+from tests.test_vector_indexer import SPEC
 from vault_graph.cli.main import app
+
+
+class _ConfiguredDeterministicTextEmbeddings(DeterministicTextEmbeddings):
+    class Config:
+        embedding_batch_size = 256
+        embedding_parallelism = None
+        embedding_lazy_load = True
+
+    config = Config()
+
+
+def _fake_text_embeddings(_: object) -> _ConfiguredDeterministicTextEmbeddings:
+    return _ConfiguredDeterministicTextEmbeddings(SPEC)
 
 
 def file_bytes(root: Path) -> dict[str, bytes]:
     return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
 
 
-def test_index_commands_do_not_modify_vault_files(tmp_path: Path) -> None:
+def test_index_commands_do_not_modify_vault_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _fake_text_embeddings)
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)
     (vault_root / "wiki" / "page.md").write_text("---\ntitle: Page\n---\n# Page\nBody\n", encoding="utf-8")

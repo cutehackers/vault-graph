@@ -14,7 +14,7 @@ def test_phase_2a_does_not_add_search_command() -> None:
     assert "No such command" in result.output
 
 
-def test_phase_2a_status_remains_metadata_only(tmp_path: Path) -> None:
+def test_phase_2b_status_exposes_vector_fields(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
     state_path = tmp_path / "state"
@@ -24,5 +24,5 @@ def test_phase_2a_status_remains_metadata_only(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "metadata_ok:" in result.stdout
-    assert "vector_ok:" not in result.stdout
-    assert "vector_schema_compatible:" not in result.stdout
+    assert "vector_ok:" in result.stdout
+    assert "vector_schema_compatible:" in result.stdout

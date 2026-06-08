@@ -82,7 +82,9 @@ The default Phase 2B embedding policy is fixed:
 
 - implementation: `FastEmbedTextEmbeddings`
 - model: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
-- model version: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
+- model version: `faf4aa4225822f3bc6376869cb1164e8e3feedd0`
+- source model revision: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
+- artifact repo: `qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q`
 - dimensions: `384`
 - spec version: `fastembed-multilingual-minilm-l12-v2-cosine-v1`
 - runtime: local CPU

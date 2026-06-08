@@ -28,3 +28,13 @@ def assert_write_target_allowed(*, state_path: Path, target_path: Path, vault_ro
             raise ReadOnlyBoundaryError(
                 f"Vault Graph write target must not be inside a registered Vault: {resolved_target}"
             )
+
+
+def assert_target_outside_vaults(*, target_path: Path, vault_roots: Iterable[Path]) -> None:
+    resolved_target = target_path.expanduser().resolve(strict=False)
+    for vault_root in vault_roots:
+        resolved_vault = vault_root.expanduser().resolve()
+        if resolved_target == resolved_vault or resolved_vault in resolved_target.parents:
+            raise ReadOnlyBoundaryError(
+                f"Vault Graph target path must not be inside a registered Vault: {resolved_target}"
+            )

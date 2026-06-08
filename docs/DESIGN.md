@@ -481,9 +481,11 @@ embedding adapters remain explicit adapter swaps.
 Default embedding configuration:
 
 - `model_name`: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
-- `model_version`: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
+- `model_version`: `faf4aa4225822f3bc6376869cb1164e8e3feedd0`
 - `dimensions`: `384`
 - `spec_version`: `fastembed-multilingual-minilm-l12-v2-cosine-v1`
+- `source_model_revision`: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
+- `artifact_repo_id`: `qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q`
 - runtime: local CPU
 - cache path: outside registered Vault roots, for example
   `~/.cache/vault-graph/embeddings`

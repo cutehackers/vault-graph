@@ -38,6 +38,7 @@ def make_record(
     text: str,
     content_scope: str,
     model_spec: EmbeddingModelSpec = SPEC,
+    vector_index_revision: str = "vector-1",
 ) -> VectorEmbeddingRecord:
     embeddings = DeterministicTextEmbeddings(model_spec)
     embedding = embeddings.embed((EmbeddingInput(input_id=f"{vault_id}:{path}", text=text),))[0]
@@ -49,8 +50,11 @@ def make_record(
         chunk_id=chunk_id,
         content_scope=content_scope,
         embedding=embedding,
+        source_chunk_hash=f"chunk-hash-{path}",
+        chunker_version="heading-section-v1",
         metadata_index_revision="metadata-1",
-        vector_index_revision="vector-1",
+        vector_index_revision=vector_index_revision,
+        backend_schema_version="memory-vector-v1",
     )
 
 
@@ -179,6 +183,56 @@ def test_vector_id_is_stable_for_vault_chunk_and_model_spec() -> None:
     assert first.vector_id != second.vector_id
 
 
+def test_manifest_exposes_vector_freshness_fields() -> None:
+    store = InMemoryVectorStore()
+    record = make_record(vault_id="default", path="wiki/page.md", text="alpha", content_scope="wiki")
+    store.apply_vector_revision(vector_index_revision="vector-1", records=(record,), tombstones=())
+
+    manifest = store.export_manifest(QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+
+    assert manifest[0].source_chunk_hash == "chunk-hash-wiki/page.md"
+    assert manifest[0].chunker_version == "heading-section-v1"
+    assert manifest[0].backend_schema_version == "memory-vector-v1"
+    assert manifest[0].metadata_index_revision == "metadata-1"
+    assert manifest[0].vector_index_revision == "vector-1"
+
+
+def test_tombstone_targets_exact_vector_identity() -> None:
+    store = InMemoryVectorStore()
+    old_record = make_record(
+        vault_id="default",
+        path="wiki/page.md",
+        text="alpha",
+        content_scope="wiki",
+        model_spec=SECOND_SPEC,
+        vector_index_revision="vector-old",
+    )
+    new_record = make_record(
+        vault_id="default",
+        path="wiki/page.md",
+        text="alpha",
+        content_scope="wiki",
+        vector_index_revision="vector-new",
+    )
+    store.apply_vector_revision(vector_index_revision="vector-old", records=(old_record,), tombstones=())
+    store.apply_vector_revision(
+        vector_index_revision="vector-new",
+        records=(new_record,),
+        tombstones=(
+            VectorTombstone(
+                vector_id=old_record.vector_id,
+                vault_id=old_record.vault_id,
+                chunk_id=old_record.chunk_id,
+                embedding_spec=old_record.embedding.model_spec,
+            ),
+        ),
+    )
+
+    manifest = store.export_manifest(QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+
+    assert tuple(row.vector_id for row in manifest) == (new_record.vector_id,)
+
+
 def test_tombstone_removes_only_named_vault_and_chunk() -> None:
     store = InMemoryVectorStore()
     first = make_record(vault_id="first", path="wiki/same.md", text="same", content_scope="wiki")
@@ -188,7 +242,14 @@ def test_tombstone_removes_only_named_vault_and_chunk() -> None:
     store.apply_vector_revision(
         vector_index_revision="vector-2",
         records=(),
-        tombstones=(VectorTombstone(vault_id="first", chunk_id=first.chunk_id),),
+        tombstones=(
+            VectorTombstone(
+                vector_id=first.vector_id,
+                vault_id="first",
+                chunk_id=first.chunk_id,
+                embedding_spec=first.embedding.model_spec,
+            ),
+        ),
     )
 
     hits = store.search(
@@ -243,28 +304,22 @@ def test_failed_mixed_model_revision_does_not_pin_empty_store_spec() -> None:
     assert tuple(hit.vector_id for hit in hits) == (second.vector_id,)
 
 
-def test_search_rejects_query_embedding_spec_mismatch() -> None:
+def test_search_with_valid_different_model_spec_returns_no_hits() -> None:
     store = InMemoryVectorStore()
     record = make_record(vault_id="default", path="wiki/page.md", text="alpha", content_scope="wiki")
     store.apply_vector_revision(vector_index_revision="vector-1", records=(record,), tombstones=())
-    incompatible_spec = EmbeddingModelSpec(
-        model_name="deterministic",
-        model_version="other",
-        dimensions=4,
-        spec_version="embedding-spec-v1",
-    )
-    embeddings = DeterministicTextEmbeddings(incompatible_spec)
-    query_vector = embeddings.embed((EmbeddingInput(input_id="query", text="alpha"),))[0]
+    query_vector = DeterministicTextEmbeddings(SECOND_SPEC).embed((EmbeddingInput(input_id="query", text="alpha"),))[0]
 
-    with pytest.raises(VectorStoreError, match="embedding model spec mismatch"):
-        store.search(
-            VectorQuery(
-                query_vector=query_vector,
-                scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-                limit=10,
-                embedding_spec=incompatible_spec,
-            )
+    hits = store.search(
+        VectorQuery(
+            query_vector=query_vector,
+            scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
+            limit=10,
+            embedding_spec=SECOND_SPEC,
         )
+    )
+
+    assert hits == ()
 
 
 def test_vector_query_rejects_query_vector_model_spec_mismatch() -> None:
@@ -297,11 +352,19 @@ def test_vector_records_validate_required_strings_and_positive_numbers() -> None
             chunk_id=record.chunk_id,
             content_scope=record.content_scope,
             embedding=record.embedding,
+            source_chunk_hash=record.source_chunk_hash,
+            chunker_version=record.chunker_version,
             metadata_index_revision=record.metadata_index_revision,
             vector_index_revision=record.vector_index_revision,
+            backend_schema_version=record.backend_schema_version,
         )
     with pytest.raises(VectorStoreError, match="chunk_id is required"):
-        VectorTombstone(vault_id="default", chunk_id="")
+        VectorTombstone(
+            vector_id=record.vector_id,
+            vault_id="default",
+            chunk_id="",
+            embedding_spec=record.embedding.model_spec,
+        )
     with pytest.raises(VectorStoreError, match="limit must be positive"):
         make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)), limit=0)
     with pytest.raises(VectorStoreError, match="rank must be positive"):
@@ -326,14 +389,22 @@ def test_vector_records_validate_required_strings_and_positive_numbers() -> None
             chunk_id=record.chunk_id,
             content_scope=record.content_scope,
             embedding_spec=record.embedding.model_spec,
+            source_chunk_hash=record.source_chunk_hash,
+            chunker_version=record.chunker_version,
             metadata_index_revision=record.metadata_index_revision,
             vector_index_revision=record.vector_index_revision,
             backend="",
+            backend_schema_version=record.backend_schema_version,
         )
 
 
 def test_vector_records_are_immutable() -> None:
-    tombstone = VectorTombstone(vault_id="default", chunk_id="wiki/page.md:chunk")
+    tombstone = VectorTombstone(
+        vector_id="default:wiki/page.md:chunk:vector",
+        vault_id="default",
+        chunk_id="wiki/page.md:chunk",
+        embedding_spec=SPEC,
+    )
 
     with pytest.raises(FrozenInstanceError):
         tombstone.__setattr__("chunk_id", "other")

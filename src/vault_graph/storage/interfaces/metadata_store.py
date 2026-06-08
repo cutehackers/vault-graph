@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 
@@ -47,6 +48,8 @@ class MetadataStore(Protocol):
     def document_state(self, vault_id: str, path: str) -> DocumentState: ...
 
     def list_document_states(self, vault_ids: tuple[str, ...]) -> tuple[DocumentState, ...]: ...
+
+    def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]: ...
 
     def resolve_document(self, document_id: str) -> DocumentSnapshot | None: ...
 

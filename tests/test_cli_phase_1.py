@@ -74,7 +74,7 @@ def test_cli_index_accepts_full_option(tmp_path: Path) -> None:
     state_path = tmp_path / "state"
     runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
 
-    result = runner.invoke(app, ["index", "--state", str(state_path), "--full"])
+    result = runner.invoke(app, ["index", "--state", str(state_path), "--full", "--dry-run"])
 
     assert result.exit_code == 0
     assert "mode: full" in result.stdout
