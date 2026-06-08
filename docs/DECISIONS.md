@@ -17,6 +17,52 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-08 - Use Chroma-Backed Scope-Local Vector Reconcile
+
+**Question:** How should Phase 2B turn metadata chunks into a sustainable local
+vector projection?
+
+**Decision:** Use Chroma as the default installed local `VectorStore`, update it
+through scope-local reconcile during `vg index`, and keep `EmbeddingModelSpec`
+as the model compatibility boundary.
+
+**Reason:** This keeps the default workflow simple for users while preserving
+Vault Graph's core rule: derived projections are rebuildable from Vault and
+recoverable after partial failure.
+
+**Implications:**
+
+- `vg index` updates metadata and vector projections by default.
+- Vector state is reconciled from live `MetadataStore` chunks plus the vector
+  manifest, not patched from ad hoc changed-path assumptions.
+- Chroma collections are keyed by `EmbeddingModelSpec`; Vault selection remains
+  `vault_id` and `content_scope` filter metadata.
+- Metadata and vector stores do not require a cross-store transaction. Vector
+  failure is reported as stale or unavailable and recovered by the next index.
+
+## 2026-06-08 - Use FastEmbed Multilingual MiniLM As Default Local Embeddings
+
+**Question:** Which production local embedding implementation and model should
+Phase 2B use by default?
+
+**Decision:** Use `FastEmbedTextEmbeddings` with
+`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` as the default
+local embedding implementation and model, pinned to model revision
+`e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
+
+**Reason:** Vault Graph must stay local-first and useful for mixed Korean and
+English Vault content. A small 384-dimensional multilingual model keeps the
+default simple while preserving the `TextEmbeddings` and `EmbeddingModelSpec`
+replacement boundary.
+
+**Implications:**
+
+- The default does not require a hosted API.
+- Model artifacts are cached outside registered Vault roots.
+- Missing model artifacts may be downloaded on first use, but Vault Graph must
+  not silently fall back to another model.
+- Model revision, dimensions, or spec changes make the vector projection stale.
+
 ## 2026-06-08 - Use Evidence-First Graph-Ready Hybrid Retrieval
 
 **Question:** Should Phase 2 optimize around vector search alone, graph search

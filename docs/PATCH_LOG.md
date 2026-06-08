@@ -3,6 +3,66 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-08 - Phase 2B Spec Consistency Update
+
+**Trigger:** Phase 2B local vector indexing decisions required the core product,
+design, feature, and decision documents to agree before implementation planning.
+
+**Scope:** Phase 2B documentation for local vector indexing.
+
+**Core Values Protected:**
+
+- vector state remains read-only, rebuildable, and recoverable
+- local-first default remains simple for users
+- vector indexing remains separate from search and graph traversal
+- multi-vault and content-scope consistency remain explicit
+
+**Changes Applied:**
+
+- Expanded `docs/SPEC.md` Phase 2B with the accepted Chroma, embedding,
+  indexing, collection, and model-spec decisions.
+- Added scope-local reconcile requirements for vector sustainability and future
+  graph indexing alignment.
+- Updated `docs/DESIGN.md` with `MetadataStore.list_chunks(scope)`,
+  `VectorIndexer` responsibilities, manifest reconcile metadata, and partial
+  failure behavior.
+- Updated `docs/FEATURES.md` so Phase 2B user-facing behavior stays limited to
+  `vg index` and `vg status`.
+- Added the accepted Phase 2B architecture decision to `docs/DECISIONS.md`.
+- After grill-with-docs and subagent review, separated vector staleness
+  comparison keys from lineage/status fields so `vector_index_revision` does
+  not stale every run.
+- Phase-gated generic graph indexing flow as Phase 3+ so Phase 2B cannot expand
+  into graph extraction or traversal.
+- Added per-Vault effective-scope requirements for `MetadataStore.list_chunks`
+  and `VectorStore.export_manifest`.
+- Clarified vector tombstone identity for model-spec collection reconcile.
+- Clarified `vg index` partial-failure behavior as nonzero exit plus preserved
+  metadata revision and stale vector status.
+- Closed the Phase 2B default embedding decision by accepting
+  `FastEmbedTextEmbeddings` with
+  `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` as the default
+  local embedding path, pinned to revision
+  `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
+- Added CPU embedding throughput tuning guidance for `embedding_batch_size`,
+  parallelism, lazy loading, dry-run output, and failure behavior.
+- Added a SPEC TODO for a future MacBook acceleration adapter that keeps CPU
+  FastEmbed as the default and treats Apple acceleration as an explicit
+  `TextEmbeddings` adapter.
+- Added a SPEC TODO for future non-Markdown document reader adapters while
+  keeping Phase 2B indexing Markdown-only by default.
+
+**Verification:**
+
+- grill-with-docs consistency pass
+- subagent review focused on product value, software design integrity, and
+  implementation-plan readiness
+- `git diff --check`
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src`
+- `uv run --python 3.12 mypy tests`
+
 ## 2026-06-08 - Phase 2A Plan Review Hardening
 
 **Trigger:** Subagent review found Phase 2A plan gaps before implementation.

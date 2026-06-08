@@ -66,7 +66,7 @@ explainable.
 | Slice | Change | Explicitly Not Included |
 | --- | --- | --- |
 | Phase 2A | Internal retrieval and `VectorStore` contracts | user search, vector status output, graph traversal, answers |
-| Phase 2B | `vg index` and `vg status` include vector projection state | graph traversal, answers, context packs |
+| Phase 2B | `vg index` and `vg status` include Chroma-backed local vector projection state | user search, graph traversal, answers, context packs |
 | Phase 2C | `vg search "query"` returns keyword/vector ranked evidence | graph traversal, `vg ask`, MCP serving |
 
 Graph-based expansion joins search after Phase 3. Until then, hybrid retrieval
@@ -109,10 +109,19 @@ User-visible behavior:
 
 - detects changed, stale, and deleted files
 - supports incremental and full rebuilds
+- in Phase 2B, updates metadata first and then reconciles the local vector
+  projection for the selected scope
 - uses the active Vault by default
 - supports `--vault-id ID` for one Vault and `--all-vaults` for all enabled
   Vaults
 - reports index revision information
+- in Phase 2B, reports vector upserts, tombstones, unchanged records, stale
+  records, model spec, backend health, and recoverable vector failures
+- in Phase 2B dry-run output, reports configured `embedding_batch_size`,
+  parallelism, lazy loading, and planned embedding count without loading the
+  model
+- in Phase 2B, returns a nonzero exit if metadata succeeds but vector reconcile
+  fails, while preserving the applied metadata revision in output and status
 - reports warnings for source drift, duplicates, stale data, or missing evidence
 - supports dry-run planning before index mutation
 
@@ -130,6 +139,8 @@ Watches Vault for changes and keeps Vault Graph indexes fresh.
 
 ```bash
 vg status
+vg status --vault-id main
+vg status --all-vaults
 ```
 
 Reports operational status.
@@ -141,8 +152,17 @@ The status surface should show:
 - backend health
 - schema compatibility
 - index revision freshness
+- in Phase 2B, Chroma vector backend health, schema compatibility, active
+  `EmbeddingModelSpec`, vector revision, stale count, status scope, and last
+  vector failure
+- in Phase 2B, default local embedding model, model revision, model cache
+  availability, throughput tuning, and model-unavailable errors
 - graph projection freshness
 - stale or invalid cache warnings
+
+By default, freshness fields use the active Vault. `--vault-id ID` reports one
+Vault, and `--all-vaults` reports all enabled Vaults with explicit Vault IDs in
+the output.
 
 ### Ask
 

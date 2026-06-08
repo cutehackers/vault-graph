@@ -243,6 +243,8 @@ Initial commands:
 - `vg index --dry-run`
 - `vg watch`
 - `vg status`
+- `vg status --vault-id main`
+- `vg status --all-vaults`
 - `vg ask "question"`
 - `vg related TARGET`
 - `vg context "goal"`
@@ -469,6 +471,38 @@ Runtime configuration should be explicit about:
 - embedding model spec
 - storage backend selection
 - optional scale-up backend configuration
+
+Phase 2B default configuration uses Chroma as the local vector backend and
+`FastEmbedTextEmbeddings` as the local `TextEmbeddings` implementation. Chroma
+and FastEmbed are core local dependencies for the default Phase 2B install, not
+hosted service requirements. Scale-up backends such as Qdrant and hosted
+embedding adapters remain explicit adapter swaps.
+
+Default embedding configuration:
+
+- `model_name`: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+- `model_version`: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`
+- `dimensions`: `384`
+- `spec_version`: `fastembed-multilingual-minilm-l12-v2-cosine-v1`
+- runtime: local CPU
+- cache path: outside registered Vault roots, for example
+  `~/.cache/vault-graph/embeddings`
+
+Default embedding throughput configuration:
+
+- `embedding_batch_size`: `256`
+- `embedding_parallelism`: `null`, meaning single main-process embedding
+- `embedding_lazy_load`: `true`
+
+`embedding_parallelism` may be set to `0` for CPU-core auto-detection or to a
+positive worker count. These values tune local execution only. They are recorded
+in run metadata and diagnostics, but they are not part of
+`EmbeddingModelSpec`.
+
+If the model artifact is missing, the implementation may download the configured
+artifact on first use. If the artifact is unavailable offline, indexing fails
+with a clear vector/model status. It must not silently fall back to a different
+model.
 
 Configuration files:
 
@@ -700,6 +734,7 @@ Required operations:
 - upsert document snapshots for an index revision
 - upsert chunk snapshots for an index revision
 - record parser and chunker versions
+- list current non-tombstoned chunks for a `QueryScope`
 - list changed documents
 - list stale documents
 - list tombstoned documents
@@ -741,6 +776,25 @@ Required operations:
 - report collection or schema compatibility
 - report index freshness
 - export embedding manifests in the common logical vector shape
+
+Manifest records must carry reconcile metadata.
+
+Staleness comparison keys:
+
+- source chunk hash copied from `ChunkSnapshot.content_hash`
+- chunker version
+- metadata index revision
+- embedding model spec
+- backend schema version
+
+Lineage and status fields:
+
+- vector index revision
+- backend name
+
+`vector_index_revision` must not be used as a staleness comparison key. It
+changes on successful writes and would otherwise make unchanged vectors stale on
+the next run.
 
 Vector search must return only semantic candidate metadata: `vault_id`, document
 IDs, chunk IDs, content-scope filter metadata, backend-local scores, ranks, and
@@ -804,7 +858,8 @@ chunker versions, embedding versions, extraction policy versions, store schema
 versions, and projection versions against current Vault Graph state.
 
 Applying mutates only Vault Graph state. It updates metadata, vectors, graph
-records, revision rows, and projection caches.
+records, revision rows, and projection caches as each phase enables those
+projections.
 
 ### 10.1 Full Rebuild
 
@@ -814,9 +869,9 @@ records, revision rows, and projection caches.
 2. compute file state and hashes
 3. parse and normalize all included documents
 4. rebuild metadata records
-5. rebuild embeddings
-6. rebuild graph records
-7. invalidate projection caches
+5. rebuild embeddings when vector indexing is enabled
+6. Phase 3+: rebuild graph records
+7. Phase 3+: invalidate projection caches
 8. record a new index revision
 9. report warnings and backend health
 
@@ -831,9 +886,9 @@ Full rebuild must not mutate Vault.
 3. classify files as unchanged, changed, stale, deleted, or tombstoned
 4. parse only affected documents
 5. update affected metadata records
-6. update affected vector records
-7. update affected graph records
-8. invalidate affected projection cache entries
+6. update affected vector records when vector indexing is enabled
+7. Phase 3+: update affected graph records
+8. Phase 3+: invalidate affected projection cache entries
 9. record a new index revision
 10. report warnings and backend health
 
@@ -847,7 +902,7 @@ revision planner should expand the affected set accordingly.
 1. scan VaultCatalog entries selected by the indexing scope
 2. classify planned work
 3. validate backend availability
-4. report planned document, chunk, vector, graph, and projection changes
+4. report planned document, chunk, and enabled projection changes
 5. report warnings
 6. exit without mutating Vault Graph state
 
@@ -872,6 +927,96 @@ Stale files should produce warnings when:
 - embedding model spec changed
 - extraction policy changed
 - projection cache is invalid
+
+### 10.5 Phase 2B Vector Reconcile
+
+Phase 2B indexing adds one production projection after metadata indexing:
+Chroma-backed local vector state.
+
+The implementation should keep a simple dependency direction:
+
+```text
+IndexService
+  -> MetadataIndexer
+  -> VectorIndexer
+
+VectorIndexer
+  -> MetadataStore.list_chunks(effective_scope)
+  -> VectorStore.export_manifest(effective_scope)
+  -> TextEmbeddings.embed(...)
+  -> VectorStore.apply_vector_revision(...)
+```
+
+`VectorIndexer` owns the reconcile plan. It compares desired chunks from
+`MetadataStore` with existing manifest rows from `VectorStore` under the
+selected effective `QueryScope`.
+
+`VectorIndexer` must pass only planned upsert texts to `TextEmbeddings`. It
+embeds them in batches using the configured `embedding_batch_size` and
+`embedding_parallelism`, then binds every returned vector back to its requested
+`input_id` before creating vector records. Batching and worker count must not
+alter vector IDs, manifest keys, status semantics, or failure behavior.
+
+If embedding fails because the configured `embedding_batch_size` or worker count
+exceeds the machine's available memory or runtime capacity, `VectorIndexer`
+returns a failed vector result with diagnostics. It must not silently lower
+`embedding_batch_size`, disable parallelism, or switch embedding runtimes during
+the same run.
+
+`IndexService` must resolve the user-selected scope against `VaultCatalog`
+before calling vector reconcile. For multi-vault runs, it must process per-Vault
+effective scopes using the same broader/narrower content-scope rule as
+`VaultLoader`. This prevents a global union of content scopes from selecting or
+tombstoning records that are not enabled for a specific Vault.
+
+Desired vector state is keyed by:
+
+- `vault_id`
+- `document_id`
+- `chunk_id`
+- `content_scope`
+- `ChunkSnapshot.content_hash` as `source_chunk_hash`
+- `chunker_version`
+- `metadata_index_revision`
+- `EmbeddingModelSpec`
+
+The plan produces:
+
+- upserts for new chunks
+- upserts for chunks with changed hash, chunker version, metadata revision, or
+  embedding model spec
+- tombstones for selected-scope manifest rows whose chunks are deleted,
+  tombstoned, changed to a new vector ID, or stale under the current model spec
+- unchanged counts for status and dry-run output
+- warnings for unhealthy vector backend, incompatible schema, or embedding
+  failures
+
+Scope handling must match metadata indexing. `vg index --vault-id work` updates
+only the selected Vault and must not tombstone vector records for other Vaults.
+Content-scope-limited reconcile uses same-or-child semantics before deciding
+that a record is stale.
+
+`IndexService` coordinates metadata and vector indexing without pretending they
+are one database transaction. If metadata indexing succeeds and vector indexing
+fails, the service keeps the metadata revision, returns a nonzero CLI exit for
+the failed vector step, and marks vector freshness as stale or unavailable. A
+later `vg index` must recover by running the same reconcile flow again.
+
+`vg index --dry-run` reports metadata and vector work but writes neither store.
+`vg index --full` rebuilds vector records for the selected scope under the
+current `EmbeddingModelSpec`.
+
+Dry-run output should include the configured `embedding_batch_size`,
+`embedding_parallelism`, `embedding_lazy_load`, and the number of chunks that
+would be embedded. Dry-run must not load the embedding model or initialize
+backend state.
+
+`vg status` reports freshness for the active Vault by default. Phase 2B status
+should also support `--vault-id ID` and `--all-vaults`, and it must print the
+scope used for vector freshness and stale counts.
+
+The Phase 2B implementation must not add `vg search`, `vg ask`, graph
+traversal, context packs, MCP serving, or HTTP serving.
 
 ## 11. Retrieval Design
 
@@ -1167,7 +1312,10 @@ Command behavior:
 - `vg index --full`: applies full derived-state rebuild for the selected scope
 - `vg index --dry-run`: reports planned derived-state updates without mutation
 - `vg watch`: runs repeated incremental indexing
-- `vg status`: reports backend and revision health
+- `vg status`: reports backend and revision health for the active Vault
+- `vg status --vault-id ID`: reports backend and revision health for one Vault
+- `vg status --all-vaults`: reports backend and revision health for all enabled
+  Vaults with explicit Vault IDs
 - `vg ask`: renders evidence-first answers
 - `vg related`: renders related entities and evidence
 - `vg context`: renders JSON or Markdown context packs

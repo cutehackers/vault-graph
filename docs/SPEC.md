@@ -580,6 +580,8 @@ Vector search:
 
 - Chroma persisted embeddings and vector retrieval metadata as `VectorStore`
 - local embedding model by default
+- Chroma is part of the default installation for local vector indexing. It is
+  a local dependency, not a hosted service requirement.
 
 Graph:
 
@@ -637,6 +639,9 @@ Required `MetadataStore` capabilities:
 
 - upsert document snapshots and chunk snapshots for an index revision
 - list changed, stale, deleted, and tombstoned documents
+- list current non-tombstoned chunks for a `QueryScope` so vector and graph
+  indexers can reconcile derived projections without reading backend tables
+  directly
 - resolve document IDs and chunk IDs to evidence locations
 - record parser, chunker, index, and backend schema versions
 - report backend health, schema compatibility, and revision freshness
@@ -664,6 +669,10 @@ The boundary is mandatory:
 - Vector hits must not return path, title, summary, anchor, chunk text, content
   hashes, or rendered evidence as user-facing authority. Those fields must be
   resolved through `MetadataStore` before rendering.
+- Vector manifest records must include enough metadata to reconcile derived
+  vector state: source chunk hash, chunker version, metadata index revision,
+  embedding model spec, vector index revision, backend name, and backend schema
+  version.
 - Qdrant must be a scale-up `VectorStore` implementation over the same logical record contract, not a different retrieval authority.
 
 Required `VectorStore` capabilities:
@@ -677,6 +686,64 @@ Required `VectorStore` capabilities:
 - validate embedding dimensions, model name, model version, and embedding model spec version
 - report backend health, collection/schema compatibility, and index freshness
 - export or inspect embedding manifests in the common logical vector shape
+
+Phase 2B must expand the vector manifest and tombstone records before Chroma is
+implemented:
+
+- `VectorManifestRecord` adds `source_chunk_hash`, `chunker_version`, and
+  `backend_schema_version`.
+- `VectorTombstone` identifies the stale vector row with `vector_id`,
+  `vault_id`, `chunk_id`, and `EmbeddingModelSpec`. `(vault_id, chunk_id)` alone
+  is not precise enough once old-model and current-model records can coexist.
+- `VectorStore.export_manifest(scope)` returns active manifest rows for the
+  effective scope across all Chroma model-spec collections, not only the current
+  `EmbeddingModelSpec`, so model-spec changes can be reconciled and old rows can
+  be tombstoned.
+
+Phase 2B vector indexing uses scope-local reconcile:
+
+```text
+MetadataStore.list_chunks(scope)
+  + VectorStore.export_manifest(scope)
+  + current EmbeddingModelSpec
+  -> desired vector records
+  -> upserts for missing or stale chunks
+  -> tombstones for records no longer desired
+  -> VectorStore.apply_vector_revision(...)
+```
+
+The reconcile scope is the selected `QueryScope`. A narrow run such as
+`vg index --vault-id work` or a future content-scope-limited run must not mark
+unselected Vaults or unrelated content scopes stale. A full rebuild expands the
+work set only inside the selected scope, and it still writes only Vault Graph
+derived state.
+
+Application services must resolve a user-selected `QueryScope` against
+`VaultCatalog` before vector reconcile. Multi-vault scopes are processed as
+per-Vault effective scopes using the same broader/narrower content-scope rules
+as `VaultLoader`. Store methods receive explicit effective scopes; they must not
+infer catalog entry constraints from a global union of content scopes.
+
+Vector records are stale when any of these fields differ from the current
+desired state:
+
+- `source_chunk_hash`
+- `chunker_version`
+- `metadata_index_revision`
+- `EmbeddingModelSpec`
+- vector backend schema version
+
+`vector_index_revision` is manifest and status metadata, not a staleness
+comparison key. Otherwise every successful vector run would make unchanged
+records appear stale in the next run.
+
+If metadata indexing succeeds but vector indexing fails, Vault Graph must keep
+the metadata revision and report vector freshness as stale or unavailable. The
+`vg index` command should return a nonzero exit for the failed vector step while
+making the applied metadata revision visible in output and status. The next
+`vg index` must be able to recover through the same reconcile algorithm. Vault
+Graph should not require a cross-store transaction between `MetadataStore` and
+`VectorStore`.
 
 ### 10.5 GraphStore And GraphProjection Boundary
 
@@ -779,6 +846,7 @@ Vault Graph tracks file state with:
 - `frontmatter_hash`
 - `parser_version`
 - `chunker_version`
+- chunk content hash copied into vector manifests as `source_chunk_hash`
 - `metadata_store_schema_version`
 - `vector_store_schema_version`
 - `embedding_model`
@@ -797,12 +865,12 @@ Scan VaultCatalog entries selected by the indexing scope
   -> Read Vault frontmatter and parse markdown
   -> Normalize document
   -> Chunk content
-  -> Extract entities
-  -> Extract relationships
   -> Update MetadataStore document, chunk, hash, and revision rows
-  -> Update VectorStore embeddings and vector revision metadata
-  -> Update GraphStore node, edge, evidence, and revision rows
-  -> Invalidate or rebuild GraphProjection cache
+  -> Reconcile VectorStore embeddings and vector revision metadata when vector
+     indexing is enabled
+  -> Phase 3+: extract entities and relationships
+  -> Phase 3+: update GraphStore node, edge, evidence, and revision rows
+  -> Phase 3+: invalidate or rebuild GraphProjection cache
   -> Record index revision
 ```
 
@@ -1058,14 +1126,119 @@ is evidence-first graph-ready hybrid retrieval, but Phase 2 must not depend on a
 
 #### Phase 2B: Local Vector Indexing
 
+Phase 2B makes the local vector projection real while keeping search out of
+scope. The goal is not to answer user queries yet. The goal is to make vectors
+rebuildable, inspectable, and recoverable from `MetadataStore` chunks.
+
+Accepted Phase 2B decisions:
+
+- Chroma is the default local `VectorStore` and is installed as a core
+  dependency, not as a manual optional package.
+- `TextEmbeddings` remains local-first by default. Hosted embedding providers
+  may be added later only behind the same interface.
+- The default production local embedding implementation is
+  `FastEmbedTextEmbeddings` with
+  `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`.
+- `vg index` updates metadata and vector projections by default. `--dry-run`
+  plans both stores without mutating derived state.
+- Chroma uses logical collections keyed by `EmbeddingModelSpec`. Vault
+  selection remains payload/filter metadata through `vault_id`, `document_id`,
+  `chunk_id`, and `content_scope`; collections are not split per Vault for the
+  MVP.
+- Any `EmbeddingModelSpec` change makes affected vector records stale and
+  requires reindexing under the new model spec. Mixed model specs must not be
+  silently searched together.
+
+Sustainability and consistency requirements:
+
+- Use scope-local reconcile. The vector indexer compares current live chunks
+  from `MetadataStore` with the `VectorStore` manifest for the selected
+  `QueryScope`, then converges the vector projection to the desired state.
+- Add a `MetadataStore` live chunk listing boundary for vector indexing. The
+  vector indexer must not read SQLite tables directly.
+- Extend vector records or manifest records with staleness comparison keys:
+  `source_chunk_hash`, `chunker_version`, `metadata_index_revision`,
+  `EmbeddingModelSpec`, and backend schema version. Keep `vector_index_revision`
+  and backend name as manifest/status metadata, not as staleness comparison
+  keys.
+- Within the selected reconcile scope, tombstone or replace vector records when
+  a chunk is deleted, a document is tombstoned, a chunk hash changes, the
+  chunker version changes, or the embedding model spec changes. Records outside
+  the selected scope must be left untouched.
+- Do not require a cross-store transaction between metadata and vector stores.
+  If metadata indexing succeeds and vector indexing fails, report vector state
+  as stale or unavailable through status, return a nonzero `vg index` exit for
+  the failed vector step, and recover on the next `vg index`.
+- Apply the same derived-projection rule to future graph indexing:
+  current metadata chunks plus extraction policy plus graph manifest produce the
+  desired graph projection. Graph records remain derived and non-authoritative.
+- Avoid the term "graph embedding" for the current product scope. Phase 2B is
+  text chunk embedding and local vector indexing. Later graph node or edge
+  embeddings, if added, are separate derived vector projections.
+
+Default embedding policy:
+
+- `model_name`: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
+- `model_version`: `e8f8c211226b894fcb81acc59f3b34ba3efd5f42` recorded in
+  `EmbeddingModelSpec`
+- `dimensions`: `384`
+- `spec_version`: `fastembed-multilingual-minilm-l12-v2-cosine-v1`
+- runtime: local CPU through `FastEmbedTextEmbeddings`
+- cache: outside registered Vault roots, for example
+  `~/.cache/vault-graph/embeddings`
+- first-use behavior: download the configured model artifact when it is missing
+  and network access is available
+- offline behavior: fail with a clear model-unavailable status when the artifact
+  is not cached
+- fallback behavior: never silently fall back to a different model
+- revision behavior: any model revision, dimension, or spec-version change makes
+  affected vector records stale
+
+Embedding throughput tuning:
+
+- Phase 2B keeps local CPU as the default runtime. Throughput tuning must happen
+  through `FastEmbedTextEmbeddings` configuration, not through new vector-store
+  behavior.
+- `embedding_batch_size` is not chunk size. Current chunk boundaries come from
+  the `heading-section-v1` chunker and are heading-section based, not a fixed
+  token or character count.
+- `embedding_batch_size` controls how many chunk texts are embedded per model
+  call. The default is `256`. Lower values reduce memory pressure. Higher values
+  may improve throughput on large Vaults.
+- `embedding_parallelism` controls FastEmbed worker parallelism. The default is
+  `null`, which runs in the main process and is the safest laptop default. `0`
+  means auto-detect available CPU cores. A positive integer uses that many
+  workers.
+- `embedding_lazy_load` defaults to `true` so the model artifact is loaded only
+  when embeddings are actually requested. This avoids loading a model during
+  status checks and reduces unnecessary startup cost.
+- `embedding_batch_size`, `embedding_parallelism`, and `embedding_lazy_load` are
+  runtime execution settings. They must be recorded in vector index run metadata
+  and status diagnostics, but they are not part of `EmbeddingModelSpec` and must
+  not stale otherwise compatible vectors.
+- `VectorIndexer` must preserve input order and bind every returned vector back
+  to its requested `input_id`. Duplicate input IDs in one batch are an error.
+- If embedding fails because `embedding_batch_size` or worker count is too large
+  for the machine, `vg index` must fail the vector step clearly and preserve
+  recoverable stale vector status. It must not silently change tuning values and
+  continue.
+- `vg index --dry-run` reports planned embedding counts and configured tuning
+  values without loading the model, creating Chroma collections, or writing
+  Vault Graph state.
+
+Required implementation capabilities:
+
 - Chroma `VectorStore` collections derived from `MetadataStore` chunks
-- vector indexer for full and incremental rebuilds
+- vector indexer for full and incremental reconcile runs
 - stale chunk embedding deletion or tombstoning
+- CPU embedding batch and parallelism tuning through `FastEmbedTextEmbeddings`
 - vector revision metadata and embedding manifest export
 - `vg index` integration for metadata plus vector projection updates
-- `vg status` visibility for vector backend health, schema compatibility, and
-  freshness
-- read-only boundary tests proving vector indexing does not mutate Vault
+- `vg status` visibility for vector backend health, schema compatibility,
+  freshness, model spec, stale counts, status scope, and recoverable failure
+  messages
+- read-only boundary tests proving vector indexing writes only to Vault Graph
+  state and never mutates Vault
 
 #### Phase 2C: Evidence-First Keyword And Vector Search
 
@@ -1167,3 +1340,153 @@ Codex / Agents
 ```
 
 Vault Graph is not just a search system. It is an intelligent, read-only knowledge access layer that helps preserve project context, expose decision history, and let AI agents work from grounded context while Vault remains the durable source of truth.
+
+## TODO: MacBook Local Acceleration Adapter
+
+Phase 2B intentionally keeps `FastEmbedTextEmbeddings` on local CPU. A future
+MacBook acceleration path should be added as an adapter, not by changing
+`VectorIndexer`, `VectorStore`, or Chroma behavior.
+
+Candidate adapter names:
+
+- `CoreMLTextEmbeddings` if implemented through ONNX Runtime CoreML Execution
+  Provider.
+- `AppleAcceleratedTextEmbeddings` if the implementation may choose CoreML, MLX,
+  or another Apple-local runtime behind one adapter.
+
+Future adapter rules:
+
+- Implement the existing `TextEmbeddings` interface and return a complete
+  `EmbeddingModelSpec`.
+- Keep CPU FastEmbed as the default until Apple acceleration has deterministic
+  output checks, dependency checks, and benchmark evidence.
+- Package Apple acceleration as an explicit optional install target, for example
+  `vault-graph[apple-accel]`, unless later evidence shows it is as simple and
+  reliable as the CPU default.
+- Do not silently fall back from Apple acceleration to CPU. If a user configured
+  an Apple runtime and the runtime is unavailable, status must report the missing
+  provider and indexing must fail the vector step clearly.
+- Treat runtime changes as model-spec changes unless tests prove vector
+  equivalence. A CPU vector projection and a CoreML/MLX vector projection must
+  not be searched together under one logical model spec by accident.
+- Keep all model artifacts and compiled runtime caches outside registered Vault
+  roots. CoreML compiled-model caches must be keyed by model hash or model
+  revision so stale compiled artifacts cannot be reused invisibly.
+- Add `vg status` diagnostics for embedding runtime, provider availability,
+  cache path, and whether acceleration is active.
+
+Required validation before implementing this TODO:
+
+- Confirm the selected model's ONNX operators are supported by the Apple runtime.
+- Compare CPU and accelerated embeddings for dimension, normalization, and
+  similarity drift on a fixed multilingual sample set.
+- Benchmark first-run compile time, warm-run throughput, memory usage, and
+  battery impact on Apple Silicon.
+- Prove offline behavior after the model and compiled cache are present.
+- Prove read-only boundaries: no Vault file is written, renamed, deleted, or
+  rewritten by the acceleration adapter.
+- Add regression tests showing acceleration failure does not corrupt metadata,
+  vector manifests, or existing CPU vector projections.
+
+## TODO: Non-Markdown Document Reader Adapters
+
+The default indexing policy remains Markdown-only. Phase 2B must keep `.md`
+files as the only indexed document type and must not expand the local vector
+indexing slice into binary document extraction.
+
+Future non-Markdown support should be added through read-only document reader
+adapters. It must not convert, rewrite, rename, delete, or create files inside a
+registered Vault root.
+
+Recommended boundary:
+
+```text
+VaultLoader
+  -> DocumentReaderRegistry
+      -> MarkdownDocumentReader
+      -> PlainTextDocumentReader
+      -> PdfDocumentReader
+      -> DocxDocumentReader
+  -> DocumentNormalizer
+  -> MetadataStore
+  -> VectorIndexer
+```
+
+Adapter responsibilities:
+
+- detect supported file extensions and MIME hints
+- read source bytes without mutating the Vault
+- compute `raw_sha256` from source bytes
+- extract deterministic text and source-location metadata
+- report reader name, reader version, parser version, and extraction warnings
+- return normalized document input to the existing metadata pipeline
+
+Adapter non-responsibilities:
+
+- no Vault file mutation
+- no durable Markdown conversion inside Vault
+- no source registration or publication workflow replacement
+- no vector persistence
+- no retrieval ranking policy
+- no hosted extraction service by default
+
+Recommended rollout order:
+
+1. Keep `.md` as the default and only required reader.
+2. Add `.txt` as the first non-Markdown reader if needed because it has no
+   binary extraction dependency.
+3. Add PDF text-layer extraction only after source-location evidence can include
+   page numbers and text offsets.
+4. Add DOCX only after heading and paragraph extraction can be made
+   deterministic.
+5. Treat OCR, scanned PDFs, spreadsheets, slides, images, and audio as later
+   optional adapters with explicit dependencies and clear status warnings.
+
+Evidence and identity requirements:
+
+- Every extracted document and chunk must still carry `vault_id`, path,
+  `document_id`, `chunk_id`, `raw_sha256`, content hash, parser version,
+  chunker version, and index revision.
+- Evidence for non-Markdown chunks must include source locators such as page
+  number, paragraph index, heading path, line range, or byte/text offset when the
+  format supports it.
+- `VectorStore` must continue to store only semantic candidate metadata.
+  Rendered evidence must still resolve through `MetadataStore`.
+- Unsupported non-Markdown files should be skipped or reported as warnings by a
+  future explicit feature flag. They must not make Markdown indexing fail by
+  default.
+
+Freshness and rebuild rules:
+
+- Reader version, parser version, chunker version, source bytes hash, extraction
+  options, and dependency schema version are staleness inputs.
+- Extracted text caches, if added, must live outside registered Vault roots and
+  must be disposable.
+- A reader change that alters extracted text or chunk boundaries must stale the
+  affected metadata and vector records through normal reconcile.
+- Non-Markdown adapters must use the same multi-vault identity rules as
+  Markdown: paths are unique only inside a `vault_id`.
+
+Dependency and safety rules:
+
+- Non-Markdown readers should be optional install extras until they are proven
+  simple and reliable enough for the default install.
+- Missing optional dependencies should produce explicit status diagnostics, not
+  silent partial extraction.
+- Readers must enforce file-size and extraction-time limits so one large file
+  cannot make local indexing unpredictable.
+- Symlink and path-escape protections must match Markdown loading.
+
+Required tests before implementing this TODO:
+
+- unsupported non-Markdown files do not mutate Vault and do not break Markdown
+  indexing
+- each reader computes stable `raw_sha256` from source bytes
+- extracted text and chunk IDs are deterministic for the same source file and
+  reader version
+- reader-version or extraction-option changes stale affected records
+- multi-vault files with the same relative path do not collide
+- evidence resolution returns the original Vault path and format-specific
+  locator
+- missing optional extraction dependencies produce clear status output
+- extraction caches, if any, are outside registered Vault roots
