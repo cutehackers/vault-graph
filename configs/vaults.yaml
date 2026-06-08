@@ -1,0 +1,13 @@
+active_vault_id: default
+vaults:
+  - vault_id: default
+    root_path: /absolute/path/to/vault
+    display_name: Default Vault
+    enabled: true
+    content_scopes:
+      - raw
+      - wiki
+      - docs
+      - scratch/reports
+    state_namespace: default
+    git_revision_policy: head

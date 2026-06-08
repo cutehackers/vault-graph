@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vault-graph"
+version = "0.1.0"
+description = "Read-only, rebuildable knowledge access layer over Vault."
+requires-python = ">=3.12"
+dependencies = [
+  "PyYAML>=6.0.2",
+  "typer>=0.12.5",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.11",
+  "pytest>=8.3",
+  "ruff>=0.6",
+  "types-PyYAML>=6.0.12",
+]
+
+[project.scripts]
+vg = "vault_graph.cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vault_graph"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/vault_graph/cli/main.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_untyped_decorators = false
+mypy_path = "src"
