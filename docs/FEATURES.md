@@ -34,6 +34,9 @@ normal source capture, draft, validation, release gate, and Git history workflow
 
 ## Feature Matrix
 
+This matrix describes the intended product surface across phases. The Phase 2
+slice table below defines when search-related surfaces become available.
+
 | Feature | CLI | MCP Tool | MCP Resource | Output |
 | --- | --- | --- | --- | --- |
 | Initialize Vault Graph | `vg init --vault /path/to/vault` | - | - | Default Vault path and state setup |
@@ -42,7 +45,7 @@ normal source capture, draft, validation, release gate, and Git history workflow
 | Watch Vault | `vg watch` | - | - | Continuous index refresh |
 | Check Status | `vg status` | `check_index_status()` | - | Vault IDs/paths, backend health, schema compatibility, freshness, warnings |
 | Ask Vault | `vg ask "question"` | `ask_vault(question, mode="evidence-first", scope=None)` | - | Answer, evidence, inferred links, warnings |
-| Search Vault | - | `search_vault(query, scope=None, limit=10)` | document/page/source resources | Ranked evidence-linked results |
+| Search Vault | `vg search "query"` | `search_vault(query, scope=None, limit=10)` | document/page/source resources | Ranked evidence-linked results |
 | Find Related Items | `vg related TARGET` | `find_related(target, scope=None, depth=1, kinds=None)` | `vault://{vault_id}/graph/entities/{id}` | Related entities, paths, evidence |
 | Trace Decision | `vg decision-trace TOPIC` | `get_decision_trace(decision_or_topic, scope=None)` | `vault://{vault_id}/decisions/{id}` | Decision, context, alternatives, tradeoffs |
 | Build Context Pack | `vg context "goal"` | `build_context_pack(goal, scope=None, max_tokens=None)` | `vault://context/packs/{id}` | JSON or Markdown agent brief |
@@ -52,6 +55,23 @@ normal source capture, draft, validation, release gate, and Git history workflow
 | Explain Result | - | `explain_result(result_id)` | - | Retrieval reason, evidence, scores, warnings |
 | Serve MCP | `vg serve --mcp` | - | all MCP resources | MCP server for agents |
 | Serve HTTP | `vg serve --http` | - | - | HTTP access surface |
+
+## Phase 2 User-Facing Slices
+
+Phase 2 exposes search in slices. Phase 2A is internal contract readiness only.
+User-facing vector status arrives in Phase 2B, and user-facing search arrives in
+Phase 2C. This keeps the first visible search surface evidence-first and
+explainable.
+
+| Slice | Change | Explicitly Not Included |
+| --- | --- | --- |
+| Phase 2A | Internal retrieval and `VectorStore` contracts | user search, vector status output, graph traversal, answers |
+| Phase 2B | `vg index` and `vg status` include vector projection state | graph traversal, answers, context packs |
+| Phase 2C | `vg search "query"` returns keyword/vector ranked evidence | graph traversal, `vg ask`, MCP serving |
+
+Graph-based expansion joins search after Phase 3. Until then, hybrid retrieval
+means keyword plus vector retrieval with graph-ready result fields and
+per-signal explanations.
 
 ## CLI Features
 
@@ -219,13 +239,25 @@ Searches Vault-derived indexes and returns ranked, evidence-linked results.
 The optional `scope` is a `QueryScope`; without it, search uses the active Vault
 only. Cross-Vault retrieval must be explicit.
 
+The Phase 2C CLI surface is:
+
+```bash
+vg search "GraphRAG"
+vg search --vault-id main "GraphRAG"
+vg search --all-vaults "GraphRAG"
+```
+
+Phase 2C search combines keyword and vector candidates. Graph candidates,
+decision-map expansion, and timeline-map expansion are later signals that must
+use the same evidence-linked result contract.
+
 Expected result categories:
 
 - matching documents
 - matching wiki pages
 - matching sources
 - matching chunks
-- matching entities
+- matching entities after graph indexing exists
 - warnings for stale or missing evidence
 
 ### `ask_vault(question, mode="evidence-first", scope=None)`

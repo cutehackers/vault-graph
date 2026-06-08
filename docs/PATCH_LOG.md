@@ -1,7 +1,77 @@
 # Patch Log
 
-This log records implementation corrections made after review so that Phase 1
+This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
+
+## 2026-06-08 - Phase 2A Plan Review Hardening
+
+**Trigger:** Subagent review found Phase 2A plan gaps before implementation.
+
+**Scope:** Phase 2A retrieval contract and `VectorStore` implementation plan.
+
+**Core Values Protected:**
+
+- multi-vault evidence remains explicit
+- vector state remains rebuildable from model-spec-aware records
+- vector hits do not become evidence authority
+- missing or stale evidence remains visible as diagnostics
+
+**Changes Applied:**
+
+- Removed the plan's cross-vault-hostile assumption that every result evidence
+  item must share the result `vault_id`.
+- Added a vector-hit-to-evidence binding guard to the plan so normal vector
+  results require matching `vault_id`, `document_id`, and `chunk_id`.
+- Added model-spec-aware vector ID derivation and mixed-model-spec rejection to
+  the in-memory `VectorStore` contract plan.
+- Added missing/stale evidence warning tests and duplicate embedding input ID
+  tests to the plan.
+- Added final documentation verification for the Chroma/Qdrant shared
+  `VectorStore` contract.
+
+**Verification:**
+
+- `git diff --check`
+
+## 2026-06-08 - Phase 2A Implementation Review Fixes
+
+**Trigger:** Subagent implementation reviews found contract consistency gaps
+while implementing Phase 2A.
+
+**Scope:** Phase 2A embedding, vector, metadata evidence, retrieval result, and
+boundary tests.
+
+**Core Values Protected:**
+
+- `QueryScope` filtering remains consistent across metadata and vector layers
+- failed derived-state writes do not leave misleading fake backend state
+- metadata remains the evidence authority
+- retrieval result revision metadata stays immutable and inspectable
+
+**Changes Applied:**
+
+- Made `VectorStore` content-scope filtering use same-or-child semantics before
+  applying result limits.
+- Added a regression test so a failed mixed-model vector revision does not pin
+  an empty vector store to the wrong embedding model spec.
+- Required `MetadataStore.resolve_chunk_evidence(...)` to match document and
+  chunk paths before returning evidence.
+- Scoped `MetadataStore.resolve_chunk(...)` by `vault_id` so duplicate chunk IDs
+  across registered Vaults cannot resolve ambiguously.
+- Replaced mutable retrieval `store_revisions` mappings in the Phase 2A
+  contract with immutable `StoreRevision` records.
+- Added Phase 2A boundary tests proving `vg search` and vector status output
+  remain out of scope.
+
+**Verification:**
+
+- `uv run --python 3.12 pytest tests/test_vector_store_contract.py -q`
+- `uv run --python 3.12 pytest tests/test_metadata_evidence_resolution.py tests/test_sqlite_metadata_store.py -q`
+- `uv run --python 3.12 pytest tests/test_retrieval_result_contract.py -q`
+- `uv run --python 3.12 pytest tests/test_phase_2a_boundary.py -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src`
+- `uv run --python 3.12 mypy tests`
 
 ## 2026-06-05 - Phase 1 Pre-Implementation Review Hardening
 

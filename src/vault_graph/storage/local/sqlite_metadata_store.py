@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.storage.interfaces.metadata_store import DocumentState
+from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 SCHEMA_VERSION = "metadata-v1"
@@ -209,7 +209,7 @@ class SQLiteMetadataStore:
             return None
         return _document_snapshot_from_row(row)
 
-    def resolve_chunk(self, chunk_id: str) -> ChunkSnapshot | None:
+    def resolve_chunk(self, *, vault_id: str, chunk_id: str) -> ChunkSnapshot | None:
         if not self._database_path.exists():
             return None
         with self._connect() as connection:
@@ -218,13 +218,40 @@ class SQLiteMetadataStore:
                 SELECT vault_id, chunk_id, document_id, path, section, anchor, text,
                        token_count, content_hash, chunker_version, index_revision
                 FROM chunks
-                WHERE chunk_id = ?
+                WHERE vault_id = ? AND chunk_id = ?
                 """,
-                (chunk_id,),
+                (vault_id, chunk_id),
             ).fetchone()
         if row is None:
             return None
         return _chunk_snapshot_from_row(row)
+
+    def resolve_chunk_evidence(
+        self,
+        *,
+        vault_id: str,
+        document_id: str,
+        chunk_id: str,
+    ) -> EvidenceReference | None:
+        if not self._database_path.exists():
+            return None
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT d.vault_id, d.document_id, c.chunk_id, d.path, c.section, c.anchor,
+                       c.content_hash, d.raw_sha256, c.index_revision, d.vault_revision
+                FROM documents d
+                INNER JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id AND c.path = d.path
+                WHERE d.vault_id = ?
+                  AND d.document_id = ?
+                  AND c.chunk_id = ?
+                  AND d.is_tombstoned = 0
+                """,
+                (vault_id, document_id, chunk_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return _evidence_reference_from_row(row)
 
     def health(self) -> StoreHealth:
         if not self._database_path.exists():
@@ -355,4 +382,19 @@ def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
         content_hash=str(row["content_hash"]),
         chunker_version=str(row["chunker_version"]),
         index_revision=str(row["index_revision"]) if row["index_revision"] is not None else None,
+    )
+
+
+def _evidence_reference_from_row(row: sqlite3.Row) -> EvidenceReference:
+    return EvidenceReference(
+        vault_id=str(row["vault_id"]),
+        document_id=str(row["document_id"]),
+        chunk_id=str(row["chunk_id"]),
+        path=str(row["path"]),
+        section=str(row["section"]) if row["section"] is not None else None,
+        anchor=str(row["anchor"]) if row["anchor"] is not None else None,
+        content_hash=str(row["content_hash"]),
+        raw_sha256=str(row["raw_sha256"]),
+        metadata_index_revision=str(row["index_revision"]) if row["index_revision"] is not None else None,
+        vault_revision=str(row["vault_revision"]) if row["vault_revision"] is not None else None,
     )

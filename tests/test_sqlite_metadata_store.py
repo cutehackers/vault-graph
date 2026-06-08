@@ -59,8 +59,60 @@ def test_store_keeps_same_relative_path_separate_by_vault_id(tmp_path: Path) -> 
 
     store.apply_metadata_revision(index_revision="rev-1", documents=[first, second], chunks=[], tombstones=[])
 
-    assert store.resolve_document(document_id=first.document_id).content_hash == "hash-first"
-    assert store.resolve_document(document_id=second.document_id).content_hash == "hash-second"
+    first_resolved = store.resolve_document(document_id=first.document_id)
+    second_resolved = store.resolve_document(document_id=second.document_id)
+
+    assert first_resolved is not None
+    assert second_resolved is not None
+    assert first_resolved.content_hash == "hash-first"
+    assert second_resolved.content_hash == "hash-second"
+
+
+def test_resolve_chunk_is_scoped_by_vault_id(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    first = make_document("first", "wiki/same.md", "hash-first")
+    second = make_document("second", "wiki/same.md", "hash-second")
+    shared_chunk_id = "shared-chunk"
+    first_chunk = ChunkSnapshot(
+        vault_id=first.vault_id,
+        chunk_id=shared_chunk_id,
+        document_id=first.document_id,
+        path=first.path,
+        section="First",
+        anchor="first",
+        text="First body",
+        token_count=2,
+        content_hash="first-chunk",
+        chunker_version="chunker",
+        index_revision=None,
+    )
+    second_chunk = ChunkSnapshot(
+        vault_id=second.vault_id,
+        chunk_id=shared_chunk_id,
+        document_id=second.document_id,
+        path=second.path,
+        section="Second",
+        anchor="second",
+        text="Second body",
+        token_count=2,
+        content_hash="second-chunk",
+        chunker_version="chunker",
+        index_revision=None,
+    )
+    store.apply_metadata_revision(
+        index_revision="rev-1",
+        documents=[first, second],
+        chunks=[first_chunk, second_chunk],
+        tombstones=[],
+    )
+
+    resolved_first = store.resolve_chunk(vault_id="first", chunk_id=shared_chunk_id)
+    resolved_second = store.resolve_chunk(vault_id="second", chunk_id=shared_chunk_id)
+
+    assert resolved_first is not None
+    assert resolved_second is not None
+    assert resolved_first.content_hash == "first-chunk"
+    assert resolved_second.content_hash == "second-chunk"
 
 
 def test_store_tombstones_only_named_vault_and_path(tmp_path: Path) -> None:
@@ -102,5 +154,5 @@ def test_tombstoned_document_does_not_resolve_as_fresh(tmp_path: Path) -> None:
     )
 
     assert store.resolve_document(document.document_id) is None
-    assert store.resolve_chunk(chunk.chunk_id) is None
+    assert store.resolve_chunk(vault_id="default", chunk_id=chunk.chunk_id) is None
     assert store.export_documents() == ()

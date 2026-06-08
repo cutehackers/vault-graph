@@ -24,8 +24,14 @@ For the full user-facing feature catalog, see
 [`docs/FEATURES.md`](docs/FEATURES.md).
 
 For architecture and storage contracts, see [`docs/SPEC.md`](docs/SPEC.md).
+For the Phase 2 search slices, see the roadmap in [`docs/SPEC.md`](docs/SPEC.md)
+and the user-facing slice table in [`docs/FEATURES.md`](docs/FEATURES.md).
 
 ## Interface Preview
+
+This section previews the intended product interface across phases. Phase 2A is
+internal contract work only; vector status appears in Phase 2B and `vg search`
+appears in Phase 2C.
 
 ### Initialize
 
@@ -54,9 +60,10 @@ vg index --full
 vg index --dry-run
 ```
 
-Build or refresh Vault-derived metadata, vector, and graph indexes. The dry-run
-mode shows the planned indexing changes before mutation of Vault Graph state.
-Indexing must not mutate Vault files.
+Build or refresh Vault-derived projections as each phase is implemented:
+metadata first, then vector search, then graph records. The dry-run mode shows
+the planned indexing changes before mutation of Vault Graph state. Indexing
+must not mutate Vault files.
 
 ### Watch
 
@@ -74,6 +81,17 @@ vg status
 
 Show configured Vault IDs and paths, backend health, schema compatibility, index
 freshness, projection freshness, and warnings.
+
+### Search
+
+```bash
+vg search "GraphRAG"
+vg search --vault-id main "GraphRAG"
+vg search --all-vaults "GraphRAG"
+```
+
+Search returns ranked, evidence-linked results. Phase 2 search starts with
+keyword and vector signals; graph signals are added after graph indexing exists.
 
 ### Ask
 

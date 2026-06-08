@@ -199,7 +199,7 @@ vault-graph/
 │   ├── vaults.yaml
 │   ├── entity_schema.yaml
 │   ├── retrieval_policy.yaml
-│   ├── embedding_policy.yaml
+│   ├── embedding_spec.yaml
 │   ├── storage_backends.yaml
 │   └── scaleup_backends.example.yaml
 ├── data/
@@ -648,25 +648,33 @@ Required `MetadataStore` capabilities:
 
 For MVP, `VectorStore` is Chroma collections derived from `MetadataStore` chunks
 and local embedding output. It stores embedding vectors, vector IDs, `vault_id`,
-document IDs, chunk IDs, embedding model metadata, embedding policy metadata,
-filters, and index revision metadata. It is rebuildable from Vault through
-`MetadataStore` and must remain non-authoritative.
+document IDs, chunk IDs, content-scope filter metadata, embedding model
+metadata, embedding model spec metadata, filters, and index revision metadata.
+It is rebuildable from Vault through `MetadataStore` and must remain
+non-authoritative.
 
 The boundary is mandatory:
 
 - `VectorStore` owns embedding persistence, vector search, embedding model version state, vector index revision tracking, and vector backend replacement.
 - `VectorStore` must not own document identity, chunk text authority, evidence authority, graph relationships, or durable wiki publication.
 - Query tools must resolve vector hits through `MetadataStore` before returning evidence.
-- Vector results must return `vault_id`, Vault paths, wiki paths, chunk IDs,
-  content hashes, embedding model versions, and retrieval scores.
+- Vector hits must return only semantic candidate metadata: vector IDs,
+  `vault_id`, document IDs, chunk IDs, content-scope filter metadata, embedding
+  model versions, index revisions, backend-local scores, and backend-local ranks.
+- Vector hits must not return path, title, summary, anchor, chunk text, content
+  hashes, or rendered evidence as user-facing authority. Those fields must be
+  resolved through `MetadataStore` before rendering.
 - Qdrant must be a scale-up `VectorStore` implementation over the same logical record contract, not a different retrieval authority.
 
 Required `VectorStore` capabilities:
 
 - upsert embeddings for chunk IDs from a specific metadata/index revision
 - delete or tombstone embeddings for stale chunks
-- run filtered vector search with `QueryScope`, model, and revision metadata
-- validate embedding dimensions, model name, model version, and embedding policy version
+- run filtered vector search with `QueryScope.vault_ids`,
+  `QueryScope.content_scopes`, model, and revision metadata
+- apply `QueryScope.content_scopes` with the same same-or-child semantics used
+  by metadata indexing before applying result limits
+- validate embedding dimensions, model name, model version, and embedding model spec version
 - report backend health, collection/schema compatibility, and index freshness
 - export or inspect embedding manifests in the common logical vector shape
 
@@ -730,9 +738,9 @@ Each store also owns store-specific records:
 
 - `MetadataStore`: document IDs, chunk IDs, file state, source-state projection,
   parser state, chunker state, and tombstones
-- `VectorStore`: vector IDs, Vault IDs, document IDs, chunk IDs, embedding model,
-  embedding model version, embedding policy version, filters, and retrieval
-  scores
+- `VectorStore`: vector IDs, Vault IDs, document IDs, chunk IDs, content-scope
+  filter metadata, embedding model, embedding model version, embedding model spec
+  version, filters, backend-local ranks, and backend-local retrieval scores
 - `GraphStore`: Vault IDs, entity IDs, edge IDs, relationship type, relationship
   status, confidence, extraction method, and evidence path
 - `GraphProjection`: projection build ID, graph projection version, source graph revision, cache validity, and algorithm runtime metadata
@@ -750,7 +758,12 @@ Scale-up must preserve reproducibility:
 - Every persistent backend must support dry-run migration planning before mutation.
 - Every persistent backend must support export or inspection in the common logical record shape.
 - Contract tests must compare local SQLite/Chroma/rustworkx results against scale-up backend results for representative metadata lookup, vector retrieval, graph traversal, ranking, context-pack, and decision-trace queries.
-- Query responses must include the backend name, index revision, and evidence references used to produce the result.
+- Vector contract tests must prove filtering by both `QueryScope.vault_ids` and
+  `QueryScope.content_scopes` before result limits are applied.
+- Retrieval contract tests must prove final evidence is resolved through
+  `MetadataStore`, not trusted from vector hits.
+- Query responses must include evidence references and the backend/revision
+  metadata used to produce each contributing signal or store record.
 
 Scale-up storage must remain replaceable. It must not change the source-of-truth boundary.
 
@@ -799,7 +812,7 @@ The indexer must support:
 - incremental rebuild
 - stale file detection
 - deleted file tombstones
-- parser or embedding policy migration
+- parser or embedding model spec migration
 - metadata store schema migration
 - vector store schema migration
 - graph store schema migration
@@ -1017,16 +1030,59 @@ Context packs should be small enough for an agent to read directly and rich enou
 - MetadataStore contract tests for future Postgres support
 - read-only boundary tests
 
-### Phase 2: Vector Search And Hybrid Retrieval
+### Phase 2: Vector Search And Graph-Ready Hybrid Retrieval
 
-- chunking policy
-- local embedding integration
-- Chroma `VectorStore` collections
-- `VectorStore` interface and backend health checks
-- vector search
-- hybrid keyword/vector retrieval
-- evidence-first answer format
-- VectorStore contract tests for future Qdrant support
+Phase 2 is split into large slices so the retrieval contract can stabilize
+before graph extraction and MCP serving are added. The final retrieval direction
+is evidence-first graph-ready hybrid retrieval, but Phase 2 must not depend on a
+`GraphStore` implementation. Graph signals are reserved for Phase 3 and later.
+
+#### Phase 2A: Retrieval Contract And VectorStore Boundary
+
+- `TextEmbeddings` interface and deterministic test implementation
+- embedding model spec metadata: model name, model version, dimensions, and spec
+  version
+- `VectorStore` interface, vector hit record shape, backend health checks, and
+  schema compatibility checks
+- content-scope filter metadata for vector records and vector hits
+- same-or-child content-scope filtering before vector result limits
+- `MetadataStore` evidence-resolution contract for joining document and chunk
+  evidence before results are rendered
+- path-consistent evidence resolution so mismatched document/chunk rows cannot
+  become normal evidence
+- graph-ready retrieval result schema with per-signal explanations
+- explicit rule that `VectorStore` returns semantic candidates only and never
+  owns document identity, chunk text authority, evidence authority, graph
+  relationships, or durable wiki publication
+- contract tests that future Chroma and Qdrant support must satisfy
+
+#### Phase 2B: Local Vector Indexing
+
+- Chroma `VectorStore` collections derived from `MetadataStore` chunks
+- vector indexer for full and incremental rebuilds
+- stale chunk embedding deletion or tombstoning
+- vector revision metadata and embedding manifest export
+- `vg index` integration for metadata plus vector projection updates
+- `vg status` visibility for vector backend health, schema compatibility, and
+  freshness
+- read-only boundary tests proving vector indexing does not mutate Vault
+
+#### Phase 2C: Evidence-First Keyword And Vector Search
+
+- keyword candidate lookup over metadata and chunks
+- vector candidate lookup over `VectorStore`
+- rank-based candidate fusion for keyword and vector signals
+- `RetrievalService` or `HybridRetriever` that owns candidate merge, dedupe,
+  rerank, warnings, and evidence resolution
+- `vg search "query"` user surface with `--vault-id`, `--all-vaults`, `--limit`,
+  and optional machine-readable output
+- search results resolved through `MetadataStore` before rendering
+- evidence-linked result format with per-signal explanations and stale or
+  missing evidence warnings
+
+Phase 2 explicitly excludes graph traversal, entity extraction, decision traces,
+LLM answer generation, context packs, MCP serving, HTTP serving, and Qdrant
+implementation.
 
 ### Phase 3: Entity And Relationship Graph
 

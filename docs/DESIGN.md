@@ -121,7 +121,7 @@ runtime policies:
 - parser version
 - chunker version
 - embedding model and version
-- embedding policy version
+- embedding model spec version
 - extraction policy version
 - store schema versions
 - graph projection version
@@ -466,7 +466,7 @@ Runtime configuration should be explicit about:
 - content scopes
 - entity schema
 - retrieval policy
-- embedding policy
+- embedding model spec
 - storage backend selection
 - optional scale-up backend configuration
 
@@ -475,7 +475,7 @@ Configuration files:
 - `configs/vaults.yaml`
 - `configs/entity_schema.yaml`
 - `configs/retrieval_policy.yaml`
-- `configs/embedding_policy.yaml`
+- `configs/embedding_spec.yaml`
 - `configs/storage_backends.yaml`
 - `configs/scaleup_backends.example.yaml`
 
@@ -640,6 +640,9 @@ Allowed statuses:
 ### 8.8 Retrieval Result
 
 A retrieval result is a ranked candidate with evidence and explanation data.
+The retrieval layer owns final ordering. Backend scores remain attached to
+individual signals because keyword, vector, and graph scores are not globally
+comparable.
 
 Fields:
 
@@ -648,14 +651,12 @@ Fields:
 - `kind`
 - `title`
 - `summary`
-- `score`
 - `rank`
 - `evidence`
 - `signals`
 - `relationship_status`
 - `warnings`
-- `backend`
-- `index_revision`
+- `store_revisions`
 
 ### 8.9 Context Pack
 
@@ -729,18 +730,22 @@ Required operations:
 
 - upsert embeddings for chunk IDs
 - delete or tombstone embeddings for stale chunks
-- run filtered vector search with `QueryScope`
+- run filtered vector search with `QueryScope.vault_ids` and
+  `QueryScope.content_scopes`
+- apply content-scope filters with the same same-or-child semantics used by
+  metadata indexing before returning limited vector hits
 - validate embedding dimensions
 - validate embedding model and version
-- validate embedding policy version
+- validate embedding model spec version
 - report backend health
 - report collection or schema compatibility
 - report index freshness
 - export embedding manifests in the common logical vector shape
 
-Vector search must return `vault_id`, chunk IDs, and vector metadata. Callers
-must resolve chunk IDs through `MetadataStore` before returning evidence to
-users.
+Vector search must return only semantic candidate metadata: `vault_id`, document
+IDs, chunk IDs, content-scope filter metadata, backend-local scores, ranks, and
+vector metadata. Callers must resolve document and chunk evidence through
+`MetadataStore` before returning evidence to users.
 
 ### 9.3 GraphStore
 
@@ -864,13 +869,16 @@ Stale files should produce warnings when:
 - indexed content hash differs from current content hash
 - raw SHA-256 differs from the recorded value
 - parser or chunker version changed
-- embedding policy changed
+- embedding model spec changed
 - extraction policy changed
 - projection cache is invalid
 
 ## 11. Retrieval Design
 
 Retrieval combines multiple evidence signals while keeping output explainable.
+Phase 2 implements graph-ready hybrid retrieval with keyword and vector signals.
+Graph signals join the same retrieval contract only after `GraphStore` exists in
+Phase 3.
 
 ### 11.1 Search Flow
 
@@ -879,10 +887,10 @@ Query
   -> normalize query and QueryScope
   -> keyword and metadata candidate lookup
   -> vector candidate lookup
-  -> graph candidate lookup
+  -> graph candidate lookup when GraphStore is available
   -> wiki link, decision-map, or timeline-map expansion when available
   -> candidate merge and dedupe
-  -> rerank
+  -> rank-based fusion and rerank
   -> evidence resolution
   -> warning attachment
   -> response rendering
@@ -897,13 +905,21 @@ retrieval requires explicit `vault_ids`. Candidate merge and dedupe must use
 Vault-scoped identity; identical paths or entity names from different Vaults are
 not equivalent by default.
 
+The retrieval layer, not `VectorStore`, owns hybrid policy. `VectorStore` returns
+semantic candidates only. `GraphStore` returns relationship candidates only.
+Keyword lookup returns lexical candidates only. The retrieval layer merges these
+signals, preserves per-signal explanations, and resolves evidence before
+rendering.
+
 ### 11.2 Vector Retrieval
 
-Vector retrieval searches `VectorStore` and returns vector IDs, Vault IDs, chunk
-IDs, scores, filters, embedding model metadata, and index revision metadata.
+Vector retrieval searches `VectorStore` and returns vector IDs, Vault IDs,
+document IDs, chunk IDs, content-scope filter metadata, backend-local scores,
+ranks, filters, embedding model metadata, and index revision metadata.
 
-The caller then resolves chunk IDs through `MetadataStore` to attach `vault_id`,
-path, section, anchor, content hash, raw SHA-256, and Vault revision.
+The caller then resolves document and chunk IDs through `MetadataStore` to
+attach `vault_id`, path, section, anchor, content hash, raw SHA-256, and Vault
+revision.
 
 ### 11.3 Graph Retrieval
 
@@ -924,7 +940,12 @@ Graph results must distinguish relationship status:
 
 ### 11.4 Hybrid Ranking
 
-Hybrid ranking should combine:
+Hybrid ranking should preserve signal-specific explanations and avoid treating
+backend scores as directly comparable. Phase 2 should use rank-based fusion for
+keyword and vector candidates. Phase 3 may add graph proximity as another
+signal.
+
+The long-term ranking inputs are:
 
 - keyword match strength
 - vector similarity
@@ -1257,7 +1278,7 @@ Revision fields:
 - `chunker_version`
 - `embedding_model`
 - `embedding_model_version`
-- `embedding_policy_version`
+- `embedding_spec_version`
 - `extraction_policy_version`
 - `metadata_store_schema_version`
 - `vector_store_schema_version`
@@ -1298,6 +1319,9 @@ Contract tests should cover:
 - `MetadataStore` local behavior
 - `VectorStore` local behavior
 - `GraphStore` local behavior
+- `VectorStore` filtering by `QueryScope.vault_ids` and
+  `QueryScope.content_scopes`
+- metadata evidence resolution before retrieval result rendering
 - future Postgres behavior against the metadata contract
 - future Qdrant behavior against the vector contract
 - future Neo4j behavior against the graph contract
@@ -1337,12 +1361,14 @@ Integration tests should cover:
 Implementation should follow the phase order from `docs/SPEC.md`.
 
 1. Vault reader and `MetadataStore`
-2. vector search and hybrid retrieval
-3. entity and relationship graph
-4. context pack builder
-5. MCP server
-6. memory and explorer projections
-7. optional UI
+2. Phase 2A: retrieval contract and `VectorStore` boundary
+3. Phase 2B: local vector indexing
+4. Phase 2C: evidence-first keyword and vector search
+5. entity and relationship graph
+6. context pack builder
+7. MCP server
+8. memory and explorer projections
+9. optional UI
 
 Each phase should preserve the read-only boundary and include focused tests
 before expanding the next layer.
