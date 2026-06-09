@@ -113,3 +113,15 @@ def test_text_embeddings_does_not_write_files(tmp_path: Path) -> None:
     embeddings.embed((EmbeddingInput(input_id="one", text=str(tmp_path)),))
 
     assert tuple(tmp_path.iterdir()) == before
+
+
+def test_text_embeddings_exposes_no_download_availability() -> None:
+    spec = EmbeddingModelSpec(
+        model_name="deterministic",
+        model_version="test",
+        dimensions=4,
+        spec_version="embedding-spec-v1",
+    )
+    embeddings = DeterministicTextEmbeddings(spec)
+
+    assert embeddings.can_embed_without_download() is True

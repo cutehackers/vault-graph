@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 
@@ -7,10 +8,30 @@ import typer
 
 from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.index_service import IndexService
+from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
-from vault_graph.errors import CatalogError, ReadOnlyBoundaryError
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.errors import (
+    CatalogError,
+    KeywordIndexError,
+    ReadOnlyBoundaryError,
+    SearchError,
+    TextEmbeddingsError,
+    VectorStoreError,
+)
+from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval import (
+    RetrievalResult,
+    RetrievalService,
+    RetrievalSignal,
+    RetrievalWarning,
+    SearchResponse,
+    SearchStoreRevision,
+    SearchWarning,
+    StoreRevision,
+)
+from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
+from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore
 
@@ -34,20 +55,60 @@ def _service(state: Path, *, initialize_store: bool) -> tuple[CatalogService, Va
         config.assert_cache_target_safe(target_path=config.embedding_cache_path, catalog=catalog)
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=initialize_store)
     text_embeddings = _text_embeddings(config)
-    return config, catalog, IndexService(
-        catalog=catalog,
-        metadata_store=metadata_store,
-        vector_store=ChromaVectorStore(config.vector_path, initialize=initialize_store, read_only=not initialize_store),
-        text_embeddings=text_embeddings,
-        vector_status_store=LocalVectorStatusStore(config.vector_status_path),
-        embedding_batch_size=text_embeddings.config.embedding_batch_size,
-        embedding_parallelism=text_embeddings.config.embedding_parallelism,
-        embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
+    return (
+        config,
+        catalog,
+        IndexService(
+            catalog=catalog,
+            metadata_store=metadata_store,
+            vector_store=ChromaVectorStore(
+                config.vector_path, initialize=initialize_store, read_only=not initialize_store
+            ),
+            text_embeddings=text_embeddings,
+            vector_status_store=LocalVectorStatusStore(config.vector_status_path),
+            embedding_batch_size=text_embeddings.config.embedding_batch_size,
+            embedding_parallelism=text_embeddings.config.embedding_parallelism,
+            embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
+        ),
+    )
+
+
+def _search_service(state: Path) -> tuple[CatalogService, VaultCatalog, RetrievalService]:
+    config, catalog = _catalog(state)
+    metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=False)
+    keyword_index = SQLiteKeywordIndex(config.metadata_path)
+    vector_store = ChromaVectorStore(config.vector_path, initialize=False, read_only=True)
+    text_embeddings = _search_text_embeddings(config)
+    return (
+        config,
+        catalog,
+        RetrievalService(
+            catalog=catalog,
+            metadata_store=metadata_store,
+            keyword_index=keyword_index,
+            vector_store=vector_store,
+            text_embeddings=text_embeddings,
+            readiness=ReadOnlySearchReadiness(
+                metadata_store=metadata_store,
+                keyword_index=keyword_index,
+                vector_store=vector_store,
+                text_embeddings=text_embeddings,
+            ),
+        ),
     )
 
 
 def _text_embeddings(config: CatalogService) -> FastEmbedTextEmbeddings:
     return FastEmbedTextEmbeddings(config=FastEmbedTextEmbeddingsConfig(cache_dir=config.embedding_cache_path))
+
+
+def _search_text_embeddings(config: CatalogService) -> FastEmbedTextEmbeddings:
+    return FastEmbedTextEmbeddings(
+        config=FastEmbedTextEmbeddingsConfig(
+            cache_dir=config.embedding_cache_path,
+            local_files_only=True,
+        )
+    )
 
 
 @app.command()
@@ -136,6 +197,43 @@ def index(
 
 
 @app.command()
+def search(
+    query: str = typer.Argument(..., help="Search query text."),
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    vault_id: str | None = typer.Option(None, "--vault-id", help="Search one registered Vault ID."),
+    all_vaults: bool = typer.Option(False, "--all-vaults", help="Search all enabled registered Vaults."),
+    limit: int = typer.Option(10, "--limit", help="Maximum number of final results."),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+) -> None:
+    if all_vaults and vault_id:
+        typer.echo("Use either --vault-id or --all-vaults, not both.")
+        raise typer.Exit(1)
+    if output_format not in {"text", "json"}:
+        typer.echo("unsupported_format")
+        raise typer.Exit(1)
+    _, catalog, service = _exit_on_domain_error(lambda: _search_service(state))
+    if all_vaults:
+        scope = _exit_on_domain_error(catalog.scope_for_all_enabled)
+    elif vault_id is not None:
+        selected_vault_id = vault_id
+        scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids([selected_vault_id]))
+    else:
+        scope = _exit_on_domain_error(catalog.default_scope)
+    response = _exit_on_domain_error(
+        lambda: service.search(
+            query_text=query,
+            requested_scope=scope,
+            limit=limit,
+            output_format=output_format,  # type: ignore[arg-type]
+        )
+    )
+    if output_format == "json":
+        typer.echo(json.dumps(_search_response_json(response), sort_keys=True, indent=2))
+    else:
+        _render_search_response(response)
+
+
+@app.command()
 def status(
     state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Report one registered Vault ID."),
@@ -178,9 +276,144 @@ def status(
     typer.echo(f"vector_status_scope: {report.vector_status_scope}")
 
 
+def _render_search_response(response: SearchResponse) -> None:
+    if response.warnings:
+        for warning in response.warnings:
+            scope = ",".join(warning.affected_vault_ids)
+            scope_key = f" {warning.scope_key}" if warning.scope_key else ""
+            typer.echo(f"warning: {warning.code} [{scope}]{scope_key} {warning.message}")
+    typer.echo(f"query: {response.query_text}")
+    typer.echo(f"vault_ids: {','.join(response.requested_scope.vault_ids)}")
+    typer.echo(f"effective_scopes: {','.join(_scope_text(scope) for scope in response.effective_scopes)}")
+    typer.echo(f"results: {response.result_count}")
+    for result in response.results:
+        evidence = result.evidence[0]
+        typer.echo(f"{result.rank}. [{result.vault_id}] {result.title}")
+        typer.echo(f"   path: {evidence.path}")
+        if evidence.section:
+            typer.echo(f"   section: {evidence.section}")
+        typer.echo(f"   summary: {result.summary}")
+        signal_text = ", ".join(f"{signal.kind}:{signal.rank}" for signal in result.signals)
+        typer.echo(f"   signals: {signal_text}")
+
+
+def _search_response_json(response: SearchResponse) -> dict[str, object]:
+    return {
+        "query_text": response.query_text,
+        "requested_scope": _scope_json(response.requested_scope),
+        "effective_scopes": [_scope_json(scope) for scope in response.effective_scopes],
+        "limit": response.limit,
+        "result_count": response.result_count,
+        "candidate_count": response.candidate_count,
+        "dropped_candidate_count": response.dropped_candidate_count,
+        "results": [_result_json(result) for result in response.results],
+        "warnings": [_warning_json(warning) for warning in response.warnings],
+        "degraded": response.degraded,
+        "store_revisions": [_store_revision_json(revision) for revision in response.store_revisions],
+        "generated_at": response.generated_at,
+    }
+
+
+def _scope_json(scope: QueryScope) -> dict[str, object]:
+    return {
+        "vault_ids": list(scope.vault_ids),
+        "content_scopes": list(scope.content_scopes),
+        "include_cross_vault": scope.include_cross_vault,
+    }
+
+
+def _scope_text(scope: QueryScope) -> str:
+    return f"{','.join(scope.vault_ids)}:{','.join(scope.content_scopes)}"
+
+
+def _result_json(result: RetrievalResult) -> dict[str, object]:
+    return {
+        "result_id": result.result_id,
+        "vault_id": result.vault_id,
+        "kind": result.kind,
+        "title": result.title,
+        "summary": result.summary,
+        "rank": result.rank,
+        "evidence": [_evidence_json(evidence) for evidence in result.evidence],
+        "signals": [_signal_json(signal) for signal in result.signals],
+        "relationship_status": result.relationship_status,
+        "warnings": [_result_warning_json(warning) for warning in result.warnings],
+        "store_revisions": [_store_revision_json(revision) for revision in result.store_revisions],
+    }
+
+
+def _evidence_json(evidence: EvidenceReference) -> dict[str, object]:
+    return {
+        "vault_id": evidence.vault_id,
+        "document_id": evidence.document_id,
+        "chunk_id": evidence.chunk_id,
+        "path": evidence.path,
+        "section": evidence.section,
+        "anchor": evidence.anchor,
+        "content_hash": evidence.content_hash,
+        "raw_sha256": evidence.raw_sha256,
+        "metadata_index_revision": evidence.metadata_index_revision,
+        "vault_revision": evidence.vault_revision,
+    }
+
+
+def _signal_json(signal: RetrievalSignal) -> dict[str, object]:
+    return {
+        "kind": signal.kind,
+        "source_id": signal.source_id,
+        "rank": signal.rank,
+        "score": signal.score,
+        "backend": signal.backend,
+        "index_revision": signal.index_revision,
+        "explanation": signal.explanation,
+    }
+
+
+def _result_warning_json(warning: RetrievalWarning) -> dict[str, object]:
+    return {
+        "code": warning.code,
+        "message": warning.message,
+        "severity": warning.severity,
+    }
+
+
+def _store_revision_json(revision: StoreRevision | SearchStoreRevision) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "kind": revision.kind,
+        "revision": revision.revision,
+    }
+    scope_key = getattr(revision, "scope_key", None)
+    vault_id = getattr(revision, "vault_id", None)
+    if scope_key is not None:
+        payload["scope_key"] = scope_key
+    if vault_id is not None:
+        payload["vault_id"] = vault_id
+    return payload
+
+
+def _warning_json(warning: SearchWarning) -> dict[str, object]:
+    return {
+        "code": warning.code,
+        "message": warning.message,
+        "severity": warning.severity,
+        "affected_vault_ids": list(warning.affected_vault_ids),
+        "scope_key": warning.scope_key,
+        "document_id": warning.document_id,
+        "chunk_id": warning.chunk_id,
+        "source_id": warning.source_id,
+    }
+
+
 def _exit_on_domain_error[T](operation: Callable[[], T]) -> T:
     try:
         return operation()
-    except (CatalogError, ReadOnlyBoundaryError) as exc:
+    except (
+        CatalogError,
+        KeywordIndexError,
+        ReadOnlyBoundaryError,
+        SearchError,
+        TextEmbeddingsError,
+        VectorStoreError,
+    ) as exc:
         typer.echo(str(exc))
         raise typer.Exit(1) from exc

@@ -103,3 +103,20 @@ def test_model_unavailable_error_is_clear(tmp_path: Path) -> None:
 
     with pytest.raises(TextEmbeddingsError, match="embedding model unavailable"):
         embeddings.embed((EmbeddingInput(input_id="a", text="alpha"),))
+
+
+def test_fastembed_can_check_local_artifact_without_loading_backend(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    def resolver(_: FastEmbedTextEmbeddingsConfig) -> Path:
+        calls.append("resolver")
+        return tmp_path / "snapshot"
+
+    embeddings = FastEmbedTextEmbeddings(
+        config=FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path, local_files_only=True),
+        snapshot_resolver=resolver,
+        backend_factory=lambda _config, _path: pytest.fail("backend must not load"),
+    )
+
+    assert embeddings.can_embed_without_download() is True
+    assert calls == ["resolver"]

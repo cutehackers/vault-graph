@@ -7,6 +7,7 @@ from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
 from vault_graph.indexing.vector_indexer import VectorApplyResult, VectorIndexer, VectorRevisionPlan
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.ingestion.query_scope_resolution import effective_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 from vault_graph.storage.interfaces.vector_store import VectorStore
@@ -99,7 +100,7 @@ class IndexService:
         if self._vector_store is None or self._text_embeddings is None:
             return IndexRunReport(metadata=metadata_plan, vector=None)
         vector_result = self._vector_indexer(chunk_store=self._metadata_store).apply(
-            scopes=_effective_vector_scopes(catalog=self._catalog, scope=scope),
+            scopes=effective_query_scopes(catalog=self._catalog, scope=scope),
             full=full,
         )
         self._record_vector_status(scope=scope, result=vector_result)
@@ -168,7 +169,7 @@ class IndexService:
         if self._vector_store is None or self._text_embeddings is None:
             return None
         return self._vector_indexer(chunk_store=chunk_store).plan(
-            scopes=_effective_vector_scopes(catalog=self._catalog, scope=scope),
+            scopes=effective_query_scopes(catalog=self._catalog, scope=scope),
             full=full,
         )
 
@@ -217,33 +218,6 @@ class _PreviewChunkStore:
                 for content_scope in scope.content_scopes
             )
         )
-
-
-def _effective_vector_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:
-    effective_scopes: list[QueryScope] = []
-    for vault_id in scope.vault_ids:
-        entry = catalog.resolve(vault_id)
-        content_scopes: list[str] = []
-        for query_scope in scope.content_scopes:
-            for entry_scope in entry.content_scopes:
-                if _is_same_or_child(path=query_scope, parent=entry_scope):
-                    content_scopes.append(query_scope)
-                elif _is_same_or_child(path=entry_scope, parent=query_scope):
-                    content_scopes.append(entry_scope)
-        deduped = tuple(dict.fromkeys(content_scopes))
-        if deduped:
-            effective_scopes.append(
-                QueryScope(
-                    vault_ids=(entry.vault_id,),
-                    content_scopes=deduped,
-                    include_cross_vault=scope.include_cross_vault,
-                )
-            )
-    return tuple(effective_scopes)
-
-
-def _is_same_or_child(*, path: str, parent: str) -> bool:
-    return path == parent or path.startswith(f"{parent}/")
 
 
 def _embedding_config_value[T](text_embeddings: TextEmbeddings | None, field_name: str, fallback: T) -> T:

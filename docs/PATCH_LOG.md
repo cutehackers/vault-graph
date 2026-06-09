@@ -3,6 +3,51 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-09 - Phase 2C Implementation Review Fixes
+
+**Trigger:** Subagent review of the Phase 2C implementation found consistency
+gaps in search readiness, warning attribution, read-only vector failure
+visibility, and CLI output.
+
+**Scope:** Phase 2C keyword/vector search implementation.
+
+**Core Values Protected:**
+
+- search remains evidence-first and inspectable
+- search failures return clear recovery diagnostics instead of raw backend
+  errors
+- multi-vault degraded conditions stay attributed to the affected Vault/scope
+- retrieval stays independent from app-layer orchestration
+- CLI JSON remains a stable public response shape
+
+**Changes Applied:**
+
+- Stopped readiness revision calculation when metadata or keyword schemas are
+  incompatible, so `vg search` reports domain errors with `vg index` recovery
+  guidance.
+- Added scope-level vector staleness readiness and warning attribution.
+- Made existing Chroma client failures visible as `VectorStoreError` so
+  retrieval can emit `vector_query_failed` warnings instead of silent empty
+  vector results.
+- Moved effective query scope resolution to the ingestion/catalog boundary and
+  kept the app module as a thin compatibility export.
+- Made keyword index revision reporting owned by the keyword interface instead
+  of inferring keyword provenance from metadata revisions.
+- Tightened SQLite keyword `matched_fields` to report fields that contain query
+  tokens.
+- Added resolved Vault/effective-scope lines to text search output and replaced
+  `asdict` JSON rendering with explicit serializers.
+
+**Verification:**
+
+- subagent review focused on product/spec alignment
+- subagent review focused on read-only and multi-vault invariants
+- subagent review focused on code quality and interface boundaries
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src`
+- `uv run --python 3.12 mypy tests`
+
 ## 2026-06-09 - Test Source Naming Cleanup
 
 **Trigger:** Phase labels in test source filenames made the code surface feel

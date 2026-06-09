@@ -65,28 +65,32 @@ class ChromaVectorStore(VectorStore):
             )
 
     def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:
-        if self._read_only:
+        if self._read_only and not self._database_path.exists():
             return ()
         if not self._path.exists() and not self._initialize:
             return ()
-        client = self._client_or_none()
-        if client is None:
-            return ()
-        collection = self._get_collection_if_exists(client, query.embedding_spec)
-        if collection is None:
-            return ()
-        scoped_ids = self._scoped_ids(collection=collection, scope=query.scope)
-        if not scoped_ids:
-            return ()
-        result = collection.query(
-            query_embeddings=[list(query.query_vector.values)],
-            ids=scoped_ids,
-            n_results=min(query.limit, len(scoped_ids)),
-            include=["metadatas", "distances"],
-        )
-        ids = (result.get("ids") or [[]])[0]
-        metadatas = (result.get("metadatas") or [[]])[0]
-        distances = (result.get("distances") or [[]])[0]
+        try:
+            client = self._require_client()
+        except Exception as exc:
+            raise VectorStoreError(f"vector search unavailable: {exc}") from exc
+        try:
+            collection = self._get_collection_if_exists(client, query.embedding_spec)
+            if collection is None:
+                return ()
+            scoped_ids = self._scoped_ids(collection=collection, scope=query.scope)
+            if not scoped_ids:
+                return ()
+            result = collection.query(
+                query_embeddings=[list(query.query_vector.values)],
+                ids=scoped_ids,
+                n_results=min(query.limit, len(scoped_ids)),
+                include=["metadatas", "distances"],
+            )
+            ids = (result.get("ids") or [[]])[0]
+            metadatas = (result.get("metadatas") or [[]])[0]
+            distances = (result.get("distances") or [[]])[0]
+        except Exception as exc:
+            raise VectorStoreError(f"vector search unavailable: {exc}") from exc
         hits: list[VectorHit] = []
         for rank, (vector_id, metadata, distance) in enumerate(zip(ids, metadatas, distances, strict=True), start=1):
             hits.append(
@@ -282,9 +286,7 @@ class ChromaVectorStore(VectorStore):
 
     def _vault_graph_collections(self, client: Any) -> tuple[Any, ...]:
         return tuple(
-            collection
-            for collection in client.list_collections()
-            if collection.name.startswith(COLLECTION_PREFIX)
+            collection for collection in client.list_collections() if collection.name.startswith(COLLECTION_PREFIX)
         )
 
     def _scoped_ids(self, *, collection: Any, scope: QueryScope) -> list[str]:
@@ -384,15 +386,13 @@ def _manifest_record_in_scope(row: VectorManifestRecord, scope: QueryScope) -> b
 
 def _content_scope_in_scope(*, record_scope: str, query_scopes: tuple[str, ...]) -> bool:
     return any(
-        record_scope == query_scope or record_scope.startswith(f"{query_scope}/")
-        for query_scope in query_scopes
+        record_scope == query_scope or record_scope.startswith(f"{query_scope}/") for query_scope in query_scopes
     )
 
 
 def _missing_tables(connection: sqlite3.Connection, required_tables: set[str]) -> set[str]:
     tables = {
-        str(row["name"])
-        for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+        str(row["name"]) for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
     }
     return required_tables - tables
 

@@ -11,6 +11,7 @@ from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSna
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference
 from vault_graph.storage.interfaces.store_health import StoreHealth
+from vault_graph.storage.local.sqlite_keyword_index import apply_keyword_revision, ensure_keyword_schema
 
 SCHEMA_VERSION = "metadata-v1"
 
@@ -64,6 +65,7 @@ class SQLiteMetadataStore:
             self._database_path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 connection.executescript(SCHEMA)
+                ensure_keyword_schema(connection)
 
     def apply_metadata_revision(
         self,
@@ -151,6 +153,13 @@ class SQLiteMetadataStore:
                     "UPDATE documents SET is_tombstoned = 1, index_revision = ? WHERE vault_id = ? AND path = ?",
                     (index_revision, vault_id, path),
                 )
+            apply_keyword_revision(
+                connection,
+                index_revision=index_revision,
+                documents=documents,
+                chunks=chunks,
+                tombstones=tombstones,
+            )
 
     def document_state(self, vault_id: str, path: str) -> DocumentState:
         if not self._database_path.exists():

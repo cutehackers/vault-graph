@@ -22,5 +22,13 @@ class VectorStoreError(VaultGraphError):
     """Raised when vector store contracts are violated."""
 
 
+class KeywordIndexError(VaultGraphError):
+    """Raised when keyword candidate lookup contracts are violated."""
+
+
 class RetrievalContractError(VaultGraphError):
     """Raised when retrieval result contracts are violated."""
+
+
+class SearchError(VaultGraphError):
+    """Raised when search cannot produce a valid response."""

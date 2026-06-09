@@ -13,6 +13,9 @@ class DeterministicTextEmbeddings:
     def model_spec(self) -> EmbeddingModelSpec:
         return self._model_spec
 
+    def can_embed_without_download(self) -> bool:
+        return True
+
     def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]:
         _validate_unique_input_ids(inputs)
         return tuple(

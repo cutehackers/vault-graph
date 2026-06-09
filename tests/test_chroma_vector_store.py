@@ -3,6 +3,7 @@ from pathlib import Path
 import chromadb
 
 from tests.test_vector_store_contract import SECOND_SPEC, make_query, make_record
+from vault_graph.errors import VectorStoreError
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.vector_store import VectorTombstone
 from vault_graph.storage.local.chroma_vector_store import CHROMA_VECTOR_SCHEMA_VERSION, ChromaVectorStore
@@ -125,6 +126,64 @@ def test_chroma_missing_readonly_path_export_and_search_do_not_create_state(tmp_
     assert not path.exists()
 
 
+def test_read_only_search_does_not_create_missing_chroma_state(tmp_path: Path) -> None:
+    store = ChromaVectorStore(tmp_path / "missing", initialize=False, read_only=True)
+    query = make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+
+    hits = store.search(query)
+
+    assert hits == ()
+    assert not (tmp_path / "missing" / "chroma.sqlite3").exists()
+
+
+def test_read_only_search_can_query_existing_chroma_state(tmp_path: Path) -> None:
+    path = tmp_path / "chroma"
+    writable = ChromaVectorStore(path, initialize=True)
+    record = make_record(vault_id="default", path="wiki/page.md", text="alpha", content_scope="wiki")
+    writable.apply_vector_revision(vector_index_revision="vector-1", records=(record,), tombstones=())
+    before = _tree_snapshot(path)
+    readonly = ChromaVectorStore(path, initialize=False, read_only=True)
+
+    hits = readonly.search(make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",))))
+
+    assert tuple((hit.vault_id, hit.chunk_id) for hit in hits) == (("default", record.chunk_id),)
+    assert _tree_snapshot(path) == before
+
+
+def test_existing_read_only_search_surfaces_chroma_client_failure(tmp_path: Path) -> None:
+    path = tmp_path / "chroma"
+    path.mkdir()
+    (path / "chroma.sqlite3").write_bytes(b"not a real sqlite db")
+    store = ChromaVectorStore(path, initialize=False, read_only=True)
+    store._require_client = lambda: (_ for _ in ()).throw(RuntimeError("client failed"))  # type: ignore[method-assign]
+
+    try:
+        store.search(make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",))))
+    except VectorStoreError as exc:
+        assert "client failed" in str(exc)
+    else:
+        raise AssertionError("existing Chroma client failures must be visible to retrieval")
+
+
+def test_existing_read_only_search_surfaces_collection_lookup_failure(tmp_path: Path) -> None:
+    class Client:
+        def list_collections(self) -> tuple[object, ...]:
+            raise RuntimeError("list failed")
+
+    path = tmp_path / "chroma"
+    path.mkdir()
+    (path / "chroma.sqlite3").write_bytes(b"placeholder")
+    store = ChromaVectorStore(path, initialize=False, read_only=True)
+    store._require_client = lambda: Client()  # type: ignore[method-assign]
+
+    try:
+        store.search(make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",))))
+    except VectorStoreError as exc:
+        assert "list failed" in str(exc)
+    else:
+        raise AssertionError("Chroma collection lookup failures must be visible to retrieval")
+
+
 def test_chroma_readonly_existing_empty_path_does_not_create_sqlite(tmp_path: Path) -> None:
     path = tmp_path / "empty-chroma"
     path.mkdir()
@@ -167,3 +226,11 @@ def test_chroma_rejects_record_revision_mismatch(tmp_path: Path) -> None:
         assert "record vector_index_revision must match revision being applied" in str(exc)
     else:
         raise AssertionError("Chroma should reject records whose vector revision does not match the apply revision")
+
+
+def _tree_snapshot(root: Path) -> dict[str, tuple[int, bytes]]:
+    return {
+        str(path.relative_to(root)): (path.stat().st_size, path.read_bytes())
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }

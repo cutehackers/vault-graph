@@ -7,11 +7,13 @@ from vault_graph.cli.main import app
 runner = CliRunner()
 
 
-def test_cli_surface_does_not_expose_search_before_search_slice() -> None:
-    result = runner.invoke(app, ["search", "query"])
+def test_cli_surface_exposes_search_but_not_answer_or_context_commands() -> None:
+    result = runner.invoke(app, ["--help"])
 
-    assert result.exit_code != 0
-    assert "No such command" in result.output
+    assert result.exit_code == 0
+    assert "search" in result.output
+    assert "ask" not in result.output
+    assert "context" not in result.output
 
 
 def test_cli_status_exposes_vector_fields(tmp_path: Path) -> None:

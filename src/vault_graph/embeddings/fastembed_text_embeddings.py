@@ -35,6 +35,7 @@ class FastEmbedTextEmbeddingsConfig:
     embedding_batch_size: int = 256
     embedding_parallelism: int | None = None
     embedding_lazy_load: bool = True
+    local_files_only: bool = False
 
     def __post_init__(self) -> None:
         if self.embedding_batch_size <= 0:
@@ -73,6 +74,13 @@ class FastEmbedTextEmbeddings:
     def model_spec(self) -> EmbeddingModelSpec:
         return self._config.model_spec()
 
+    def can_embed_without_download(self) -> bool:
+        try:
+            self._snapshot_resolver(self._config_for_local_files_only())
+        except Exception:
+            return False
+        return True
+
     def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]:
         _validate_unique_input_ids(inputs)
         if not inputs:
@@ -104,6 +112,21 @@ class FastEmbedTextEmbeddings:
         except Exception as exc:
             raise TextEmbeddingsError(f"embedding model unavailable: {exc}") from exc
 
+    def _config_for_local_files_only(self) -> FastEmbedTextEmbeddingsConfig:
+        return FastEmbedTextEmbeddingsConfig(
+            model_name=self._config.model_name,
+            model_version=self._config.model_version,
+            dimensions=self._config.dimensions,
+            spec_version=self._config.spec_version,
+            artifact_repo_id=self._config.artifact_repo_id,
+            source_model_revision=self._config.source_model_revision,
+            cache_dir=self._config.cache_dir,
+            embedding_batch_size=self._config.embedding_batch_size,
+            embedding_parallelism=self._config.embedding_parallelism,
+            embedding_lazy_load=self._config.embedding_lazy_load,
+            local_files_only=True,
+        )
+
 
 def _validate_unique_input_ids(inputs: tuple[EmbeddingInput, ...]) -> None:
     seen: set[str] = set()
@@ -122,6 +145,7 @@ def _resolve_snapshot(config: FastEmbedTextEmbeddingsConfig) -> Path:
                 repo_id=config.artifact_repo_id,
                 revision=config.model_version,
                 cache_dir=str(config.cache_dir.expanduser()),
+                local_files_only=config.local_files_only,
             )
         )
     except Exception as exc:
