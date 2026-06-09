@@ -67,8 +67,8 @@ Create these files:
 - `tests/test_metadata_chunk_listing.py`: `MetadataStore.list_chunks(scope)` behavior.
 - `tests/test_vector_indexer.py`: reconcile planning and apply behavior with fakes.
 - `tests/test_chroma_vector_store.py`: Chroma persistence, manifest, filtering, schema, and tombstone contract tests.
-- `tests/test_cli_phase_2b.py`: CLI `index` and `status` Phase 2B behavior.
-- `tests/test_phase_2b_read_only_boundary.py`: state path, Chroma path, model cache path, and Vault mutation guards.
+- `tests/test_cli_vector_indexing.py`: CLI `index` and `status` Phase 2B behavior.
+- `tests/test_vector_indexing_read_only_boundary.py`: state path, Chroma path, model cache path, and Vault mutation guards.
 
 Modify these files:
 
@@ -1484,11 +1484,11 @@ git commit -m "feat: reconcile vector index from metadata chunks"
 - Create: `src/vault_graph/storage/local/vector_status_store.py`
 - Modify: `src/vault_graph/app/catalog_service.py`
 - Modify: `src/vault_graph/app/index_service.py`
-- Create: `tests/test_index_service_phase_2b.py`
+- Create: `tests/test_index_service_vector_reconcile.py`
 
 - [ ] **Step 1: Write failing service tests**
 
-Create `tests/test_index_service_phase_2b.py`:
+Create `tests/test_index_service_vector_reconcile.py`:
 
 ```python
 from pathlib import Path
@@ -1647,7 +1647,7 @@ def test_index_service_uses_per_vault_effective_scopes_for_vector_reconcile(tmp_
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_index_service_phase_2b.py -q
+uv run --python 3.12 pytest tests/test_index_service_vector_reconcile.py -q
 ```
 
 Expected: FAIL because `IndexService` does not accept vector dependencies and `LocalVectorStatusStore` does not exist.
@@ -1928,7 +1928,7 @@ vector state.
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_index_service_phase_2b.py tests/test_metadata_indexer.py -q
+uv run --python 3.12 pytest tests/test_index_service_vector_reconcile.py tests/test_metadata_indexer.py -q
 ```
 
 Expected: PASS.
@@ -1936,7 +1936,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/vault_graph/app/catalog_service.py src/vault_graph/app/index_service.py src/vault_graph/storage/local/vector_status_store.py tests/test_index_service_phase_2b.py
+git add src/vault_graph/app/catalog_service.py src/vault_graph/app/index_service.py src/vault_graph/storage/local/vector_status_store.py tests/test_index_service_vector_reconcile.py
 git commit -m "feat: wire vector indexing through index service"
 ```
 
@@ -1945,12 +1945,12 @@ git commit -m "feat: wire vector indexing through index service"
 **Files:**
 
 - Modify: `src/vault_graph/cli/main.py`
-- Create: `tests/test_cli_phase_2b.py`
-- Modify: `tests/test_cli_phase_1.py`
+- Create: `tests/test_cli_vector_indexing.py`
+- Modify: `tests/test_cli_catalog_metadata.py`
 
 - [ ] **Step 1: Write failing CLI tests**
 
-Create `tests/test_cli_phase_2b.py`:
+Create `tests/test_cli_vector_indexing.py`:
 
 ```python
 from pathlib import Path
@@ -2025,7 +2025,7 @@ def test_cli_status_supports_vault_scope_flags(tmp_path: Path) -> None:
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_cli_phase_2b.py -q
+uv run --python 3.12 pytest tests/test_cli_vector_indexing.py -q
 ```
 
 Expected: FAIL because CLI does not wire vector dependencies or status flags.
@@ -2129,7 +2129,7 @@ vector_status_scope: default:raw,wiki,docs,scratch/reports
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_cli_phase_2b.py tests/test_cli_phase_1.py -q
+uv run --python 3.12 pytest tests/test_cli_vector_indexing.py tests/test_cli_catalog_metadata.py -q
 ```
 
 Expected: PASS.
@@ -2137,7 +2137,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/vault_graph/cli/main.py tests/test_cli_phase_2b.py tests/test_cli_phase_1.py
+git add src/vault_graph/cli/main.py tests/test_cli_vector_indexing.py tests/test_cli_catalog_metadata.py
 git commit -m "feat: expose phase 2b vector index status"
 ```
 
@@ -2147,12 +2147,12 @@ git commit -m "feat: expose phase 2b vector index status"
 
 - Modify: `src/vault_graph/app/path_guard.py`
 - Modify: `src/vault_graph/app/catalog_service.py`
-- Create: `tests/test_phase_2b_read_only_boundary.py`
+- Create: `tests/test_vector_indexing_read_only_boundary.py`
 - Modify: `tests/test_read_only_boundary.py`
 
 - [ ] **Step 1: Write failing read-only and recovery tests**
 
-Create `tests/test_phase_2b_read_only_boundary.py`:
+Create `tests/test_vector_indexing_read_only_boundary.py`:
 
 ```python
 from pathlib import Path
@@ -2190,7 +2190,7 @@ def test_dry_run_does_not_create_vector_or_metadata_state(tmp_path: Path) -> Non
     assert (vault_root / "wiki" / "page.md").read_text(encoding="utf-8") == "# Page\nBody\n"
 
 
-def test_phase_2b_does_not_expose_search_command() -> None:
+def test_vector_indexing_slice_does_not_expose_search_command() -> None:
     result = runner.invoke(app, ["search", "query"])
 
     assert result.exit_code != 0
@@ -2219,7 +2219,7 @@ def test_embedding_cache_path_cannot_be_inside_vault_root(tmp_path: Path) -> Non
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_phase_2b_read_only_boundary.py tests/test_read_only_boundary.py -q
+uv run --python 3.12 pytest tests/test_vector_indexing_read_only_boundary.py tests/test_read_only_boundary.py -q
 ```
 
 Expected: PASS after Task 7 guard wiring. If it fails, fix only the guard path causing the failure.
@@ -2246,7 +2246,7 @@ Then add `CatalogService.assert_cache_target_safe(...)` that calls it.
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_phase_2b_read_only_boundary.py tests/test_read_only_boundary.py -q
+uv run --python 3.12 pytest tests/test_vector_indexing_read_only_boundary.py tests/test_read_only_boundary.py -q
 ```
 
 Expected: PASS.
@@ -2254,7 +2254,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/vault_graph/app/path_guard.py src/vault_graph/app/catalog_service.py tests/test_phase_2b_read_only_boundary.py tests/test_read_only_boundary.py
+git add src/vault_graph/app/path_guard.py src/vault_graph/app/catalog_service.py tests/test_vector_indexing_read_only_boundary.py tests/test_read_only_boundary.py
 git commit -m "test: guard phase 2b vector read only boundary"
 ```
 

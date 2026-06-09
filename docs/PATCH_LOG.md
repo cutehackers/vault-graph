@@ -3,6 +3,72 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-09 - Test Source Naming Cleanup
+
+**Trigger:** Phase labels in test source filenames made the code surface feel
+tied to a temporary roadmap slice instead of stable Vault Graph behavior.
+
+**Scope:** test source filenames and implementation-plan references.
+
+**Core Values Protected:**
+
+- test names describe product behavior instead of schedule labels
+- future search and vector work stays easier to navigate and extend
+- documentation can keep roadmap phase labels while code keeps domain names
+
+**Changes Applied:**
+
+- Renamed CLI, vector-indexing, vector-reconcile, and CLI-surface boundary
+  tests from phase-based filenames to behavior-based filenames.
+- Updated implementation-plan references so future Phase 2C work creates
+  behavior-named test files such as `test_cli_search.py`,
+  `test_retrieval_service_search.py`, and `test_multi_vault_search.py`.
+- Kept phase labels in roadmap/specification document filenames where they
+  describe project history rather than source ownership.
+
+**Verification:**
+
+- `rg` check for stale phase-based test file and function names
+- focused renamed test suite
+- `git diff --check`
+
+## 2026-06-09 - Phase 2C Implementation Plan Review Hardening
+
+**Trigger:** Subagent review found implementation-plan gaps before coding.
+
+**Scope:** `docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md`.
+
+**Core Values Protected:**
+
+- search remains evidence-first
+- `vg search` remains read-only over existing projections
+- retrieval stays independent from indexing and local status-store internals
+- multi-vault warnings, revisions, results, and signals remain explicitly attributed
+
+**Changes Applied:**
+
+- Moved concrete search-readiness freshness calculation to an app-layer service
+  while keeping retrieval dependent only on a readiness protocol.
+- Required store revisions to be scope-attributed and search warnings to carry
+  non-empty affected Vault IDs.
+- Changed response revision assembly to come from readiness, not returned
+  results, so zero-result and degraded searches still report projection state.
+- Added keyword projection schema-version and FTS-column compatibility checks to
+  the implementation plan.
+- Strengthened no-download and read-only tests to cover embedding local-only
+  checks, existing Chroma state, existing Vault Graph state, and vector status.
+- Added implementation-plan coverage for the existing Phase 2B test that must
+  change once `vg search` becomes visible in Phase 2C.
+- Added service-level multi-vault regressions for content-scope widening and
+  same-`chunk_id` keyword/vector fusion collisions.
+
+**Verification:**
+
+- subagent review focused on product/spec consistency
+- subagent review focused on implementation readiness
+- subagent review focused on multi-vault and read-only consistency
+- `git diff --check`
+
 ## 2026-06-09 - Phase 2C Search Design Consistency Update
 
 **Trigger:** Phase 2C detailed design needed to fix ambiguity between
@@ -251,7 +317,7 @@ boundary tests.
 - `uv run --python 3.12 pytest tests/test_vector_store_contract.py -q`
 - `uv run --python 3.12 pytest tests/test_metadata_evidence_resolution.py tests/test_sqlite_metadata_store.py -q`
 - `uv run --python 3.12 pytest tests/test_retrieval_result_contract.py -q`
-- `uv run --python 3.12 pytest tests/test_phase_2a_boundary.py -q`
+- `uv run --python 3.12 pytest tests/test_cli_surface_boundary.py -q`
 - `uv run --python 3.12 ruff check src tests`
 - `uv run --python 3.12 mypy src`
 - `uv run --python 3.12 mypy tests`

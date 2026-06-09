@@ -60,7 +60,7 @@ Create these files:
 - `tests/test_document_normalizer.py`: document IDs, chunk IDs, anchors
 - `tests/test_sqlite_metadata_store.py`: metadata persistence contract
 - `tests/test_metadata_indexer.py`: dry-run/apply/tombstone behavior
-- `tests/test_cli_phase_1.py`: user-facing command behavior
+- `tests/test_cli_catalog_metadata.py`: user-facing command behavior
 - `tests/test_read_only_boundary.py`: Vault files unchanged after commands
 - `tests/test_multi_vault_identity.py`: same relative path in two Vaults does not collide
 
@@ -1352,11 +1352,11 @@ git commit -m "feat: add metadata indexer"
 - Create: `src/vault_graph/app/catalog_service.py`
 - Create: `src/vault_graph/app/index_service.py`
 - Create: `src/vault_graph/cli/main.py`
-- Test: `tests/test_cli_phase_1.py`
+- Test: `tests/test_cli_catalog_metadata.py`
 
 - [ ] **Step 1: Write CLI tests**
 
-Create `tests/test_cli_phase_1.py`:
+Create `tests/test_cli_catalog_metadata.py`:
 
 ```python
 from pathlib import Path
@@ -1416,7 +1416,7 @@ def test_cli_vault_add_and_list(tmp_path: Path) -> None:
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_cli_phase_1.py -q
+uv run --python 3.12 pytest tests/test_cli_catalog_metadata.py -q
 ```
 
 Expected: FAIL because `vault_graph.cli.main` does not exist.
@@ -1589,7 +1589,7 @@ def status(state: Path = typer.Option(Path(".vault-graph"))) -> None:
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_cli_phase_1.py -q
+uv run --python 3.12 pytest tests/test_cli_catalog_metadata.py -q
 uv run --python 3.12 ruff check src tests
 uv run --python 3.12 mypy src
 ```
@@ -1601,7 +1601,7 @@ Expected: tests pass; ruff passes; mypy passes.
 Run:
 
 ```bash
-git add src/vault_graph/app src/vault_graph/cli tests/test_cli_phase_1.py
+git add src/vault_graph/app src/vault_graph/cli tests/test_cli_catalog_metadata.py
 git commit -m "feat: expose phase one cli"
 ```
 

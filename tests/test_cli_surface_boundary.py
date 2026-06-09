@@ -7,14 +7,14 @@ from vault_graph.cli.main import app
 runner = CliRunner()
 
 
-def test_phase_2a_does_not_add_search_command() -> None:
+def test_cli_surface_does_not_expose_search_before_search_slice() -> None:
     result = runner.invoke(app, ["search", "query"])
 
     assert result.exit_code != 0
     assert "No such command" in result.output
 
 
-def test_phase_2b_status_exposes_vector_fields(tmp_path: Path) -> None:
+def test_cli_status_exposes_vector_fields(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
     state_path = tmp_path / "state"

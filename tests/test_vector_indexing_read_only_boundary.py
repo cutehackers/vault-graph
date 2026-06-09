@@ -35,7 +35,7 @@ def test_dry_run_does_not_create_vector_or_metadata_state(tmp_path: Path) -> Non
     assert (vault_root / "wiki" / "page.md").read_text(encoding="utf-8") == "# Page\nBody\n"
 
 
-def test_phase_2b_does_not_expose_search_command() -> None:
+def test_vector_indexing_slice_does_not_expose_search_command() -> None:
     result = runner.invoke(app, ["search", "query"])
 
     assert result.exit_code != 0

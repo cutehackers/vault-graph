@@ -54,7 +54,7 @@ Create these files:
 - `tests/test_vector_store_contract.py`: vector store contract tests
 - `tests/test_metadata_evidence_resolution.py`: metadata evidence resolution tests
 - `tests/test_retrieval_result_contract.py`: retrieval result contract tests
-- `tests/test_phase_2a_boundary.py`: tests that Phase 2A does not expose Phase 2B or Phase 2C features
+- `tests/test_cli_surface_boundary.py`: tests that Phase 2A does not expose Phase 2B or Phase 2C features
 
 Modify these files:
 
@@ -1680,11 +1680,11 @@ git commit -m "feat: add retrieval result contract"
 
 **Files:**
 
-- Test: `tests/test_phase_2a_boundary.py`
+- Test: `tests/test_cli_surface_boundary.py`
 
 - [ ] **Step 1: Write boundary tests that protect Phase 2A scope**
 
-Create `tests/test_phase_2a_boundary.py`:
+Create `tests/test_cli_surface_boundary.py`:
 
 ```python
 from pathlib import Path
@@ -1696,14 +1696,14 @@ from vault_graph.cli.main import app
 runner = CliRunner()
 
 
-def test_phase_2a_does_not_add_search_command() -> None:
+def test_cli_surface_does_not_expose_search_before_search_slice() -> None:
     result = runner.invoke(app, ["search", "query"])
 
     assert result.exit_code != 0
     assert "No such command" in result.output
 
 
-def test_phase_2a_status_remains_metadata_only(tmp_path: Path) -> None:
+def test_cli_status_reports_metadata_fields(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
     state_path = tmp_path / "state"
@@ -1722,7 +1722,7 @@ def test_phase_2a_status_remains_metadata_only(tmp_path: Path) -> None:
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_phase_2a_boundary.py -q
+uv run --python 3.12 pytest tests/test_cli_surface_boundary.py -q
 ```
 
 Expected: boundary tests pass because Phase 2A has not added `vg search` or vector status output.
@@ -1732,7 +1732,7 @@ Expected: boundary tests pass because Phase 2A has not added `vg search` or vect
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_phase_2a_boundary.py -q
+uv run --python 3.12 pytest tests/test_cli_surface_boundary.py -q
 uv run --python 3.12 ruff check src tests
 uv run --python 3.12 mypy src
 ```
@@ -1744,7 +1744,7 @@ Expected: all commands pass.
 Run:
 
 ```bash
-git add tests/test_phase_2a_boundary.py
+git add tests/test_cli_surface_boundary.py
 git commit -m "test: protect phase 2a retrieval boundary"
 ```
 
