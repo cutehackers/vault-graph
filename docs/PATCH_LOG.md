@@ -3,6 +3,49 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-09 - Phase 2C Search Design Consistency Update
+
+**Trigger:** Phase 2C detailed design needed to fix ambiguity between
+user-facing document/page/source search categories and the evidence-chunk result
+unit required by the product boundary.
+
+**Scope:** `docs/SPEC.md`, `docs/DESIGN.md`, `docs/FEATURES.md`,
+`docs/DECISIONS.md`, `docs/SEARCH_ARCHITECTURE.md`, and
+`docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md`.
+
+**Core Values Protected:**
+
+- search remains evidence-first instead of answer-first
+- search reads existing projections and does not mutate Vault or index state
+- keyword and vector stores remain candidate sources, not evidence authority
+- multi-vault result identity remains explicit
+
+**Changes Applied:**
+
+- Fixed Phase 2C around evidence chunk as the canonical search result unit.
+- Clarified document/page/source/section search output as grouping views.
+- Added a metadata-owned `KeywordIndex` boundary for lexical candidates.
+- Added a top-level `SearchResponse` warning contract for degraded search.
+- Required rank-based keyword/vector fusion and visible keyword-only degrade
+  behavior when vector search is unavailable.
+- Required `vg search` to avoid indexing, schema creation, Chroma creation,
+  vector status writes, and embedding model downloads.
+- Added per-Vault effective search scopes so all-vault search cannot widen one
+  Vault with another Vault's content scopes.
+- Added explicit no-download embedding readiness and read-only search readiness
+  boundaries.
+- Fixed keyword projection ownership as a metadata subprojection updated with
+  the metadata revision.
+- Added structured warning and store-revision attribution requirements for
+  multi-vault search responses.
+
+**Verification:**
+
+- grill-with-docs consistency pass
+- subagent review focused on product value, software design, and multi-vault
+  consistency
+- `git diff --check`
+
 ## 2026-06-08 - Phase 2B Implementation Correction
 
 **Trigger:** Phase 2B implementation dependency probe found that FastEmbed 0.8.0

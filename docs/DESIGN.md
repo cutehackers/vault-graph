@@ -356,6 +356,7 @@ Responsibility:
 Interfaces:
 
 - `metadata_store.py`
+- `keyword_index.py`
 - `vector_store.py`
 - `graph_store.py`
 - `store_health.py`
@@ -375,6 +376,7 @@ Responsibility:
 Local implementations:
 
 - `sqlite_metadata_store.py`
+- `sqlite_keyword_index.py`
 - `chroma_vector_store.py`
 - `sqlite_graph_store.py`
 
@@ -418,14 +420,26 @@ resolve graph results back through `GraphStore` evidence records.
 
 ### 6.10 `retrieval`
 
-Responsibility:
+Phase 2C responsibility:
 
+- expose CLI search over existing projections
+- normalize user queries
+- resolve requested search scope into per-Vault effective scopes
+- check read-only search readiness for metadata, keyword, vector, and model
+  availability
+- retrieve keyword candidates
 - retrieve vector candidates
+- merge and dedupe candidates by `(vault_id, chunk_id)`
+- apply rank-based keyword/vector fusion
+- resolve evidence through `MetadataStore`
+- assemble `SearchResponse` warnings and evidence-linked results
+
+Later retrieval responsibility:
+
 - retrieve graph candidates
-- combine keyword, vector, graph, wiki link, decision-map, and timeline-map
-  signals
-- rerank candidates
-- explain why results were returned
+- combine graph, wiki link, decision-map, and timeline-map signals
+- apply richer reranking policy
+- explain why non-search results were returned
 - build evidence-linked context packs
 
 Core modules:
@@ -434,10 +448,47 @@ Core modules:
 - `graph_retriever.py`
 - `hybrid_retriever.py`
 - `reranker.py`
+- `search_response.py`
 - `context_pack_builder.py`
 
 Retrieval output must include enough metadata for `explain_result(result_id)`
 to describe scores, evidence, relationship status, confidence, and warnings.
+
+Phase 2C keeps search simple and evidence-first:
+
+- `KeywordIndex` exposes metadata-owned lexical candidate lookup over current
+  chunks and document metadata. The local implementation may use SQLite FTS5,
+  but retrieval services must not query SQLite tables directly. The protocol
+  belongs under `storage.interfaces`; the local implementation may share the
+  metadata SQLite database.
+- `VectorStore` remains semantic-candidate-only. It never returns rendered
+  evidence, paths, titles, snippets, or chunk text authority.
+- `RetrievalService` or `HybridRetriever` owns candidate merge, dedupe,
+  reciprocal-rank-style fusion, warnings, evidence resolution, and final
+  `SearchResponse` assembly.
+- The canonical search result unit is an evidence chunk: `(vault_id, chunk_id)`.
+  Document, page, source, and section views are renderer groupings over chunk
+  evidence.
+- `RetrievalService` expands requested scopes into per-Vault effective scopes
+  before calling `KeywordIndex` or `VectorStore`; it must not pass an all-vault
+  content-scope union directly to candidate stores.
+- Search readiness belongs behind a read-only service or protocol. Retrieval
+  must not import `LocalVectorStatusStore` directly or duplicate
+  `IndexService.status()` internals.
+- Search-time query embedding uses a local-only embedding availability contract.
+  Missing local model artifacts degrade vector search instead of downloading or
+  writing cache files.
+- Keyword projection is a metadata subprojection for the local backend. It is
+  updated with the metadata revision during indexing and exposed to retrieval
+  through read-only `KeywordIndex`.
+- `SearchResponse` records requested scope, effective scopes, result count,
+  candidate counts, degraded mode, attributed warnings, and store revisions.
+- Search may degrade to keyword-only when vector search is unavailable, stale,
+  or missing local model artifacts. The response must include top-level
+  warnings.
+- `vg search` is read-only over existing projections. It must not index, create
+  schema, create Chroma collections, update vector status, or download
+  embedding models.
 
 ### 6.11 `memory`
 
@@ -1029,19 +1080,26 @@ Phase 3.
 
 ### 11.1 Search Flow
 
+Phase 2C flow:
+
 ```text
 Query
-  -> normalize query and QueryScope
-  -> keyword and metadata candidate lookup
+  -> normalize query and requested QueryScope
+  -> expand to per-Vault effective scopes
+  -> check read-only search readiness
+  -> keyword candidate lookup
   -> vector candidate lookup
-  -> graph candidate lookup when GraphStore is available
-  -> wiki link, decision-map, or timeline-map expansion when available
   -> candidate merge and dedupe
-  -> rank-based fusion and rerank
+  -> rank-based fusion
   -> evidence resolution
   -> warning attachment
   -> response rendering
 ```
+
+Later retrieval policy can add graph candidates, wiki link expansion,
+decision-map expansion, timeline-map expansion, and richer reranking after Phase
+2C. Those later signals must join the same candidate and evidence-resolution
+contract instead of changing store authority.
 
 Every candidate must resolve to evidence before it is shown as a normal result.
 Candidates without enough evidence may appear only as warnings or inferred

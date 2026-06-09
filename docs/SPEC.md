@@ -245,6 +245,7 @@ vault-graph/
 │       │   ├── graph_retriever.py
 │       │   ├── hybrid_retriever.py
 │       │   ├── reranker.py
+│       │   ├── search_response.py
 │       │   └── context_pack_builder.py
 │       ├── memory/
 │       │   ├── project_memory.py
@@ -254,11 +255,13 @@ vault-graph/
 │       ├── storage/
 │       │   ├── interfaces/
 │       │   │   ├── metadata_store.py
+│       │   │   ├── keyword_index.py
 │       │   │   ├── vector_store.py
 │       │   │   ├── graph_store.py
 │       │   │   └── store_health.py
 │       │   ├── local/
 │       │   │   ├── sqlite_metadata_store.py
+│       │   │   ├── sqlite_keyword_index.py
 │       │   │   ├── chroma_vector_store.py
 │       │   │   └── sqlite_graph_store.py
 │       │   ├── adapters/
@@ -1245,16 +1248,263 @@ Required implementation capabilities:
 
 #### Phase 2C: Evidence-First Keyword And Vector Search
 
-- keyword candidate lookup over metadata and chunks
+Phase 2C opens the first user-facing search surface. The goal is not to answer
+questions, build context packs, or introduce graph traversal. The goal is to
+return ranked, inspectable Vault evidence from keyword and vector signals while
+keeping Vault Graph read-only, rebuildable, and graph-ready.
+
+Accepted Phase 2C decisions:
+
+- The canonical search result unit is an evidence chunk: `(vault_id, chunk_id)`
+  resolved through `MetadataStore`.
+- Document, page, source, or section results are rendering/grouping views over
+  evidence chunks. They are not separate canonical retrieval identities in Phase
+  2C.
+- Search output may group multiple chunk hits from the same document for
+  readability, but each normal result must preserve the matched `chunk_id`,
+  `document_id`, `vault_id`, path, section or anchor, evidence revision,
+  retrieval signals, and warnings.
+- Keyword lookup must be exposed through a stable metadata-owned lexical
+  candidate boundary. `RetrievalService` must not read SQLite tables directly.
+  The local implementation may use SQLite FTS5 or an equivalent rebuildable
+  metadata projection over current chunks and document metadata.
+- Keyword candidate fields should include current chunk text, section heading,
+  path, and searchable document metadata such as title/frontmatter when
+  available. The final rendered authority still comes from
+  `MetadataStore` evidence resolution, not from the keyword index row.
+- Vector lookup uses `VectorStore.search` and returns semantic candidate
+  metadata only. `VectorStore` must not return path, title, chunk text, rendered
+  snippets, durable summaries, or evidence authority.
+- `RetrievalService` or `HybridRetriever` owns query normalization, keyword
+  candidate lookup, vector candidate lookup, candidate merge, Vault-scoped
+  dedupe, rank fusion, warnings, evidence resolution, and final result assembly.
+- Fusion must be rank-based, such as reciprocal-rank-style fusion. Phase 2C must
+  not treat keyword scores and vector scores as directly comparable global
+  relevance scores.
+- `vg search` is read-only over existing projections. It must not run indexing,
+  create metadata schema, create Chroma collections, download embedding models,
+  or write Vault Graph index state during search. If vector query embedding
+  cannot run from already available local model artifacts, search degrades to
+  keyword-only with a visible warning.
+- Metadata store absence or schema incompatibility is a search failure with a
+  clear `vg index` recovery hint.
+- Vector store absence, stale vector state, offline embedding model, or vector
+  schema incompatibility should degrade to keyword-only search when keyword
+  evidence is available. The response must include a visible top-level warning;
+  it must not silently hide the degraded mode.
+- Phase 2C needs a top-level search response contract, not only per-result
+  warnings. Result-level warnings describe individual evidence problems; response
+  warnings describe query-wide conditions such as vector backend unavailable,
+  stale vector projection, truncated results, empty index state, or dropped
+  candidates.
+- `vg search` must never auto-index. It reads existing Vault Graph projections
+  only. If required projections are missing or stale, it reports warnings or
+  recovery guidance instead of mutating Vault Graph state.
+- Phase 2C keeps the existing Markdown `heading-section-v1` chunks. It must not
+  introduce `markdown-block-window-v2`, `hierarchical-retrieval-v3`, or any
+  chunker migration. Those remain later retrieval-policy or chunking migrations.
+
+Search boundary:
+
+```text
+vg search "query"
+  -> resolve requested QueryScope from active Vault, --vault-id, or --all-vaults
+  -> expand requested scope into per-Vault effective scopes
+  -> check metadata and keyword projection readiness
+  -> normalize query text
+  -> keyword candidate lookup per effective scope
+  -> optional no-download vector query embedding
+  -> optional VectorStore.search per effective scope
+  -> merge candidates by (vault_id, chunk_id)
+  -> rank-based fusion
+  -> MetadataStore evidence resolution
+  -> evidence chunk results plus top-level response warnings
+```
+
+The service boundary should be `RetrievalService.search(...)` or
+`HybridRetriever.search(...)`. CLI, MCP, and HTTP adapters must not query
+SQLite FTS tables or Chroma collections directly. Phase 2C implements the CLI
+surface only; MCP and HTTP use the same service later.
+
+Resolved search scope contract:
+
+- `RetrievalService` must not pass a global all-vault content-scope union
+  directly to `KeywordIndex` or `VectorStore`.
+- User selection is first represented as a requested `QueryScope`, then expanded
+  through `VaultCatalog` into per-Vault effective scopes using the same
+  broader/narrower content-scope rules as Phase 2B vector indexing.
+- If the requested scope is narrower than a catalog entry scope, use the
+  requested scope for that Vault.
+- If the catalog entry scope is narrower than the requested scope, use the
+  catalog entry scope for that Vault.
+- If neither scope contains the other, that Vault contributes no candidates for
+  that content scope.
+- Candidate lookup runs per effective scope and results are merged afterward.
+  This prevents one Vault's configured content scopes from widening another
+  Vault's search.
+- `SearchResponse` records both the requested scope and the effective scopes
+  used for candidate lookup.
+
+Keyword projection contract:
+
+- Add a small keyword candidate boundary such as `KeywordIndex`.
+- The local implementation may be backed by SQLite FTS5 inside the metadata
+  database or an equivalent rebuildable metadata projection.
+- Keyword projection rows are rebuilt from current Markdown chunks and selected
+  document metadata. They are not a second source of truth.
+- Phase 2C treats keyword projection as a metadata subprojection. The local
+  SQLite implementation updates keyword rows in the same transaction as the
+  metadata revision. If keyword projection update fails during indexing, the
+  metadata revision fails rather than publishing inconsistent metadata and
+  keyword state.
+- Search reads keyword state through a read-only `KeywordIndex` adapter. It
+  must not use a keyword projection writer or open a write-capable metadata
+  store.
+- Keyword lookup returns candidate metadata only: `vault_id`, `document_id`,
+  `chunk_id`, matched fields, backend-local rank, backend-local score,
+  backend name, and keyword index revision.
+- Keyword lookup must filter by `QueryScope.vault_ids` and
+  `QueryScope.content_scopes` before applying result limits.
+- Keyword results must not be rendered until the matched chunk is resolved
+  through `MetadataStore`.
+
+Vector candidate contract:
+
+- Query embeddings use the configured `TextEmbeddings` and current
+  `EmbeddingModelSpec`.
+- Phase 2C must add a read-only embedding availability boundary, such as
+  `TextEmbeddings.artifact_status()` or `can_embed_without_download()`, before
+  search-time query embedding is enabled.
+- Search-time query embedding must run in local-only/no-download mode. A missing
+  local model artifact is a vector-unavailable condition, not a reason to mutate
+  cache state during search.
+- `VectorStore.search` returns `VectorHit` records only. It must not return
+  rendered snippets, path authority, title authority, summaries, or chunk text.
+- The retrieval layer must reject or warn on vector hits whose
+  `(vault_id, document_id, chunk_id)` cannot be resolved through
+  `MetadataStore`.
+- Vector candidates must be skipped, with a top-level warning, when vector
+  health, schema compatibility, model availability, or freshness is not safe
+  enough for normal search.
+- Vector readiness must be checked through a read-only `SearchReadiness` or
+  projection-status boundary. Retrieval must not duplicate `IndexService.status`
+  logic or import local status-store implementations directly.
+
+Fusion and ranking contract:
+
+- Dedupe candidates by `(vault_id, chunk_id)`.
+- Keep all contributing signals for each candidate. A chunk can have keyword,
+  vector, and later graph signals.
+- Use rank-based fusion. A reciprocal-rank-style default is acceptable:
+  `fused_score = sum(signal_weight / (rank_constant + signal_rank))`.
+- Default Phase 2C signal weights are `keyword=1.0` and `vector=1.0`; the
+  default `rank_constant` is `60`.
+- Raw keyword scores and raw vector distances are diagnostic signal metadata,
+  not directly comparable global relevance scores.
+- Sort final results deterministically by fused rank, best contributing signal
+  rank, `vault_id`, path, and `chunk_id` so repeat searches are stable.
+- `--limit` controls final evidence results. Candidate pools may be larger than
+  the final limit, but this is retrieval policy and must not affect store
+  identity or evidence authority.
+
+Search response contract:
+
+- A search response has query text, requested `QueryScope`, effective scopes,
+  limit, result count, candidate counts, dropped candidate count, results,
+  top-level warnings, degraded-mode flag, generated timestamp, and store
+  revision metadata.
+- A normal search result is a `RetrievalResult` whose evidence contains the
+  matched evidence chunk resolved from `MetadataStore`.
+- Result IDs are search-output identifiers, not durable Vault identities.
+- Result IDs and `RetrievalSignal.source_id` values must include or derive from
+  Vault-scoped candidate identity. They must not depend on path, document ID, or
+  chunk ID without `vault_id`.
+- Every result includes `vault_id`, `document_id`, `chunk_id`, path, section or
+  anchor, per-signal explanations, store revisions, and result-level warnings.
+- Top-level warnings and result-level warnings must be structurally attributable
+  when scope is relevant. They carry `affected_vault_ids` and may carry
+  candidate identity fields such as `vault_id`, `document_id`, and `chunk_id`.
+- Store revisions are keyed by scope. A multi-vault response must not report one
+  ambiguous `metadata` or `vector` revision without Vault or effective-scope
+  attribution.
+- Top-level warnings describe query-wide conditions such as keyword projection
+  stale, vector unavailable, stale vector projection, embedding model
+  unavailable, truncated candidates, empty index state, or dropped candidates
+  with missing evidence.
+- Fatal search errors are not successful `SearchResponse` warnings. Invalid
+  scope, invalid query, unsupported output format, missing metadata store,
+  incompatible metadata schema, missing keyword projection, and incompatible
+  keyword schema return a nonzero exit with recovery guidance.
+- Missing metadata evidence prevents a candidate from becoming a normal result.
+  The response records the drop as a warning instead of returning unsupported
+  evidence.
+- Empty searches complete successfully with zero results when projections are
+  healthy. Missing required projections fail with recovery guidance.
+
+CLI contract:
+
+```bash
+vg search "GraphRAG"
+vg search --vault-id main "GraphRAG"
+vg search --all-vaults "GraphRAG"
+vg search --limit 20 --format json "GraphRAG"
+```
+
+CLI behavior:
+
+- uses the active Vault by default
+- rejects `--vault-id` together with `--all-vaults`
+- prints the resolved Vault IDs in output
+- supports `--limit` with a positive integer default of `10`
+- supports human-readable output and an optional machine-readable format
+- returns exit code `0` for successful search, including keyword-only degraded
+  search with warnings
+- returns nonzero for invalid scope, invalid query, missing required metadata or
+  keyword projection, schema incompatibility, or unsupported output format
+- never creates metadata, keyword, vector, model-cache, or Vault files during
+  search
+
+Multi-vault rules:
+
+- Default search uses the active Vault only.
+- `--vault-id ID` searches exactly one registered Vault.
+- `--all-vaults` expands to explicit enabled Vault IDs before stores are
+  queried, then to per-Vault effective scopes before candidate lookup.
+- Candidate identity, dedupe, evidence resolution, result grouping, and warning
+  attribution all include `vault_id`.
+- Identical relative paths, document IDs, chunk IDs, or headings from different
+  Vaults must not collide.
+- Document grouping is by `(vault_id, document_id)`, not by path alone.
+- Phase 2C search grouping must use resolved `EvidenceReference` and
+  `RetrievalResult` fields. It must not call document-level resolution by
+  `document_id` alone.
+- `include_cross_vault` does not enable graph traversal or entity merging in
+  Phase 2C.
+
+Required implementation capabilities:
+
+- keyword candidate lookup over metadata-owned current chunks
 - vector candidate lookup over `VectorStore`
+- per-Vault effective search scope resolution before candidate lookup
+- no-download embedding availability checks for search-time query embedding
+- read-only search readiness checks for metadata, keyword, vector, and model
+  availability
 - rank-based candidate fusion for keyword and vector signals
-- `RetrievalService` or `HybridRetriever` that owns candidate merge, dedupe,
-  rerank, warnings, and evidence resolution
+- `RetrievalService` or `HybridRetriever` service boundary
 - `vg search "query"` user surface with `--vault-id`, `--all-vaults`, `--limit`,
   and optional machine-readable output
+- `SearchResponse` with requested scope, effective scopes, result count,
+  candidate counts, degraded flag, attributed warnings, and store revisions
 - search results resolved through `MetadataStore` before rendering
 - evidence-linked result format with per-signal explanations and stale or
   missing evidence warnings
+- top-level response warnings for degraded or partially available search
+- degraded keyword-only behavior when vector search is unavailable but keyword
+  evidence is available
+- read-only tests proving `vg search` never mutates Vault content or Vault Graph
+  index state
+- multi-vault tests proving search identity, filtering, grouping, and dedupe use
+  `vault_id`
 
 Phase 2 explicitly excludes graph traversal, entity extraction, decision traces,
 LLM answer generation, context packs, MCP serving, HTTP serving, and Qdrant
@@ -1635,8 +1885,8 @@ Required tests before implementing `markdown-block-window-v2`:
 `hierarchical-retrieval-v3` should separate the search unit from the context
 assembly unit.
 
-This is a Phase 2C+ retrieval-policy direction, not a Phase 2B indexing
-deliverable.
+This is a post-2C retrieval-policy direction, not a Phase 2B indexing
+deliverable and not a Phase 2C search deliverable.
 
 Fine-grained chunks should be used for recall:
 

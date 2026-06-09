@@ -35,7 +35,9 @@ normal source capture, draft, validation, release gate, and Git history workflow
 ## Feature Matrix
 
 This matrix describes the intended product surface across phases. The Phase 2
-slice table below defines when search-related surfaces become available.
+slice table below defines when search-related surfaces become available. A
+matrix entry can describe a future MCP or HTTP binding even when the current
+phase exposes only the CLI.
 
 | Feature | CLI | MCP Tool | MCP Resource | Output |
 | --- | --- | --- | --- | --- |
@@ -259,6 +261,9 @@ Searches Vault-derived indexes and returns ranked, evidence-linked results.
 The optional `scope` is a `QueryScope`; without it, search uses the active Vault
 only. Cross-Vault retrieval must be explicit.
 
+This is the future MCP binding over the same search service. Phase 2C exposes
+the CLI command only; MCP serving remains a later phase.
+
 The Phase 2C CLI surface is:
 
 ```bash
@@ -271,7 +276,11 @@ Phase 2C search combines keyword and vector candidates. Graph candidates,
 decision-map expansion, and timeline-map expansion are later signals that must
 use the same evidence-linked result contract.
 
-Expected result categories:
+Phase 2C's canonical result is an evidence chunk resolved through
+`MetadataStore`. The categories below are rendering and grouping views over
+chunk evidence, not separate retrieval identities.
+
+Expected rendering groups:
 
 - matching documents
 - matching wiki pages
@@ -279,6 +288,11 @@ Expected result categories:
 - matching chunks
 - matching entities after graph indexing exists
 - warnings for stale or missing evidence
+
+Each normal result preserves `vault_id`, `document_id`, `chunk_id`, path,
+section or anchor, retrieval signals, result warnings, and store revision
+metadata. Query-wide degraded conditions, such as vector search unavailable,
+appear as top-level warnings.
 
 ### `ask_vault(question, mode="evidence-first", scope=None)`
 

@@ -17,6 +17,29 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-09 - Use Evidence Chunk As The Phase 2C Search Unit
+
+**Question:** What should Phase 2C return as the canonical search result?
+
+**Decision:** Return evidence chunks resolved through `MetadataStore`. Document,
+page, source, and section results are grouping or rendering views over chunk
+evidence, not separate canonical retrieval identities.
+
+**Reason:** This best protects Vault Graph's value: search stays inspectable,
+read-only, rebuildable, multi-vault-safe, and ready for later graph signals.
+
+**Implications:**
+
+- Keyword and vector stores return candidates only.
+- `RetrievalService` owns merge, rank fusion, warnings, and evidence
+  resolution.
+- All-vault search expands into per-Vault effective scopes before candidate
+  lookup.
+- The local keyword index is a metadata subprojection updated with the metadata
+  revision and exposed through a read-only candidate interface.
+- `vg search` reads existing projections only and degrades visibly to
+  keyword-only when vector search is unavailable.
+
 ## 2026-06-08 - Use Chroma-Backed Scope-Local Vector Reconcile
 
 **Question:** How should Phase 2B turn metadata chunks into a sustainable local
