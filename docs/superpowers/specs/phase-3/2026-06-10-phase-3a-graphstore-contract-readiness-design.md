@@ -52,7 +52,7 @@ Phase 3A introduces these stable boundaries:
 | `EntityRecord` | derived entity projection record |
 | `RelationshipRecord` | derived directed relationship projection record |
 | `GraphEvidenceRef` | owner-scoped link from a graph record to one `MetadataStore` evidence chunk |
-| `GraphRevision` | per Vault/effective-scope graph lineage and freshness row |
+| `GraphRevision` | per Vault/actual-scope graph lineage and freshness row |
 | `GraphManifest` | scoped current-state read model for future reconcile |
 | `GraphReconcilePlan` | completed graph write plan produced by future `GraphIndexer` |
 | `GraphReadinessService` | app-level readiness check combining graph state and metadata lineage |
@@ -120,7 +120,7 @@ Phase 3A runtime flow is readiness-only.
 ```text
 vg status
   -> CatalogService resolves active Vault or requested Vaults
-  -> MetadataStore provides current metadata lineage for effective scopes
+  -> MetadataStore provides current metadata lineage for actual scopes
   -> VectorStore status remains unchanged
   -> GraphStore.open_read_only(...)
   -> GraphReadinessService compares graph revisions with metadata lineage and expected GraphExtractionSpec
@@ -133,7 +133,7 @@ Future Phase 3B write flow uses the contracts added here.
 MetadataStore current chunks
   -> EntityExtractor / RelationshipExtractor
   -> GraphIndexer desired graph records
-  -> GraphStore.current_manifest(effective_scope)
+  -> GraphStore.current_manifest(actual_scope)
   -> GraphStore.apply_reconcile_plan(...)
   -> GraphRevision rows
 ```
@@ -302,7 +302,7 @@ Required fields:
 
 - `graph_run_id`
 - `vault_id`
-- `effective_scope`
+- `actual_scope`
 - `graph_store_schema_version`
 - `graph_extraction_spec_version`
 - `graph_extraction_spec_digest`
@@ -318,9 +318,9 @@ Required fields:
 
 Rules:
 
-- Graph freshness is tracked per Vault/effective scope.
+- Graph freshness is tracked per Vault/actual scope.
 - A multi-vault run records one `graph_run_id` and one child graph revision row
-  per affected Vault/effective scope.
+  per affected Vault/actual scope.
 - `graph_index_revision` is lineage and status metadata. It is not a staleness
   comparison key.
 - Staleness comparison uses evidence content hash, parser version, chunker
@@ -335,7 +335,7 @@ Rules:
 Required fields:
 
 - requested scope
-- effective scopes
+- actual scopes
 - entity manifest rows
 - relationship manifest rows
 - evidence manifest rows
@@ -348,8 +348,8 @@ Required fields:
 Rules:
 
 - `GraphManifest` is not a second durable authority.
-- It must be generated from `GraphStore` rows for the selected effective scopes.
-- It must not include records outside the selected effective scopes.
+- It must be generated from `GraphStore` rows for the selected actual scopes.
+- It must not include records outside the selected actual scopes.
 - Entity manifest rows contain `vault_id`, `entity_id`, evidence ref IDs,
   evidence content hashes, status, graph extraction spec digest, metadata index
   revision, and graph index revision.
@@ -369,7 +369,7 @@ Required fields:
 - `record_kind`
 - `record_vault_id`
 - `record_id`
-- `effective_scope`
+- `actual_scope`
 - `reason`
 - `graph_run_id`
 - `graph_index_revision`
@@ -383,7 +383,7 @@ Rules:
 - `record_vault_id` is the entity Vault ID for entity tombstones and the source
   Vault ID for relationship tombstones.
 - Tombstones are scoped. A narrow graph reconcile must not tombstone records
-  outside its effective scope.
+  outside its actual scope.
 - Tombstones are derived state and may be rebuilt from current metadata plus the
   graph extraction spec.
 
@@ -395,8 +395,8 @@ freshness honestly.
 Required fields:
 
 - requested scope
-- effective scopes
-- metadata index revisions by Vault/effective scope
+- actual scopes
+- metadata index revisions by Vault/actual scope
 - parser version
 - chunker version
 - graph store schema version
@@ -478,7 +478,7 @@ Rules:
 Required fields:
 
 - requested scope
-- effective scopes
+- actual scopes
 - graph run ID
 - entity upserts
 - relationship upserts
@@ -496,7 +496,7 @@ Rules:
   where practical.
 - Phase 3A defines this boundary so write-capable store tests have a stable
   target. App-level graph indexing does not use it until Phase 3B.
-- The plan must not include records outside the selected effective scopes.
+- The plan must not include records outside the selected actual scopes.
 - Tombstones use `GraphTombstone`.
 
 ## 7. GraphStore Interface
@@ -566,7 +566,7 @@ Index requirements:
 - relationships by `(type, status)`
 - evidence refs by `(evidence_vault_id, document_id, chunk_id)`
 - evidence refs by `(owner_kind, owner_vault_id, owner_id)`
-- revisions by `(vault_id, effective_scope)`
+- revisions by `(vault_id, actual_scope)`
 
 Rules:
 
@@ -625,7 +625,7 @@ Rules:
 - Every relationship record includes source and target Vault IDs.
 - Every evidence ref includes owner kind, owner Vault ID, owner ID, and evidence
   Vault ID.
-- Every graph revision is scoped to one Vault/effective scope.
+- Every graph revision is scoped to one Vault/actual scope.
 - `--all-vaults` style scopes are expanded before store reads.
 - Store methods must not accept or create one global all-vault content-scope
   union.
@@ -649,7 +649,7 @@ Human-readable status should include:
 - graph freshness
 - stale graph record count
 - tombstone count
-- last graph revision per Vault/effective scope when present
+- last graph revision per Vault/actual scope when present
 - recovery hint
 
 Machine-readable status should expose the same data as structured fields so

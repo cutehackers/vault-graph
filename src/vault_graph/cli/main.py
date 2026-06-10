@@ -306,7 +306,7 @@ def status(
     typer.echo(f"graph_tombstone_count: {graph.tombstone_count}")
     typer.echo(f"graph_last_revision: {graph.last_graph_revision}")
     for row in graph.scope_readiness:
-        typer.echo(f"graph_scope: {row.effective_scope} {row.freshness} {row.last_graph_revision}")
+        typer.echo(f"graph_scope: {row.actual_scope} {row.freshness} {row.last_graph_revision}")
     typer.echo(f"graph_recovery_hint: {graph.recovery_hint}")
 
 
@@ -318,7 +318,7 @@ def _render_search_response(response: SearchResponse) -> None:
             typer.echo(f"warning: {warning.code} [{scope}]{scope_key} {warning.message}")
     typer.echo(f"query: {response.query_text}")
     typer.echo(f"vault_ids: {','.join(response.requested_scope.vault_ids)}")
-    typer.echo(f"effective_scopes: {','.join(_scope_text(scope) for scope in response.effective_scopes)}")
+    typer.echo(f"actual_scopes: {','.join(_scope_text(scope) for scope in response.actual_scopes)}")
     typer.echo(f"results: {response.result_count}")
     for result in response.results:
         evidence = result.evidence[0]
@@ -335,7 +335,7 @@ def _search_response_json(response: SearchResponse) -> dict[str, object]:
     return {
         "query_text": response.query_text,
         "requested_scope": _scope_json(response.requested_scope),
-        "effective_scopes": [_scope_json(scope) for scope in response.effective_scopes],
+        "actual_scopes": [_scope_json(scope) for scope in response.actual_scopes],
         "limit": response.limit,
         "result_count": response.result_count,
         "candidate_count": response.candidate_count,
@@ -406,7 +406,7 @@ def _status_report_json(
             "scope_readiness": [
                 {
                     "vault_id": row.vault_id,
-                    "effective_scope": row.effective_scope,
+                    "actual_scope": row.actual_scope,
                     "freshness": row.freshness,
                     "stale_count": row.stale_count,
                     "tombstone_count": row.tombstone_count,

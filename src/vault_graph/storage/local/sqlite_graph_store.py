@@ -108,17 +108,17 @@ CREATE TABLE IF NOT EXISTS graph_record_scopes (
   record_kind TEXT NOT NULL,
   record_vault_id TEXT NOT NULL,
   record_id TEXT NOT NULL,
-  effective_scope TEXT NOT NULL,
+  actual_scope TEXT NOT NULL,
   metadata_index_revision TEXT NOT NULL,
   graph_index_revision TEXT NOT NULL,
   graph_extraction_spec_digest TEXT NOT NULL,
-  PRIMARY KEY (record_kind, record_vault_id, record_id, effective_scope)
+  PRIMARY KEY (record_kind, record_vault_id, record_id, actual_scope)
 );
 
 CREATE TABLE IF NOT EXISTS graph_revisions (
   graph_run_id TEXT NOT NULL,
   vault_id TEXT NOT NULL,
-  effective_scope TEXT NOT NULL,
+  actual_scope TEXT NOT NULL,
   graph_store_schema_version TEXT NOT NULL,
   graph_extraction_spec_version TEXT NOT NULL,
   graph_extraction_spec_digest TEXT NOT NULL,
@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS graph_revisions (
   stale_count INTEGER NOT NULL,
   tombstone_count INTEGER NOT NULL,
   updated_at TEXT NOT NULL,
-  PRIMARY KEY (vault_id, effective_scope, graph_index_revision)
+  PRIMARY KEY (vault_id, actual_scope, graph_index_revision)
 );
 
 CREATE TABLE IF NOT EXISTS graph_tombstones (
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS graph_tombstones (
   record_kind TEXT NOT NULL,
   record_vault_id TEXT NOT NULL,
   record_id TEXT NOT NULL,
-  effective_scope TEXT NOT NULL,
+  actual_scope TEXT NOT NULL,
   reason TEXT NOT NULL,
   graph_run_id TEXT NOT NULL,
   graph_index_revision TEXT NOT NULL,
@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS graph_tombstones (
   tombstoned_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_tombstones_record_scope
-  ON graph_tombstones (record_kind, record_vault_id, record_id, effective_scope);
+  ON graph_tombstones (record_kind, record_vault_id, record_id, actual_scope);
 
 CREATE INDEX IF NOT EXISTS idx_graph_entities_name ON graph_entities (vault_id, normalized_name);
 CREATE INDEX IF NOT EXISTS idx_graph_entities_type_name ON graph_entities (vault_id, type, normalized_name);
@@ -157,8 +157,8 @@ CREATE INDEX IF NOT EXISTS idx_graph_relationships_target ON graph_relationships
 CREATE INDEX IF NOT EXISTS idx_graph_relationships_type_status ON graph_relationships (type, status);
 CREATE INDEX IF NOT EXISTS idx_graph_evidence_chunk ON graph_evidence_refs (evidence_vault_id, document_id, chunk_id);
 CREATE INDEX IF NOT EXISTS idx_graph_evidence_owner ON graph_evidence_refs (owner_kind, owner_vault_id, owner_id);
-CREATE INDEX IF NOT EXISTS idx_graph_record_scopes_scope ON graph_record_scopes (effective_scope, record_kind);
-CREATE INDEX IF NOT EXISTS idx_graph_revisions_scope ON graph_revisions (vault_id, effective_scope, updated_at);
+CREATE INDEX IF NOT EXISTS idx_graph_record_scopes_scope ON graph_record_scopes (actual_scope, record_kind);
+CREATE INDEX IF NOT EXISTS idx_graph_revisions_scope ON graph_revisions (vault_id, actual_scope, updated_at);
 """
 
 REQUIRED_TABLES = {
@@ -239,7 +239,7 @@ REQUIRED_COLUMNS = {
         "record_kind",
         "record_vault_id",
         "record_id",
-        "effective_scope",
+        "actual_scope",
         "metadata_index_revision",
         "graph_index_revision",
         "graph_extraction_spec_digest",
@@ -247,7 +247,7 @@ REQUIRED_COLUMNS = {
     "graph_revisions": {
         "graph_run_id",
         "vault_id",
-        "effective_scope",
+        "actual_scope",
         "graph_store_schema_version",
         "graph_extraction_spec_version",
         "graph_extraction_spec_digest",
@@ -266,7 +266,7 @@ REQUIRED_COLUMNS = {
         "record_kind",
         "record_vault_id",
         "record_id",
-        "effective_scope",
+        "actual_scope",
         "reason",
         "graph_run_id",
         "graph_index_revision",
@@ -369,7 +369,7 @@ class SQLiteGraphStore:
         return tuple(_spec_from_row(row) for row in rows)
 
     def latest_revisions(self, scopes: tuple[QueryScope, ...]) -> tuple[GraphRevision, ...]:
-        _ensure_effective_scopes(scopes)
+        _ensure_actual_scopes(scopes)
         if not self._database_path.exists():
             return ()
         revisions: list[GraphRevision] = []
@@ -377,12 +377,12 @@ class SQLiteGraphStore:
             for scope in scopes:
                 row = connection.execute(
                     """
-                    SELECT graph_run_id, vault_id, effective_scope, graph_store_schema_version,
+                    SELECT graph_run_id, vault_id, actual_scope, graph_store_schema_version,
                            graph_extraction_spec_version, graph_extraction_spec_digest, graph_index_revision,
                            metadata_index_revision, parser_version, chunker_version, entity_count,
                            relationship_count, stale_count, tombstone_count, updated_at
                     FROM graph_revisions
-                    WHERE vault_id = ? AND effective_scope = ?
+                    WHERE vault_id = ? AND actual_scope = ?
                     ORDER BY updated_at DESC, graph_index_revision DESC
                     LIMIT 1
                     """,
@@ -393,7 +393,7 @@ class SQLiteGraphStore:
         return tuple(revisions)
 
     def current_manifest(self, scopes: tuple[QueryScope, ...]) -> GraphManifest:
-        _ensure_effective_scopes(scopes)
+        _ensure_actual_scopes(scopes)
         if not self._database_path.exists():
             return _empty_manifest(scopes=scopes)
         scope_keys = {graph_scope_key(scope) for scope in scopes}
@@ -419,7 +419,7 @@ class SQLiteGraphStore:
                     )
                     if relationship is None:
                         continue
-                    scope = scopes_by_key[membership.effective_scope]
+                    scope = scopes_by_key[membership.actual_scope]
                     if not _relationship_allowed(
                         relationship=relationship,
                         scope=scope,
@@ -443,7 +443,7 @@ class SQLiteGraphStore:
             spec_digest = spec.spec_digest
         return GraphManifest(
             requested_scope=_combined_scope(scopes),
-            effective_scopes=scopes,
+            actual_scopes=scopes,
             entity_rows=tuple(sorted(entity_rows, key=lambda row: (row.vault_id, row.entity_id))),
             relationship_rows=tuple(
                 sorted(relationship_rows, key=lambda row: (row.source_vault_id, row.relationship_id))
@@ -531,9 +531,9 @@ class SQLiteGraphStore:
     def apply_reconcile_plan(self, plan: GraphReconcilePlan) -> GraphApplyResult:
         if self._read_only:
             raise GraphReadOnlyViolation("graph store is read-only")
-        _ensure_effective_scopes(plan.effective_scopes)
+        _ensure_actual_scopes(plan.actual_scopes)
         revisions_by_scope = {
-            revision.effective_scope: replace(revision, graph_store_schema_version=GRAPH_SCHEMA_VERSION)
+            revision.actual_scope: replace(revision, graph_store_schema_version=GRAPH_SCHEMA_VERSION)
             for revision in plan.graph_revision_rows
         }
         try:
@@ -599,17 +599,17 @@ def _incompatible_health(message: str) -> StoreHealth:
     )
 
 
-def _ensure_effective_scopes(scopes: tuple[QueryScope, ...]) -> None:
+def _ensure_actual_scopes(scopes: tuple[QueryScope, ...]) -> None:
     for scope in scopes:
         if len(scope.vault_ids) != 1:
-            raise GraphStoreError("GraphStore operations require per-Vault effective scopes")
+            raise GraphStoreError("GraphStore operations require per-Vault actual scopes")
 
 
 def _empty_manifest(*, scopes: tuple[QueryScope, ...]) -> GraphManifest:
     spec = current_graph_extraction_spec()
     return GraphManifest(
         requested_scope=_combined_scope(scopes),
-        effective_scopes=scopes,
+        actual_scopes=scopes,
         entity_rows=(),
         relationship_rows=(),
         evidence_rows=(),
@@ -641,7 +641,7 @@ def _revision_from_row(row: sqlite3.Row) -> GraphRevision:
     return GraphRevision(
         graph_run_id=str(row["graph_run_id"]),
         vault_id=str(row["vault_id"]),
-        effective_scope=str(row["effective_scope"]),
+        actual_scope=str(row["actual_scope"]),
         graph_store_schema_version=str(row["graph_store_schema_version"]),
         graph_extraction_spec_version=str(row["graph_extraction_spec_version"]),
         graph_extraction_spec_digest=str(row["graph_extraction_spec_digest"]),
@@ -744,11 +744,11 @@ def _record_scopes(connection: sqlite3.Connection, *, scope_keys: set[str]) -> t
     placeholders = ", ".join("?" for _ in scope_keys)
     rows = connection.execute(
         f"""
-        SELECT record_kind, record_vault_id, record_id, effective_scope, metadata_index_revision,
+        SELECT record_kind, record_vault_id, record_id, actual_scope, metadata_index_revision,
                graph_index_revision, graph_extraction_spec_digest
         FROM graph_record_scopes
-        WHERE effective_scope IN ({placeholders})
-        ORDER BY record_kind, record_vault_id, record_id, effective_scope
+        WHERE actual_scope IN ({placeholders})
+        ORDER BY record_kind, record_vault_id, record_id, actual_scope
         """,
         tuple(sorted(scope_keys)),
     ).fetchall()
@@ -757,7 +757,7 @@ def _record_scopes(connection: sqlite3.Connection, *, scope_keys: set[str]) -> t
             record_kind=str(row["record_kind"]),
             record_vault_id=str(row["record_vault_id"]),
             record_id=str(row["record_id"]),
-            effective_scope=str(row["effective_scope"]),
+            actual_scope=str(row["actual_scope"]),
             metadata_index_revision=str(row["metadata_index_revision"]),
             graph_index_revision=str(row["graph_index_revision"]),
             graph_extraction_spec_digest=str(row["graph_extraction_spec_digest"]),
@@ -806,10 +806,10 @@ def _manifest_tombstones(connection: sqlite3.Connection, *, scope_keys: set[str]
     placeholders = ", ".join("?" for _ in scope_keys)
     rows = connection.execute(
         f"""
-        SELECT tombstone_id, record_kind, record_vault_id, record_id, effective_scope, reason, graph_run_id,
+        SELECT tombstone_id, record_kind, record_vault_id, record_id, actual_scope, reason, graph_run_id,
                graph_index_revision, graph_extraction_spec_version, graph_extraction_spec_digest, tombstoned_at
         FROM graph_tombstones
-        WHERE effective_scope IN ({placeholders})
+        WHERE actual_scope IN ({placeholders})
         ORDER BY tombstone_id
         """,
         tuple(sorted(scope_keys)),
@@ -823,7 +823,7 @@ def _tombstone_from_row(row: sqlite3.Row) -> GraphTombstone:
         record_kind=str(row["record_kind"]),
         record_vault_id=str(row["record_vault_id"]),
         record_id=str(row["record_id"]),
-        effective_scope=str(row["effective_scope"]),
+        actual_scope=str(row["actual_scope"]),
         reason=str(row["reason"]),
         graph_run_id=str(row["graph_run_id"]),
         graph_index_revision=str(row["graph_index_revision"]),
@@ -1070,19 +1070,19 @@ def _upsert_record_scopes(
     plan: GraphReconcilePlan,
     revisions_by_scope: dict[str, GraphRevision],
 ) -> None:
-    for scope in plan.effective_scopes:
+    for scope in plan.actual_scopes:
         if scope.vault_ids[0] != record_vault_id:
             continue
-        effective_scope = graph_scope_key(scope)
-        revision = revisions_by_scope[effective_scope]
+        actual_scope = graph_scope_key(scope)
+        revision = revisions_by_scope[actual_scope]
         connection.execute(
             """
             INSERT INTO graph_record_scopes (
-              record_kind, record_vault_id, record_id, effective_scope, metadata_index_revision,
+              record_kind, record_vault_id, record_id, actual_scope, metadata_index_revision,
               graph_index_revision, graph_extraction_spec_digest
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(record_kind, record_vault_id, record_id, effective_scope) DO UPDATE SET
+            ON CONFLICT(record_kind, record_vault_id, record_id, actual_scope) DO UPDATE SET
               metadata_index_revision = excluded.metadata_index_revision,
               graph_index_revision = excluded.graph_index_revision,
               graph_extraction_spec_digest = excluded.graph_extraction_spec_digest
@@ -1091,7 +1091,7 @@ def _upsert_record_scopes(
                 record_kind,
                 record_vault_id,
                 record_id,
-                effective_scope,
+                actual_scope,
                 revision.metadata_index_revision,
                 revision.graph_index_revision,
                 plan.graph_extraction_spec.spec_digest,
@@ -1106,21 +1106,21 @@ def _upsert_tombstone(connection: sqlite3.Connection, tombstone: GraphTombstone)
         WHERE record_kind = ?
           AND record_vault_id = ?
           AND record_id = ?
-          AND effective_scope = ?
+          AND actual_scope = ?
           AND tombstone_id != ?
         """,
         (
             tombstone.record_kind,
             tombstone.record_vault_id,
             tombstone.record_id,
-            tombstone.effective_scope,
+            tombstone.actual_scope,
             tombstone.tombstone_id,
         ),
     )
     connection.execute(
         """
         INSERT INTO graph_tombstones (
-          tombstone_id, record_kind, record_vault_id, record_id, effective_scope, reason, graph_run_id,
+          tombstone_id, record_kind, record_vault_id, record_id, actual_scope, reason, graph_run_id,
           graph_index_revision, graph_extraction_spec_version, graph_extraction_spec_digest, tombstoned_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1137,7 +1137,7 @@ def _upsert_tombstone(connection: sqlite3.Connection, tombstone: GraphTombstone)
             tombstone.record_kind,
             tombstone.record_vault_id,
             tombstone.record_id,
-            tombstone.effective_scope,
+            tombstone.actual_scope,
             tombstone.reason,
             tombstone.graph_run_id,
             tombstone.graph_index_revision,
@@ -1173,12 +1173,12 @@ def _upsert_revision(connection: sqlite3.Connection, revision: GraphRevision) ->
     connection.execute(
         """
         INSERT INTO graph_revisions (
-          graph_run_id, vault_id, effective_scope, graph_store_schema_version, graph_extraction_spec_version,
+          graph_run_id, vault_id, actual_scope, graph_store_schema_version, graph_extraction_spec_version,
           graph_extraction_spec_digest, graph_index_revision, metadata_index_revision, parser_version,
           chunker_version, entity_count, relationship_count, stale_count, tombstone_count, updated_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(vault_id, effective_scope, graph_index_revision) DO UPDATE SET
+        ON CONFLICT(vault_id, actual_scope, graph_index_revision) DO UPDATE SET
           graph_run_id = excluded.graph_run_id,
           graph_store_schema_version = excluded.graph_store_schema_version,
           graph_extraction_spec_version = excluded.graph_extraction_spec_version,
@@ -1195,7 +1195,7 @@ def _upsert_revision(connection: sqlite3.Connection, revision: GraphRevision) ->
         (
             revision.graph_run_id,
             revision.vault_id,
-            revision.effective_scope,
+            revision.actual_scope,
             revision.graph_store_schema_version,
             revision.graph_extraction_spec_version,
             revision.graph_extraction_spec_digest,

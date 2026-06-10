@@ -187,7 +187,7 @@ The status surface should show:
 - in Phase 2B, default local embedding model, model revision, model cache
   availability, throughput tuning, and model-unavailable errors
 - in Phase 3, graph backend health, graph schema compatibility,
-  `GraphExtractionSpec`, graph revisions by Vault/effective scope, stale graph
+  `GraphExtractionSpec`, graph revisions by Vault/actual scope, stale graph
   record counts, tombstone counts, last graph failure, and graph projection cache
   freshness
 - stale or invalid vector/graph cache warnings

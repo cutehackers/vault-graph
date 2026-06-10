@@ -25,7 +25,7 @@ class ReadOnlySearchReadiness:
         self._vector_store = vector_store
         self._text_embeddings = text_embeddings
 
-    def check(self, *, effective_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
+    def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
         metadata_health = self._metadata_store.health()
         keyword_health = self._keyword_index.health()
         vector_health = self._vector_store.health() if self._vector_store is not None else None
@@ -50,10 +50,10 @@ class ReadOnlySearchReadiness:
                 scope_readiness=(),
             )
         can_embed = self._text_embeddings.can_embed_without_download() if self._text_embeddings is not None else False
-        scope_readiness = self._scope_readiness(effective_scopes=effective_scopes, vector_health=vector_health)
+        scope_readiness = self._scope_readiness(actual_scopes=actual_scopes, vector_health=vector_health)
         stale_counts = tuple(item.vector_stale_count for item in scope_readiness if item.vector_stale_count is not None)
         stale_count = sum(stale_counts) if stale_counts else None
-        store_revisions = self._store_revisions(effective_scopes=effective_scopes, vector_health=vector_health)
+        store_revisions = self._store_revisions(actual_scopes=actual_scopes, vector_health=vector_health)
         return SearchReadinessReport(
             metadata_health=metadata_health,
             keyword_health=keyword_health,
@@ -67,11 +67,11 @@ class ReadOnlySearchReadiness:
     def _scope_readiness(
         self,
         *,
-        effective_scopes: tuple[QueryScope, ...],
+        actual_scopes: tuple[QueryScope, ...],
         vector_health: StoreHealth | None,
     ) -> tuple[SearchScopeReadiness, ...]:
         readiness: list[SearchScopeReadiness] = []
-        for scope in effective_scopes:
+        for scope in actual_scopes:
             stale_count = self._vector_stale_count(scope=scope, vector_health=vector_health)
             readiness.append(
                 SearchScopeReadiness(
@@ -97,11 +97,11 @@ class ReadOnlySearchReadiness:
     def _store_revisions(
         self,
         *,
-        effective_scopes: tuple[QueryScope, ...],
+        actual_scopes: tuple[QueryScope, ...],
         vector_health: StoreHealth | None,
     ) -> tuple[SearchStoreRevision, ...]:
         revisions: list[SearchStoreRevision] = []
-        for scope in effective_scopes:
+        for scope in actual_scopes:
             scope_key = _scope_key(scope)
             chunks = self._metadata_store.list_chunks(scope)
             metadata_revision = _revision_from_values(

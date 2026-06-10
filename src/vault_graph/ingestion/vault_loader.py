@@ -25,7 +25,7 @@ class VaultLoader:
         if entry.vault_id not in scope.vault_ids:
             raise CatalogError(f"entry vault_id is not included in QueryScope: {entry.vault_id}")
         documents: list[LoadedVaultDocument] = []
-        for content_scope in _effective_content_scopes(entry=entry, scope=scope):
+        for content_scope in _actual_content_scopes(entry=entry, scope=scope):
             scope_root = entry.root_path / content_scope
             if not scope_root.exists():
                 continue
@@ -51,15 +51,15 @@ class VaultLoader:
         return tuple(documents)
 
 
-def _effective_content_scopes(*, entry: VaultCatalogEntry, scope: QueryScope) -> tuple[str, ...]:
-    effective: list[str] = []
+def _actual_content_scopes(*, entry: VaultCatalogEntry, scope: QueryScope) -> tuple[str, ...]:
+    actual: list[str] = []
     for query_scope in scope.content_scopes:
         for entry_scope in entry.content_scopes:
             if _is_same_or_child(path=query_scope, parent=entry_scope):
-                effective.append(query_scope)
+                actual.append(query_scope)
             elif _is_same_or_child(path=entry_scope, parent=query_scope):
-                effective.append(entry_scope)
-    return tuple(dict.fromkeys(effective))
+                actual.append(entry_scope)
+    return tuple(dict.fromkeys(actual))
 
 
 def _is_same_or_child(*, path: str, parent: str) -> bool:

@@ -106,7 +106,7 @@ _Avoid_: Vault delete, hard delete, permanent removal
 
 ### Scope And Vaults
 
-**Effective Scope**:
+**Actual Scope**:
 The concrete Vault and content-scope selection used by a store operation after
 user scope has been resolved.
 _Avoid_: global scope, implicit all-vault scope

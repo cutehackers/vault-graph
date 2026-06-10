@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, TextEmbeddings
 from vault_graph.errors import KeywordIndexError, SearchError, TextEmbeddingsError, VectorStoreError
-from vault_graph.ingestion.query_scope_resolution import effective_query_scopes
+from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.retrieval_result import (
     RetrievalResult,
@@ -56,11 +56,11 @@ class RetrievalService:
         output_format: SearchOutputFormat = "text",
     ) -> SearchResponse:
         normalized_query = query_text.strip()
-        effective_scopes = effective_query_scopes(catalog=self._catalog, scope=requested_scope)
+        actual_scopes = actual_query_scopes(catalog=self._catalog, scope=requested_scope)
         request = SearchRequest(
             query_text=normalized_query,
             requested_scope=requested_scope,
-            effective_scopes=effective_scopes,
+            actual_scopes=actual_scopes,
             limit=limit,
             output_format=output_format,
         )
@@ -68,11 +68,11 @@ class RetrievalService:
 
     def _search_request(self, request: SearchRequest) -> SearchResponse:
         candidate_limit = max(request.limit * 4, 20)
-        readiness = self._readiness.check(effective_scopes=request.effective_scopes)
+        readiness = self._readiness.check(actual_scopes=request.actual_scopes)
         fatal = _fatal_readiness_error(readiness)
         if fatal is not None:
             raise fatal
-        warnings = list(_warnings_for_readiness(readiness, request.effective_scopes))
+        warnings = list(_warnings_for_readiness(readiness, request.actual_scopes))
         keyword_hits = self._keyword_hits(request=request, candidate_limit=candidate_limit)
         vector_hits = self._vector_hits(
             request=request,
@@ -87,7 +87,7 @@ class RetrievalService:
         return SearchResponse(
             query_text=request.query_text,
             requested_scope=request.requested_scope,
-            effective_scopes=request.effective_scopes,
+            actual_scopes=request.actual_scopes,
             limit=request.limit,
             result_count=len(limited_results),
             candidate_count=len(keyword_hits) + len(vector_hits),
@@ -102,7 +102,7 @@ class RetrievalService:
     def _keyword_hits(self, *, request: SearchRequest, candidate_limit: int) -> tuple[KeywordHit, ...]:
         hits: list[KeywordHit] = []
         try:
-            for scope in request.effective_scopes:
+            for scope in request.actual_scopes:
                 hits.extend(
                     self._keyword_index.search(
                         KeywordQuery(query_text=request.query_text, scope=scope, limit=candidate_limit)
@@ -127,7 +127,7 @@ class RetrievalService:
         try:
             query_vector = self._text_embeddings.embed((EmbeddingInput(input_id="query", text=request.query_text),))[0]
             hits: list[VectorHit] = []
-            for scope in request.effective_scopes:
+            for scope in request.actual_scopes:
                 if _vector_stale_count_for_scope(readiness=readiness, scope=scope) not in (None, 0):
                     continue
                 hits.extend(
@@ -146,7 +146,7 @@ class RetrievalService:
                     code="vector_query_failed",
                     message=f"Vector query failed; keyword-only results returned: {exc}",
                     severity="warning",
-                    affected_vault_ids=_affected_vault_ids(request.effective_scopes),
+                    affected_vault_ids=_affected_vault_ids(request.actual_scopes),
                 )
             )
             return ()
@@ -232,9 +232,9 @@ def _fatal_readiness_error(readiness: SearchReadinessReport) -> SearchError | No
 
 def _warnings_for_readiness(
     readiness: SearchReadinessReport,
-    effective_scopes: tuple[QueryScope, ...],
+    actual_scopes: tuple[QueryScope, ...],
 ) -> tuple[SearchWarning, ...]:
-    affected_vault_ids = _affected_vault_ids(effective_scopes)
+    affected_vault_ids = _affected_vault_ids(actual_scopes)
     warnings: list[SearchWarning] = []
     vector_unavailable = readiness.vector_health is None or not (
         readiness.vector_health.ok and readiness.vector_health.schema_compatible
@@ -449,8 +449,8 @@ def _excerpt(text: str, *, max_length: int = 240) -> str:
     return f"{collapsed[: max_length - 3].rstrip()}..."
 
 
-def _affected_vault_ids(effective_scopes: tuple[QueryScope, ...]) -> tuple[str, ...]:
-    return tuple(dict.fromkeys(vault_id for scope in effective_scopes for vault_id in scope.vault_ids)) or ("unknown",)
+def _affected_vault_ids(actual_scopes: tuple[QueryScope, ...]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(vault_id for scope in actual_scopes for vault_id in scope.vault_ids)) or ("unknown",)
 
 
 def _signal_kind_order(kind: RetrievalSignalKind) -> int:

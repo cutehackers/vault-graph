@@ -31,11 +31,11 @@ def _as_tuple[T](values: tuple[T, ...], field_name: str) -> tuple[T, ...]:
     return values
 
 
-def _require_effective_scopes(scopes: tuple[QueryScope, ...]) -> None:
-    _as_tuple(scopes, "effective_scopes")
+def _require_actual_scopes(scopes: tuple[QueryScope, ...]) -> None:
+    _as_tuple(scopes, "actual_scopes")
     for scope in scopes:
         if len(scope.vault_ids) != 1:
-            raise GraphRecordInvalid("effective_scopes must be per-Vault scopes")
+            raise GraphRecordInvalid("actual_scopes must be per-Vault scopes")
 
 
 @dataclass(frozen=True)
@@ -219,7 +219,7 @@ class RelationshipRecord:
 class GraphRevision:
     graph_run_id: str
     vault_id: str
-    effective_scope: str
+    actual_scope: str
     graph_store_schema_version: str
     graph_extraction_spec_version: str
     graph_extraction_spec_digest: str
@@ -237,7 +237,7 @@ class GraphRevision:
         for field_name in (
             "graph_run_id",
             "vault_id",
-            "effective_scope",
+            "actual_scope",
             "graph_store_schema_version",
             "graph_extraction_spec_version",
             "graph_index_revision",
@@ -256,7 +256,7 @@ class GraphTombstone:
     record_kind: str
     record_vault_id: str
     record_id: str
-    effective_scope: str
+    actual_scope: str
     reason: str
     graph_run_id: str
     graph_index_revision: str
@@ -268,7 +268,7 @@ class GraphTombstone:
         _require_non_empty(self.tombstone_id, "tombstone_id")
         _require_non_empty(self.record_vault_id, "record_vault_id")
         _require_non_empty(self.record_id, "record_id")
-        _require_non_empty(self.effective_scope, "effective_scope")
+        _require_non_empty(self.actual_scope, "actual_scope")
         _require_non_empty(self.reason, "reason")
         _require_non_empty(self.graph_run_id, "graph_run_id")
         _require_non_empty(self.graph_index_revision, "graph_index_revision")
@@ -284,7 +284,7 @@ class GraphRecordScope:
     record_kind: str
     record_vault_id: str
     record_id: str
-    effective_scope: str
+    actual_scope: str
     metadata_index_revision: str
     graph_index_revision: str
     graph_extraction_spec_digest: str
@@ -294,7 +294,7 @@ class GraphRecordScope:
             raise GraphRecordInvalid(f"unsupported graph record kind: {self.record_kind}")
         _require_non_empty(self.record_vault_id, "record_vault_id")
         _require_non_empty(self.record_id, "record_id")
-        _require_non_empty(self.effective_scope, "effective_scope")
+        _require_non_empty(self.actual_scope, "actual_scope")
         _require_non_empty(self.metadata_index_revision, "metadata_index_revision")
         _require_non_empty(self.graph_index_revision, "graph_index_revision")
         _require_digest(self.graph_extraction_spec_digest, "graph_extraction_spec_digest")
@@ -352,7 +352,7 @@ class GraphManifestEvidence:
 @dataclass(frozen=True)
 class GraphManifest:
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     entity_rows: tuple[GraphManifestEntity, ...]
     relationship_rows: tuple[GraphManifestRelationship, ...]
     evidence_rows: tuple[GraphManifestEvidence, ...]
@@ -363,7 +363,7 @@ class GraphManifest:
     revision_rows: tuple[GraphRevision, ...]
 
     def __post_init__(self) -> None:
-        _require_effective_scopes(self.effective_scopes)
+        _require_actual_scopes(self.actual_scopes)
         _as_tuple(self.entity_rows, "entity_rows")
         _as_tuple(self.relationship_rows, "relationship_rows")
         _as_tuple(self.evidence_rows, "evidence_rows")
@@ -389,7 +389,7 @@ class GraphApplyResult:
 @dataclass(frozen=True)
 class GraphReconcilePlan:
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     graph_run_id: str
     entity_upserts: tuple[EntityRecord, ...]
     relationship_upserts: tuple[RelationshipRecord, ...]
@@ -402,7 +402,7 @@ class GraphReconcilePlan:
 
     def __post_init__(self) -> None:
         _require_non_empty(self.graph_run_id, "graph_run_id")
-        _require_effective_scopes(self.effective_scopes)
+        _require_actual_scopes(self.actual_scopes)
         _as_tuple(self.entity_upserts, "entity_upserts")
         _as_tuple(self.relationship_upserts, "relationship_upserts")
         _as_tuple(self.evidence_ref_upserts, "evidence_ref_upserts")
@@ -410,7 +410,7 @@ class GraphReconcilePlan:
         _as_tuple(self.relationship_tombstones, "relationship_tombstones")
         _as_tuple(self.graph_revision_rows, "graph_revision_rows")
         _as_tuple(self.projection_cache_invalidations, "projection_cache_invalidations")
-        if tuple(graph_scope_key(scope) for scope in self.effective_scopes) != tuple(
-            revision.effective_scope for revision in self.graph_revision_rows
+        if tuple(graph_scope_key(scope) for scope in self.actual_scopes) != tuple(
+            revision.actual_scope for revision in self.graph_revision_rows
         ):
-            raise GraphRecordInvalid("graph revision scopes must match effective scopes")
+            raise GraphRecordInvalid("graph revision scopes must match actual scopes")

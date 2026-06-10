@@ -47,7 +47,7 @@ class SearchWarning:
 class SearchRequest:
     query_text: str
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     limit: int
     output_format: SearchOutputFormat
 
@@ -64,7 +64,7 @@ class SearchRequest:
 class SearchResponse:
     query_text: str
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     limit: int
     result_count: int
     candidate_count: int

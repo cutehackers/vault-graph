@@ -89,8 +89,8 @@ does not read SQLite tables directly.
 
 ```text
 VectorIndexer
-  -> MetadataStore.list_chunks(effective_scope)
-  -> VectorStore.export_manifest(effective_scope)
+  -> MetadataStore.list_chunks(actual_scope)
+  -> VectorStore.export_manifest(actual_scope)
   -> TextEmbeddings.embed(...)
   -> VectorStore.apply_vector_revision(...)
 ```

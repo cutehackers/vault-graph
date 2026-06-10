@@ -26,7 +26,7 @@ class StaticReadiness:
     def __init__(self, report: SearchReadinessReport) -> None:
         self._report = report
 
-    def check(self, *, effective_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
+    def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
         return self._report
 
 
@@ -241,8 +241,8 @@ def test_all_vault_search_does_not_widen_content_scopes_per_vault(tmp_path: Path
         output_format="json",
     )
 
-    assert tuple(scope.vault_ids for scope in response.effective_scopes) == (("first",), ("second",))
-    assert tuple(scope.content_scopes for scope in response.effective_scopes) == (("wiki",), ("docs",))
+    assert tuple(scope.vault_ids for scope in response.actual_scopes) == (("first",), ("second",))
+    assert tuple(scope.content_scopes for scope in response.actual_scopes) == (("wiki",), ("docs",))
     assert sorted(result.evidence[0].path for result in response.results) == ["docs/allowed.md", "wiki/allowed.md"]
 
 

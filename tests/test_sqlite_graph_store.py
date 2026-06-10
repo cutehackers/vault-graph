@@ -119,7 +119,7 @@ def test_sqlite_graph_health_checks_every_required_read_column(tmp_path: Path) -
               record_kind TEXT,
               record_vault_id TEXT,
               record_id TEXT,
-              effective_scope TEXT
+              actual_scope TEXT
             )
             """
         )
@@ -127,7 +127,7 @@ def test_sqlite_graph_health_checks_every_required_read_column(tmp_path: Path) -
             """
             CREATE TABLE graph_revisions (
               vault_id TEXT,
-              effective_scope TEXT,
+              actual_scope TEXT,
               graph_store_schema_version TEXT
             )
             """
@@ -139,7 +139,7 @@ def test_sqlite_graph_health_checks_every_required_read_column(tmp_path: Path) -
               record_kind TEXT,
               record_vault_id TEXT,
               record_id TEXT,
-              effective_scope TEXT
+              actual_scope TEXT
             )
             """
         )

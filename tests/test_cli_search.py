@@ -66,7 +66,7 @@ def test_cli_search_text_output_prints_resolved_scope_for_zero_results(
 
     assert result.exit_code == 0
     assert "vault_ids: default" in result.stdout
-    assert "effective_scopes: default:raw,wiki,docs,scratch/reports" in result.stdout
+    assert "actual_scopes: default:raw,wiki,docs,scratch/reports" in result.stdout
     assert "results: 0" in result.stdout
 
 

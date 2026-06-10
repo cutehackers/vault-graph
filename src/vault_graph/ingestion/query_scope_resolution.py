@@ -3,8 +3,8 @@ from __future__ import annotations
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 
 
-def effective_query_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:
-    effective_scopes: list[QueryScope] = []
+def actual_query_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:
+    actual_scopes: list[QueryScope] = []
     for vault_id in scope.vault_ids:
         entry = catalog.resolve(vault_id)
         content_scopes: list[str] = []
@@ -16,14 +16,14 @@ def effective_query_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple
                     content_scopes.append(entry_scope)
         deduped = tuple(dict.fromkeys(content_scopes))
         if deduped:
-            effective_scopes.append(
+            actual_scopes.append(
                 QueryScope(
                     vault_ids=(entry.vault_id,),
                     content_scopes=deduped,
                     include_cross_vault=scope.include_cross_vault,
                 )
             )
-    return tuple(effective_scopes)
+    return tuple(actual_scopes)
 
 
 def _is_same_or_child(*, path: str, parent: str) -> bool:

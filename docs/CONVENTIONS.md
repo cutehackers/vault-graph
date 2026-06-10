@@ -97,6 +97,9 @@ or Pydantic model.
 
 - Keep functions small and focused on one behavior.
 - Use descriptive verb phrases for function names.
+- Do not use the `effective_` prefix in function names, variables, fields, or
+  public output keys. When naming a value that contrasts with a requested or
+  configured value, use `actual_` for the value Vault Graph will really apply.
 - Prefer returning values over mutating hidden shared state.
 - Make side effects visible in names or call sites.
 - Do not catch broad exceptions unless the boundary requires it and the error is

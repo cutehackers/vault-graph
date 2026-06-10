@@ -110,12 +110,12 @@ vg search "query"
   -> CatalogService loads VaultCatalog and state paths
   -> CLI resolves requested QueryScope
   -> RetrievalService.search(SearchRequest)
-      -> expand requested scope into per-Vault effective scopes
+      -> expand requested scope into per-Vault actual scopes
       -> metadata and keyword readiness checks
       -> normalize query
-      -> KeywordIndex.search(...) per effective scope
+      -> KeywordIndex.search(...) per actual scope
       -> optional no-download TextEmbeddings query vector
-      -> optional VectorStore.search(...) per effective scope
+      -> optional VectorStore.search(...) per actual scope
       -> merge by (vault_id, chunk_id)
       -> rank-based fusion
       -> MetadataStore.resolve_chunk_evidence(...)
@@ -187,7 +187,7 @@ Required fields:
 
 - `query_text`
 - `requested_scope`
-- `effective_scopes`
+- `actual_scopes`
 - `limit`
 - `output_format`
 
@@ -196,8 +196,8 @@ Rules:
 - Empty or whitespace-only queries are invalid.
 - `limit` must be positive. The CLI default is `10`.
 - `output_format` starts with `text` and `json`.
-- `effective_scopes` are per-Vault scopes resolved through `VaultCatalog`.
-- Candidate stores receive effective scopes, not an all-vault union scope.
+- `actual_scopes` are per-Vault scopes resolved through `VaultCatalog`.
+- Candidate stores receive actual scopes, not an all-vault union scope.
 
 ### 6.5 SearchResponse
 
@@ -205,7 +205,7 @@ Required fields:
 
 - `query_text`
 - `requested_scope`
-- `effective_scopes`
+- `actual_scopes`
 - `limit`
 - `result_count`
 - `candidate_count`
@@ -222,7 +222,7 @@ Rules:
 - `warnings` contains query-wide warning records with structured attribution.
 - `degraded=True` means the search completed without all configured signals.
 - Store revisions include at least metadata, keyword, and vector when available,
-  keyed by Vault or effective scope when the response spans multiple Vaults.
+  keyed by Vault or actual scope when the response spans multiple Vaults.
 - `result_id` values are search-output identifiers derived from Vault-scoped
   candidate identity, such as `(vault_id, chunk_id)` plus response rank or query
   context. They are not durable Vault IDs.
@@ -414,8 +414,8 @@ Rules:
 - Default search uses the active Vault only.
 - `--vault-id ID` searches exactly one Vault.
 - `--all-vaults` expands to explicit enabled Vault IDs, then to per-Vault
-  effective scopes before candidate stores run.
-- Effective scope resolution follows the Phase 2B rule: use the narrower of the
+  actual scopes before candidate stores run.
+- Actual scope resolution follows the Phase 2B rule: use the narrower of the
   requested scope and catalog entry scope when one contains the other; skip
   disjoint scope pairs.
 - Candidate identity is `(vault_id, chunk_id)`.
@@ -424,7 +424,7 @@ Rules:
   Vault-scoped identity.
 - Identical relative paths or headings across Vaults must not collide.
 - Warnings include the affected Vault ID when the condition is Vault-scoped.
-- Store revisions include Vault or effective-scope attribution in multi-vault
+- Store revisions include Vault or actual-scope attribution in multi-vault
   responses.
 - Search grouping must use resolved evidence/result fields. It must not call
   document-level resolution by `document_id` alone.
@@ -541,7 +541,7 @@ Verify:
 Verify:
 
 - empty query fails
-- requested all-vault scope expands into per-Vault effective scopes
+- requested all-vault scope expands into per-Vault actual scopes
 - keyword-only search returns evidence chunks
 - vector-only candidates do not render without metadata evidence
 - keyword and vector signals merge by `(vault_id, chunk_id)`
@@ -599,7 +599,7 @@ The implementation plan should be split into small slices:
 
 1. Add `KeywordIndex`, `KeywordQuery`, and `KeywordHit` contracts plus tests.
 2. Add local SQLite FTS-backed keyword projection and metadata apply integration.
-3. Add per-Vault effective search scope resolution.
+3. Add per-Vault actual search scope resolution.
 4. Add `SearchResponse` and retrieval service fusion tests with fakes.
 5. Add read-only `SearchReadiness` and no-download embedding availability.
 6. Add vector query integration and degraded-mode handling.

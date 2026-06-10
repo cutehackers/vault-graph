@@ -11,7 +11,7 @@ from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
 from vault_graph.indexing.vector_indexer import VectorApplyResult, VectorIndexer, VectorRevisionPlan
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot
-from vault_graph.ingestion.query_scope_resolution import effective_query_scopes
+from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 from vault_graph.storage.interfaces.vector_store import VectorStore
@@ -107,7 +107,7 @@ class IndexService:
         if self._vector_store is None or self._text_embeddings is None:
             return IndexRunReport(metadata=metadata_plan, vector=None)
         vector_result = self._vector_indexer(chunk_store=self._metadata_store).apply(
-            scopes=effective_query_scopes(catalog=self._catalog, scope=scope),
+            scopes=actual_query_scopes(catalog=self._catalog, scope=scope),
             full=full,
         )
         self._record_vector_status(scope=scope, result=vector_result)
@@ -115,7 +115,7 @@ class IndexService:
 
     def status(self, *, scope: QueryScope | None = None) -> StatusReport:
         resolved_scope = scope or self._catalog.default_scope()
-        effective_scopes = effective_query_scopes(catalog=self._catalog, scope=resolved_scope)
+        actual_scopes = actual_query_scopes(catalog=self._catalog, scope=resolved_scope)
         health = self._metadata_store.health()
         vector_health = self._vector_store.health() if self._vector_store is not None else None
         vector_status_scope = scope_key_for_status(resolved_scope)
@@ -139,9 +139,9 @@ class IndexService:
             vector_plan = self._vector_plan(chunk_store=self._metadata_store, scope=resolved_scope, full=False)
             vector_stale_count = 0 if vector_plan is None else vector_plan.upsert_count + vector_plan.tombstone_count
         graph_readiness = (
-            self._graph_readiness.check(requested_scope=resolved_scope, effective_scopes=effective_scopes)
+            self._graph_readiness.check(requested_scope=resolved_scope, actual_scopes=actual_scopes)
             if self._graph_readiness is not None
-            else _graph_not_configured_readiness(resolved_scope, effective_scopes)
+            else _graph_not_configured_readiness(resolved_scope, actual_scopes)
         )
         return StatusReport(
             active_vault_id=self._catalog.active_vault_id,
@@ -183,7 +183,7 @@ class IndexService:
         if self._vector_store is None or self._text_embeddings is None:
             return None
         return self._vector_indexer(chunk_store=chunk_store).plan(
-            scopes=effective_query_scopes(catalog=self._catalog, scope=scope),
+            scopes=actual_query_scopes(catalog=self._catalog, scope=scope),
             full=full,
         )
 
@@ -242,7 +242,7 @@ def _embedding_config_value[T](text_embeddings: TextEmbeddings | None, field_nam
 
 def _graph_not_configured_readiness(
     requested_scope: QueryScope,
-    effective_scopes: tuple[QueryScope, ...],
+    actual_scopes: tuple[QueryScope, ...],
 ) -> GraphReadiness:
     spec = current_graph_extraction_spec()
     return GraphReadiness(
@@ -261,14 +261,14 @@ def _graph_not_configured_readiness(
         scope_readiness=tuple(
             GraphScopeReadiness(
                 vault_id=scope.vault_ids[0],
-                effective_scope=graph_scope_key(scope),
+                actual_scope=graph_scope_key(scope),
                 freshness="missing",
                 stale_count=0,
                 tombstone_count=0,
                 last_graph_revision=None,
                 warnings=(),
             )
-            for scope in effective_scopes
+            for scope in actual_scopes
         ),
         warnings=(),
         recovery_hint="graph readiness is not configured",

@@ -739,7 +739,7 @@ implemented:
   `vault_id`, `chunk_id`, and `EmbeddingModelSpec`. `(vault_id, chunk_id)` alone
   is not precise enough once old-model and current-model records can coexist.
 - `VectorStore.export_manifest(scope)` returns active manifest rows for the
-  effective scope across all Chroma model-spec collections, not only the current
+  actual scope across all Chroma model-spec collections, not only the current
   `EmbeddingModelSpec`, so model-spec changes can be reconciled and old rows can
   be tombstoned.
 
@@ -763,8 +763,8 @@ derived state.
 
 Application services must resolve a user-selected `QueryScope` against
 `VaultCatalog` before vector reconcile. Multi-vault scopes are processed as
-per-Vault effective scopes using the same broader/narrower content-scope rules
-as `VaultLoader`. Store methods receive explicit effective scopes; they must not
+per-Vault actual scopes using the same broader/narrower content-scope rules
+as `VaultLoader`. Store methods receive explicit actual scopes; they must not
 infer catalog entry constraints from a global union of content scopes.
 
 Vector records are stale when any of these fields differ from the current
@@ -1359,12 +1359,12 @@ Search boundary:
 ```text
 vg search "query"
   -> resolve requested QueryScope from active Vault, --vault-id, or --all-vaults
-  -> expand requested scope into per-Vault effective scopes
+  -> expand requested scope into per-Vault actual scopes
   -> check metadata and keyword projection readiness
   -> normalize query text
-  -> keyword candidate lookup per effective scope
+  -> keyword candidate lookup per actual scope
   -> optional no-download vector query embedding
-  -> optional VectorStore.search per effective scope
+  -> optional VectorStore.search per actual scope
   -> merge candidates by (vault_id, chunk_id)
   -> rank-based fusion
   -> MetadataStore evidence resolution
@@ -1381,7 +1381,7 @@ Resolved search scope contract:
 - `RetrievalService` must not pass a global all-vault content-scope union
   directly to `KeywordIndex` or `VectorStore`.
 - User selection is first represented as a requested `QueryScope`, then expanded
-  through `VaultCatalog` into per-Vault effective scopes using the same
+  through `VaultCatalog` into per-Vault actual scopes using the same
   broader/narrower content-scope rules as Phase 2B vector indexing.
 - If the requested scope is narrower than a catalog entry scope, use the
   requested scope for that Vault.
@@ -1389,10 +1389,10 @@ Resolved search scope contract:
   catalog entry scope for that Vault.
 - If neither scope contains the other, that Vault contributes no candidates for
   that content scope.
-- Candidate lookup runs per effective scope and results are merged afterward.
+- Candidate lookup runs per actual scope and results are merged afterward.
   This prevents one Vault's configured content scopes from widening another
   Vault's search.
-- `SearchResponse` records both the requested scope and the effective scopes
+- `SearchResponse` records both the requested scope and the actual scopes
   used for candidate lookup.
 
 Keyword projection contract:
@@ -1459,7 +1459,7 @@ Fusion and ranking contract:
 
 Search response contract:
 
-- A search response has query text, requested `QueryScope`, effective scopes,
+- A search response has query text, requested `QueryScope`, actual scopes,
   limit, result count, candidate counts, dropped candidate count, results,
   top-level warnings, degraded-mode flag, generated timestamp, and store
   revision metadata.
@@ -1475,7 +1475,7 @@ Search response contract:
   when scope is relevant. They carry `affected_vault_ids` and may carry
   candidate identity fields such as `vault_id`, `document_id`, and `chunk_id`.
 - Store revisions are keyed by scope. A multi-vault response must not report one
-  ambiguous `metadata` or `vector` revision without Vault or effective-scope
+  ambiguous `metadata` or `vector` revision without Vault or actual-scope
   attribution.
 - Top-level warnings describe query-wide conditions such as keyword projection
   stale, vector unavailable, stale vector projection, embedding model
@@ -1519,7 +1519,7 @@ Multi-vault rules:
 - Default search uses the active Vault only.
 - `--vault-id ID` searches exactly one registered Vault.
 - `--all-vaults` expands to explicit enabled Vault IDs before stores are
-  queried, then to per-Vault effective scopes before candidate lookup.
+  queried, then to per-Vault actual scopes before candidate lookup.
 - Candidate identity, dedupe, evidence resolution, result grouping, and warning
   attribution all include `vault_id`.
 - Identical relative paths, document IDs, chunk IDs, or headings from different
@@ -1535,7 +1535,7 @@ Required implementation capabilities:
 
 - keyword candidate lookup over metadata-owned current chunks
 - vector candidate lookup over `VectorStore`
-- per-Vault effective search scope resolution before candidate lookup
+- per-Vault actual search scope resolution before candidate lookup
 - no-download embedding availability checks for search-time query embedding
 - read-only search readiness checks for metadata, keyword, vector, and model
   availability
@@ -1543,7 +1543,7 @@ Required implementation capabilities:
 - `RetrievalService` or `HybridRetriever` service boundary
 - `vg search "query"` user surface with `--vault-id`, `--all-vaults`, `--limit`,
   and optional machine-readable output
-- `SearchResponse` with requested scope, effective scopes, result count,
+- `SearchResponse` with requested scope, actual scopes, result count,
   candidate counts, degraded flag, attributed warnings, and store revisions
 - search results resolved through `MetadataStore` before rendering
 - evidence-linked result format with per-signal explanations and stale or
@@ -1605,7 +1605,7 @@ Phase 3 invariants:
 - Phase 3 stores relationships as directed records. Symmetric behavior belongs
   to query/view policy, not relationship identity.
 - Graph indexing uses scope-local reconcile. Records outside the selected
-  effective scope are left untouched.
+  actual scope are left untouched.
 - `GraphExtractionSpec` is the graph compatibility and staleness boundary.
   Its version plus canonical digest identifies the extraction contract. Changes
   to extractor/schema/status/confidence rules make affected graph records stale
@@ -1620,7 +1620,7 @@ Phase 3A
   -> graph contracts and readiness only
 
 Phase 3B
-  -> MetadataStore.list_chunks(effective_scope)
+  -> MetadataStore.list_chunks(actual_scope)
   -> deterministic EntityExtractor and RelationshipExtractor
   -> GraphIndexer scope-local reconcile
   -> GraphStore upserts, tombstones, graph revisions

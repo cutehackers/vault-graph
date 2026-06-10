@@ -34,7 +34,7 @@ def test_search_request_rejects_empty_query() -> None:
         SearchRequest(
             query_text=" ",
             requested_scope=QueryScope(vault_ids=("default",)),
-            effective_scopes=(QueryScope(vault_ids=("default",)),),
+            actual_scopes=(QueryScope(vault_ids=("default",)),),
             limit=10,
             output_format="text",
         )
@@ -50,7 +50,7 @@ def test_search_response_records_query_wide_degraded_state() -> None:
     response = SearchResponse(
         query_text="GraphRAG",
         requested_scope=QueryScope(vault_ids=("default",)),
-        effective_scopes=(QueryScope(vault_ids=("default",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",)),),
         limit=10,
         result_count=1,
         candidate_count=2,
@@ -79,7 +79,7 @@ def test_search_response_rejects_result_count_mismatch() -> None:
         SearchResponse(
             query_text="GraphRAG",
             requested_scope=QueryScope(vault_ids=("default",)),
-            effective_scopes=(QueryScope(vault_ids=("default",)),),
+            actual_scopes=(QueryScope(vault_ids=("default",)),),
             limit=10,
             result_count=2,
             candidate_count=1,

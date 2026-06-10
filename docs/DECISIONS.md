@@ -17,6 +17,28 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-10 - Use Actual Scope Terminology During Pre-Release Development
+
+**Question:** How should Vault Graph handle the scope terminology rename to
+`actual_*` before public release?
+
+**Decision:** Use `actual_*` as the only project terminology. Do not add
+backward compatibility aliases, dual CLI/JSON keys, SQLite migrations, or graph
+schema version bumps solely for the old scope names.
+
+**Reason:** Vault Graph is still in pre-release development, and all derived
+projection state is rebuildable. Keeping one name avoids carrying compatibility
+complexity before any public contract exists.
+
+**Implications:**
+
+- CLI text, CLI JSON, Python contracts, docs, and SQLite graph columns use
+  `actual_*` only.
+- Existing local development graph DBs created with old names may be deleted and
+  rebuilt.
+- Compatibility work starts only after a public release or an accepted migration
+  policy.
+
 ## 2026-06-10 - Keep Phase 3 Detailed Designs In Slice Documents
 
 **Question:** How should Phase 3 stay detailed enough for implementation without
@@ -53,7 +75,7 @@ read-only, rebuildable, multi-vault-safe, and ready for later graph signals.
 - Keyword and vector stores return candidates only.
 - `RetrievalService` owns merge, rank fusion, warnings, and evidence
   resolution.
-- All-vault search expands into per-Vault effective scopes before candidate
+- All-vault search expands into per-Vault actual scopes before candidate
   lookup.
 - The local keyword index is a metadata subprojection updated with the metadata
   revision and exposed through a read-only candidate interface.

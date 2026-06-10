@@ -121,7 +121,7 @@ def test_index_service_successful_retry_clears_vector_error(tmp_path: Path) -> N
     assert status.last_error is None
 
 
-def test_index_service_uses_per_vault_effective_scopes_for_vector_reconcile(tmp_path: Path) -> None:
+def test_index_service_uses_per_vault_actual_scopes_for_vector_reconcile(tmp_path: Path) -> None:
     first_root = tmp_path / "first"
     second_root = tmp_path / "second"
     write_page(first_root, "wiki/page.md", "# First\nBody\n")

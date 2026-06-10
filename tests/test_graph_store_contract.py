@@ -142,7 +142,7 @@ def make_revision(scope: QueryScope, *, entity_count: int, relationship_count: i
     return GraphRevision(
         graph_run_id="graph-run-1",
         vault_id=scope.vault_ids[0],
-        effective_scope=graph_scope_key(scope),
+        actual_scope=graph_scope_key(scope),
         graph_store_schema_version="memory-graph-v1",
         graph_extraction_spec_version=spec.spec_version,
         graph_extraction_spec_digest=spec.spec_digest,
@@ -170,7 +170,7 @@ def make_plan(
     )
     return GraphReconcilePlan(
         requested_scope=resolved_scope,
-        effective_scopes=(resolved_scope,),
+        actual_scopes=(resolved_scope,),
         graph_run_id="graph-run-1",
         entity_upserts=entities,
         relationship_upserts=relationships,
@@ -242,7 +242,7 @@ def graph_store_multi_scope_contract(factory: Callable[[], GraphStore]) -> None:
     second = make_entity("second", name="Shared")
     plan = GraphReconcilePlan(
         requested_scope=QueryScope(vault_ids=("first", "second"), content_scopes=("wiki",)),
-        effective_scopes=(first_scope, second_scope),
+        actual_scopes=(first_scope, second_scope),
         graph_run_id="graph-run-1",
         entity_upserts=(first, second),
         relationship_upserts=(),
@@ -289,7 +289,7 @@ def test_read_only_graph_store_rejects_apply() -> None:
 def test_current_manifest_rejects_global_all_vault_scope() -> None:
     store = InMemoryGraphStore()
 
-    with pytest.raises(GraphStoreError, match="per-Vault effective scopes"):
+    with pytest.raises(GraphStoreError, match="per-Vault actual scopes"):
         store.current_manifest((QueryScope(vault_ids=("first", "second"), content_scopes=("wiki",)),))
 
 
@@ -303,12 +303,12 @@ def test_tombstones_are_scoped_records() -> None:
             record_kind="entity",
             record_vault_id="default",
             record_id=source.entity_id,
-            effective_scope=graph_scope_key(scope),
+            actual_scope=graph_scope_key(scope),
         ),
         record_kind="entity",
         record_vault_id="default",
         record_id=source.entity_id,
-        effective_scope=graph_scope_key(scope),
+        actual_scope=graph_scope_key(scope),
         reason="missing_from_scope",
         graph_run_id="graph-run-2",
         graph_index_revision="graph-2",
@@ -318,7 +318,7 @@ def test_tombstones_are_scoped_records() -> None:
     )
     plan = GraphReconcilePlan(
         requested_scope=scope,
-        effective_scopes=(scope,),
+        actual_scopes=(scope,),
         graph_run_id="graph-run-2",
         entity_upserts=(),
         relationship_upserts=(),
@@ -349,7 +349,7 @@ def tombstone_idempotence_contract(factory: Callable[[], GraphStore]) -> None:
         record_kind="entity",
         record_vault_id="default",
         record_id=source.entity_id,
-        effective_scope=graph_scope_key(scope),
+        actual_scope=graph_scope_key(scope),
         reason="missing_from_scope",
         graph_run_id="graph-run-2",
         graph_index_revision="graph-2",
@@ -362,7 +362,7 @@ def tombstone_idempotence_contract(factory: Callable[[], GraphStore]) -> None:
         record_kind="entity",
         record_vault_id="default",
         record_id=source.entity_id,
-        effective_scope=graph_scope_key(scope),
+        actual_scope=graph_scope_key(scope),
         reason="still_missing_from_scope",
         graph_run_id="graph-run-3",
         graph_index_revision="graph-3",
@@ -374,7 +374,7 @@ def tombstone_idempotence_contract(factory: Callable[[], GraphStore]) -> None:
         store.apply_reconcile_plan(
             GraphReconcilePlan(
                 requested_scope=scope,
-                effective_scopes=(scope,),
+                actual_scopes=(scope,),
                 graph_run_id=tombstone.graph_run_id,
                 entity_upserts=(),
                 relationship_upserts=(),

@@ -63,9 +63,9 @@ def stable_graph_tombstone_id(
     record_kind: str,
     record_vault_id: str,
     record_id: str,
-    effective_scope: str,
+    actual_scope: str,
 ) -> str:
-    return stable_id("graph-tombstone", record_kind, record_vault_id, record_id, effective_scope)
+    return stable_id("graph-tombstone", record_kind, record_vault_id, record_id, actual_scope)
 
 
 def graph_scope_key(scope: QueryScope) -> str:
@@ -73,6 +73,6 @@ def graph_scope_key(scope: QueryScope) -> str:
     return f"{','.join(scope.vault_ids)}:{','.join(scope.content_scopes)}:{cross_vault}"
 
 
-def require_effective_graph_scope(scope: QueryScope) -> None:
+def require_actual_graph_scope(scope: QueryScope) -> None:
     if len(scope.vault_ids) != 1:
-        raise ValueError("GraphStore operations require per-Vault effective scopes")
+        raise ValueError("GraphStore operations require per-Vault actual scopes")

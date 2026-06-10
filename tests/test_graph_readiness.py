@@ -82,7 +82,7 @@ def test_graph_readiness_reports_missing_graph_store(tmp_path: Path) -> None:
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.backend_name == "memory-graph"
@@ -101,7 +101,7 @@ def test_graph_readiness_reports_empty_when_store_has_no_revision(tmp_path: Path
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.freshness == "empty"
@@ -125,7 +125,7 @@ def test_graph_readiness_reports_unavailable_when_manifest_read_fails(tmp_path: 
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.freshness == "unavailable"
@@ -160,7 +160,7 @@ def test_graph_readiness_short_circuits_when_metadata_health_is_incompatible() -
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.freshness == "unavailable"
@@ -186,7 +186,7 @@ def test_graph_readiness_reports_fresh_when_lineage_matches(tmp_path: Path) -> N
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.freshness == "fresh"
@@ -216,7 +216,7 @@ def test_graph_readiness_reports_fresh_with_sqlite_graph_store_opened_read_only(
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.backend_name == "sqlite-graph"
@@ -253,7 +253,7 @@ def test_graph_readiness_reports_scope_rows_for_all_vaults(tmp_path: Path) -> No
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("first", "second"), content_scopes=("wiki",)),
-        effective_scopes=(
+        actual_scopes=(
             QueryScope(vault_ids=("first",), content_scopes=("wiki",)),
             QueryScope(vault_ids=("second",), content_scopes=("wiki",)),
         ),
@@ -326,7 +326,7 @@ def test_graph_readiness_keeps_evidence_warnings_scope_local(tmp_path: Path) -> 
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("first", "second"), content_scopes=("wiki",)),
-        effective_scopes=(
+        actual_scopes=(
             QueryScope(vault_ids=("first",), content_scopes=("wiki",)),
             QueryScope(vault_ids=("second",), content_scopes=("wiki",)),
         ),
@@ -351,7 +351,7 @@ def test_graph_readiness_reports_stale_when_graph_evidence_is_unresolved(tmp_pat
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.freshness == "stale"
@@ -373,7 +373,7 @@ def test_graph_readiness_reports_stale_when_metadata_revision_changes(tmp_path: 
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert old_metadata.health().ok is True
@@ -400,7 +400,7 @@ def test_graph_readiness_reports_incompatible_when_spec_digest_conflicts(tmp_pat
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.freshness == "incompatible"
@@ -426,7 +426,7 @@ def test_graph_readiness_reports_incompatible_when_spec_version_changes_without_
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
     )
 
     assert report.freshness == "incompatible"

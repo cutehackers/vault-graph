@@ -52,7 +52,7 @@ class InMemoryGraphStore:
         return tuple(sorted(self._specs.values(), key=lambda spec: (spec.spec_version, spec.spec_digest)))
 
     def latest_revisions(self, scopes: tuple[QueryScope, ...]) -> tuple[GraphRevision, ...]:
-        _ensure_effective_scopes(scopes)
+        _ensure_actual_scopes(scopes)
         revisions: list[GraphRevision] = []
         for scope in scopes:
             revision = self._revisions.get((scope.vault_ids[0], graph_scope_key(scope)))
@@ -61,7 +61,7 @@ class InMemoryGraphStore:
         return tuple(revisions)
 
     def current_manifest(self, scopes: tuple[QueryScope, ...]) -> GraphManifest:
-        _ensure_effective_scopes(scopes)
+        _ensure_actual_scopes(scopes)
         scope_keys = {graph_scope_key(scope) for scope in scopes}
         scopes_by_key = {graph_scope_key(scope): scope for scope in scopes}
         selected_vault_ids = {vault_id for scope in scopes for vault_id in scope.vault_ids}
@@ -71,7 +71,7 @@ class InMemoryGraphStore:
         evidence_ids: set[str] = set()
 
         for membership in self._record_scopes.values():
-            if membership.effective_scope not in scope_keys:
+            if membership.actual_scope not in scope_keys:
                 continue
             if membership.record_kind == "entity":
                 entity = self._entities.get((membership.record_vault_id, membership.record_id))
@@ -83,7 +83,7 @@ class InMemoryGraphStore:
                 relationship = self._relationships.get((membership.record_vault_id, membership.record_id))
                 if relationship is None:
                     continue
-                scope = scopes_by_key[membership.effective_scope]
+                scope = scopes_by_key[membership.actual_scope]
                 if not _relationship_allowed(
                     relationship=relationship,
                     scope=scope,
@@ -108,7 +108,7 @@ class InMemoryGraphStore:
         revision_rows = self.latest_revisions(scopes)
         return GraphManifest(
             requested_scope=_combined_scope(scopes),
-            effective_scopes=scopes,
+            actual_scopes=scopes,
             entity_rows=tuple(sorted(entity_rows, key=lambda row: (row.vault_id, row.entity_id))),
             relationship_rows=tuple(
                 sorted(relationship_rows, key=lambda row: (row.source_vault_id, row.relationship_id))
@@ -116,7 +116,7 @@ class InMemoryGraphStore:
             evidence_rows=evidence_rows,
             tombstone_rows=tuple(
                 sorted(
-                    (tombstone for tombstone in self._tombstones.values() if tombstone.effective_scope in scope_keys),
+                    (tombstone for tombstone in self._tombstones.values() if tombstone.actual_scope in scope_keys),
                     key=lambda tombstone: tombstone.tombstone_id,
                 )
             ),
@@ -158,9 +158,9 @@ class InMemoryGraphStore:
     def apply_reconcile_plan(self, plan: GraphReconcilePlan) -> GraphApplyResult:
         if self._read_only:
             raise GraphReadOnlyViolation("graph store is read-only")
-        _ensure_effective_scopes(plan.effective_scopes)
+        _ensure_actual_scopes(plan.actual_scopes)
         self._specs[plan.graph_extraction_spec.spec_digest] = plan.graph_extraction_spec
-        revisions_by_scope = {revision.effective_scope: revision for revision in plan.graph_revision_rows}
+        revisions_by_scope = {revision.actual_scope: revision for revision in plan.graph_revision_rows}
         for entity in plan.entity_upserts:
             self._entities[(entity.vault_id, entity.entity_id)] = entity
             self._record_entity_scopes(entity=entity, plan=plan, revisions_by_scope=revisions_by_scope)
@@ -178,7 +178,7 @@ class InMemoryGraphStore:
                 tombstone.record_kind,
                 tombstone.record_vault_id,
                 tombstone.record_id,
-                tombstone.effective_scope,
+                tombstone.actual_scope,
             )
             previous_tombstone_id = self._tombstones_by_record_scope.get(tombstone_key)
             if previous_tombstone_id is not None and previous_tombstone_id != tombstone.tombstone_id:
@@ -190,7 +190,7 @@ class InMemoryGraphStore:
             if tombstone.record_kind == "relationship":
                 self._tombstone_relationship(tombstone)
         for revision in plan.graph_revision_rows:
-            self._revisions[(revision.vault_id, revision.effective_scope)] = revision
+            self._revisions[(revision.vault_id, revision.actual_scope)] = revision
         return GraphApplyResult(
             graph_run_id=plan.graph_run_id,
             applied_entity_upsert_count=len(plan.entity_upserts),
@@ -221,21 +221,21 @@ class InMemoryGraphStore:
         plan: GraphReconcilePlan,
         revisions_by_scope: dict[str, GraphRevision],
     ) -> None:
-        for scope in plan.effective_scopes:
+        for scope in plan.actual_scopes:
             if scope.vault_ids[0] != entity.vault_id:
                 continue
-            effective_scope = graph_scope_key(scope)
-            revision = revisions_by_scope[effective_scope]
+            actual_scope = graph_scope_key(scope)
+            revision = revisions_by_scope[actual_scope]
             record_scope = GraphRecordScope(
                 record_kind="entity",
                 record_vault_id=entity.vault_id,
                 record_id=entity.entity_id,
-                effective_scope=effective_scope,
+                actual_scope=actual_scope,
                 metadata_index_revision=revision.metadata_index_revision,
                 graph_index_revision=revision.graph_index_revision,
                 graph_extraction_spec_digest=plan.graph_extraction_spec.spec_digest,
             )
-            self._record_scopes[(record_scope.record_kind, entity.vault_id, entity.entity_id, effective_scope)] = (
+            self._record_scopes[(record_scope.record_kind, entity.vault_id, entity.entity_id, actual_scope)] = (
                 record_scope
             )
 
@@ -246,16 +246,16 @@ class InMemoryGraphStore:
         plan: GraphReconcilePlan,
         revisions_by_scope: dict[str, GraphRevision],
     ) -> None:
-        for scope in plan.effective_scopes:
+        for scope in plan.actual_scopes:
             if scope.vault_ids[0] != relationship.source_vault_id:
                 continue
-            effective_scope = graph_scope_key(scope)
-            revision = revisions_by_scope[effective_scope]
+            actual_scope = graph_scope_key(scope)
+            revision = revisions_by_scope[actual_scope]
             record_scope = GraphRecordScope(
                 record_kind="relationship",
                 record_vault_id=relationship.source_vault_id,
                 record_id=relationship.relationship_id,
-                effective_scope=effective_scope,
+                actual_scope=actual_scope,
                 metadata_index_revision=revision.metadata_index_revision,
                 graph_index_revision=revision.graph_index_revision,
                 graph_extraction_spec_digest=plan.graph_extraction_spec.spec_digest,
@@ -265,7 +265,7 @@ class InMemoryGraphStore:
                     record_scope.record_kind,
                     relationship.source_vault_id,
                     relationship.relationship_id,
-                    effective_scope,
+                    actual_scope,
                 )
             ] = record_scope
 
@@ -315,10 +315,10 @@ class InMemoryGraphStore:
         )
 
 
-def _ensure_effective_scopes(scopes: tuple[QueryScope, ...]) -> None:
+def _ensure_actual_scopes(scopes: tuple[QueryScope, ...]) -> None:
     for scope in scopes:
         if len(scope.vault_ids) != 1:
-            raise GraphStoreError("GraphStore operations require per-Vault effective scopes")
+            raise GraphStoreError("GraphStore operations require per-Vault actual scopes")
 
 
 def _entity_manifest_row(*, entity: EntityRecord, membership: GraphRecordScope) -> GraphManifestEntity:

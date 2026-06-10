@@ -431,7 +431,7 @@ Phase 2C responsibility:
 
 - expose CLI search over existing projections
 - normalize user queries
-- resolve requested search scope into per-Vault effective scopes
+- resolve requested search scope into per-Vault actual scopes
 - check read-only search readiness for metadata, keyword, vector, and model
   availability
 - retrieve keyword candidates
@@ -476,7 +476,7 @@ Phase 2C keeps search simple and evidence-first:
 - The canonical search result unit is an evidence chunk: `(vault_id, chunk_id)`.
   Document, page, source, and section views are renderer groupings over chunk
   evidence.
-- `RetrievalService` expands requested scopes into per-Vault effective scopes
+- `RetrievalService` expands requested scopes into per-Vault actual scopes
   before calling `KeywordIndex` or `VectorStore`; it must not pass an all-vault
   content-scope union directly to candidate stores.
 - Search readiness belongs behind a read-only service or protocol. Retrieval
@@ -488,7 +488,7 @@ Phase 2C keeps search simple and evidence-first:
 - Keyword projection is a metadata subprojection for the local backend. It is
   updated with the metadata revision during indexing and exposed to retrieval
   through read-only `KeywordIndex`.
-- `SearchResponse` records requested scope, effective scopes, result count,
+- `SearchResponse` records requested scope, actual scopes, result count,
   candidate counts, degraded mode, attributed warnings, and store revisions.
 - Search may degrade to keyword-only when vector search is unavailable, stale,
   or missing local model artifacts. The response must include top-level
@@ -903,7 +903,7 @@ manifest and applies the completed reconcile plan.
 
 Required operations:
 
-- export the current graph manifest for selected effective scopes
+- export the current graph manifest for selected actual scopes
 - upsert entity records
 - upsert relationship records
 - tombstone stale entities and relationships
@@ -1040,15 +1040,15 @@ IndexService
   -> VectorIndexer
 
 VectorIndexer
-  -> MetadataStore.list_chunks(effective_scope)
-  -> VectorStore.export_manifest(effective_scope)
+  -> MetadataStore.list_chunks(actual_scope)
+  -> VectorStore.export_manifest(actual_scope)
   -> TextEmbeddings.embed(...)
   -> VectorStore.apply_vector_revision(...)
 ```
 
 `VectorIndexer` owns the reconcile plan. It compares desired chunks from
 `MetadataStore` with existing manifest rows from `VectorStore` under the
-selected effective `QueryScope`.
+selected actual `QueryScope`.
 
 `VectorIndexer` must pass only planned upsert texts to `TextEmbeddings`. It
 embeds them in batches using the configured `embedding_batch_size` and
@@ -1064,7 +1064,7 @@ the same run.
 
 `IndexService` must resolve the user-selected scope against `VaultCatalog`
 before calling vector reconcile. For multi-vault runs, it must process per-Vault
-effective scopes using the same broader/narrower content-scope rule as
+actual scopes using the same broader/narrower content-scope rule as
 `VaultLoader`. This prevents a global union of content scopes from selecting or
 tombstoning records that are not enabled for a specific Vault.
 
@@ -1131,7 +1131,7 @@ Phase 2C flow:
 ```text
 Query
   -> normalize query and requested QueryScope
-  -> expand to per-Vault effective scopes
+  -> expand to per-Vault actual scopes
   -> check read-only search readiness
   -> keyword candidate lookup
   -> vector candidate lookup

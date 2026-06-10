@@ -119,8 +119,8 @@ Phase 3B indexing:
 vg index
   -> metadata indexing and keyword projection
   -> vector reconcile
-  -> resolve QueryScope into per-Vault effective scopes
-  -> MetadataStore.list_chunks(effective_scope)
+  -> resolve QueryScope into per-Vault actual scopes
+  -> MetadataStore.list_chunks(actual_scope)
   -> EntityExtractor and RelationshipExtractor
   -> GraphIndexer computes desired graph records
   -> GraphStore applies upserts, tombstones, and graph revisions
@@ -158,7 +158,7 @@ requires an explicit graph command or flag.
 - Default graph behavior uses the active Vault only.
 - `--vault-id ID` uses exactly one registered Vault.
 - `--all-vaults` expands to explicit enabled Vault IDs, then to per-Vault
-  effective scopes before store reads.
+  actual scopes before store reads.
 - Identical paths, chunk IDs, entity names, aliases, headings, or relationship
   labels from different Vaults must not collide.
 - Cross-Vault relationships explain source, target, and evidence Vault IDs.

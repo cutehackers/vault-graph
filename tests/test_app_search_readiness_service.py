@@ -48,7 +48,7 @@ def test_search_readiness_reports_vector_freshness(tmp_path: Path) -> None:
         text_embeddings=embeddings,
     )
 
-    report = readiness.check(effective_scopes=(scope,))
+    report = readiness.check(actual_scopes=(scope,))
 
     assert report.metadata_health.ok is True
     assert report.keyword_health.ok is True
@@ -75,7 +75,7 @@ def test_search_readiness_reports_stale_vector_without_status_store(tmp_path: Pa
         text_embeddings=embeddings,
     )
 
-    report = readiness.check(effective_scopes=(scope,))
+    report = readiness.check(actual_scopes=(scope,))
 
     assert report.vector_stale_count == 2
     assert report.scope_readiness[0].scope_key == "default:wiki"
@@ -92,7 +92,7 @@ def test_search_readiness_does_not_read_chunks_when_metadata_schema_is_incompati
         keyword_index=HealthyKeywordIndex(),
     )
 
-    report = readiness.check(effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),))
+    report = readiness.check(actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),))
 
     assert report.metadata_health.ok is False
     assert report.store_revisions == ()

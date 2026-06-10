@@ -15,7 +15,7 @@ status integration, and regression tests.
 
 **Core Values Protected:**
 
-- graph records remain scoped to the owning Vault/effective scope
+- graph records remain scoped to the owning Vault/actual scope
 - stale evidence in one Vault does not make unrelated Vault scopes stale
 - SQLite graph readiness reports incompatible schema before read paths fail
 - `GraphExtractionSpec` remains the compatibility boundary until a migration
@@ -28,13 +28,13 @@ status integration, and regression tests.
 - Added shared multi-scope `GraphStore` contract coverage and scoped record
   membership by record owner Vault.
 - Changed graph evidence freshness checks from global manifest warnings to
-  per-effective-scope warnings.
+  per-actual-scope warnings.
 - Expanded SQLite graph schema health checks to every column read or written by
   the backend.
 - Treated graph extraction spec version/digest drift as incompatible without a
   migration policy.
 - Made tombstone application keep the latest tombstone per
-  `(record_kind, record_vault_id, record_id, effective_scope)`.
+  `(record_kind, record_vault_id, record_id, actual_scope)`.
 - Short-circuited graph readiness when metadata health is unavailable or
   incompatible.
 - Added SQLite-backed graph readiness coverage and stricter status read-only
@@ -58,7 +58,7 @@ details under-specified.
 
 - graph readiness cannot claim freshness without metadata-resolved evidence
 - graph manifests stay scoped without treating cached path text as authority
-- multi-vault graph status remains per Vault/effective scope
+- multi-vault graph status remains per Vault/actual scope
 - `GraphStore` stays a deep boundary with explicit records and backend-stamped
   schema lineage
 - graph status remains read-only and typed when graph state is missing or
@@ -68,7 +68,7 @@ details under-specified.
 
 - Added exact graph dataclass shapes for manifest rows, apply results, reconcile
   plans, and explicit graph record scope membership.
-- Changed manifest membership to use explicit effective-scope rows instead of
+- Changed manifest membership to use explicit actual-scope rows instead of
   cached graph evidence paths.
 - Required readiness to resolve graph evidence through `MetadataStore` and mark
   unresolved or stale evidence as stale with recovery guidance.
@@ -121,7 +121,7 @@ feature documentation.
 - Fixed subagent review findings by making relationship evidence a child
   evidence-row contract, assigning graph reconcile planning to `GraphIndexer`,
   defining scoped graph manifests, and making graph revisions per
-  Vault/effective scope under a run-level ID.
+  Vault/actual scope under a run-level ID.
 - Fixed relationship identity ambiguity by storing Phase 3 relationships as
   directed records and leaving symmetric behavior to query/view policy.
 - Narrowed Phase 3A back to contract readiness by moving traversal-style lookup
@@ -167,13 +167,13 @@ visibility, and CLI output.
 - Made existing Chroma client failures visible as `VectorStoreError` so
   retrieval can emit `vector_query_failed` warnings instead of silent empty
   vector results.
-- Moved effective query scope resolution to the ingestion/catalog boundary and
+- Moved actual query scope resolution to the ingestion/catalog boundary and
   kept the app module as a thin compatibility export.
 - Made keyword index revision reporting owned by the keyword interface instead
   of inferring keyword provenance from metadata revisions.
 - Tightened SQLite keyword `matched_fields` to report fields that contain query
   tokens.
-- Added resolved Vault/effective-scope lines to text search output and replaced
+- Added resolved Vault/actual-scope lines to text search output and replaced
   `asdict` JSON rendering with explicit serializers.
 
 **Verification:**
@@ -279,7 +279,7 @@ unit required by the product boundary.
   behavior when vector search is unavailable.
 - Required `vg search` to avoid indexing, schema creation, Chroma creation,
   vector status writes, and embedding model downloads.
-- Added per-Vault effective search scopes so all-vault search cannot widen one
+- Added per-Vault actual search scopes so all-vault search cannot widen one
   Vault with another Vault's content scopes.
 - Added explicit no-download embedding readiness and read-only search readiness
   boundaries.
@@ -357,7 +357,7 @@ coding.
 
 - Added metadata preview planning so vector dry-run can see post-metadata chunks
   without writing SQLite state.
-- Added per-Vault effective-scope requirements and tests for vector reconcile.
+- Added per-Vault actual-scope requirements and tests for vector reconcile.
 - Changed vector status planning from global state to scope/model-spec keyed
   status records.
 - Added Chroma no-create read tests for dry-run, exact tombstone matching, and
@@ -405,7 +405,7 @@ design, feature, and decision documents to agree before implementation planning.
   not stale every run.
 - Phase-gated generic graph indexing flow as Phase 3+ so Phase 2B cannot expand
   into graph extraction or traversal.
-- Added per-Vault effective-scope requirements for `MetadataStore.list_chunks`
+- Added per-Vault actual-scope requirements for `MetadataStore.list_chunks`
   and `VectorStore.export_manifest`.
 - Clarified vector tombstone identity for model-spec collection reconcile.
 - Clarified `vg index` partial-failure behavior as nonzero exit plus preserved
@@ -603,7 +603,7 @@ consistency blockers.
 
 **Changes Applied:**
 
-- Filtered current metadata state by effective `QueryScope.content_scopes`
+- Filtered current metadata state by actual `QueryScope.content_scopes`
   before computing deleted paths.
 - Excluded already tombstoned document states from later `deleted_paths`.
 - Added regression tests for partial content-scope indexing and repeated
@@ -618,7 +618,7 @@ consistency blockers.
 **Trigger:** Final subagent re-review found that a query scope narrower than a
 catalog entry scope could be treated as empty and then tombstone existing files.
 
-**Scope:** `VaultLoader` effective content-scope calculation and metadata
+**Scope:** `VaultLoader` actual content-scope calculation and metadata
 indexer regression tests.
 
 **Core Values Protected:**
@@ -628,7 +628,7 @@ indexer regression tests.
 
 **Changes Applied:**
 
-- Made effective loader scopes prefix-aware: `entry=wiki` with
+- Made actual loader scopes prefix-aware: `entry=wiki` with
   `query=wiki/systems` scans `wiki/systems`, while broader queries remain
   constrained by the entry scope.
 - Added regression tests for narrower policy scope loading and indexing.

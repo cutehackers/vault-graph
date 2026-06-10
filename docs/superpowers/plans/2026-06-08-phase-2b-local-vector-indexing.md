@@ -1612,7 +1612,7 @@ def test_index_service_successful_retry_clears_vector_error(tmp_path: Path) -> N
     assert status.last_error is None
 
 
-def test_index_service_uses_per_vault_effective_scopes_for_vector_reconcile(tmp_path: Path) -> None:
+def test_index_service_uses_per_vault_actual_scopes_for_vector_reconcile(tmp_path: Path) -> None:
     first_root = tmp_path / "first"
     second_root = tmp_path / "second"
     write_page(first_root, "wiki/page.md", "# First\nBody\n")
@@ -1821,7 +1821,7 @@ Rules:
 - Existing `plan(...)` and `apply(...)` remain metadata-only compatibility
   methods until a later cleanup explicitly removes them.
 - Both `run_plan(...)` and `run_apply(...)` must resolve the requested
-  `QueryScope` into per-Vault effective vector scopes before vector reconcile.
+  `QueryScope` into per-Vault actual vector scopes before vector reconcile.
 - On vector failure, record failure in `LocalVectorStatusStore` and return `exit_code == 1`.
 - On vector success, record success.
 - If vector dependencies are not provided, preserve old metadata-only behavior for focused tests that construct `IndexService` directly.
@@ -1842,11 +1842,11 @@ class _PreviewChunkStore:
         )
 ```
 
-Add this private effective-scope helper in `src/vault_graph/app/index_service.py`:
+Add this private actual-scope helper in `src/vault_graph/app/index_service.py`:
 
 ```python
-def _effective_vector_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:
-    effective_scopes: list[QueryScope] = []
+def _actual_vector_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:
+    actual_scopes: list[QueryScope] = []
     for vault_id in scope.vault_ids:
         entry = catalog.resolve(vault_id)
         content_scopes: list[str] = []
@@ -1858,14 +1858,14 @@ def _effective_vector_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tup
                     content_scopes.append(entry_scope)
         deduped = tuple(dict.fromkeys(content_scopes))
         if deduped:
-            effective_scopes.append(
+            actual_scopes.append(
                 QueryScope(
                     vault_ids=(entry.vault_id,),
                     content_scopes=deduped,
                     include_cross_vault=scope.include_cross_vault,
                 )
             )
-    return tuple(effective_scopes)
+    return tuple(actual_scopes)
 
 
 def _is_same_or_child(*, path: str, parent: str) -> bool:
@@ -1877,7 +1877,7 @@ def _is_same_or_child(*, path: str, parent: str) -> bool:
 must instantiate `VectorIndexer` with `chunk_store=self._metadata_store` after
 metadata apply succeeds, because the SQLite metadata projection then contains
 the committed chunk state. Both methods must pass
-`scopes=_effective_vector_scopes(catalog=self._catalog, scope=scope)` to the
+`scopes=_actual_vector_scopes(catalog=self._catalog, scope=scope)` to the
 vector indexer.
 
 When recording vector status, use:

@@ -10,7 +10,7 @@ GRAPH_FRESHNESS_VALUES = ("missing", "empty", "fresh", "stale", "incompatible", 
 @dataclass(frozen=True)
 class GraphLineageScope:
     vault_id: str
-    effective_scope: str
+    actual_scope: str
     metadata_index_revision: str
     parser_version: str
     chunker_version: str
@@ -19,7 +19,7 @@ class GraphLineageScope:
 @dataclass(frozen=True)
 class GraphLineageSnapshot:
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     metadata_lineage: tuple[GraphLineageScope, ...]
     graph_store_schema_version: str
     expected_graph_extraction_spec_version: str
@@ -29,7 +29,7 @@ class GraphLineageSnapshot:
 @dataclass(frozen=True)
 class GraphScopeReadiness:
     vault_id: str
-    effective_scope: str
+    actual_scope: str
     freshness: str
     stale_count: int
     tombstone_count: int

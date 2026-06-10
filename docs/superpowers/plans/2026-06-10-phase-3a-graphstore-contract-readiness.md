@@ -85,7 +85,7 @@ state, model cache state, or modifying Vault files.
 - `SQLiteGraphStore.open_writable(path)` creates the local graph database only
   when called by tests or future Phase 3B indexing.
 - `GraphStore.latest_revisions(scopes)` and `GraphStore.current_manifest(scopes)`
-  require effective scopes: each supplied `QueryScope` must contain exactly one
+  require actual scopes: each supplied `QueryScope` must contain exactly one
   `vault_id`.
 - `GraphManifest` includes records through explicit graph record scope
   memberships. Readiness then resolves evidence refs through `MetadataStore`
@@ -134,11 +134,11 @@ Status text flow:
 vg status
   -> CatalogService.load_catalog()
   -> resolve requested QueryScope
-  -> effective_query_scopes(catalog, scope)
+  -> actual_query_scopes(catalog, scope)
   -> SQLiteMetadataStore(read-only)
   -> ChromaVectorStore(read-only)
   -> SQLiteGraphStore.open_read_only(graph_path)
-  -> ReadOnlyGraphReadiness.check(requested_scope, effective_scopes)
+  -> ReadOnlyGraphReadiness.check(requested_scope, actual_scopes)
   -> render metadata/vector/graph fields
 ```
 
@@ -538,8 +538,8 @@ def stable_evidence_ref_id(
     )
 
 
-def stable_graph_tombstone_id(*, record_kind: str, record_vault_id: str, record_id: str, effective_scope: str) -> str:
-    return stable_id("graph-tombstone", record_kind, record_vault_id, record_id, effective_scope)
+def stable_graph_tombstone_id(*, record_kind: str, record_vault_id: str, record_id: str, actual_scope: str) -> str:
+    return stable_id("graph-tombstone", record_kind, record_vault_id, record_id, actual_scope)
 
 
 def graph_scope_key(scope: QueryScope) -> str:
@@ -547,9 +547,9 @@ def graph_scope_key(scope: QueryScope) -> str:
     return f"{','.join(scope.vault_ids)}:{','.join(scope.content_scopes)}:{cross_vault}"
 
 
-def require_effective_graph_scope(scope: QueryScope) -> None:
+def require_actual_graph_scope(scope: QueryScope) -> None:
     if len(scope.vault_ids) != 1:
-        raise ValueError("GraphStore operations require per-Vault effective scopes")
+        raise ValueError("GraphStore operations require per-Vault actual scopes")
 ```
 
 - [ ] **Step 5: Add graph contract dataclasses**
@@ -707,7 +707,7 @@ class RelationshipRecord:
 class GraphRevision:
     graph_run_id: str
     vault_id: str
-    effective_scope: str
+    actual_scope: str
     graph_store_schema_version: str
     graph_extraction_spec_version: str
     graph_extraction_spec_digest: str
@@ -728,7 +728,7 @@ class GraphTombstone:
     record_kind: str
     record_vault_id: str
     record_id: str
-    effective_scope: str
+    actual_scope: str
     reason: str
     graph_run_id: str
     graph_index_revision: str
@@ -742,7 +742,7 @@ class GraphRecordScope:
     record_kind: str
     record_vault_id: str
     record_id: str
-    effective_scope: str
+    actual_scope: str
     metadata_index_revision: str
     graph_index_revision: str
     graph_extraction_spec_digest: str
@@ -795,7 +795,7 @@ class GraphManifestEvidence:
 @dataclass(frozen=True)
 class GraphManifest:
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     entity_rows: tuple[GraphManifestEntity, ...]
     relationship_rows: tuple[GraphManifestRelationship, ...]
     evidence_rows: tuple[GraphManifestEvidence, ...]
@@ -820,7 +820,7 @@ class GraphApplyResult:
 @dataclass(frozen=True)
 class GraphReconcilePlan:
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     graph_run_id: str
     entity_upserts: tuple[EntityRecord, ...]
     relationship_upserts: tuple[RelationshipRecord, ...]
@@ -839,7 +839,7 @@ Validation requirements:
 - Relationship evidence refs must use `owner_kind="relationship"`, `owner_vault_id=relationship.source_vault_id`, and `owner_id=relationship.relationship_id`.
 - Relationship status must be one of `stated`, `inferred`, `contested`, or `deprecated`.
 - `GraphManifest*` tuple fields must be immutable tuples.
-- `GraphReconcilePlan` effective scopes must be per-Vault scopes; `GraphStore` may reject global multi-vault scopes.
+- `GraphReconcilePlan` actual scopes must be per-Vault scopes; `GraphStore` may reject global multi-vault scopes.
 
 - [ ] **Step 6: Export graph contracts**
 
@@ -1072,7 +1072,7 @@ def make_revision(scope: QueryScope, *, entity_count: int, relationship_count: i
     return GraphRevision(
         graph_run_id="graph-run-1",
         vault_id=scope.vault_ids[0],
-        effective_scope=graph_scope_key(scope),
+        actual_scope=graph_scope_key(scope),
         graph_store_schema_version="memory-graph-v1",
         graph_extraction_spec_version=spec.spec_version,
         graph_extraction_spec_digest=spec.spec_digest,
@@ -1100,7 +1100,7 @@ def make_plan(
     )
     return GraphReconcilePlan(
         requested_scope=resolved_scope,
-        effective_scopes=(resolved_scope,),
+        actual_scopes=(resolved_scope,),
         graph_run_id="graph-run-1",
         entity_upserts=entities,
         relationship_upserts=relationships,
@@ -1173,7 +1173,7 @@ def test_read_only_graph_store_rejects_apply() -> None:
 def test_current_manifest_rejects_global_all_vault_scope() -> None:
     store = InMemoryGraphStore()
 
-    with pytest.raises(GraphStoreError, match="per-Vault effective scopes"):
+    with pytest.raises(GraphStoreError, match="per-Vault actual scopes"):
         store.current_manifest((QueryScope(vault_ids=("first", "second"), content_scopes=("wiki",)),))
 
 
@@ -1187,12 +1187,12 @@ def test_tombstones_are_scoped_records() -> None:
             record_kind="entity",
             record_vault_id="default",
             record_id=source.entity_id,
-            effective_scope=graph_scope_key(scope),
+            actual_scope=graph_scope_key(scope),
         ),
         record_kind="entity",
         record_vault_id="default",
         record_id=source.entity_id,
-        effective_scope=graph_scope_key(scope),
+        actual_scope=graph_scope_key(scope),
         reason="missing_from_scope",
         graph_run_id="graph-run-2",
         graph_index_revision="graph-2",
@@ -1202,7 +1202,7 @@ def test_tombstones_are_scoped_records() -> None:
     )
     plan = GraphReconcilePlan(
         requested_scope=scope,
-        effective_scopes=(scope,),
+        actual_scopes=(scope,),
         graph_run_id="graph-run-2",
         entity_upserts=(),
         relationship_upserts=(),
@@ -1310,10 +1310,10 @@ Implementation requirements:
 - store entities by `(vault_id, entity_id)`
 - store relationships by `(source_vault_id, relationship_id)`
 - store evidence refs by `(owner_kind, owner_vault_id, owner_id, evidence_vault_id, document_id, chunk_id, anchor)`
-- store revisions by `(vault_id, effective_scope)`
+- store revisions by `(vault_id, actual_scope)`
 - store tombstones by `tombstone_id`
 - store graph extraction specs by digest when applying a plan
-- store record scope memberships by `(record_kind, record_vault_id, record_id, effective_scope)` from plan effective scopes
+- store record scope memberships by `(record_kind, record_vault_id, record_id, actual_scope)` from plan actual scopes
 - reject writes when `read_only=True`
 - reject any manifest or revision scope with more than one `vault_id`
 - return `StoreHealth(ok=True, backend="memory-graph", schema_version="memory-graph-v1", schema_compatible=True, message="ok")`
@@ -1542,17 +1542,17 @@ CREATE TABLE IF NOT EXISTS graph_record_scopes (
   record_kind TEXT NOT NULL,
   record_vault_id TEXT NOT NULL,
   record_id TEXT NOT NULL,
-  effective_scope TEXT NOT NULL,
+  actual_scope TEXT NOT NULL,
   metadata_index_revision TEXT NOT NULL,
   graph_index_revision TEXT NOT NULL,
   graph_extraction_spec_digest TEXT NOT NULL,
-  PRIMARY KEY (record_kind, record_vault_id, record_id, effective_scope)
+  PRIMARY KEY (record_kind, record_vault_id, record_id, actual_scope)
 );
 
 CREATE TABLE IF NOT EXISTS graph_revisions (
   graph_run_id TEXT NOT NULL,
   vault_id TEXT NOT NULL,
-  effective_scope TEXT NOT NULL,
+  actual_scope TEXT NOT NULL,
   graph_store_schema_version TEXT NOT NULL,
   graph_extraction_spec_version TEXT NOT NULL,
   graph_extraction_spec_digest TEXT NOT NULL,
@@ -1565,7 +1565,7 @@ CREATE TABLE IF NOT EXISTS graph_revisions (
   stale_count INTEGER NOT NULL,
   tombstone_count INTEGER NOT NULL,
   updated_at TEXT NOT NULL,
-  PRIMARY KEY (vault_id, effective_scope, graph_index_revision)
+  PRIMARY KEY (vault_id, actual_scope, graph_index_revision)
 );
 
 CREATE TABLE IF NOT EXISTS graph_tombstones (
@@ -1573,7 +1573,7 @@ CREATE TABLE IF NOT EXISTS graph_tombstones (
   record_kind TEXT NOT NULL,
   record_vault_id TEXT NOT NULL,
   record_id TEXT NOT NULL,
-  effective_scope TEXT NOT NULL,
+  actual_scope TEXT NOT NULL,
   reason TEXT NOT NULL,
   graph_run_id TEXT NOT NULL,
   graph_index_revision TEXT NOT NULL,
@@ -1593,8 +1593,8 @@ CREATE INDEX IF NOT EXISTS idx_graph_relationships_target ON graph_relationships
 CREATE INDEX IF NOT EXISTS idx_graph_relationships_type_status ON graph_relationships (type, status);
 CREATE INDEX IF NOT EXISTS idx_graph_evidence_chunk ON graph_evidence_refs (evidence_vault_id, document_id, chunk_id);
 CREATE INDEX IF NOT EXISTS idx_graph_evidence_owner ON graph_evidence_refs (owner_kind, owner_vault_id, owner_id);
-CREATE INDEX IF NOT EXISTS idx_graph_record_scopes_scope ON graph_record_scopes (effective_scope, record_kind);
-CREATE INDEX IF NOT EXISTS idx_graph_revisions_scope ON graph_revisions (vault_id, effective_scope, updated_at);
+CREATE INDEX IF NOT EXISTS idx_graph_record_scopes_scope ON graph_record_scopes (actual_scope, record_kind);
+CREATE INDEX IF NOT EXISTS idx_graph_revisions_scope ON graph_revisions (vault_id, actual_scope, updated_at);
 ```
 
 - [ ] **Step 4: Implement SQLiteGraphStore construction modes**
@@ -1626,14 +1626,14 @@ Rules:
 `apply_reconcile_plan(plan)` must:
 
 - raise `GraphReadOnlyViolation` when `read_only=True`
-- validate all plan effective scopes are per-Vault scopes
+- validate all plan actual scopes are per-Vault scopes
 - insert the plan `graph_extraction_spec` into `graph_specs`
 - stamp each revision row with the backend's own `GRAPH_SCHEMA_VERSION`; do not trust a mismatched `graph_store_schema_version` supplied by the plan
 - upsert entity rows
 - upsert relationship rows
 - upsert evidence ref rows
 - write `anchor_key = ref.anchor or ""` for evidence uniqueness because SQLite allows duplicate `NULL` values in unique indexes
-- upsert `graph_record_scopes` rows for each entity and relationship in each plan effective scope, carrying the applied metadata revision, graph revision, and spec digest
+- upsert `graph_record_scopes` rows for each entity and relationship in each plan actual scope, carrying the applied metadata revision, graph revision, and spec digest
 - upsert tombstone rows by `tombstone_id`; tombstones model latest derived state per record/scope, not immutable history
 - update tombstoned entity rows to `status='tombstoned'`
 - update tombstoned relationship rows to `status='deprecated'`
@@ -1643,11 +1643,11 @@ Rules:
 
 `current_manifest(scopes)` must:
 
-- validate per-Vault effective scopes
-- include records whose `graph_record_scopes.effective_scope` matches selected scope keys
+- validate per-Vault actual scopes
+- include records whose `graph_record_scopes.actual_scope` matches selected scope keys
 - keep cached evidence `path`, `section`, and `excerpt` only as rendering hints in manifest evidence rows
-- exclude cross-Vault relationships unless at least one supplied effective scope has `include_cross_vault=True` and source, target, and evidence Vault IDs are all inside the union of supplied scope Vault IDs
-- include tombstones whose `effective_scope` matches selected scope keys
+- exclude cross-Vault relationships unless at least one supplied actual scope has `include_cross_vault=True` and source, target, and evidence Vault IDs are all inside the union of supplied scope Vault IDs
+- include tombstones whose `actual_scope` matches selected scope keys
 - return empty rows for missing read-only databases
 - not expose SQLite row IDs
 
@@ -1778,7 +1778,7 @@ def test_graph_readiness_reports_missing_graph_store(tmp_path: Path) -> None:
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
     )
 
     assert report.backend_name == "memory-graph"
@@ -1797,7 +1797,7 @@ def test_graph_readiness_reports_empty_when_store_has_no_revision(tmp_path: Path
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
     )
 
     assert report.freshness == "empty"
@@ -1821,7 +1821,7 @@ def test_graph_readiness_reports_unavailable_when_manifest_read_fails(tmp_path: 
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
     )
 
     assert report.freshness == "unavailable"
@@ -1847,7 +1847,7 @@ def test_graph_readiness_reports_fresh_when_lineage_matches(tmp_path: Path) -> N
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
     )
 
     assert report.freshness == "fresh"
@@ -1886,7 +1886,7 @@ def test_graph_readiness_reports_scope_rows_for_all_vaults(tmp_path: Path) -> No
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("first", "second"), content_scopes=("wiki",)),
-        effective_scopes=(
+        actual_scopes=(
             QueryScope(vault_ids=("first",), content_scopes=("wiki")),
             QueryScope(vault_ids=("second",), content_scopes=("wiki")),
         ),
@@ -1913,7 +1913,7 @@ def test_graph_readiness_reports_stale_when_graph_evidence_is_unresolved(tmp_pat
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
     )
 
     assert report.freshness == "stale"
@@ -1935,7 +1935,7 @@ def test_graph_readiness_reports_stale_when_metadata_revision_changes(tmp_path: 
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
     )
 
     assert old_metadata.health().ok is True
@@ -1962,7 +1962,7 @@ def test_graph_readiness_reports_incompatible_when_spec_digest_conflicts(tmp_pat
 
     report = service.check(
         requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
-        effective_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki")),),
     )
 
     assert report.freshness == "incompatible"
@@ -1996,7 +1996,7 @@ GRAPH_FRESHNESS_VALUES = ("missing", "empty", "fresh", "stale", "incompatible", 
 @dataclass(frozen=True)
 class GraphLineageScope:
     vault_id: str
-    effective_scope: str
+    actual_scope: str
     metadata_index_revision: str
     parser_version: str
     chunker_version: str
@@ -2005,7 +2005,7 @@ class GraphLineageScope:
 @dataclass(frozen=True)
 class GraphLineageSnapshot:
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     metadata_lineage: tuple[GraphLineageScope, ...]
     graph_store_schema_version: str
     expected_graph_extraction_spec_version: str
@@ -2015,7 +2015,7 @@ class GraphLineageSnapshot:
 @dataclass(frozen=True)
 class GraphScopeReadiness:
     vault_id: str
-    effective_scope: str
+    actual_scope: str
     freshness: str
     stale_count: int
     tombstone_count: int
@@ -2065,12 +2065,12 @@ class ReadOnlyGraphReadiness:
 Public method:
 
 ```python
-def check(self, *, requested_scope: QueryScope, effective_scopes: tuple[QueryScope, ...]) -> GraphReadiness:
+def check(self, *, requested_scope: QueryScope, actual_scopes: tuple[QueryScope, ...]) -> GraphReadiness:
     graph_health = self._graph_store.health()
     return self._readiness_from_health(
         graph_health=graph_health,
         requested_scope=requested_scope,
-        effective_scopes=effective_scopes,
+        actual_scopes=actual_scopes,
     )
 ```
 
@@ -2081,11 +2081,11 @@ Readiness algorithm:
 3. If `graph_health.ok is False` and `schema_compatible is False`, return `freshness="incompatible"`.
 4. If `graph_health.ok is False`, return `freshness="unavailable"`.
 5. Build metadata lineage from `MetadataStore.list_chunks(scope)` and `MetadataStore.list_document_states(scope.vault_ids)`.
-6. Call `graph_store.stored_specs()` and `graph_store.latest_revisions(effective_scopes)`.
-7. Call `graph_store.current_manifest(effective_scopes)` and resolve every manifest evidence key through `MetadataStore.resolve_chunk_evidence(vault_id=evidence.evidence_vault_id, document_id=evidence.document_id, chunk_id=evidence.chunk_id)`.
+6. Call `graph_store.stored_specs()` and `graph_store.latest_revisions(actual_scopes)`.
+7. Call `graph_store.current_manifest(actual_scopes)` and resolve every manifest evidence key through `MetadataStore.resolve_chunk_evidence(vault_id=evidence.evidence_vault_id, document_id=evidence.document_id, chunk_id=evidence.chunk_id)`.
 8. If any evidence ref cannot be resolved or its `content_hash` differs from metadata, mark the affected scope `stale` with an `unresolved graph evidence` or `stale graph evidence` warning.
-9. Build one `GraphScopeReadiness` per effective scope.
-10. If no revision exists for an effective scope, that scope is `empty`.
+9. Build one `GraphScopeReadiness` per actual scope.
+10. If no revision exists for an actual scope, that scope is `empty`.
 11. If stored spec same version has different digest, affected scopes are `incompatible`.
 12. If latest revision digest does not match expected digest, affected scopes are `stale`.
 13. If latest revision metadata/parser/chunker/schema lineage differs from current metadata lineage, affected scopes are `stale`.
@@ -2245,7 +2245,7 @@ Modify `src/vault_graph/app/index_service.py`:
 ```python
 from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.graph.graph_readiness import GraphReadiness
-from vault_graph.ingestion.query_scope_resolution import effective_query_scopes
+from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 ```
 
 Add `graph_readiness: GraphReadiness` to `StatusReport`.
@@ -2259,10 +2259,10 @@ graph_readiness: ReadOnlyGraphReadiness | None = None
 In `status(scope)`, resolve:
 
 ```python
-effective_scopes = effective_query_scopes(catalog=self._catalog, scope=resolved_scope)
+actual_scopes = actual_query_scopes(catalog=self._catalog, scope=resolved_scope)
 graph_readiness = self._graph_readiness.check(
     requested_scope=resolved_scope,
-    effective_scopes=effective_scopes,
+    actual_scopes=actual_scopes,
 ) if self._graph_readiness is not None else _graph_not_configured_readiness(resolved_scope)
 ```
 
@@ -2388,7 +2388,7 @@ def _status_report_json(report: StatusReport, *, config: CatalogService, selecte
             "scope_readiness": [
                 {
                     "vault_id": row.vault_id,
-                    "effective_scope": row.effective_scope,
+                    "actual_scope": row.actual_scope,
                     "freshness": row.freshness,
                     "stale_count": row.stale_count,
                     "tombstone_count": row.tombstone_count,
@@ -2687,7 +2687,7 @@ git commit -m "feat: add graph store readiness"
 - Evidence refs include owner kind, owner Vault ID, owner ID, and evidence
   Vault ID.
 - `GraphStore` methods never expose SQLite row IDs.
-- `GraphStore.current_manifest(scopes)` accepts only per-Vault effective scopes.
+- `GraphStore.current_manifest(scopes)` accepts only per-Vault actual scopes.
 - In-memory and SQLite stores satisfy the same contract tests.
 - Read-only graph store opening does not create missing graph files.
 - `vg status` reports graph readiness when graph state is missing.

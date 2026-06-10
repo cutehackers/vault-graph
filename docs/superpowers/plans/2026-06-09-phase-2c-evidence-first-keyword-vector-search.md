@@ -51,7 +51,7 @@ and receive deterministic evidence-linked results or a clear recovery diagnostic
 
 Create:
 
-- `src/vault_graph/app/query_scope_resolution.py`: shared per-Vault effective scope resolution for indexing and search.
+- `src/vault_graph/app/query_scope_resolution.py`: shared per-Vault actual scope resolution for indexing and search.
 - `src/vault_graph/app/search_readiness_service.py`: read-only readiness implementation for metadata, keyword, vector, and model availability.
 - `src/vault_graph/storage/interfaces/keyword_index.py`: keyword candidate contract.
 - `src/vault_graph/storage/local/sqlite_keyword_index.py`: SQLite FTS5 keyword projection helpers and read-only keyword adapter.
@@ -76,7 +76,7 @@ Modify:
 - `src/vault_graph/errors.py`: add `KeywordIndexError` and `SearchError`.
 - `src/vault_graph/storage/interfaces/__init__.py`: export keyword contract records.
 - `src/vault_graph/storage/local/sqlite_metadata_store.py`: create and update keyword projection in the same metadata transaction.
-- `src/vault_graph/app/index_service.py`: reuse shared effective scope resolution.
+- `src/vault_graph/app/index_service.py`: reuse shared actual scope resolution.
 - `src/vault_graph/embeddings/text_embeddings.py`: add no-download availability contract.
 - `src/vault_graph/embeddings/fastembed_text_embeddings.py`: support local-files-only search-time embedding.
 - `src/vault_graph/storage/local/chroma_vector_store.py`: allow read-only search over existing Chroma state without allowing writes or creating missing state.
@@ -728,7 +728,7 @@ git commit -m "feat(search): add sqlite keyword projection"
 
 ---
 
-### Task 3: Share Per-Vault Effective Scope Resolution
+### Task 3: Share Per-Vault Actual Scope Resolution
 
 **Files:**
 
@@ -744,7 +744,7 @@ Create `tests/test_query_scope_resolution.py`:
 ```python
 from pathlib import Path
 
-from vault_graph.app.query_scope_resolution import effective_query_scopes
+from vault_graph.app.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 
 
@@ -754,7 +754,7 @@ def _entry(tmp_path: Path, vault_id: str, scopes: tuple[str, ...]) -> VaultCatal
     return VaultCatalogEntry.from_root(vault_id=vault_id, root_path=root, content_scopes=scopes)
 
 
-def test_effective_scopes_keep_each_vault_narrow(tmp_path: Path) -> None:
+def test_actual_scopes_keep_each_vault_narrow(tmp_path: Path) -> None:
     catalog = VaultCatalog.from_entries(
         entries=[
             _entry(tmp_path, "first", ("wiki",)),
@@ -763,7 +763,7 @@ def test_effective_scopes_keep_each_vault_narrow(tmp_path: Path) -> None:
         active_vault_id="first",
     )
 
-    scopes = effective_query_scopes(
+    scopes = actual_query_scopes(
         catalog=catalog,
         scope=QueryScope(vault_ids=("first", "second"), content_scopes=("wiki", "docs")),
     )
@@ -772,13 +772,13 @@ def test_effective_scopes_keep_each_vault_narrow(tmp_path: Path) -> None:
     assert tuple(scope.content_scopes for scope in scopes) == (("wiki",), ("docs",))
 
 
-def test_effective_scopes_use_narrower_child_scope(tmp_path: Path) -> None:
+def test_actual_scopes_use_narrower_child_scope(tmp_path: Path) -> None:
     catalog = VaultCatalog.from_entries(
         entries=[_entry(tmp_path, "default", ("wiki",))],
         active_vault_id="default",
     )
 
-    scopes = effective_query_scopes(
+    scopes = actual_query_scopes(
         catalog=catalog,
         scope=QueryScope(vault_ids=("default",), content_scopes=("wiki/systems",)),
     )
@@ -786,13 +786,13 @@ def test_effective_scopes_use_narrower_child_scope(tmp_path: Path) -> None:
     assert scopes[0].content_scopes == ("wiki/systems",)
 
 
-def test_effective_scopes_skip_disjoint_scope_pairs(tmp_path: Path) -> None:
+def test_actual_scopes_skip_disjoint_scope_pairs(tmp_path: Path) -> None:
     catalog = VaultCatalog.from_entries(
         entries=[_entry(tmp_path, "default", ("wiki",))],
         active_vault_id="default",
     )
 
-    scopes = effective_query_scopes(
+    scopes = actual_query_scopes(
         catalog=catalog,
         scope=QueryScope(vault_ids=("default",), content_scopes=("docs",)),
     )
@@ -808,7 +808,7 @@ Run:
 uv run --python 3.12 pytest tests/test_query_scope_resolution.py -q
 ```
 
-Expected: FAIL because `effective_query_scopes` does not exist.
+Expected: FAIL because `actual_query_scopes` does not exist.
 
 - [ ] **Step 3: Add shared scope resolution module**
 
@@ -820,8 +820,8 @@ from __future__ import annotations
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 
 
-def effective_query_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:
-    effective_scopes: list[QueryScope] = []
+def actual_query_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:
+    actual_scopes: list[QueryScope] = []
     for vault_id in scope.vault_ids:
         entry = catalog.resolve(vault_id)
         content_scopes: list[str] = []
@@ -833,14 +833,14 @@ def effective_query_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple
                     content_scopes.append(entry_scope)
         deduped = tuple(dict.fromkeys(content_scopes))
         if deduped:
-            effective_scopes.append(
+            actual_scopes.append(
                 QueryScope(
                     vault_ids=(entry.vault_id,),
                     content_scopes=deduped,
                     include_cross_vault=scope.include_cross_vault,
                 )
             )
-    return tuple(effective_scopes)
+    return tuple(actual_scopes)
 
 
 def _is_same_or_child(*, path: str, parent: str) -> bool:
@@ -852,22 +852,22 @@ def _is_same_or_child(*, path: str, parent: str) -> bool:
 Modify `src/vault_graph/app/index_service.py`:
 
 ```python
-from vault_graph.app.query_scope_resolution import effective_query_scopes
+from vault_graph.app.query_scope_resolution import actual_query_scopes
 ```
 
 Replace:
 
 ```python
-_effective_vector_scopes(catalog=self._catalog, scope=scope)
+_actual_vector_scopes(catalog=self._catalog, scope=scope)
 ```
 
 with:
 
 ```python
-effective_query_scopes(catalog=self._catalog, scope=scope)
+actual_query_scopes(catalog=self._catalog, scope=scope)
 ```
 
-Remove the private `_effective_vector_scopes` and `_is_same_or_child` functions from `index_service.py`.
+Remove the private `_actual_vector_scopes` and `_is_same_or_child` functions from `index_service.py`.
 
 - [ ] **Step 5: Run scope and Phase 2B index service tests**
 
@@ -883,7 +883,7 @@ Expected: PASS.
 
 ```bash
 git add src/vault_graph/app/query_scope_resolution.py src/vault_graph/app/index_service.py tests/test_query_scope_resolution.py
-git commit -m "refactor(app): share effective query scope resolution"
+git commit -m "refactor(app): share actual query scope resolution"
 ```
 
 ---
@@ -937,7 +937,7 @@ def test_search_request_rejects_empty_query() -> None:
         SearchRequest(
             query_text=" ",
             requested_scope=QueryScope(vault_ids=("default",)),
-            effective_scopes=(QueryScope(vault_ids=("default",)),),
+            actual_scopes=(QueryScope(vault_ids=("default",)),),
             limit=10,
             output_format="text",
         )
@@ -953,7 +953,7 @@ def test_search_response_records_query_wide_degraded_state() -> None:
     response = SearchResponse(
         query_text="GraphRAG",
         requested_scope=QueryScope(vault_ids=("default",)),
-        effective_scopes=(QueryScope(vault_ids=("default",)),),
+        actual_scopes=(QueryScope(vault_ids=("default",)),),
         limit=10,
         result_count=1,
         candidate_count=2,
@@ -982,7 +982,7 @@ def test_search_response_rejects_result_count_mismatch() -> None:
         SearchResponse(
             query_text="GraphRAG",
             requested_scope=QueryScope(vault_ids=("default",)),
-            effective_scopes=(QueryScope(vault_ids=("default",)),),
+            actual_scopes=(QueryScope(vault_ids=("default",)),),
             limit=10,
             result_count=2,
             candidate_count=1,
@@ -1088,7 +1088,7 @@ class SearchWarning:
 class SearchRequest:
     query_text: str
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     limit: int
     output_format: SearchOutputFormat
 
@@ -1105,7 +1105,7 @@ class SearchRequest:
 class SearchResponse:
     query_text: str
     requested_scope: QueryScope
-    effective_scopes: tuple[QueryScope, ...]
+    actual_scopes: tuple[QueryScope, ...]
     limit: int
     result_count: int
     candidate_count: int
@@ -1277,7 +1277,7 @@ def test_search_readiness_reports_vector_freshness(tmp_path: Path) -> None:
         text_embeddings=embeddings,
     )
 
-    report = readiness.check(effective_scopes=(scope,))
+    report = readiness.check(actual_scopes=(scope,))
 
     assert report.metadata_health.ok is True
     assert report.keyword_health.ok is True
@@ -1301,7 +1301,7 @@ def test_search_readiness_reports_stale_vector_without_status_store(tmp_path: Pa
         text_embeddings=embeddings,
     )
 
-    report = readiness.check(effective_scopes=(scope,))
+    report = readiness.check(actual_scopes=(scope,))
 
     assert report.vector_stale_count == 2
 ```
@@ -1413,7 +1413,7 @@ class SearchReadinessReport:
 
 
 class SearchReadiness(Protocol):
-    def check(self, *, effective_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport: ...
+    def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport: ...
 ```
 
 This module must not import `vault_graph.indexing`, `vault_graph.storage.local.vector_status_store`, or concrete local backends.
@@ -1448,13 +1448,13 @@ class ReadOnlySearchReadiness:
         self._vector_store = vector_store
         self._text_embeddings = text_embeddings
 
-    def check(self, *, effective_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
+    def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
         metadata_health = self._metadata_store.health()
         keyword_health = self._keyword_index.health()
         vector_health = self._vector_store.health() if self._vector_store is not None else None
         can_embed = self._text_embeddings.can_embed_without_download() if self._text_embeddings is not None else False
-        stale_count = self._vector_stale_count(effective_scopes=effective_scopes, vector_health=vector_health)
-        store_revisions = self._store_revisions(effective_scopes=effective_scopes, vector_health=vector_health)
+        stale_count = self._vector_stale_count(actual_scopes=actual_scopes, vector_health=vector_health)
+        store_revisions = self._store_revisions(actual_scopes=actual_scopes, vector_health=vector_health)
         return SearchReadinessReport(
             metadata_health=metadata_health,
             keyword_health=keyword_health,
@@ -1467,7 +1467,7 @@ class ReadOnlySearchReadiness:
     def _vector_stale_count(
         self,
         *,
-        effective_scopes: tuple[QueryScope, ...],
+        actual_scopes: tuple[QueryScope, ...],
         vector_health: StoreHealth | None,
     ) -> int | None:
         if self._vector_store is None or self._text_embeddings is None or vector_health is None:
@@ -1478,17 +1478,17 @@ class ReadOnlySearchReadiness:
             chunk_store=self._metadata_store,
             vector_store=self._vector_store,
             text_embeddings=self._text_embeddings,
-        ).plan(scopes=effective_scopes, full=False)
+        ).plan(scopes=actual_scopes, full=False)
         return plan.upsert_count + plan.tombstone_count
 
     def _store_revisions(
         self,
         *,
-        effective_scopes: tuple[QueryScope, ...],
+        actual_scopes: tuple[QueryScope, ...],
         vector_health: StoreHealth | None,
     ) -> tuple[SearchStoreRevision, ...]:
         revisions: list[SearchStoreRevision] = []
-        for scope in effective_scopes:
+        for scope in actual_scopes:
             scope_key = _scope_key(scope)
             chunks = self._metadata_store.list_chunks(scope)
             metadata_revision = _revision_from_values(
@@ -1666,7 +1666,7 @@ class StaticReadiness:
     def __init__(self, report: SearchReadinessReport) -> None:
         self._report = report
 
-    def check(self, *, effective_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
+    def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
         return self._report
 
 
@@ -1814,7 +1814,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from vault_graph.app.query_scope_resolution import effective_query_scopes
+from vault_graph.app.query_scope_resolution import actual_query_scopes
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, TextEmbeddings
 from vault_graph.errors import KeywordIndexError, SearchError, TextEmbeddingsError, VectorStoreError
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot
@@ -1872,11 +1872,11 @@ class RetrievalService:
         output_format: SearchOutputFormat = "text",
     ) -> SearchResponse:
         normalized_query = query_text.strip()
-        effective_scopes = effective_query_scopes(catalog=self._catalog, scope=requested_scope)
+        actual_scopes = actual_query_scopes(catalog=self._catalog, scope=requested_scope)
         request = SearchRequest(
             query_text=normalized_query,
             requested_scope=requested_scope,
-            effective_scopes=effective_scopes,
+            actual_scopes=actual_scopes,
             limit=limit,
             output_format=output_format,
         )
@@ -1888,11 +1888,11 @@ Implement `_search_request` with these rules:
 ```python
     def _search_request(self, request: SearchRequest) -> SearchResponse:
         candidate_limit = max(request.limit * 4, 20)
-        readiness = self._readiness.check(effective_scopes=request.effective_scopes)
+        readiness = self._readiness.check(actual_scopes=request.actual_scopes)
         fatal = _fatal_readiness_error(readiness)
         if fatal is not None:
             raise fatal
-        warnings = list(_warnings_for_readiness(readiness, request.effective_scopes))
+        warnings = list(_warnings_for_readiness(readiness, request.actual_scopes))
         keyword_hits = self._keyword_hits(request=request, candidate_limit=candidate_limit)
         vector_hits = self._vector_hits(request=request, candidate_limit=candidate_limit, readiness=readiness, warnings=warnings)
         candidates = _fuse_candidates(keyword_hits=keyword_hits, vector_hits=vector_hits)
@@ -1905,7 +1905,7 @@ Implement `_search_request` with these rules:
         return SearchResponse(
             query_text=request.query_text,
             requested_scope=request.requested_scope,
-            effective_scopes=request.effective_scopes,
+            actual_scopes=request.actual_scopes,
             limit=request.limit,
             result_count=len(limited_results),
             candidate_count=len(keyword_hits) + len(vector_hits),
@@ -1922,10 +1922,10 @@ Internal helper requirements:
 
 - `_fatal_readiness_error` raises `SearchError("metadata_unavailable: ...")` when metadata health is not ok or schema incompatible.
 - `_fatal_readiness_error` raises `SearchError("keyword_index_unavailable: ... Run `vg index`.")` when keyword health is not ok or schema incompatible.
-- `_warnings_for_readiness` emits `vector_unavailable`, `vector_stale`, `embedding_model_unavailable`, and `degraded_keyword_only` as appropriate. Every warning must set `affected_vault_ids` to the non-empty Vault IDs from the affected effective scopes.
-- `_keyword_hits` calls `KeywordIndex.search(KeywordQuery(...))` once per effective scope and never queries SQLite directly.
+- `_warnings_for_readiness` emits `vector_unavailable`, `vector_stale`, `embedding_model_unavailable`, and `degraded_keyword_only` as appropriate. Every warning must set `affected_vault_ids` to the non-empty Vault IDs from the affected actual scopes.
+- `_keyword_hits` calls `KeywordIndex.search(KeywordQuery(...))` once per actual scope and never queries SQLite directly.
 - `_vector_hits` skips vector search when readiness says vector is unavailable, stale, or the model cannot embed without download.
-- `_vector_hits` embeds one query input with `EmbeddingInput(input_id="query", text=request.query_text)` and calls `VectorStore.search(VectorQuery(...))` once per effective scope.
+- `_vector_hits` embeds one query input with `EmbeddingInput(input_id="query", text=request.query_text)` and calls `VectorStore.search(VectorQuery(...))` once per actual scope.
 - `_vector_hits` catches `TextEmbeddingsError` and `VectorStoreError`, adds query-wide warnings, and returns no vector hits.
 - `_fuse_candidates` merges by `(vault_id, chunk_id)` and uses `weight / (RANK_CONSTANT + signal_rank)`.
 - Result sorting is `fused_score DESC`, `best_signal_rank ASC`, `vault_id ASC`, `path ASC`, `chunk_id ASC`.
@@ -1935,7 +1935,7 @@ Internal helper requirements:
 - `RetrievalSignal.source_id` includes `vault_id` and `chunk_id`.
 - Result summary is a bounded excerpt, for example first 240 characters with whitespace collapsed.
 - `SearchResponse.store_revisions` comes from `SearchReadinessReport.store_revisions`, not from returned results. This preserves revision attribution for zero-result searches, dropped candidates, and degraded search.
-- `SearchResponse.warnings` must never contain an unattributed warning. Use all requested/effective Vault IDs for query-wide conditions such as `degraded_keyword_only`.
+- `SearchResponse.warnings` must never contain an unattributed warning. Use all requested/actual Vault IDs for query-wide conditions such as `degraded_keyword_only`.
 
 - [ ] **Step 4: Add focused helper dataclasses**
 
@@ -2401,7 +2401,7 @@ def _search_response_json(response: SearchResponse) -> dict[str, object]:
     return {
         "query_text": response.query_text,
         "requested_scope": _scope_json(response.requested_scope),
-        "effective_scopes": [_scope_json(scope) for scope in response.effective_scopes],
+        "actual_scopes": [_scope_json(scope) for scope in response.actual_scopes],
         "limit": response.limit,
         "result_count": response.result_count,
         "candidate_count": response.candidate_count,
@@ -2592,8 +2592,8 @@ def test_all_vault_search_does_not_widen_content_scopes_per_vault(tmp_path: Path
         output_format="json",
     )
 
-    assert tuple(scope.vault_ids for scope in response.effective_scopes) == (("first",), ("second",))
-    assert tuple(scope.content_scopes for scope in response.effective_scopes) == (("wiki",), ("docs",))
+    assert tuple(scope.vault_ids for scope in response.actual_scopes) == (("first",), ("second",))
+    assert tuple(scope.content_scopes for scope in response.actual_scopes) == (("wiki",), ("docs",))
     assert sorted(result.evidence[0].path for result in response.results) == ["docs/allowed.md", "wiki/allowed.md"]
 
 
@@ -2839,7 +2839,7 @@ Before marking Phase 2C implementation complete, verify every item below with cu
 - `vg search` exists in `uv run --python 3.12 vg --help`.
 - `vg search "query"` uses active Vault by default.
 - `vg search --vault-id ID "query"` searches exactly one Vault.
-- `vg search --all-vaults "query"` expands enabled Vaults into per-Vault effective scopes.
+- `vg search --all-vaults "query"` expands enabled Vaults into per-Vault actual scopes.
 - `--vault-id` and `--all-vaults` are mutually exclusive.
 - `--limit` controls final result count.
 - `--format json` returns the `SearchResponse` contract.

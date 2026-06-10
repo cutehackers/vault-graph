@@ -26,13 +26,13 @@ class ReadOnlyGraphReadiness:
         self._graph_store = graph_store
         self._expected_spec = expected_spec
 
-    def check(self, *, requested_scope: QueryScope, effective_scopes: tuple[QueryScope, ...]) -> GraphReadiness:
+    def check(self, *, requested_scope: QueryScope, actual_scopes: tuple[QueryScope, ...]) -> GraphReadiness:
         graph_health = self._graph_store.health()
         if not graph_health.ok:
             return self._readiness_from_unhealthy_store(
                 graph_health=graph_health,
                 requested_scope=requested_scope,
-                effective_scopes=effective_scopes,
+                actual_scopes=actual_scopes,
             )
         metadata_health = self._metadata_store.health()
         if not metadata_health.ok or not metadata_health.schema_compatible:
@@ -40,24 +40,24 @@ class ReadOnlyGraphReadiness:
                 graph_health=graph_health,
                 metadata_health=metadata_health,
                 requested_scope=requested_scope,
-                effective_scopes=effective_scopes,
+                actual_scopes=actual_scopes,
             )
         try:
             stored_specs = self._graph_store.stored_specs()
-            latest_revisions = self._graph_store.latest_revisions(effective_scopes)
-            manifest = self._graph_store.current_manifest(effective_scopes)
+            latest_revisions = self._graph_store.latest_revisions(actual_scopes)
+            manifest = self._graph_store.current_manifest(actual_scopes)
         except (GraphStoreUnavailable, GraphStoreError) as exc:
             return self._unavailable_readiness(
                 graph_health=graph_health,
                 requested_scope=requested_scope,
-                effective_scopes=effective_scopes,
+                actual_scopes=actual_scopes,
                 message=str(exc),
             )
-        metadata_lineage = self._metadata_lineage(effective_scopes)
+        metadata_lineage = self._metadata_lineage(actual_scopes)
         evidence_warnings_by_scope = _evidence_warnings_by_scope(
             metadata_store=self._metadata_store,
             manifest=manifest,
-            effective_scopes=effective_scopes,
+            actual_scopes=actual_scopes,
         )
         spec_compatible = _graph_spec_compatible(
             stored_specs=stored_specs,
@@ -65,7 +65,7 @@ class ReadOnlyGraphReadiness:
             expected_spec=self._expected_spec,
         )
         scope_readiness = self._scope_readiness(
-            effective_scopes=effective_scopes,
+            actual_scopes=actual_scopes,
             graph_health=graph_health,
             latest_revisions=latest_revisions,
             metadata_lineage=metadata_lineage,
@@ -99,7 +99,7 @@ class ReadOnlyGraphReadiness:
         *,
         graph_health: StoreHealth,
         requested_scope: QueryScope,
-        effective_scopes: tuple[QueryScope, ...],
+        actual_scopes: tuple[QueryScope, ...],
     ) -> GraphReadiness:
         if "not initialized" in graph_health.message:
             freshness = "missing"
@@ -126,14 +126,14 @@ class ReadOnlyGraphReadiness:
             scope_readiness=tuple(
                 GraphScopeReadiness(
                     vault_id=scope.vault_ids[0],
-                    effective_scope=graph_scope_key(scope),
+                    actual_scope=graph_scope_key(scope),
                     freshness=freshness,
                     stale_count=0,
                     tombstone_count=0,
                     last_graph_revision=None,
                     warnings=(),
                 )
-                for scope in effective_scopes
+                for scope in actual_scopes
             ),
             warnings=(),
             recovery_hint=recovery_hint,
@@ -144,7 +144,7 @@ class ReadOnlyGraphReadiness:
         *,
         graph_health: StoreHealth,
         requested_scope: QueryScope,
-        effective_scopes: tuple[QueryScope, ...],
+        actual_scopes: tuple[QueryScope, ...],
         message: str,
     ) -> GraphReadiness:
         return GraphReadiness(
@@ -163,14 +163,14 @@ class ReadOnlyGraphReadiness:
             scope_readiness=tuple(
                 GraphScopeReadiness(
                     vault_id=scope.vault_ids[0],
-                    effective_scope=graph_scope_key(scope),
+                    actual_scope=graph_scope_key(scope),
                     freshness="unavailable",
                     stale_count=0,
                     tombstone_count=0,
                     last_graph_revision=None,
                     warnings=(message,),
                 )
-                for scope in effective_scopes
+                for scope in actual_scopes
             ),
             warnings=(message,),
             recovery_hint=message,
@@ -182,7 +182,7 @@ class ReadOnlyGraphReadiness:
         graph_health: StoreHealth,
         metadata_health: StoreHealth,
         requested_scope: QueryScope,
-        effective_scopes: tuple[QueryScope, ...],
+        actual_scopes: tuple[QueryScope, ...],
     ) -> GraphReadiness:
         warning = f"metadata unavailable: {metadata_health.message}"
         return GraphReadiness(
@@ -201,23 +201,23 @@ class ReadOnlyGraphReadiness:
             scope_readiness=tuple(
                 GraphScopeReadiness(
                     vault_id=scope.vault_ids[0],
-                    effective_scope=graph_scope_key(scope),
+                    actual_scope=graph_scope_key(scope),
                     freshness="unavailable",
                     stale_count=0,
                     tombstone_count=0,
                     last_graph_revision=None,
                     warnings=(warning,),
                 )
-                for scope in effective_scopes
+                for scope in actual_scopes
             ),
             warnings=(warning,),
             recovery_hint="restore metadata readiness before checking graph freshness",
         )
 
-    def _metadata_lineage(self, effective_scopes: tuple[QueryScope, ...]) -> tuple[GraphLineageScope, ...]:
+    def _metadata_lineage(self, actual_scopes: tuple[QueryScope, ...]) -> tuple[GraphLineageScope, ...]:
         metadata_health = self._metadata_store.health()
         lineage: list[GraphLineageScope] = []
-        for scope in effective_scopes:
+        for scope in actual_scopes:
             chunks = self._metadata_store.list_chunks(scope)
             documents = tuple(
                 document
@@ -227,7 +227,7 @@ class ReadOnlyGraphReadiness:
             lineage.append(
                 GraphLineageScope(
                     vault_id=scope.vault_ids[0],
-                    effective_scope=graph_scope_key(scope),
+                    actual_scope=graph_scope_key(scope),
                     metadata_index_revision=_revision_from_values(
                         tuple(chunk.index_revision for chunk in chunks),
                         fallback=f"empty:{metadata_health.schema_version}",
@@ -247,7 +247,7 @@ class ReadOnlyGraphReadiness:
     def _scope_readiness(
         self,
         *,
-        effective_scopes: tuple[QueryScope, ...],
+        actual_scopes: tuple[QueryScope, ...],
         graph_health: StoreHealth,
         latest_revisions: tuple[GraphRevision, ...],
         metadata_lineage: tuple[GraphLineageScope, ...],
@@ -255,11 +255,11 @@ class ReadOnlyGraphReadiness:
         evidence_warnings_by_scope: dict[str, tuple[str, ...]],
         spec_compatible: bool,
     ) -> tuple[GraphScopeReadiness, ...]:
-        revisions_by_scope = {revision.effective_scope: revision for revision in latest_revisions}
-        lineage_by_scope = {lineage.effective_scope: lineage for lineage in metadata_lineage}
+        revisions_by_scope = {revision.actual_scope: revision for revision in latest_revisions}
+        lineage_by_scope = {lineage.actual_scope: lineage for lineage in metadata_lineage}
         tombstones_by_scope = _tombstone_counts_by_scope(manifest)
         readiness: list[GraphScopeReadiness] = []
-        for scope in effective_scopes:
+        for scope in actual_scopes:
             scope_key = graph_scope_key(scope)
             revision = revisions_by_scope.get(scope_key)
             lineage = lineage_by_scope[scope_key]
@@ -290,7 +290,7 @@ class ReadOnlyGraphReadiness:
             readiness.append(
                 GraphScopeReadiness(
                     vault_id=scope.vault_ids[0],
-                    effective_scope=scope_key,
+                    actual_scope=scope_key,
                     freshness=freshness,
                     stale_count=stale_count,
                     tombstone_count=tombstones_by_scope.get(scope_key, 0)
@@ -306,10 +306,10 @@ def _evidence_warnings_by_scope(
     *,
     metadata_store: MetadataStore,
     manifest: GraphManifest,
-    effective_scopes: tuple[QueryScope, ...],
+    actual_scopes: tuple[QueryScope, ...],
 ) -> dict[str, tuple[str, ...]]:
-    scope_by_vault_id = {scope.vault_ids[0]: graph_scope_key(scope) for scope in effective_scopes}
-    evidence_ids_by_scope: dict[str, set[str]] = {graph_scope_key(scope): set() for scope in effective_scopes}
+    scope_by_vault_id = {scope.vault_ids[0]: graph_scope_key(scope) for scope in actual_scopes}
+    evidence_ids_by_scope: dict[str, set[str]] = {graph_scope_key(scope): set() for scope in actual_scopes}
     for entity in manifest.entity_rows:
         scope_key = scope_by_vault_id.get(entity.vault_id)
         if scope_key is not None:
@@ -350,7 +350,7 @@ def _evidence_warning(*, metadata_store: MetadataStore, evidence: GraphManifestE
 def _tombstone_counts_by_scope(manifest: GraphManifest) -> dict[str, int]:
     counts: dict[str, int] = {}
     for tombstone in manifest.tombstone_rows:
-        counts[tombstone.effective_scope] = counts.get(tombstone.effective_scope, 0) + 1
+        counts[tombstone.actual_scope] = counts.get(tombstone.actual_scope, 0) + 1
     return counts
 
 

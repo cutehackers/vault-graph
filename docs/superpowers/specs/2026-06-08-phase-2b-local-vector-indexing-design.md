@@ -250,7 +250,7 @@ Rules:
 - Filter by `QueryScope.vault_ids`.
 - Filter by `QueryScope.content_scopes` with the same same-or-child semantics
   used by metadata indexing.
-- Receive an effective per-Vault `QueryScope` from application services. The
+- Receive an actual per-Vault `QueryScope` from application services. The
   store must not infer catalog entry scope from a global all-vault scope union.
 - Return `ChunkSnapshot` records, not backend-native rows.
 - Include chunk text because embedding generation needs it.
@@ -259,7 +259,7 @@ Rules:
 
 `IndexService` or `VectorIndexer` must resolve user selection through
 `VaultCatalog` first. For all-vault runs, reconcile is planned over per-Vault
-effective scopes that match `VaultLoader` behavior:
+actual scopes that match `VaultLoader` behavior:
 
 - if the query scope is narrower than the catalog entry scope, use the query
   scope
@@ -374,10 +374,10 @@ The vector indexer works in two phases: plan and apply.
 
 Inputs:
 
-- selected effective `QueryScope`
+- selected actual `QueryScope`
 - current `EmbeddingModelSpec`
-- live chunks from `MetadataStore.list_chunks(effective_scope)`
-- active manifest rows from `VectorStore.export_manifest(effective_scope)`
+- live chunks from `MetadataStore.list_chunks(actual_scope)`
+- active manifest rows from `VectorStore.export_manifest(actual_scope)`
 - current vector backend health
 
 Steps:
@@ -387,12 +387,12 @@ Steps:
 3. Mark a desired record for upsert when no current row exists.
 4. Mark a desired record for upsert when staleness comparison keys differ.
 5. Mark a current row for tombstone when it has no matching desired chunk in
-   the selected effective scope.
+   the selected actual scope.
 6. Count unchanged records when all staleness comparison keys match.
 7. Record warnings for backend health or schema compatibility problems.
 
 `VectorStore.export_manifest(scope)` must return active manifest rows for the
-effective scope across all Chroma model-spec collections, not only the current
+actual scope across all Chroma model-spec collections, not only the current
 `EmbeddingModelSpec`. Otherwise the vector indexer cannot see old-model rows
 that should be tombstoned after a model-spec change.
 
@@ -578,7 +578,7 @@ Verify:
 - old-model manifest rows are visible and tombstoned after model-spec change.
 - deleted or tombstoned chunks create vector tombstones.
 - narrow Vault scope does not tombstone records from other Vaults.
-- all-vault scope uses per-Vault effective scopes rather than a global scope
+- all-vault scope uses per-Vault actual scopes rather than a global scope
   union.
 - dry-run creates no Chroma state or metadata state.
 
