@@ -89,7 +89,9 @@ Everything created by Vault Graph is a projection from Vault:
 - Context packs
 - Summaries
 
-Deleting all Vault Graph state and rebuilding from Vault should produce functionally equivalent results for the same version of the parser, chunker, embedding model, and extraction policy.
+Deleting all Vault Graph state and rebuilding from Vault should produce
+functionally equivalent results for the same version of the parser, chunker,
+embedding model, and graph extraction spec.
 
 ### Principle 3: Agents Consume Context Packs
 
@@ -162,7 +164,7 @@ Every context pack and decision trace should include:
               v                               v
       +----------------+              +----------------+
       | GraphStore     |<------------>| Hybrid Search  |
-      | SQLite edges   |              | rank + explain |
+      | SQLite graph   |              | rank + explain |
       +-------+--------+              +-------+--------+
               |
               v
@@ -320,12 +322,12 @@ Identity rules:
 
 - `vault_id` is required on every document, chunk, entity, evidence, revision,
   warning, and context-pack record.
-- Relationship and edge records must carry `source_vault_id`,
-  `target_vault_id`, and `evidence_vault_id`.
+- Relationship records must carry `source_vault_id` and `target_vault_id`;
+  relationship evidence references must carry their evidence `vault_id`.
 - `path` is never globally unique by itself; file identity is `(vault_id, path)`.
-- `document_id`, `chunk_id`, `entity_id`, `edge_id`, and vector IDs must either
-  include their Vault namespace fields in stable derivation or be stored with
-  equivalent Vault-scoped uniqueness constraints.
+- `document_id`, `chunk_id`, `entity_id`, `relationship_id`, and vector IDs
+  must either include their Vault namespace fields in stable derivation or be
+  stored with equivalent Vault-scoped uniqueness constraints.
 - Cross-Vault search is explicit. Default queries use the active Vault unless a
   `QueryScope` names more Vault IDs.
 - Cross-Vault entity merging is outside the MVP. If retrieval connects records
@@ -511,18 +513,25 @@ Domain-specific entities may be extracted from page bodies and source text:
 Minimum entity fields:
 
 - `vault_id`
-- `id`
+- `entity_id`
 - `type`
 - `name`
+- `normalized_name`
 - `aliases`
 - `canonical_path`
-- `source_paths`
-- `wiki_paths`
-- `first_seen_at`
-- `last_seen_at`
+- `evidence_refs`
+- `status`
 - `confidence`
 - `extraction_method`
-- `content_hash`
+- `graph_extraction_spec_version`
+- `graph_extraction_spec_digest`
+- `created_at`
+- `updated_at`
+- `graph_index_revision`
+
+Entity evidence references point to `MetadataStore` evidence chunks. Path lists
+and wiki/source groupings are rendering views over evidence references, not
+separate entity authority.
 
 ## 9. Relationship Model
 
@@ -547,20 +556,48 @@ Core relationship types:
 
 Relationship fields:
 
-- `id`
+- `relationship_id`
 - `type`
 - `source_vault_id`
 - `source_entity_id`
 - `target_vault_id`
 - `target_entity_id`
-- `evidence_vault_id`
-- `evidence_path`
-- `evidence_excerpt`
+- `evidence_refs`
 - `status`
 - `confidence`
 - `extraction_method`
+- `graph_extraction_spec_version`
+- `graph_extraction_spec_digest`
 - `created_at`
 - `updated_at`
+- `graph_index_revision`
+
+`RelationshipRecord` is one logical relationship with one or more evidence
+references. Evidence references are stored as separate graph evidence rows,
+keyed by `evidence_ref_id`, and each reference resolves to a `MetadataStore`
+chunk. This avoids duplicate relationship rows when multiple chunks support the
+same relationship.
+
+Graph evidence reference fields:
+
+- `evidence_ref_id`
+- `owner_kind`
+- `owner_vault_id`
+- `owner_id`
+- `evidence_vault_id`
+- `document_id`
+- `chunk_id`
+- `content_hash`
+- `section`
+- `anchor`
+- `path`
+- `excerpt`
+
+`owner_kind` is `entity` or `relationship`. `owner_vault_id` is the entity Vault
+ID for entity evidence and the source Vault ID for relationship evidence.
+`owner_id` is the `entity_id` or `relationship_id`. Paths and excerpts are
+rendering metadata. Relationship evidence authority comes from the evidence
+chunk resolved through `MetadataStore`.
 
 Allowed relationship statuses:
 
@@ -588,9 +625,12 @@ Vector search:
 
 Graph:
 
-- SQLite persisted node, edge, evidence, and graph revision tables as `GraphStore`
+- SQLite persisted entity, relationship, evidence, tombstone, and graph revision
+  tables as `GraphStore`
 - rustworkx in-memory graph projection rebuilt from `GraphStore`
-- optional serialized rustworkx cache keyed by `index_revision`, `parser_version`, `chunker_version`, and `extraction_policy_version`
+- optional serialized rustworkx cache keyed by `index_revision`,
+  `graph_store_revision`, `parser_version`, `chunker_version`, and
+  `graph_extraction_spec_version` plus `graph_extraction_spec_digest`
 
 ### 10.2 Scale-Up
 
@@ -753,25 +793,31 @@ Graph should not require a cross-store transaction between `MetadataStore` and
 `GraphStore` is the persisted graph projection.
 
 For MVP, `GraphStore` is SQLite tables derived from Vault files and indexer
-output. It stores node records, edge records, `vault_id` fields, evidence
-references, relationship status, confidence, extraction metadata, and index
-revision metadata. It is rebuildable from Vault and must remain
-non-authoritative.
+output. It stores entity records, relationship records, `vault_id` fields,
+evidence references, relationship status, confidence, extraction metadata,
+tombstones, and index revision metadata. It is rebuildable from Vault and must
+remain non-authoritative.
 
 `GraphProjection` is the runtime graph used for algorithms.
 
-For MVP, `GraphProjection` is a rustworkx graph built from `GraphStore` rows. It is used for traversal, path finding, ranking, neighborhood expansion, and decision trace prototypes. It may be serialized only as a cache. A serialized rustworkx graph must be disposable and must be invalidated when any graph store row, parser version, chunker version, extraction policy version, or index revision changes.
+For MVP, `GraphProjection` is a rustworkx graph built from `GraphStore` rows. It
+is used for traversal, path finding, ranking, neighborhood expansion, and
+decision trace prototypes. It may be serialized only as a cache. A serialized
+rustworkx graph must be disposable and must be invalidated when any graph store
+row, parser version, chunker version, graph extraction spec version, graph
+store revision, or index revision changes.
 
 The boundary is mandatory:
 
 - `GraphStore` owns persistence, revision tracking, evidence linkage, and backend replacement.
 - `GraphProjection` owns in-process graph algorithms and temporary working subgraphs.
-- Query tools must return evidence-linked results from `GraphStore`, not opaque rustworkx node IDs.
+- Query tools must return evidence-linked results from `GraphStore`, not opaque
+  rustworkx runtime indices.
 - rustworkx must not be treated as the durable graph database.
 - Neo4j must not become a second source of truth; it is a scale-up `GraphStore` implementation over the same derived projection contract.
-- Scale-up backends must preserve the same Vault IDs, node IDs, edge IDs,
-  relationship types, evidence references, confidence fields, revision fields,
-  and read-only Vault boundary as the MVP SQLite store.
+- Scale-up backends must preserve the same Vault IDs, entity IDs, relationship
+  IDs, relationship types, evidence references, confidence fields, revision
+  fields, and read-only Vault boundary as the MVP SQLite store.
 - Every backend must support full rebuild, incremental update, dry-run planning, stale projection detection, and reproducible export back to the common graph store contract.
 
 ### 10.6 Scale-Up Boundary Requirements
@@ -784,8 +830,8 @@ The MVP local stores are the reference contract:
   revisions.
 - `VectorStore`: Chroma for embeddings and vector retrieval metadata, including
   `vault_id` filters.
-- `GraphStore`: SQLite for graph nodes, edges, evidence, relationship status,
-  confidence, Vault IDs, and graph revisions.
+- `GraphStore`: SQLite for entity records, relationship records, evidence,
+  relationship status, confidence, Vault IDs, tombstones, and graph revisions.
 - `GraphProjection`: rustworkx for local in-memory graph algorithms over a bounded working subgraph.
 
 Scale-up backends may replace implementations, but not contracts:
@@ -800,7 +846,8 @@ All persistent store adapters must expose the same common revision model:
 - stable record IDs for the records they own
 - Vault ID, Vault path, wiki path, section or anchor, content hash, and raw
   SHA-256 where available
-- parser, chunker, embedding, extraction, metadata store, vector store, and graph store versions where applicable
+- parser, chunker, embedding model spec, graph extraction spec, metadata store,
+  vector store, and graph store versions where applicable
 - index revision, vault revision, backend name, backend schema version, and last validated timestamp
 - evidence references for every returned record that contributes to an answer, trace, warning, or context pack
 
@@ -811,8 +858,8 @@ Each store also owns store-specific records:
 - `VectorStore`: vector IDs, Vault IDs, document IDs, chunk IDs, content-scope
   filter metadata, embedding model, embedding model version, embedding model spec
   version, filters, backend-local ranks, and backend-local retrieval scores
-- `GraphStore`: Vault IDs, entity IDs, edge IDs, relationship type, relationship
-  status, confidence, extraction method, and evidence path
+- `GraphStore`: Vault IDs, entity IDs, relationship IDs, relationship type,
+  relationship status, confidence, extraction method, and evidence references
 - `GraphProjection`: projection build ID, graph projection version, source graph revision, cache validity, and algorithm runtime metadata
 
 Scale-up must preserve local-first operation:
@@ -854,7 +901,8 @@ Vault Graph tracks file state with:
 - `vector_store_schema_version`
 - `embedding_model`
 - `embedding_model_version`
-- `extraction_policy_version`
+- `graph_extraction_spec_version`
+- `graph_extraction_spec_digest`
 - `graph_store_schema_version`
 - `graph_projection_version`
 - `last_indexed_at`
@@ -872,7 +920,8 @@ Scan VaultCatalog entries selected by the indexing scope
   -> Reconcile VectorStore embeddings and vector revision metadata when vector
      indexing is enabled
   -> Phase 3+: extract entities and relationships
-  -> Phase 3+: update GraphStore node, edge, evidence, and revision rows
+  -> Phase 3+: update GraphStore entity, relationship, evidence, and revision
+     rows
   -> Phase 3+: invalidate or rebuild GraphProjection cache
   -> Record index revision
 ```
@@ -1173,8 +1222,9 @@ Sustainability and consistency requirements:
   as stale or unavailable through status, return a nonzero `vg index` exit for
   the failed vector step, and recover on the next `vg index`.
 - Apply the same derived-projection rule to future graph indexing:
-  current metadata chunks plus extraction policy plus graph manifest produce the
-  desired graph projection. Graph records remain derived and non-authoritative.
+  current metadata chunks plus `GraphExtractionSpec` plus graph manifest produce
+  the desired graph projection. Graph records remain derived and
+  non-authoritative.
 - Avoid the term "graph embedding" for the current product scope. Phase 2B is
   text chunk embedding and local vector indexing. Later graph node or edge
   embeddings, if added, are separate derived vector projections.
@@ -1512,14 +1562,89 @@ implementation.
 
 ### Phase 3: Entity And Relationship Graph
 
-- entity extraction
-- relationship extraction
-- SQLite `GraphStore` node, edge, evidence, and revision tables
-- rustworkx `GraphProjection` adapter
-- graph traversal retrieval from `GraphStore` evidence with rustworkx ranking support
-- decision trace prototype
-- projection cache invalidation tests
-- GraphStore backend contract tests for future Neo4j support
+Phase 3 turns Phase 2 evidence chunks into a rebuildable entity and
+relationship graph projection. The goal is to make relationships inspectable and
+retrievable without turning graph state into durable Vault knowledge.
+
+Detailed Phase 3 contracts live under `docs/superpowers/specs/phase-3/`:
+
+- `2026-06-10-phase-3-overview-design.md`: cross-slice roadmap, invariants, and
+  handoff map
+- `2026-06-10-phase-3a-graphstore-contract-readiness-design.md`: Phase 3A
+  `GraphStore`, graph records, extraction result contracts, and readiness
+  contract
+
+Future Phase 3B and 3C detailed design documents should be added in the same
+folder before implementation of those slices begins. `docs/SPEC.md` remains the
+top-level product and architecture contract; slice documents hold implementation
+details that would otherwise make this file too long.
+
+Phase 3 slices:
+
+| Slice | Contract | Detailed Design | Explicitly Not Included |
+| --- | --- | --- | --- |
+| Phase 3A | Define graph record contracts, `GraphExtractionSpec`, `GraphStore`, scoped graph manifests, and graph readiness/status contracts | `docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md` | entity extraction execution, graph traversal, rustworkx ranking, decision traces |
+| Phase 3B | Build local deterministic entity and relationship indexing through scope-local graph reconcile | planned under `docs/superpowers/specs/phase-3/` | LLM-required extraction, cross-Vault entity merging, context packs |
+| Phase 3C | Add bounded `GraphProjection`, opt-in graph retrieval signals, `vg related`, and decision trace prototype | planned under `docs/superpowers/specs/phase-3/` | `vg ask`, MCP serving, HTTP serving, Neo4j |
+
+Phase 3 invariants:
+
+- Vault remains the durable source of truth. Graph records, evidence refs,
+  manifests, revisions, and projection caches are derived Vault Graph state.
+- The canonical graph evidence unit is the `MetadataStore` evidence chunk:
+  `(vault_id, document_id, chunk_id)`.
+- User-visible graph output must resolve evidence through `MetadataStore` before
+  rendering. Stored graph excerpts are rendering hints, not evidence authority.
+- Graph identities are deterministic and Vault-scoped. Identical entity names,
+  paths, headings, chunk IDs, or relationship labels from different Vaults must
+  not collide.
+- Cross-Vault graph behavior is opt-in and must preserve source, target, and
+  evidence Vault IDs. Phase 3 must not merge entities across Vaults by name.
+- Relationship status is explicit: `stated`, `inferred`, `contested`, or
+  `deprecated`.
+- Phase 3 stores relationships as directed records. Symmetric behavior belongs
+  to query/view policy, not relationship identity.
+- Graph indexing uses scope-local reconcile. Records outside the selected
+  effective scope are left untouched.
+- `GraphExtractionSpec` is the graph compatibility and staleness boundary.
+  Its version plus canonical digest identifies the extraction contract. Changes
+  to extractor/schema/status/confidence rules make affected graph records stale
+  or incompatible.
+- Graph search is opt-in. Plain `vg search "query"` remains Phase 2C
+  keyword/vector evidence search until explicit graph mode is requested.
+
+Phase 3 execution flow:
+
+```text
+Phase 3A
+  -> graph contracts and readiness only
+
+Phase 3B
+  -> MetadataStore.list_chunks(effective_scope)
+  -> deterministic EntityExtractor and RelationshipExtractor
+  -> GraphIndexer scope-local reconcile
+  -> GraphStore upserts, tombstones, graph revisions
+
+Phase 3C
+  -> GraphStore graph candidates
+  -> optional GraphProjection bounded traversal/ranking
+  -> MetadataStore evidence resolution
+  -> graph CLI output or explicit graph retrieval signal
+```
+
+Required Phase 3 test themes:
+
+- read-only boundary tests for graph indexing and graph retrieval
+- rebuild tests from Vault-derived metadata
+- scope-local reconcile tests
+- multi-vault identity and warning attribution tests
+- evidence authority tests through `MetadataStore`
+- graph readiness and compatibility tests
+- reusable `GraphStore` contract tests for future backend implementations
+
+Phase 3 explicitly excludes LLM answer generation, context pack generation, MCP
+serving, HTTP serving, durable Vault publication, default hosted graph backends,
+Qdrant implementation, Neo4j implementation, and cross-Vault entity merging.
 
 ### Phase 4: Context Pack Builder
 

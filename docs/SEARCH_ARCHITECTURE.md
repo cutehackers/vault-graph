@@ -33,8 +33,8 @@ flowchart TD
   Metadata --> VectorIndexer["VectorIndexer"]
   VectorIndexer --> VectorStore["VectorStore<br/>Chroma embeddings"]
 
-  Pipeline --> GraphIndexer["GraphIndexer<br/>Phase 3+"]
-  GraphIndexer --> GraphStore["GraphStore<br/>entities, edges, evidence"]
+  Metadata --> GraphIndexer["GraphIndexer<br/>Phase 3+"]
+  GraphIndexer --> GraphStore["GraphStore<br/>entities, relationships, evidence"]
   GraphStore --> GraphProjection["GraphProjection<br/>rustworkx runtime graph"]
 
   Metadata --> Retrieval["Retrieval Layer"]
@@ -131,6 +131,7 @@ document and chunk evidence through `MetadataStore`.
 - entity records
 - relationship records
 - evidence references
+- tombstones
 - relationship status
 - confidence
 - extraction metadata
@@ -354,14 +355,18 @@ quality, durable wiki priority, decision page priority, recency when relevant,
 and stale penalties. Those inputs must stay in the retrieval layer and must not
 change the candidate-store contracts.
 
-Phase 3 adds graph candidates to the same retrieval contract. Graph proximity is
-another signal, not a replacement for metadata evidence resolution.
+Phase 3 adds opt-in graph candidates to the same retrieval contract. Graph
+proximity is another signal, not a replacement for metadata evidence resolution.
 
 ## Graph Search Direction
 
 Graph retrieval starts with entity lookup or candidate documents, expands
 neighborhoods through `GraphStore`, and may use `GraphProjection` for bounded
 algorithmic ranking.
+
+The canonical graph evidence unit is the Phase 2 evidence chunk:
+`(vault_id, document_id, chunk_id)`. Paths, anchors, and excerpts are rendering
+metadata.
 
 Relationship status must remain visible:
 
@@ -371,8 +376,8 @@ Relationship status must remain visible:
 - `deprecated`: stale or superseded relationship
 
 Graph expansion must be opt-in across Vaults. If traversal crosses Vault IDs,
-the edge must carry source and target Vault IDs plus evidence explaining why the
-relationship exists.
+the relationship must carry source, target, and evidence Vault IDs plus evidence
+explaining why the relationship exists.
 
 ## Retrieval Output Principles
 
@@ -380,6 +385,8 @@ Every normal result must be evidence-linked.
 
 A result should carry:
 
+- Vault ID
+- document ID
 - matched chunk ID
 - evidence path
 - section or anchor

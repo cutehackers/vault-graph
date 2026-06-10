@@ -3,6 +3,60 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-10 - Phase 3 Graph Specification Clarification
+
+**Trigger:** Phase 3 roadmap text was too thin to hand off to implementation,
+and older graph wording still mixed node/edge identity with Phase 2C's
+evidence-chunk authority.
+
+**Scope:** Phase 3 specification, design, search architecture, and user-facing
+feature documentation.
+
+**Core Values Protected:**
+
+- graph state remains read-only, rebuildable derived state over Vault
+- relationship evidence resolves through metadata evidence chunks
+- multi-vault graph identity stays explicit and collision-safe
+- Phase 3 scales through clear `GraphStore` and `GraphProjection` boundaries
+- default search behavior does not silently widen through inferred graph signals
+
+**Changes Applied:**
+
+- Expanded Phase 3 into definite Phase 3A, 3B, and 3C slices.
+- Moved detailed Phase 3 graph design handoff under
+  `docs/superpowers/specs/phase-3/` so `docs/SPEC.md` stays a concise top-level
+  contract.
+- Added a focused Phase 3A `GraphStore` contract and readiness design document.
+- Clarified `GraphExtractionSpec` as the graph staleness and compatibility
+  boundary.
+- Replaced stale node/edge and extraction-policy wording with entity,
+  relationship, and graph-extraction-spec terminology.
+- Added Phase 3 user-facing slice expectations for graph readiness, graph
+  indexing, `vg related`, `vg decision-trace`, and opt-in graph search.
+- Aligned search architecture with evidence-chunk-based graph results.
+- Fixed subagent review findings by making relationship evidence a child
+  evidence-row contract, assigning graph reconcile planning to `GraphIndexer`,
+  defining scoped graph manifests, and making graph revisions per
+  Vault/effective scope under a run-level ID.
+- Fixed relationship identity ambiguity by storing Phase 3 relationships as
+  directed records and leaving symmetric behavior to query/view policy.
+- Narrowed Phase 3A back to contract readiness by moving traversal-style lookup
+  APIs to Phase 3C, making graph record lookups Vault-scoped, and introducing
+  `GraphReadinessService` for metadata-lineage-aware freshness checks.
+- Replaced ambiguous optional evidence ownership fields with explicit
+  `owner_kind`, `owner_vault_id`, `owner_id`, and `evidence_vault_id`.
+- Added graph extraction spec digest/snapshot requirements so compatibility is
+  not inferred from version strings alone.
+- Added Phase 3 index/status reliability signals and cross-Vault graph command
+  examples to the user-facing feature document.
+
+**Verification:**
+
+- grill-with-docs consistency pass
+- multi-angle subagent review
+- stale-term grep checks
+- `git diff --check`
+
 ## 2026-06-09 - Phase 2C Implementation Review Fixes
 
 **Trigger:** Subagent review of the Phase 2C implementation found consistency

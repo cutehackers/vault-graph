@@ -122,12 +122,12 @@ runtime policies:
 - chunker version
 - embedding model and version
 - embedding model spec version
-- extraction policy version
+- graph extraction spec version
 - store schema versions
 - graph projection version
 
-If two index runs use the same Vault revision and policy versions, query
-behavior should be functionally equivalent.
+If two index runs use the same Vault revision and runtime contract versions,
+query behavior should be functionally equivalent.
 
 ### 4.3 Evidence-First Output
 
@@ -183,17 +183,15 @@ VaultLoader
 DocumentPipeline
   reads Vault frontmatter, parses markdown, normalizes sections, chunks text
     |
-    +--> MetadataIndexer -> MetadataStore
-    |
-    +--> ExtractionPipeline -> GraphIndexer -> GraphStore
-    |
-    +--> VectorIndexer -> VectorStore
-                                   |
-GraphStore -----------------------+
-    |
     v
-GraphProjection
-  rustworkx working graph and disposable cache
+MetadataIndexer -> MetadataStore
+                     |
+                     +--> VectorIndexer -> VectorStore
+                     |
+                     +--> GraphIndexer -> GraphStore
+                                            |
+                                            v
+                                      GraphProjection
     |
     v
 RetrievalServices
@@ -251,6 +249,15 @@ Initial commands:
 - `vg decision-trace TOPIC`
 - `vg serve --mcp`
 - `vg serve --http`
+
+This command list is the full roadmap surface. Phase 3 implementation scope is
+limited to graph readiness/indexing plus `vg related`, `vg decision-trace`, and
+explicit graph search modes. `vg ask`, context packs, MCP serving, and HTTP
+serving remain later-phase work.
+
+Phase 3 implementation planning must use the detailed slice documents under
+`docs/superpowers/specs/phase-3/`. `docs/SPEC.md` stays the top-level contract;
+the Phase 3 folder owns long-form 3A/3B/3C design details.
 
 ### 6.2 `app`
 
@@ -335,10 +342,10 @@ Core modules:
 - `metadata_indexer.py`: writes document, section, chunk, hash, parser, and
   source-state projections
 - `vector_indexer.py`: embeds chunks and writes vector records
-- `graph_indexer.py`: writes nodes, edges, evidence, status, confidence, and
-  extraction metadata
-- `revision_planner.py`: compares Vault file state and policy versions against
-  store state
+- `graph_indexer.py`: writes entity records, relationship records, evidence,
+  status, confidence, and graph extraction metadata
+- `revision_planner.py`: compares Vault file state and runtime contract versions
+  against store state
 - `incremental_indexer.py`: orchestrates scan, parse, extract, store update,
   and projection invalidation
 
@@ -407,7 +414,7 @@ Responsibility:
 - build runtime graph projections from `GraphStore`
 - run bounded graph algorithms
 - cache disposable projection artifacts
-- invalidate caches when revisions or policy versions change
+- invalidate caches when revisions or runtime contract versions change
 
 Core modules:
 
@@ -677,19 +684,25 @@ An entity record represents a derived node.
 Fields:
 
 - `vault_id`
-- `id`
+- `entity_id`
 - `type`
 - `name`
+- `normalized_name`
 - `aliases`
 - `canonical_path`
-- `source_paths`
-- `wiki_paths`
-- `first_seen_at`
-- `last_seen_at`
+- `evidence_refs`
+- `status`
 - `confidence`
 - `extraction_method`
-- `content_hash`
-- `index_revision`
+- `graph_extraction_spec_version`
+- `graph_extraction_spec_digest`
+- `created_at`
+- `updated_at`
+- `graph_index_revision`
+
+Entity evidence references resolve through `MetadataStore` chunk evidence.
+Source path and wiki path displays are rendering views over evidence, not
+separate entity authority.
 
 ### 8.7 Relationship Record
 
@@ -697,25 +710,51 @@ A relationship record represents a derived edge.
 
 Fields:
 
-- `id`
+- `relationship_id`
 - `type`
 - `source_vault_id`
 - `source_entity_id`
 - `target_vault_id`
 - `target_entity_id`
-- `evidence_vault_id`
-- `evidence_path`
-- `evidence_excerpt`
+- `evidence_refs`
 - `status`
 - `confidence`
 - `extraction_method`
+- `graph_extraction_spec_version`
+- `graph_extraction_spec_digest`
 - `created_at`
 - `updated_at`
-- `index_revision`
+- `graph_index_revision`
 
-`id` must be derived from relationship type, source entity, target entity,
-source Vault ID, target Vault ID, evidence Vault ID, and evidence path. A
-relationship does not imply a durable cross-Vault equivalence claim.
+`relationship_id` must be derived from relationship type, source entity, target
+entity, source Vault ID, and target Vault ID. Evidence references are stored as
+separate graph evidence rows keyed by `evidence_ref_id`. A relationship does not
+imply a durable cross-Vault equivalence claim.
+
+Phase 3 stores all relationships as directed records. Symmetric retrieval
+behavior, when useful, belongs to query/view policy and must not rewrite
+relationship identity.
+
+Graph evidence reference fields:
+
+- `evidence_ref_id`
+- `owner_kind`
+- `owner_vault_id`
+- `owner_id`
+- `evidence_vault_id`
+- `document_id`
+- `chunk_id`
+- `content_hash`
+- `section`
+- `anchor`
+- `path`
+- `excerpt`
+
+`owner_kind` is `entity` or `relationship`. `owner_vault_id` is the entity Vault
+ID for entity evidence and the source Vault ID for relationship evidence.
+`owner_id` is the `entity_id` or `relationship_id`. Path, section, anchor, and
+excerpt fields are rendering metadata. User-visible relationship evidence must
+resolve back through `MetadataStore` chunk evidence.
 
 Allowed statuses:
 
@@ -856,26 +895,33 @@ vector metadata. Callers must resolve document and chunk evidence through
 
 ### 9.3 GraphStore
 
-`GraphStore` owns persisted node records, edge records, evidence references,
-relationship status, confidence, extraction metadata, and graph revision
-metadata.
+`GraphStore` owns persisted entity records, relationship records, graph evidence
+reference rows, relationship status, confidence, graph extraction metadata,
+tombstones, backend health, schema compatibility, and graph revision metadata.
+`GraphIndexer` owns reconcile planning; `GraphStore` supplies the current scoped
+manifest and applies the completed reconcile plan.
 
 Required operations:
 
+- export the current graph manifest for selected effective scopes
 - upsert entity records
 - upsert relationship records
 - tombstone stale entities and relationships
 - resolve entity IDs to evidence-linked records
-- resolve edge IDs to evidence-linked records
+- resolve relationship IDs to evidence-linked records
 - query neighborhoods by Vault-scoped entity
-- query edges by relationship type and status
+- query relationships by evidence chunk, relationship type, status, confidence,
+  and scope
 - report backend health
 - report schema compatibility
 - report graph revision freshness
+- report stale counts
+- report graph extraction spec compatibility
 - export records in the common logical graph shape
 
 `GraphStore` is derived and non-authoritative, but it is the persisted graph
-contract. `GraphProjection` depends on it.
+contract. It must support write-capable indexing construction and read-only
+retrieval construction as separate modes. `GraphProjection` depends on it.
 
 ### 9.4 GraphProjection
 
@@ -888,7 +934,7 @@ Required operations:
 - invalidate stale caches
 - traverse neighborhoods
 - compute paths
-- rank related nodes
+- rank related entities
 - return graph results that can be resolved back to `GraphStore`
 - report projection freshness
 
@@ -899,7 +945,7 @@ Cache keys must include:
 - graph store revision
 - parser version
 - chunker version
-- extraction policy version
+- graph extraction spec version
 - graph projection version
 
 ## 10. Indexing Design
@@ -907,7 +953,7 @@ Cache keys must include:
 Indexing has two modes: planning and applying.
 
 Planning is read-only. It scans Vault and compares file state, parser versions,
-chunker versions, embedding versions, extraction policy versions, store schema
+chunker versions, embedding model specs, graph extraction specs, store schema
 versions, and projection versions against current Vault Graph state.
 
 Applying mutates only Vault Graph state. It updates metadata, vectors, graph
@@ -978,7 +1024,7 @@ Stale files should produce warnings when:
 - raw SHA-256 differs from the recorded value
 - parser or chunker version changed
 - embedding model spec changed
-- extraction policy changed
+- graph extraction spec changed
 - projection cache is invalid
 
 ### 10.5 Phase 2B Vector Reconcile
@@ -1133,8 +1179,8 @@ neighborhoods through `GraphStore`, and may use `GraphProjection` for bounded
 algorithmic ranking.
 
 Cross-Vault graph traversal is opt-in. When a traversal crosses Vault IDs, the
-edge must include source and target Vault IDs plus evidence explaining why the
-relationship exists.
+relationship must include source, target, and evidence Vault IDs plus evidence
+explaining why the relationship exists.
 
 Graph results must distinguish relationship status:
 
@@ -1351,6 +1397,9 @@ to publish durable knowledge only through Vault's validation workflow.
 CLI commands should render human-readable output by default and offer structured
 output where useful.
 
+The CLI section describes the full product surface. Phase 3 must not implement
+`vg ask`, context packs, MCP serving, or HTTP serving.
+
 Recommended common options:
 
 - `--vault-id ID`
@@ -1487,7 +1536,8 @@ Revision fields:
 - `embedding_model`
 - `embedding_model_version`
 - `embedding_spec_version`
-- `extraction_policy_version`
+- `graph_extraction_spec_version`
+- `graph_extraction_spec_digest`
 - `metadata_store_schema_version`
 - `vector_store_schema_version`
 - `graph_store_schema_version`

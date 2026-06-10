@@ -17,6 +17,26 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-10 - Keep Phase 3 Detailed Designs In Slice Documents
+
+**Question:** How should Phase 3 stay detailed enough for implementation without
+making `docs/SPEC.md` too long?
+
+**Decision:** Keep the Phase 3 section of `docs/SPEC.md` as a concise top-level
+contract and place the Phase 3 overview plus detailed slice designs under
+`docs/superpowers/specs/phase-3/`.
+
+**Reason:** This matches the Phase 2 slice style while keeping implementation
+details easy to find and preventing the top-level SPEC from becoming a second
+implementation plan.
+
+**Implications:**
+
+- Each Phase 3 slice gets a focused design document before its implementation.
+- `docs/SPEC.md` links to slice documents instead of duplicating long data
+  models and interface details.
+- `docs/PATCH_LOG.md` records consistency corrections made during reviews.
+
 ## 2026-06-09 - Use Evidence Chunk As The Phase 2C Search Unit
 
 **Question:** What should Phase 2C return as the canonical search result?

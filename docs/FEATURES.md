@@ -9,6 +9,10 @@ MCP tools, MCP prompts, and HTTP serving.
 For architecture, storage contracts, indexing internals, and roadmap details,
 see `docs/SPEC.md`.
 
+The feature matrix is the intended product surface across the full roadmap. The
+phase slice sections below define what is in scope for each implementation
+phase.
+
 ## Product Boundary
 
 Vault Graph is a read-only, rebuildable knowledge access layer over Vault.
@@ -75,6 +79,22 @@ Graph-based expansion joins search after Phase 3. Until then, hybrid retrieval
 means keyword plus vector retrieval with graph-ready result fields and
 per-signal explanations.
 
+## Phase 3 User-Facing Slices
+
+Phase 3 exposes graph behavior in small, evidence-first slices. Graph records
+remain derived projections over Vault metadata; graph commands must resolve
+normal evidence through `MetadataStore` before rendering user-facing output.
+
+| Slice | User-Facing Change | Explicitly Not Included |
+| --- | --- | --- |
+| Phase 3A | `vg status` can report graph backend readiness once graph contracts exist | graph traversal, graph ranking, decision traces |
+| Phase 3B | `vg index` can reconcile local entity and relationship graph state for selected Vault scopes | LLM-required extraction, cross-Vault entity merging, context packs |
+| Phase 3C | `vg related TARGET`, `vg decision-trace TOPIC`, and optional `vg search --include-graph` expose graph evidence and warnings | `vg ask`, MCP serving, HTTP serving, Neo4j |
+
+Default `vg search "query"` stays keyword/vector evidence search until graph
+relevance is proven through focused tests. Users must opt into graph expansion
+with an explicit graph command or flag.
+
 ## CLI Features
 
 ### Initialize
@@ -124,6 +144,13 @@ User-visible behavior:
   model
 - in Phase 2B, returns a nonzero exit if metadata succeeds but vector reconcile
   fails, while preserving the applied metadata revision in output and status
+- in Phase 3B, reports graph entity upserts, relationship upserts, evidence
+  reference upserts, tombstones, stale graph records, affected Vault IDs,
+  `GraphExtractionSpec`, graph revision metadata, and projection cache
+  invalidations
+- in Phase 3B, returns a nonzero exit if metadata/vector work succeeds but graph
+  reconcile fails, while preserving completed earlier projection state in output
+  and status
 - reports warnings for source drift, duplicates, stale data, or missing evidence
 - supports dry-run planning before index mutation
 
@@ -159,8 +186,11 @@ The status surface should show:
   vector failure
 - in Phase 2B, default local embedding model, model revision, model cache
   availability, throughput tuning, and model-unavailable errors
-- graph projection freshness
-- stale or invalid cache warnings
+- in Phase 3, graph backend health, graph schema compatibility,
+  `GraphExtractionSpec`, graph revisions by Vault/effective scope, stale graph
+  record counts, tombstone counts, last graph failure, and graph projection cache
+  freshness
+- stale or invalid vector/graph cache warnings
 
 By default, freshness fields use the active Vault. `--vault-id ID` reports one
 Vault, and `--all-vaults` reports all enabled Vaults with explicit Vault IDs in
@@ -188,6 +218,7 @@ The answer should separate:
 ```bash
 vg related GraphRAG
 vg related --vault-id main GraphRAG
+vg related --all-vaults GraphRAG
 ```
 
 Finds items related to a concept, project, decision, issue, system, workflow, or
@@ -213,6 +244,7 @@ to avoid a full Vault scan.
 ```bash
 vg decision-trace GraphRAG
 vg decision-trace --vault-id main GraphRAG
+vg decision-trace --all-vaults GraphRAG
 ```
 
 Explains a decision or topic through durable decision pages, related evidence,
