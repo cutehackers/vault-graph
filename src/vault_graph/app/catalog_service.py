@@ -17,6 +17,7 @@ class CatalogService:
         self.metadata_path = self.state_path / "metadata" / "metadata.sqlite3"
         self.vector_path = self.state_path / "vector" / "chroma"
         self.vector_status_path = self.state_path / "vector" / "status.json"
+        self.graph_path = self.state_path / "graph" / "graph.sqlite3"
         self.embedding_cache_path = (
             embedding_cache_path.expanduser().resolve()
             if embedding_cache_path is not None

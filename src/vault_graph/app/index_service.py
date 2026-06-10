@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.embeddings.text_embeddings import TextEmbeddings
+from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.graph.graph_identity import graph_scope_key
+from vault_graph.graph.graph_readiness import GraphReadiness, GraphScopeReadiness
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
 from vault_graph.indexing.vector_indexer import VectorApplyResult, VectorIndexer, VectorRevisionPlan
@@ -40,6 +44,7 @@ class StatusReport:
     vector_stale_count: int
     vector_last_error: str | None
     vector_status_scope: str
+    graph_readiness: GraphReadiness
 
 
 @dataclass(frozen=True)
@@ -64,6 +69,7 @@ class IndexService:
         embedding_batch_size: int = 256,
         embedding_parallelism: int | None = None,
         embedding_lazy_load: bool = True,
+        graph_readiness: ReadOnlyGraphReadiness | None = None,
     ) -> None:
         self._catalog = catalog
         self._metadata_store = metadata_store
@@ -73,6 +79,7 @@ class IndexService:
         self._embedding_batch_size = embedding_batch_size
         self._embedding_parallelism = embedding_parallelism
         self._embedding_lazy_load = embedding_lazy_load
+        self._graph_readiness = graph_readiness
 
     def plan(self, *, scope: QueryScope, full: bool = False) -> MetadataRevisionPlan:
         return MetadataIndexer(catalog=self._catalog, metadata_store=self._metadata_store).plan(scope=scope, full=full)
@@ -108,6 +115,7 @@ class IndexService:
 
     def status(self, *, scope: QueryScope | None = None) -> StatusReport:
         resolved_scope = scope or self._catalog.default_scope()
+        effective_scopes = effective_query_scopes(catalog=self._catalog, scope=resolved_scope)
         health = self._metadata_store.health()
         vector_health = self._vector_store.health() if self._vector_store is not None else None
         vector_status_scope = scope_key_for_status(resolved_scope)
@@ -130,6 +138,11 @@ class IndexService:
         ):
             vector_plan = self._vector_plan(chunk_store=self._metadata_store, scope=resolved_scope, full=False)
             vector_stale_count = 0 if vector_plan is None else vector_plan.upsert_count + vector_plan.tombstone_count
+        graph_readiness = (
+            self._graph_readiness.check(requested_scope=resolved_scope, effective_scopes=effective_scopes)
+            if self._graph_readiness is not None
+            else _graph_not_configured_readiness(resolved_scope, effective_scopes)
+        )
         return StatusReport(
             active_vault_id=self._catalog.active_vault_id,
             vaults=tuple((entry.vault_id, str(entry.root_path)) for entry in self._catalog.entries()),
@@ -163,6 +176,7 @@ class IndexService:
             vector_stale_count=vector_stale_count,
             vector_last_error=run_status.last_error if run_status is not None else None,
             vector_status_scope=vector_status_scope,
+            graph_readiness=graph_readiness,
         )
 
     def _vector_plan(self, *, chunk_store: object, scope: QueryScope, full: bool) -> VectorRevisionPlan | None:
@@ -224,3 +238,38 @@ def _embedding_config_value[T](text_embeddings: TextEmbeddings | None, field_nam
     config = getattr(text_embeddings, "config", None)
     value = getattr(config, field_name, fallback)
     return value if isinstance(value, type(fallback)) or fallback is None else fallback
+
+
+def _graph_not_configured_readiness(
+    requested_scope: QueryScope,
+    effective_scopes: tuple[QueryScope, ...],
+) -> GraphReadiness:
+    spec = current_graph_extraction_spec()
+    return GraphReadiness(
+        backend_name="none",
+        backend_available=False,
+        schema_version="none",
+        schema_compatible=False,
+        graph_extraction_spec_version=spec.spec_version,
+        graph_extraction_spec_digest=spec.spec_digest,
+        graph_extraction_spec_compatible=False,
+        freshness="missing",
+        stale_count=0,
+        tombstone_count=0,
+        last_graph_revision=None,
+        affected_vault_ids=requested_scope.vault_ids,
+        scope_readiness=tuple(
+            GraphScopeReadiness(
+                vault_id=scope.vault_ids[0],
+                effective_scope=graph_scope_key(scope),
+                freshness="missing",
+                stale_count=0,
+                tombstone_count=0,
+                last_graph_revision=None,
+                warnings=(),
+            )
+            for scope in effective_scopes
+        ),
+        warnings=(),
+        recovery_hint="graph readiness is not configured",
+    )

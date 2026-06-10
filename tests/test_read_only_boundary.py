@@ -114,3 +114,22 @@ def test_index_rejects_metadata_symlink_redirect_into_vault(tmp_path: Path) -> N
     assert result.exit_code != 0
     assert "Vault Graph write target must stay inside the state path" in result.stdout
     assert not (vault_root / "wiki" / "metadata.sqlite3").exists()
+
+
+def test_status_with_graph_readiness_does_not_modify_vault_or_create_graph_state(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    (vault_root / "wiki").mkdir(parents=True)
+    (vault_root / "wiki" / "page.md").write_text("# Page\nBody\n", encoding="utf-8")
+    state_path = tmp_path / "state"
+    runner = CliRunner()
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    before = file_bytes(vault_root)
+
+    result = runner.invoke(app, ["status", "--state", str(state_path)])
+
+    assert result.exit_code == 0
+    assert file_bytes(vault_root) == before
+    assert not (state_path / "metadata").exists()
+    assert not (state_path / "vector").exists()
+    assert not (state_path / "graph").exists()
+    assert not (state_path / "projection_cache").exists()

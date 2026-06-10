@@ -20,6 +20,17 @@ def test_vector_state_path_cannot_be_inside_vault_root(tmp_path: Path) -> None:
     assert "state path must not be inside a registered Vault" in result.stdout
 
 
+def test_graph_state_path_cannot_be_inside_vault_root(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    state_path = vault_root / ".vault-graph"
+
+    result = runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+
+    assert result.exit_code != 0
+    assert "state path must not be inside a registered Vault" in result.stdout
+
+
 def test_dry_run_does_not_create_vector_or_metadata_state(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)

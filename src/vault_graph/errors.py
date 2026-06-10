@@ -32,3 +32,23 @@ class RetrievalContractError(VaultGraphError):
 
 class SearchError(VaultGraphError):
     """Raised when search cannot produce a valid response."""
+
+
+class GraphStoreError(VaultGraphError):
+    """Raised when graph store contracts are violated."""
+
+
+class GraphStoreUnavailable(GraphStoreError):
+    """Raised when graph state cannot be opened or queried."""
+
+
+class GraphSchemaIncompatible(GraphStoreError):
+    """Raised when graph state has an incompatible schema."""
+
+
+class GraphReadOnlyViolation(GraphStoreError):
+    """Raised when a graph write is attempted through a read-only store."""
+
+
+class GraphRecordInvalid(GraphStoreError):
+    """Raised when a graph record violates the public graph contract."""

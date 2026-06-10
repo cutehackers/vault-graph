@@ -7,17 +7,20 @@ from pathlib import Path
 import typer
 
 from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.index_service import IndexService
+from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.app.index_service import IndexService, StatusReport
 from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
 from vault_graph.errors import (
     CatalogError,
+    GraphStoreError,
     KeywordIndexError,
     ReadOnlyBoundaryError,
     SearchError,
     TextEmbeddingsError,
     VectorStoreError,
 )
+from vault_graph.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.retrieval import (
     RetrievalResult,
@@ -31,6 +34,7 @@ from vault_graph.retrieval import (
 )
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
+from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore
@@ -52,9 +56,11 @@ def _service(state: Path, *, initialize_store: bool) -> tuple[CatalogService, Va
         config.assert_write_target_safe(target_path=config.metadata_path, catalog=catalog)
         config.assert_write_target_safe(target_path=config.vector_path, catalog=catalog)
         config.assert_write_target_safe(target_path=config.vector_status_path, catalog=catalog)
+        config.assert_write_target_safe(target_path=config.graph_path, catalog=catalog)
         config.assert_cache_target_safe(target_path=config.embedding_cache_path, catalog=catalog)
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=initialize_store)
     text_embeddings = _text_embeddings(config)
+    graph_store = SQLiteGraphStore.open_read_only(config.graph_path)
     return (
         config,
         catalog,
@@ -69,6 +75,11 @@ def _service(state: Path, *, initialize_store: bool) -> tuple[CatalogService, Va
             embedding_batch_size=text_embeddings.config.embedding_batch_size,
             embedding_parallelism=text_embeddings.config.embedding_parallelism,
             embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
+            graph_readiness=ReadOnlyGraphReadiness(
+                metadata_store=metadata_store,
+                graph_store=graph_store,
+                expected_spec=current_graph_extraction_spec(),
+            ),
         ),
     )
 
@@ -238,9 +249,13 @@ def status(
     state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Report one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Report all enabled registered Vaults."),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
+        raise typer.Exit(1)
+    if output_format not in {"text", "json"}:
+        typer.echo("unsupported_format")
         raise typer.Exit(1)
     config, _, service = _exit_on_domain_error(lambda: _service(state, initialize_store=False))
     _, catalog = _exit_on_domain_error(lambda: _catalog(state))
@@ -252,6 +267,10 @@ def status(
     else:
         scope = _exit_on_domain_error(catalog.default_scope)
     report = service.status(scope=scope)
+    if output_format == "json":
+        payload = _status_report_json(report, config=config, selected_scope=scope)
+        typer.echo(json.dumps(payload, sort_keys=True, indent=2))
+        return
     typer.echo(f"state: {config.state_path}")
     typer.echo(f"active_vault_id: {report.active_vault_id}")
     for report_vault_id, root_path in report.vaults:
@@ -274,6 +293,21 @@ def status(
     typer.echo(f"vector_stale_count: {report.vector_stale_count}")
     typer.echo(f"vector_last_error: {report.vector_last_error}")
     typer.echo(f"vector_status_scope: {report.vector_status_scope}")
+    graph = report.graph_readiness
+    typer.echo(f"graph_backend: {graph.backend_name}")
+    typer.echo(f"graph_backend_available: {graph.backend_available}")
+    typer.echo(f"graph_schema_version: {graph.schema_version}")
+    typer.echo(f"graph_schema_compatible: {graph.schema_compatible}")
+    typer.echo(f"graph_extraction_spec_version: {graph.graph_extraction_spec_version}")
+    typer.echo(f"graph_extraction_spec_digest: {graph.graph_extraction_spec_digest}")
+    typer.echo(f"graph_extraction_spec_compatible: {graph.graph_extraction_spec_compatible}")
+    typer.echo(f"graph_freshness: {graph.freshness}")
+    typer.echo(f"graph_stale_count: {graph.stale_count}")
+    typer.echo(f"graph_tombstone_count: {graph.tombstone_count}")
+    typer.echo(f"graph_last_revision: {graph.last_graph_revision}")
+    for row in graph.scope_readiness:
+        typer.echo(f"graph_scope: {row.effective_scope} {row.freshness} {row.last_graph_revision}")
+    typer.echo(f"graph_recovery_hint: {graph.recovery_hint}")
 
 
 def _render_search_response(response: SearchResponse) -> None:
@@ -319,6 +353,71 @@ def _scope_json(scope: QueryScope) -> dict[str, object]:
         "vault_ids": list(scope.vault_ids),
         "content_scopes": list(scope.content_scopes),
         "include_cross_vault": scope.include_cross_vault,
+    }
+
+
+def _status_report_json(
+    report: StatusReport,
+    *,
+    config: CatalogService,
+    selected_scope: QueryScope,
+) -> dict[str, object]:
+    graph = report.graph_readiness
+    return {
+        "state": str(config.state_path),
+        "active_vault_id": report.active_vault_id,
+        "vaults": [{"vault_id": vault_id, "root_path": root_path} for vault_id, root_path in report.vaults],
+        "selected_scope": _scope_json(selected_scope),
+        "metadata": {
+            "ok": report.metadata_ok,
+            "schema_compatible": report.metadata_schema_compatible,
+            "message": report.metadata_message,
+        },
+        "vector": {
+            "ok": report.vector_ok,
+            "backend": report.vector_backend,
+            "schema_compatible": report.vector_schema_compatible,
+            "message": report.vector_message,
+            "embedding_model": report.embedding_model,
+            "embedding_model_version": report.embedding_model_version,
+            "embedding_dimensions": report.embedding_dimensions,
+            "embedding_spec_version": report.embedding_spec_version,
+            "embedding_batch_size": report.embedding_batch_size,
+            "embedding_parallelism": report.embedding_parallelism,
+            "embedding_lazy_load": report.embedding_lazy_load,
+            "revision": report.vector_revision,
+            "stale_count": report.vector_stale_count,
+            "last_error": report.vector_last_error,
+            "status_scope": report.vector_status_scope,
+        },
+        "graph": {
+            "backend_name": graph.backend_name,
+            "backend_available": graph.backend_available,
+            "schema_version": graph.schema_version,
+            "schema_compatible": graph.schema_compatible,
+            "graph_extraction_spec_version": graph.graph_extraction_spec_version,
+            "graph_extraction_spec_digest": graph.graph_extraction_spec_digest,
+            "graph_extraction_spec_compatible": graph.graph_extraction_spec_compatible,
+            "freshness": graph.freshness,
+            "stale_count": graph.stale_count,
+            "tombstone_count": graph.tombstone_count,
+            "last_graph_revision": graph.last_graph_revision,
+            "affected_vault_ids": list(graph.affected_vault_ids),
+            "scope_readiness": [
+                {
+                    "vault_id": row.vault_id,
+                    "effective_scope": row.effective_scope,
+                    "freshness": row.freshness,
+                    "stale_count": row.stale_count,
+                    "tombstone_count": row.tombstone_count,
+                    "last_graph_revision": row.last_graph_revision,
+                    "warnings": list(row.warnings),
+                }
+                for row in graph.scope_readiness
+            ],
+            "warnings": list(graph.warnings),
+            "recovery_hint": graph.recovery_hint,
+        },
     }
 
 
@@ -409,6 +508,7 @@ def _exit_on_domain_error[T](operation: Callable[[], T]) -> T:
         return operation()
     except (
         CatalogError,
+        GraphStoreError,
         KeywordIndexError,
         ReadOnlyBoundaryError,
         SearchError,

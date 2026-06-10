@@ -3,6 +3,90 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-10 - Phase 3A Implementation Review Fixes
+
+**Trigger:** Subagent review of the Phase 3A implementation found consistency
+risks in graph record scope membership, evidence freshness attribution, SQLite
+schema health, extraction spec compatibility, tombstone idempotence, and
+metadata-health handling.
+
+**Scope:** Phase 3A graph contracts, graph stores, readiness service, CLI
+status integration, and regression tests.
+
+**Core Values Protected:**
+
+- graph records remain scoped to the owning Vault/effective scope
+- stale evidence in one Vault does not make unrelated Vault scopes stale
+- SQLite graph readiness reports incompatible schema before read paths fail
+- `GraphExtractionSpec` remains the compatibility boundary until a migration
+  policy is explicitly accepted
+- graph tombstones stay rebuildable latest-state records, not append-only facts
+- `vg status` stays read-only when metadata or graph state is unavailable
+
+**Changes Applied:**
+
+- Added shared multi-scope `GraphStore` contract coverage and scoped record
+  membership by record owner Vault.
+- Changed graph evidence freshness checks from global manifest warnings to
+  per-effective-scope warnings.
+- Expanded SQLite graph schema health checks to every column read or written by
+  the backend.
+- Treated graph extraction spec version/digest drift as incompatible without a
+  migration policy.
+- Made tombstone application keep the latest tombstone per
+  `(record_kind, record_vault_id, record_id, effective_scope)`.
+- Short-circuited graph readiness when metadata health is unavailable or
+  incompatible.
+- Added SQLite-backed graph readiness coverage and stricter status read-only
+  state-cache assertions.
+
+**Verification:**
+
+- `uv run --python 3.12 pytest tests/test_graph_readiness.py -q`
+- `uv run --python 3.12 pytest tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py tests/test_multi_vault_graph_identity.py -q`
+- focused read-only status regression
+
+## 2026-06-10 - Phase 3A Implementation Plan Review Hardening
+
+**Trigger:** Multi-angle subagent review found that the first Phase 3A
+implementation plan left important graph readiness, manifest, and multi-vault
+details under-specified.
+
+**Scope:** `docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md`.
+
+**Core Values Protected:**
+
+- graph readiness cannot claim freshness without metadata-resolved evidence
+- graph manifests stay scoped without treating cached path text as authority
+- multi-vault graph status remains per Vault/effective scope
+- `GraphStore` stays a deep boundary with explicit records and backend-stamped
+  schema lineage
+- graph status remains read-only and typed when graph state is missing or
+  unavailable
+
+**Changes Applied:**
+
+- Added exact graph dataclass shapes for manifest rows, apply results, reconcile
+  plans, and explicit graph record scope membership.
+- Changed manifest membership to use explicit effective-scope rows instead of
+  cached graph evidence paths.
+- Required readiness to resolve graph evidence through `MetadataStore` and mark
+  unresolved or stale evidence as stale with recovery guidance.
+- Added per-scope graph readiness rows and status JSON output for all-vault
+  graph status.
+- Added explicit cross-vault manifest behavior using `include_cross_vault`.
+- Required SQLite graph stores to stamp backend schema version and upsert schema
+  metadata.
+- Chose latest tombstone per record/scope through UPSERT for idempotent
+  rebuildable derived state.
+- Added graph-domain error handling to the CLI status boundary.
+
+**Verification:**
+
+- multi-angle subagent review
+- placeholder and stale-path scans
+- `git diff --check`
+
 ## 2026-06-10 - Phase 3 Graph Specification Clarification
 
 **Trigger:** Phase 3 roadmap text was too thin to hand off to implementation,
