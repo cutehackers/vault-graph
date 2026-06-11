@@ -238,6 +238,12 @@ class InMemoryGraphStore:
             self._record_scopes[(record_scope.record_kind, entity.vault_id, entity.entity_id, actual_scope)] = (
                 record_scope
             )
+            self._clear_tombstone_for_record_scope(
+                record_kind="entity",
+                record_vault_id=entity.vault_id,
+                record_id=entity.entity_id,
+                actual_scope=actual_scope,
+            )
 
     def _record_relationship_scopes(
         self,
@@ -268,6 +274,25 @@ class InMemoryGraphStore:
                     actual_scope,
                 )
             ] = record_scope
+            self._clear_tombstone_for_record_scope(
+                record_kind="relationship",
+                record_vault_id=relationship.source_vault_id,
+                record_id=relationship.relationship_id,
+                actual_scope=actual_scope,
+            )
+
+    def _clear_tombstone_for_record_scope(
+        self,
+        *,
+        record_kind: str,
+        record_vault_id: str,
+        record_id: str,
+        actual_scope: str,
+    ) -> None:
+        key = (record_kind, record_vault_id, record_id, actual_scope)
+        tombstone_id = self._tombstones_by_record_scope.pop(key, None)
+        if tombstone_id is not None:
+            self._tombstones.pop(tombstone_id, None)
 
     def _tombstone_entity(self, tombstone: GraphTombstone) -> None:
         entity = self._entities.get((tombstone.record_vault_id, tombstone.record_id))

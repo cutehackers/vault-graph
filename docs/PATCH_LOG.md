@@ -3,6 +3,75 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-11 - Phase 3B Implementation Review Fixes
+
+**Trigger:** Subagent implementation review found that delete/tombstone graph
+reconciles could still report stale readiness and double-count tombstones.
+
+**Scope:** Phase 3B graph indexing, graph readiness, and regression tests.
+
+**Core Values Protected:**
+
+- `vg status` reflects current rebuildable graph state after successful indexing
+- tombstones remain latest-state derived records, not stale active evidence
+- relationship occurrence status is preserved across the indexing boundary
+- repeated graph indexing is idempotent for already tombstoned records
+
+**Changes Applied:**
+
+- Excluded tombstoned entities and deprecated relationships from graph evidence
+  freshness checks.
+- Reported current manifest tombstone counts without adding latest-run work
+  counts from graph revisions.
+- Stopped planning repeat tombstones for records already tombstoned in the
+  selected actual scope.
+- Preserved `RelationshipOccurrence.status` when creating relationship records.
+- Added regression coverage for delete reindex freshness, stale-count reset
+  after content refresh, repeat-delete idempotence, and relationship status
+  pass-through.
+
+**Verification:**
+
+- subagent implementation review and focused re-review
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src`
+- `uv run --python 3.12 mypy tests`
+
+## 2026-06-11 - Phase 3B Implementation Plan Review Hardening
+
+**Trigger:** Multi-angle review of the Phase 3B implementation plan found gaps
+in lineage staleness, dry-run safety, graph failure status, tombstone repair,
+scope normalization, and extractor package alignment.
+
+**Scope:** Phase 3B implementation plan only.
+
+**Core Values Protected:**
+
+- graph indexing remains read-only, rebuildable, and evidence-linked
+- status surfaces report graph freshness and failures without hidden state
+- whole-Vault graph scopes stay consistent across single-vault and all-vault runs
+- deterministic extraction uses stable domain names instead of roadmap labels
+- Phase 3B does not leak graph traversal into default search
+
+**Changes Applied:**
+
+- Moved extraction modules in the plan to `src/vault_graph/extraction/`.
+- Required behavior-named `GraphExtractionSpec` values and a version bump before
+  real graph indexing writes records.
+- Added graph status persistence for last graph success and failure.
+- Added graph store hardening for scoped tombstone repair and SQLite read errors.
+- Added lineage parity with graph readiness, including metadata schema fallback.
+- Added projection-cache invalidation plan keys without projection-cache writes.
+- Added unresolved-link warnings, dry-run side-effect checks, unsupported-scope
+  no-op checks, and default-search no-scope-creep regression coverage.
+
+**Verification:**
+
+- multi-angle subagent plan review
+- plan self-review against Phase 3B spec and current Phase 3A contracts
+- Markdown fence and stale-path scans
+
 ## 2026-06-11 - Phase 3B Design Consistency Update
 
 **Trigger:** Phase 3B detailed design was needed before implementation, and the

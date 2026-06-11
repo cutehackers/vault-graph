@@ -398,3 +398,80 @@ def test_in_memory_tombstones_are_latest_per_record_scope() -> None:
 
 def test_sqlite_tombstones_are_latest_per_record_scope(tmp_path: Path) -> None:
     tombstone_idempotence_contract(lambda: SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3"))
+
+
+def tombstone_repair_contract(factory: Callable[[], GraphStore]) -> None:
+    store = factory()
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+    source = make_entity("default")
+    target = make_entity("default", name="Target")
+    relationship = make_relationship(source, target)
+    spec = current_graph_extraction_spec()
+    entity_tombstone = GraphTombstone(
+        tombstone_id=stable_graph_tombstone_id(
+            record_kind="entity",
+            record_vault_id="default",
+            record_id=source.entity_id,
+            actual_scope=graph_scope_key(scope),
+        ),
+        record_kind="entity",
+        record_vault_id="default",
+        record_id=source.entity_id,
+        actual_scope=graph_scope_key(scope),
+        reason="missing_from_scope",
+        graph_run_id="graph-run-2",
+        graph_index_revision="graph-2",
+        graph_extraction_spec_version=spec.spec_version,
+        graph_extraction_spec_digest=spec.spec_digest,
+        tombstoned_at="2026-06-10T00:01:00+00:00",
+    )
+    relationship_tombstone = GraphTombstone(
+        tombstone_id=stable_graph_tombstone_id(
+            record_kind="relationship",
+            record_vault_id="default",
+            record_id=relationship.relationship_id,
+            actual_scope=graph_scope_key(scope),
+        ),
+        record_kind="relationship",
+        record_vault_id="default",
+        record_id=relationship.relationship_id,
+        actual_scope=graph_scope_key(scope),
+        reason="missing_from_scope",
+        graph_run_id="graph-run-2",
+        graph_index_revision="graph-2",
+        graph_extraction_spec_version=spec.spec_version,
+        graph_extraction_spec_digest=spec.spec_digest,
+        tombstoned_at="2026-06-10T00:01:00+00:00",
+    )
+    tombstone_plan = GraphReconcilePlan(
+        requested_scope=scope,
+        actual_scopes=(scope,),
+        graph_run_id="graph-run-2",
+        entity_upserts=(),
+        relationship_upserts=(),
+        evidence_ref_upserts=(),
+        entity_tombstones=(entity_tombstone,),
+        relationship_tombstones=(relationship_tombstone,),
+        graph_revision_rows=(make_revision(scope, entity_count=0, relationship_count=0),),
+        graph_extraction_spec=spec,
+        projection_cache_invalidations=(),
+    )
+
+    store.apply_reconcile_plan(tombstone_plan)
+    store.apply_reconcile_plan(make_plan(entities=(source, target), relationships=(relationship,), scope=scope))
+
+    manifest = store.current_manifest((scope,))
+    assert manifest.tombstone_rows == ()
+    assert store.get_entity(vault_id="default", entity_id=source.entity_id).status == "active"  # type: ignore[union-attr]
+    assert (
+        store.get_relationship(source_vault_id="default", relationship_id=relationship.relationship_id).status  # type: ignore[union-attr]
+        == "stated"
+    )
+
+
+def test_in_memory_active_upsert_clears_scoped_tombstones() -> None:
+    tombstone_repair_contract(lambda: InMemoryGraphStore())
+
+
+def test_sqlite_active_upsert_clears_scoped_tombstones(tmp_path: Path) -> None:
+    tombstone_repair_contract(lambda: SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3"))

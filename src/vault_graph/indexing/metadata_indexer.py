@@ -4,7 +4,12 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from vault_graph.indexing.revision_planner import MetadataIndexPreview, MetadataRevisionPlan
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentNormalizer, NormalizedDocument
+from vault_graph.ingestion.document_normalizer import (
+    ChunkSnapshot,
+    DocumentNormalizer,
+    DocumentSnapshot,
+    NormalizedDocument,
+)
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.ingestion.vault_loader import VaultLoader
 from vault_graph.storage.interfaces.metadata_store import DocumentState, MetadataStore
@@ -25,6 +30,19 @@ class MetadataIndexer:
         plan, normalized = self._build_plan(scope=scope, full=full)
         changed_keys = set(plan.changed_paths)
         unchanged_keys = set(plan.unchanged_paths)
+        changed_documents = tuple(
+            replace(item.document, index_revision=plan.index_revision)
+            for item in normalized
+            if (item.document.vault_id, item.document.path) in changed_keys
+        )
+        unchanged_documents = tuple(
+            document
+            for state in self._metadata_store.list_document_states(scope.vault_ids)
+            if (state.vault_id, state.path) in unchanged_keys
+            and state.document_id is not None
+            and (document := self._metadata_store.resolve_document(state.document_id)) is not None
+            and document.vault_id == state.vault_id
+        )
         changed_chunks = tuple(
             replace(chunk, index_revision=plan.index_revision)
             for item in normalized
@@ -39,6 +57,9 @@ class MetadataIndexer:
         return MetadataIndexPreview(
             plan=plan,
             chunks_after_apply=tuple(sorted(changed_chunks + unchanged_chunks, key=_chunk_sort_key)),
+            documents_after_apply=tuple(
+                sorted(changed_documents + unchanged_documents, key=_document_sort_key),
+            ),
         )
 
     def apply(self, *, scope: QueryScope, full: bool = False) -> MetadataRevisionPlan:
@@ -121,6 +142,10 @@ def _document_chunker_version(item: NormalizedDocument) -> str | None:
 
 def _chunk_sort_key(chunk: ChunkSnapshot) -> tuple[str, str, str]:
     return (chunk.vault_id, chunk.path, chunk.chunk_id)
+
+
+def _document_sort_key(document: DocumentSnapshot) -> tuple[str, str, str]:
+    return (document.vault_id, document.path, document.document_id)
 
 
 def _state_in_scope(*, state: DocumentState, scope: QueryScope) -> bool:

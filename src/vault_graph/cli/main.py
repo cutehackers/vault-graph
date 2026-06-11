@@ -13,6 +13,7 @@ from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
 from vault_graph.errors import (
     CatalogError,
+    GraphIndexingError,
     GraphStoreError,
     KeywordIndexError,
     ReadOnlyBoundaryError,
@@ -34,6 +35,7 @@ from vault_graph.retrieval import (
 )
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
+from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -57,10 +59,15 @@ def _service(state: Path, *, initialize_store: bool) -> tuple[CatalogService, Va
         config.assert_write_target_safe(target_path=config.vector_path, catalog=catalog)
         config.assert_write_target_safe(target_path=config.vector_status_path, catalog=catalog)
         config.assert_write_target_safe(target_path=config.graph_path, catalog=catalog)
+        config.assert_write_target_safe(target_path=config.graph_status_path, catalog=catalog)
         config.assert_cache_target_safe(target_path=config.embedding_cache_path, catalog=catalog)
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=initialize_store)
     text_embeddings = _text_embeddings(config)
-    graph_store = SQLiteGraphStore.open_read_only(config.graph_path)
+    graph_store = (
+        SQLiteGraphStore.open_writable(config.graph_path)
+        if initialize_store
+        else SQLiteGraphStore.open_read_only(config.graph_path)
+    )
     return (
         config,
         catalog,
@@ -75,6 +82,9 @@ def _service(state: Path, *, initialize_store: bool) -> tuple[CatalogService, Va
             embedding_batch_size=text_embeddings.config.embedding_batch_size,
             embedding_parallelism=text_embeddings.config.embedding_parallelism,
             embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
+            graph_store=graph_store,
+            graph_extraction_spec=current_graph_extraction_spec(),
+            graph_status_store=LocalGraphStatusStore(config.graph_status_path),
             graph_readiness=ReadOnlyGraphReadiness(
                 metadata_store=metadata_store,
                 graph_store=graph_store,
@@ -204,7 +214,26 @@ def index(
         if getattr(vector, "failed", False):
             typer.echo("vector_failed: True")
             typer.echo(f"vector_last_error: {getattr(vector, 'error', None)}")
-            raise typer.Exit(report.exit_code)
+    if report.graph is not None:
+        graph = report.graph
+        plan = graph.reconcile_plan
+        typer.echo(f"graph_mode: {graph.mode}")
+        typer.echo(f"graph_run_id: {plan.graph_run_id if plan is not None else None}")
+        typer.echo(f"graph_revision: {_graph_revision_text(graph)}")
+        typer.echo(f"graph_entities_upserted: {len(plan.entity_upserts) if plan is not None else 0}")
+        typer.echo(f"graph_relationships_upserted: {len(plan.relationship_upserts) if plan is not None else 0}")
+        typer.echo(f"graph_evidence_refs_upserted: {len(plan.evidence_ref_upserts) if plan is not None else 0}")
+        typer.echo(f"graph_tombstones: {_graph_tombstone_count(plan)}")
+        typer.echo(f"graph_stale: {graph.stale_count}")
+        spec = current_graph_extraction_spec()
+        typer.echo(f"graph_extraction_spec_version: {spec.spec_version}")
+        typer.echo(f"graph_extraction_spec_digest: {spec.spec_digest}")
+        typer.echo(f"graph_failed: {getattr(graph, 'failed', False)}")
+        typer.echo(f"graph_last_error: {getattr(graph, 'error', None)}")
+        for warning in graph.warnings:
+            typer.echo(f"graph_warning: {warning}")
+    if report.exit_code:
+        raise typer.Exit(report.exit_code)
 
 
 @app.command()
@@ -305,6 +334,8 @@ def status(
     typer.echo(f"graph_stale_count: {graph.stale_count}")
     typer.echo(f"graph_tombstone_count: {graph.tombstone_count}")
     typer.echo(f"graph_last_revision: {graph.last_graph_revision}")
+    typer.echo(f"graph_status_scope: {report.graph_status_scope}")
+    typer.echo(f"graph_last_error: {report.graph_last_error}")
     for row in graph.scope_readiness:
         typer.echo(f"graph_scope: {row.actual_scope} {row.freshness} {row.last_graph_revision}")
     typer.echo(f"graph_recovery_hint: {graph.recovery_hint}")
@@ -402,6 +433,8 @@ def _status_report_json(
             "stale_count": graph.stale_count,
             "tombstone_count": graph.tombstone_count,
             "last_graph_revision": graph.last_graph_revision,
+            "status_scope": report.graph_status_scope,
+            "last_error": report.graph_last_error,
             "affected_vault_ids": list(graph.affected_vault_ids),
             "scope_readiness": [
                 {
@@ -490,6 +523,24 @@ def _store_revision_json(revision: StoreRevision | SearchStoreRevision) -> dict[
     return payload
 
 
+def _graph_revision_text(graph: object) -> str | None:
+    apply_result = getattr(graph, "apply_result", None)
+    if apply_result is not None:
+        revisions = tuple(revision.graph_index_revision for revision in apply_result.graph_revision_rows)
+        return ",".join(sorted(set(revisions))) if revisions else None
+    plan = getattr(graph, "reconcile_plan", None)
+    if plan is None:
+        return None
+    revisions = tuple(revision.graph_index_revision for revision in plan.graph_revision_rows)
+    return ",".join(sorted(set(revisions))) if revisions else None
+
+
+def _graph_tombstone_count(plan: object | None) -> int:
+    if plan is None:
+        return 0
+    return len(plan.entity_tombstones) + len(plan.relationship_tombstones)  # type: ignore[attr-defined]
+
+
 def _warning_json(warning: SearchWarning) -> dict[str, object]:
     return {
         "code": warning.code,
@@ -508,6 +559,7 @@ def _exit_on_domain_error[T](operation: Callable[[], T]) -> T:
         return operation()
     except (
         CatalogError,
+        GraphIndexingError,
         GraphStoreError,
         KeywordIndexError,
         ReadOnlyBoundaryError,

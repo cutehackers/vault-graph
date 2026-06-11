@@ -83,4 +83,6 @@ def test_metadata_preview_contains_chunks_after_apply_without_writing(tmp_path: 
     assert preview.plan.changed_paths == (("default", "wiki/page.md"),)
     assert len(preview.chunks_after_apply) == 1
     assert preview.chunks_after_apply[0].index_revision == preview.plan.index_revision
+    assert len(preview.documents_after_apply) == 1
+    assert preview.documents_after_apply[0].index_revision == preview.plan.index_revision
     assert not (tmp_path / "state" / "metadata.sqlite3").exists()

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 
 
 @dataclass(frozen=True)
@@ -18,3 +18,4 @@ class MetadataRevisionPlan:
 class MetadataIndexPreview:
     plan: MetadataRevisionPlan
     chunks_after_apply: tuple[ChunkSnapshot, ...]
+    documents_after_apply: tuple[DocumentSnapshot, ...]

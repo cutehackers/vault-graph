@@ -4,7 +4,13 @@ from pathlib import Path
 import pytest
 
 from tests.test_graph_store_contract import graph_store_contract, make_entity, make_plan
-from vault_graph.errors import GraphReadOnlyViolation
+from vault_graph.errors import GraphReadOnlyViolation, GraphStoreUnavailable
+from vault_graph.extraction.entity_extractor import DeterministicEntityExtractor
+from vault_graph.extraction.graph_source_store import PreviewGraphSourceStore
+from vault_graph.extraction.relationship_extractor import DeterministicRelationshipExtractor
+from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.indexing.graph_indexer import GraphIndexer
+from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.local.sqlite_graph_store import GRAPH_SCHEMA_VERSION, SQLiteGraphStore
 
@@ -150,3 +156,61 @@ def test_sqlite_graph_health_checks_every_required_read_column(tmp_path: Path) -
     assert health.ok is False
     assert health.schema_compatible is False
     assert "entity_schema_version" in health.message
+
+
+def test_sqlite_current_manifest_wraps_read_time_sqlite_errors(tmp_path: Path) -> None:
+    path = tmp_path / "graph.sqlite3"
+    store = SQLiteGraphStore.open_writable(path)
+    entity = make_entity("default")
+    store.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP TABLE graph_record_scopes")
+
+    with pytest.raises(GraphStoreUnavailable):
+        store.current_manifest((QueryScope(vault_ids=("default",), content_scopes=("wiki",)),))
+
+
+def test_sqlite_graph_store_accepts_graph_indexer_apply_plan(tmp_path: Path) -> None:
+    document = DocumentSnapshot(
+        vault_id="default",
+        document_id="doc",
+        path="wiki/page.md",
+        kind="wiki",
+        frontmatter={"title": "Page"},
+        frontmatter_hash="frontmatter",
+        content_hash="content",
+        raw_sha256="raw",
+        parser_version="markdown-frontmatter-v1",
+        last_seen_at="2026-06-11T00:00:00+00:00",
+        last_indexed_at=None,
+        vault_revision=None,
+        index_revision="metadata-1",
+    )
+    chunk = ChunkSnapshot(
+        vault_id="default",
+        chunk_id="chunk",
+        document_id="doc",
+        path="wiki/page.md",
+        section="Architecture",
+        anchor="architecture",
+        text="Body",
+        token_count=1,
+        content_hash="chunk-hash",
+        chunker_version="heading-section-v1",
+        index_revision="metadata-1",
+    )
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+    store = SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3")
+    result = GraphIndexer(
+        source_store=PreviewGraphSourceStore(chunks=(chunk,), documents=(document,)),
+        graph_store=store,
+        entity_extractor=DeterministicEntityExtractor(),
+        relationship_extractor=DeterministicRelationshipExtractor(),
+        graph_extraction_spec=current_graph_extraction_spec(),
+        metadata_schema_version="metadata-v1",
+    ).apply(requested_scope=scope, actual_scopes=(scope,))
+
+    manifest = store.current_manifest((scope,))
+    assert result.failed is False
+    assert manifest.entity_rows
+    assert store.latest_revisions((scope,))[0].metadata_index_revision == "metadata-1"

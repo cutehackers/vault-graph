@@ -355,17 +355,20 @@ class SQLiteGraphStore:
     def stored_specs(self) -> tuple[GraphExtractionSpec, ...]:
         if not self._database_path.exists():
             return ()
-        with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT spec_version, spec_digest, entity_schema_version, relationship_schema_version,
-                       entity_extractor_name, entity_extractor_version, relationship_extractor_name,
-                       relationship_extractor_version, relationship_status_rules_version,
-                       confidence_rules_version, serialized_spec
-                FROM graph_specs
-                ORDER BY spec_version, spec_digest
-                """
-            ).fetchall()
+        try:
+            with self._connect() as connection:
+                rows = connection.execute(
+                    """
+                    SELECT spec_version, spec_digest, entity_schema_version, relationship_schema_version,
+                           entity_extractor_name, entity_extractor_version, relationship_extractor_name,
+                           relationship_extractor_version, relationship_status_rules_version,
+                           confidence_rules_version, serialized_spec
+                    FROM graph_specs
+                    ORDER BY spec_version, spec_digest
+                    """
+                ).fetchall()
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
         return tuple(_spec_from_row(row) for row in rows)
 
     def latest_revisions(self, scopes: tuple[QueryScope, ...]) -> tuple[GraphRevision, ...]:
@@ -373,23 +376,26 @@ class SQLiteGraphStore:
         if not self._database_path.exists():
             return ()
         revisions: list[GraphRevision] = []
-        with self._connect() as connection:
-            for scope in scopes:
-                row = connection.execute(
-                    """
-                    SELECT graph_run_id, vault_id, actual_scope, graph_store_schema_version,
-                           graph_extraction_spec_version, graph_extraction_spec_digest, graph_index_revision,
-                           metadata_index_revision, parser_version, chunker_version, entity_count,
-                           relationship_count, stale_count, tombstone_count, updated_at
-                    FROM graph_revisions
-                    WHERE vault_id = ? AND actual_scope = ?
-                    ORDER BY updated_at DESC, graph_index_revision DESC
-                    LIMIT 1
-                    """,
-                    (scope.vault_ids[0], graph_scope_key(scope)),
-                ).fetchone()
-                if row is not None:
-                    revisions.append(_revision_from_row(row))
+        try:
+            with self._connect() as connection:
+                for scope in scopes:
+                    row = connection.execute(
+                        """
+                        SELECT graph_run_id, vault_id, actual_scope, graph_store_schema_version,
+                               graph_extraction_spec_version, graph_extraction_spec_digest, graph_index_revision,
+                               metadata_index_revision, parser_version, chunker_version, entity_count,
+                               relationship_count, stale_count, tombstone_count, updated_at
+                        FROM graph_revisions
+                        WHERE vault_id = ? AND actual_scope = ?
+                        ORDER BY updated_at DESC, graph_index_revision DESC
+                        LIMIT 1
+                        """,
+                        (scope.vault_ids[0], graph_scope_key(scope)),
+                    ).fetchone()
+                    if row is not None:
+                        revisions.append(_revision_from_row(row))
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
         return tuple(revisions)
 
     def current_manifest(self, scopes: tuple[QueryScope, ...]) -> GraphManifest:
@@ -403,36 +409,39 @@ class SQLiteGraphStore:
         entity_rows: list[GraphManifestEntity] = []
         relationship_rows: list[GraphManifestRelationship] = []
         evidence_ids: set[str] = set()
-        with self._connect() as connection:
-            memberships = _record_scopes(connection, scope_keys=scope_keys)
-            for membership in memberships:
-                if membership.record_kind == "entity":
-                    entity = self.get_entity(vault_id=membership.record_vault_id, entity_id=membership.record_id)
-                    if entity is None:
-                        continue
-                    entity_rows.append(_entity_manifest_row(entity=entity, membership=membership))
-                    evidence_ids.update(ref.evidence_ref_id for ref in entity.evidence_refs)
-                if membership.record_kind == "relationship":
-                    relationship = self.get_relationship(
-                        source_vault_id=membership.record_vault_id,
-                        relationship_id=membership.record_id,
-                    )
-                    if relationship is None:
-                        continue
-                    scope = scopes_by_key[membership.actual_scope]
-                    if not _relationship_allowed(
-                        relationship=relationship,
-                        scope=scope,
-                        selected_vault_ids=selected_vault_ids,
-                        include_cross_vault=include_cross_vault,
-                    ):
-                        continue
-                    relationship_rows.append(
-                        _relationship_manifest_row(relationship=relationship, membership=membership)
-                    )
-                    evidence_ids.update(ref.evidence_ref_id for ref in relationship.evidence_refs)
-            evidence_rows = _manifest_evidence_rows(connection, evidence_ids=evidence_ids)
-            tombstone_rows = _manifest_tombstones(connection, scope_keys=scope_keys)
+        try:
+            with self._connect() as connection:
+                memberships = _record_scopes(connection, scope_keys=scope_keys)
+                for membership in memberships:
+                    if membership.record_kind == "entity":
+                        entity = self.get_entity(vault_id=membership.record_vault_id, entity_id=membership.record_id)
+                        if entity is None:
+                            continue
+                        entity_rows.append(_entity_manifest_row(entity=entity, membership=membership))
+                        evidence_ids.update(ref.evidence_ref_id for ref in entity.evidence_refs)
+                    if membership.record_kind == "relationship":
+                        relationship = self.get_relationship(
+                            source_vault_id=membership.record_vault_id,
+                            relationship_id=membership.record_id,
+                        )
+                        if relationship is None:
+                            continue
+                        scope = scopes_by_key[membership.actual_scope]
+                        if not _relationship_allowed(
+                            relationship=relationship,
+                            scope=scope,
+                            selected_vault_ids=selected_vault_ids,
+                            include_cross_vault=include_cross_vault,
+                        ):
+                            continue
+                        relationship_rows.append(
+                            _relationship_manifest_row(relationship=relationship, membership=membership)
+                        )
+                        evidence_ids.update(ref.evidence_ref_id for ref in relationship.evidence_refs)
+                evidence_rows = _manifest_evidence_rows(connection, evidence_ids=evidence_ids)
+                tombstone_rows = _manifest_tombstones(connection, scope_keys=scope_keys)
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
         revision_rows = self.latest_revisions(scopes)
         spec = current_graph_extraction_spec()
         if revision_rows:
@@ -459,50 +468,56 @@ class SQLiteGraphStore:
     def get_entity(self, *, vault_id: str, entity_id: str) -> EntityRecord | None:
         if not self._database_path.exists():
             return None
-        with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT vault_id, entity_id, type, name, normalized_name, aliases_json, canonical_path,
-                       confidence, extraction_method, graph_extraction_spec_version,
-                       graph_extraction_spec_digest, status, created_at, updated_at, graph_index_revision
-                FROM graph_entities
-                WHERE vault_id = ? AND entity_id = ?
-                """,
-                (vault_id, entity_id),
-            ).fetchone()
-            if row is None:
-                return None
-            evidence_refs = _evidence_refs_for_owner(
-                connection,
-                owner_kind="entity",
-                owner_vault_id=vault_id,
-                owner_id=entity_id,
-            )
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    """
+                    SELECT vault_id, entity_id, type, name, normalized_name, aliases_json, canonical_path,
+                           confidence, extraction_method, graph_extraction_spec_version,
+                           graph_extraction_spec_digest, status, created_at, updated_at, graph_index_revision
+                    FROM graph_entities
+                    WHERE vault_id = ? AND entity_id = ?
+                    """,
+                    (vault_id, entity_id),
+                ).fetchone()
+                if row is None:
+                    return None
+                evidence_refs = _evidence_refs_for_owner(
+                    connection,
+                    owner_kind="entity",
+                    owner_vault_id=vault_id,
+                    owner_id=entity_id,
+                )
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
         return _entity_from_row(row, evidence_refs=evidence_refs)
 
     def get_relationship(self, *, source_vault_id: str, relationship_id: str) -> RelationshipRecord | None:
         if not self._database_path.exists():
             return None
-        with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT source_vault_id, relationship_id, type, source_entity_id, target_vault_id,
-                       target_entity_id, status, confidence, extraction_method,
-                       graph_extraction_spec_version, graph_extraction_spec_digest, created_at,
-                       updated_at, graph_index_revision
-                FROM graph_relationships
-                WHERE source_vault_id = ? AND relationship_id = ?
-                """,
-                (source_vault_id, relationship_id),
-            ).fetchone()
-            if row is None:
-                return None
-            evidence_refs = _evidence_refs_for_owner(
-                connection,
-                owner_kind="relationship",
-                owner_vault_id=source_vault_id,
-                owner_id=relationship_id,
-            )
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    """
+                    SELECT source_vault_id, relationship_id, type, source_entity_id, target_vault_id,
+                           target_entity_id, status, confidence, extraction_method,
+                           graph_extraction_spec_version, graph_extraction_spec_digest, created_at,
+                           updated_at, graph_index_revision
+                    FROM graph_relationships
+                    WHERE source_vault_id = ? AND relationship_id = ?
+                    """,
+                    (source_vault_id, relationship_id),
+                ).fetchone()
+                if row is None:
+                    return None
+                evidence_refs = _evidence_refs_for_owner(
+                    connection,
+                    owner_kind="relationship",
+                    owner_vault_id=source_vault_id,
+                    owner_id=relationship_id,
+                )
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
         return _relationship_from_row(row, evidence_refs=evidence_refs)
 
     def resolve_entities(self, identities: tuple[GraphEntityIdentity, ...]) -> tuple[EntityRecord, ...]:
@@ -1097,6 +1112,13 @@ def _upsert_record_scopes(
                 plan.graph_extraction_spec.spec_digest,
             ),
         )
+        _clear_record_tombstone(
+            connection,
+            record_kind=record_kind,
+            record_vault_id=record_vault_id,
+            record_id=record_id,
+            actual_scope=actual_scope,
+        )
 
 
 def _upsert_tombstone(connection: sqlite3.Connection, tombstone: GraphTombstone) -> None:
@@ -1145,6 +1167,26 @@ def _upsert_tombstone(connection: sqlite3.Connection, tombstone: GraphTombstone)
             tombstone.graph_extraction_spec_digest,
             tombstone.tombstoned_at,
         ),
+    )
+
+
+def _clear_record_tombstone(
+    connection: sqlite3.Connection,
+    *,
+    record_kind: str,
+    record_vault_id: str,
+    record_id: str,
+    actual_scope: str,
+) -> None:
+    connection.execute(
+        """
+        DELETE FROM graph_tombstones
+        WHERE record_kind = ?
+          AND record_vault_id = ?
+          AND record_id = ?
+          AND actual_scope = ?
+        """,
+        (record_kind, record_vault_id, record_id, actual_scope),
     )
 
 

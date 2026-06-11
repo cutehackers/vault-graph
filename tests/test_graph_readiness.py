@@ -415,7 +415,7 @@ def test_graph_readiness_reports_incompatible_when_spec_version_changes_without_
     different_spec = current_graph_extraction_spec().__class__.from_payload(
         {
             **current_graph_extraction_spec().payload(),
-            "spec_version": "graph-extraction-spec-v2",
+            "spec_version": "graph-extraction-spec-v3",
         }
     )
     service = ReadOnlyGraphReadiness(

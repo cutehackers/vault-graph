@@ -286,15 +286,14 @@ class ReadOnlyGraphReadiness:
                 warnings.extend(evidence_warnings_by_scope[scope_key])
             else:
                 freshness = "fresh"
-            stale_count = len(warnings) + (revision.stale_count if revision is not None else 0)
+            stale_count = len(warnings)
             readiness.append(
                 GraphScopeReadiness(
                     vault_id=scope.vault_ids[0],
                     actual_scope=scope_key,
                     freshness=freshness,
                     stale_count=stale_count,
-                    tombstone_count=tombstones_by_scope.get(scope_key, 0)
-                    + (revision.tombstone_count if revision is not None else 0),
+                    tombstone_count=tombstones_by_scope.get(scope_key, 0),
                     last_graph_revision=revision.graph_index_revision if revision is not None else None,
                     warnings=tuple(warnings),
                 )
@@ -311,10 +310,14 @@ def _evidence_warnings_by_scope(
     scope_by_vault_id = {scope.vault_ids[0]: graph_scope_key(scope) for scope in actual_scopes}
     evidence_ids_by_scope: dict[str, set[str]] = {graph_scope_key(scope): set() for scope in actual_scopes}
     for entity in manifest.entity_rows:
+        if entity.status == "tombstoned":
+            continue
         scope_key = scope_by_vault_id.get(entity.vault_id)
         if scope_key is not None:
             evidence_ids_by_scope[scope_key].update(entity.evidence_ref_ids)
     for relationship in manifest.relationship_rows:
+        if relationship.status == "deprecated":
+            continue
         scope_key = scope_by_vault_id.get(relationship.source_vault_id)
         if scope_key is not None:
             evidence_ids_by_scope[scope_key].update(relationship.evidence_ref_ids)

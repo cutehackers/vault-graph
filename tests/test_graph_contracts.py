@@ -18,10 +18,29 @@ from vault_graph.graph.graph_identity import (
 
 def test_current_graph_extraction_spec_has_canonical_digest() -> None:
     spec = current_graph_extraction_spec()
+    legacy = GraphExtractionSpec.from_payload(
+        {
+            "spec_version": "graph-extraction-spec-v1",
+            "entity_schema_version": "entity-schema-v1",
+            "relationship_schema_version": "relationship-schema-v1",
+            "entity_extractor_name": "phase-3b-local-entity-extractor",
+            "entity_extractor_version": "contract-v1",
+            "relationship_extractor_name": "phase-3b-local-relationship-extractor",
+            "relationship_extractor_version": "contract-v1",
+            "relationship_status_rules_version": "relationship-status-rules-v1",
+            "confidence_rules_version": "confidence-rules-v1",
+        }
+    )
 
-    assert spec.spec_version == "graph-extraction-spec-v1"
+    assert spec.spec_version == "graph-extraction-spec-v2"
+    assert spec.entity_extractor_name == "local-deterministic-entity-extractor"
+    assert spec.relationship_extractor_name == "local-deterministic-relationship-extractor"
+    assert "phase" not in spec.entity_extractor_name
+    assert "phase" not in spec.relationship_extractor_name
     assert len(spec.spec_digest) == 64
     assert spec.spec_digest == GraphExtractionSpec.from_payload(spec.payload()).spec_digest
+    assert legacy.spec_version != spec.spec_version
+    assert legacy.spec_digest != spec.spec_digest
 
 
 def test_entity_id_is_stable_and_vault_scoped() -> None:

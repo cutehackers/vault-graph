@@ -52,3 +52,19 @@ class GraphReadOnlyViolation(GraphStoreError):
 
 class GraphRecordInvalid(GraphStoreError):
     """Raised when a graph record violates the public graph contract."""
+
+
+class GraphIndexingError(VaultGraphError):
+    """Raised when graph indexing cannot complete."""
+
+
+class GraphExtractionError(GraphIndexingError):
+    """Raised when deterministic graph extraction produces invalid data."""
+
+
+class GraphReconcileError(GraphIndexingError):
+    """Raised when desired graph state cannot be reconciled with current state."""
+
+
+class UnsupportedGraphScopeWidthError(GraphIndexingError):
+    """Raised when graph indexing is requested for content-scope-limited paths."""

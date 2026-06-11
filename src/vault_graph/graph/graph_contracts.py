@@ -84,13 +84,13 @@ class GraphExtractionSpec:
 def current_graph_extraction_spec() -> GraphExtractionSpec:
     return GraphExtractionSpec.from_payload(
         {
-            "spec_version": "graph-extraction-spec-v1",
+            "spec_version": "graph-extraction-spec-v2",
             "entity_schema_version": "entity-schema-v1",
             "relationship_schema_version": "relationship-schema-v1",
-            "entity_extractor_name": "phase-3b-local-entity-extractor",
-            "entity_extractor_version": "contract-v1",
-            "relationship_extractor_name": "phase-3b-local-relationship-extractor",
-            "relationship_extractor_version": "contract-v1",
+            "entity_extractor_name": "local-deterministic-entity-extractor",
+            "entity_extractor_version": "explicit-signals-v1",
+            "relationship_extractor_name": "local-deterministic-relationship-extractor",
+            "relationship_extractor_version": "explicit-signals-v1",
             "relationship_status_rules_version": "relationship-status-rules-v1",
             "confidence_rules_version": "confidence-rules-v1",
         }
