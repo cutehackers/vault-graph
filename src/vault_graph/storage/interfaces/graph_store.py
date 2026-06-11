@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Protocol
 
 from vault_graph.graph.graph_contracts import (
@@ -12,20 +11,28 @@ from vault_graph.graph.graph_contracts import (
     GraphRevision,
     RelationshipRecord,
 )
+from vault_graph.graph.graph_query import (
+    GraphEntityIdentity,
+    GraphEntityMatch,
+    GraphEntityQuery,
+    GraphEntityQueryResult,
+    GraphRelationshipIdentity,
+    GraphRelationshipQuery,
+    GraphRelationshipQueryResult,
+)
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
-
-@dataclass(frozen=True)
-class GraphEntityIdentity:
-    vault_id: str
-    entity_id: str
-
-
-@dataclass(frozen=True)
-class GraphRelationshipIdentity:
-    source_vault_id: str
-    relationship_id: str
+__all__ = [
+    "GraphEntityIdentity",
+    "GraphEntityMatch",
+    "GraphEntityQuery",
+    "GraphEntityQueryResult",
+    "GraphRelationshipIdentity",
+    "GraphRelationshipQuery",
+    "GraphRelationshipQueryResult",
+    "GraphStore",
+]
 
 
 class GraphStore(Protocol):
@@ -54,6 +61,12 @@ class GraphStore(Protocol):
         self,
         identities: tuple[GraphRelationshipIdentity, ...],
     ) -> tuple[RelationshipRecord, ...]:
+        raise NotImplementedError
+
+    def find_entities(self, query: GraphEntityQuery) -> GraphEntityQueryResult:
+        raise NotImplementedError
+
+    def relationships_for_entities(self, query: GraphRelationshipQuery) -> GraphRelationshipQueryResult:
         raise NotImplementedError
 
     def apply_reconcile_plan(self, plan: GraphReconcilePlan) -> GraphApplyResult:

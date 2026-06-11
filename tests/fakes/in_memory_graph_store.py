@@ -17,7 +17,14 @@ from vault_graph.graph.graph_contracts import (
     RelationshipRecord,
     current_graph_extraction_spec,
 )
-from vault_graph.graph.graph_identity import graph_scope_key
+from vault_graph.graph.graph_identity import graph_scope_key, normalize_entity_name
+from vault_graph.graph.graph_query import (
+    GraphEntityMatch,
+    GraphEntityQuery,
+    GraphEntityQueryResult,
+    GraphRelationshipQuery,
+    GraphRelationshipQueryResult,
+)
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.graph_store import GraphEntityIdentity, GraphRelationshipIdentity
 from vault_graph.storage.interfaces.store_health import StoreHealth
@@ -153,6 +160,120 @@ class InMemoryGraphStore:
                 )
             )
             is not None
+        )
+
+    def find_entities(self, query: GraphEntityQuery) -> GraphEntityQueryResult:
+        candidates = tuple(
+            sorted(
+                (
+                    entity
+                    for entity in self._entities.values()
+                    if _entity_in_query_scope(
+                        entity=entity,
+                        query=query,
+                        record_scopes=self._record_scopes,
+                    )
+                ),
+                key=lambda entity: (entity.vault_id, entity.normalized_name, entity.entity_id),
+            )
+        )
+        raw_text = query.text.strip()
+        normalized_text = normalize_entity_name(raw_text)
+        matches_by_entity: dict[tuple[str, str], GraphEntityMatch] = {}
+
+        for entity in candidates:
+            match = _exact_entity_match(entity=entity, raw_text=raw_text, normalized_text=normalized_text)
+            if match is not None:
+                matches_by_entity[(entity.vault_id, entity.entity_id)] = match
+
+        scanned = 0
+        scan_truncated = False
+        for entity in candidates:
+            if (entity.vault_id, entity.entity_id) in matches_by_entity:
+                continue
+            if scanned >= query.scan_limit:
+                scan_truncated = True
+                break
+            scanned += 1
+            match = _fallback_entity_match(entity=entity, raw_text=raw_text, normalized_text=normalized_text)
+            if match is not None:
+                matches_by_entity[(entity.vault_id, entity.entity_id)] = match
+
+        matches = tuple(
+            sorted(
+                matches_by_entity.values(),
+                key=lambda match: (
+                    match.match_rank,
+                    match.entity.vault_id,
+                    match.entity.normalized_name,
+                    match.entity.entity_id,
+                ),
+            )
+        )
+        return GraphEntityQueryResult(
+            matches=matches[: query.limit],
+            truncated=scan_truncated or len(matches) > query.limit,
+            affected_vault_ids=_actual_vault_ids(query.actual_scopes),
+        )
+
+    def relationships_for_entities(self, query: GraphRelationshipQuery) -> GraphRelationshipQueryResult:
+        scope_keys = _query_scope_keys(query.actual_scopes)
+        scopes_by_key = _scopes_by_query_key(query.actual_scopes)
+        selected_vault_ids = {vault_id for scope in query.actual_scopes for vault_id in scope.vault_ids}
+        include_cross_vault = query.include_cross_vault or any(
+            scope.include_cross_vault for scope in query.actual_scopes
+        )
+        seeds = {(seed.vault_id, seed.entity_id) for seed in query.seeds}
+        matches: list[RelationshipRecord] = []
+        omitted_cross_vault_count = 0
+        seen: set[tuple[str, str]] = set()
+
+        for membership in sorted(
+            self._record_scopes.values(),
+            key=lambda membership: (membership.record_vault_id, membership.record_id, membership.actual_scope),
+        ):
+            if membership.record_kind != "relationship" or membership.actual_scope not in scope_keys:
+                continue
+            key = (membership.record_vault_id, membership.record_id)
+            if key in seen:
+                continue
+            relationship = self._relationships.get(key)
+            if relationship is None:
+                continue
+            if not _relationship_query_candidate(relationship=relationship, query=query, seeds=seeds):
+                continue
+            scope = scopes_by_key[membership.actual_scope]
+            if not _relationship_allowed(
+                relationship=relationship,
+                scope=scope,
+                selected_vault_ids=selected_vault_ids,
+                include_cross_vault=include_cross_vault,
+            ):
+                omitted_cross_vault_count += 1
+                continue
+            seen.add(key)
+            matches.append(relationship)
+
+        sorted_matches = tuple(
+            sorted(
+                matches,
+                key=lambda relationship: (
+                    relationship.source_vault_id,
+                    relationship.target_vault_id,
+                    relationship.type,
+                    relationship.relationship_id,
+                ),
+            )
+        )
+        returned = sorted_matches[: query.limit]
+        return GraphRelationshipQueryResult(
+            relationships=returned,
+            truncated=len(sorted_matches) > query.limit,
+            omitted_cross_vault_count=omitted_cross_vault_count,
+            affected_vault_ids=_relationship_affected_vault_ids(
+                relationships=returned,
+                fallback_vault_ids=_actual_vault_ids(query.actual_scopes),
+            ),
         )
 
     def apply_reconcile_plan(self, plan: GraphReconcilePlan) -> GraphApplyResult:
@@ -344,6 +465,132 @@ def _ensure_actual_scopes(scopes: tuple[QueryScope, ...]) -> None:
     for scope in scopes:
         if len(scope.vault_ids) != 1:
             raise GraphStoreError("GraphStore operations require per-Vault actual scopes")
+
+
+def _actual_vault_ids(scopes: tuple[QueryScope, ...]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(vault_id for scope in scopes for vault_id in scope.vault_ids))
+
+
+def _query_scope_keys(scopes: tuple[QueryScope, ...]) -> set[str]:
+    keys: set[str] = set()
+    for scope in scopes:
+        keys.add(graph_scope_key(scope))
+        if scope.include_cross_vault:
+            local_scope = QueryScope(vault_ids=scope.vault_ids, content_scopes=scope.content_scopes)
+            keys.add(graph_scope_key(local_scope))
+    return keys
+
+
+def _scopes_by_query_key(scopes: tuple[QueryScope, ...]) -> dict[str, QueryScope]:
+    scopes_by_key: dict[str, QueryScope] = {}
+    for scope in scopes:
+        scopes_by_key[graph_scope_key(scope)] = scope
+        if scope.include_cross_vault:
+            local_scope = QueryScope(vault_ids=scope.vault_ids, content_scopes=scope.content_scopes)
+            scopes_by_key[graph_scope_key(local_scope)] = scope
+    return scopes_by_key
+
+
+def _entity_in_query_scope(
+    *,
+    entity: EntityRecord,
+    query: GraphEntityQuery,
+    record_scopes: dict[tuple[str, str, str, str], GraphRecordScope],
+) -> bool:
+    if entity.status != "active":
+        return False
+    if query.types and entity.type not in query.types:
+        return False
+    scope_keys = _query_scope_keys(query.actual_scopes)
+    return any(
+        (
+            membership.record_kind == "entity"
+            and membership.record_vault_id == entity.vault_id
+            and membership.record_id == entity.entity_id
+            and membership.actual_scope in scope_keys
+        )
+        for membership in record_scopes.values()
+    )
+
+
+def _exact_entity_match(
+    *,
+    entity: EntityRecord,
+    raw_text: str,
+    normalized_text: str,
+) -> GraphEntityMatch | None:
+    if entity.entity_id == raw_text:
+        return GraphEntityMatch(entity=entity, match_kind="entity_id", match_rank=1, matched_value=raw_text)
+    if entity.normalized_name == normalized_text:
+        return GraphEntityMatch(
+            entity=entity,
+            match_kind="normalized_name",
+            match_rank=3,
+            matched_value=entity.normalized_name,
+        )
+    return None
+
+
+def _fallback_entity_match(
+    *,
+    entity: EntityRecord,
+    raw_text: str,
+    normalized_text: str,
+) -> GraphEntityMatch | None:
+    if entity.canonical_path == raw_text:
+        return GraphEntityMatch(
+            entity=entity,
+            match_kind="canonical_path",
+            match_rank=2,
+            matched_value=raw_text,
+        )
+    for alias in entity.aliases:
+        if normalize_entity_name(alias) == normalized_text:
+            return GraphEntityMatch(entity=entity, match_kind="alias", match_rank=4, matched_value=alias)
+    for alias in entity.aliases:
+        if normalized_text in entity.normalized_name or normalized_text in normalize_entity_name(alias):
+            return GraphEntityMatch(entity=entity, match_kind="contains", match_rank=5, matched_value=alias)
+    if normalized_text in entity.normalized_name:
+        return GraphEntityMatch(
+            entity=entity,
+            match_kind="contains",
+            match_rank=5,
+            matched_value=entity.normalized_name,
+        )
+    return None
+
+
+def _relationship_query_candidate(
+    *,
+    relationship: RelationshipRecord,
+    query: GraphRelationshipQuery,
+    seeds: set[tuple[str, str]],
+) -> bool:
+    if query.relationship_types and relationship.type not in query.relationship_types:
+        return False
+    if relationship.status not in query.statuses:
+        return False
+    source = (relationship.source_vault_id, relationship.source_entity_id)
+    target = (relationship.target_vault_id, relationship.target_entity_id)
+    if query.direction == "out":
+        return source in seeds
+    if query.direction == "in":
+        return target in seeds
+    return source in seeds or target in seeds
+
+
+def _relationship_affected_vault_ids(
+    *,
+    relationships: tuple[RelationshipRecord, ...],
+    fallback_vault_ids: tuple[str, ...],
+) -> tuple[str, ...]:
+    vault_ids: list[str] = []
+    for relationship in relationships:
+        vault_ids.extend((relationship.source_vault_id, relationship.target_vault_id))
+        vault_ids.extend(ref.evidence_vault_id for ref in relationship.evidence_refs)
+    if not vault_ids:
+        return fallback_vault_ids
+    return tuple(dict.fromkeys(vault_ids))
 
 
 def _entity_manifest_row(*, entity: EntityRecord, membership: GraphRecordScope) -> GraphManifestEntity:

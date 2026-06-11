@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -21,8 +22,9 @@ from vault_graph.graph.graph_identity import (
     stable_graph_tombstone_id,
     stable_relationship_id,
 )
+from vault_graph.graph.graph_query import GraphEntityIdentity, GraphEntityQuery, GraphRelationshipQuery
 from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.storage.interfaces.graph_store import GraphEntityIdentity, GraphRelationshipIdentity, GraphStore
+from vault_graph.storage.interfaces.graph_store import GraphRelationshipIdentity, GraphStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 
 
@@ -266,8 +268,197 @@ def graph_store_multi_scope_contract(factory: Callable[[], GraphStore]) -> None:
     assert tuple(row.vault_id for row in second_manifest.entity_rows) == ("second",)
 
 
+def graph_store_query_contract(factory: Callable[[], GraphStore]) -> None:
+    store = factory()
+    source = make_entity("default", name="GraphRAG", path="wiki/graphrag.md")
+    target = make_entity("default", name="Evidence Search", path="wiki/search.md")
+    relationship = make_relationship(source, target)
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+    store.apply_reconcile_plan(make_plan(entities=(source, target), relationships=(relationship,), scope=scope))
+
+    result = store.find_entities(GraphEntityQuery(text="GraphRAG", actual_scopes=(scope,)))
+    assert tuple(match.match_kind for match in result.matches[:1]) == ("normalized_name",)
+    assert result.matches[0].entity.entity_id == source.entity_id
+    assert result.truncated is False
+    assert result.affected_vault_ids == ("default",)
+
+    alias_matches = store.find_entities(GraphEntityQuery(text="Graph RAG", actual_scopes=(scope,))).matches
+    assert any(match.match_kind == "alias" and match.entity.entity_id == source.entity_id for match in alias_matches)
+
+    path_matches = store.find_entities(GraphEntityQuery(text="wiki/graphrag.md", actual_scopes=(scope,))).matches
+    assert path_matches[0].match_kind == "canonical_path"
+
+    suggestion_matches = store.find_entities(GraphEntityQuery(text="Graph", actual_scopes=(scope,))).matches
+    allowed_match_kinds = {"contains", "normalized_name", "alias", "canonical_path"}
+    assert all(match.match_kind in allowed_match_kinds for match in suggestion_matches)
+
+    relationship_result = store.relationships_for_entities(
+        GraphRelationshipQuery(seeds=(GraphEntityIdentity("default", source.entity_id),), actual_scopes=(scope,))
+    )
+    assert relationship_result.relationships == (relationship,)
+    assert relationship_result.truncated is False
+    assert relationship_result.affected_vault_ids == ("default",)
+
+    in_result = store.relationships_for_entities(
+        GraphRelationshipQuery(
+            seeds=(GraphEntityIdentity("default", target.entity_id),),
+            actual_scopes=(scope,),
+            direction="in",
+        )
+    )
+    assert in_result.relationships == (relationship,)
+
+    out_result = store.relationships_for_entities(
+        GraphRelationshipQuery(
+            seeds=(GraphEntityIdentity("default", source.entity_id),),
+            actual_scopes=(scope,),
+            direction="out",
+        )
+    )
+    assert out_result.relationships == (relationship,)
+
+    type_filtered = store.relationships_for_entities(
+        GraphRelationshipQuery(
+            seeds=(GraphEntityIdentity("default", source.entity_id),),
+            actual_scopes=(scope,),
+            relationship_types=("depends_on",),
+        )
+    )
+    assert type_filtered.relationships == (relationship,)
+
+    type_miss = store.relationships_for_entities(
+        GraphRelationshipQuery(
+            seeds=(GraphEntityIdentity("default", source.entity_id),),
+            actual_scopes=(scope,),
+            relationship_types=("blocks",),
+        )
+    )
+    assert type_miss.relationships == ()
+
+
+def graph_store_query_filter_contract(factory: Callable[[], GraphStore]) -> None:
+    store = factory()
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+    source = make_entity("default", name="GraphRAG")
+    document = replace(make_entity("default", name="GraphRAG Document", path="wiki/doc.md"), type="document")
+    tombstoned = replace(make_entity("default", name="GraphRAG Old", path="wiki/old.md"), status="tombstoned")
+    first_target = make_entity("default", name="Search", path="wiki/search.md")
+    second_target = make_entity("default", name="Context", path="wiki/context.md")
+    stated = make_relationship(source, first_target)
+    inferred = replace(make_relationship(source, second_target), status="inferred")
+    deprecated = replace(
+        make_relationship(first_target, second_target),
+        status="deprecated",
+    )
+    store.apply_reconcile_plan(
+        make_plan(
+            entities=(source, document, tombstoned, first_target, second_target),
+            relationships=(stated, inferred, deprecated),
+            scope=scope,
+        )
+    )
+
+    concept_matches = store.find_entities(
+        GraphEntityQuery(text="GraphRAG", actual_scopes=(scope,), types=("concept",))
+    ).matches
+    assert {match.entity.entity_id for match in concept_matches} == {source.entity_id}
+
+    all_matches = store.find_entities(GraphEntityQuery(text="GraphRAG", actual_scopes=(scope,))).matches
+    assert tombstoned.entity_id not in {match.entity.entity_id for match in all_matches}
+
+    stated_result = store.relationships_for_entities(
+        GraphRelationshipQuery(
+            seeds=(GraphEntityIdentity("default", source.entity_id),),
+            actual_scopes=(scope,),
+            statuses=("stated",),
+        )
+    )
+    assert stated_result.relationships == (stated,)
+
+    inferred_result = store.relationships_for_entities(
+        GraphRelationshipQuery(
+            seeds=(GraphEntityIdentity("default", source.entity_id),),
+            actual_scopes=(scope,),
+            statuses=("inferred",),
+        )
+    )
+    assert inferred_result.relationships == (inferred,)
+
+    default_result = store.relationships_for_entities(
+        GraphRelationshipQuery(seeds=(GraphEntityIdentity("default", first_target.entity_id),), actual_scopes=(scope,))
+    )
+    assert deprecated not in default_result.relationships
+
+    truncated = store.relationships_for_entities(
+        GraphRelationshipQuery(
+            seeds=(GraphEntityIdentity("default", source.entity_id),),
+            actual_scopes=(scope,),
+            limit=1,
+        )
+    )
+    assert len(truncated.relationships) == 1
+    assert truncated.truncated is True
+
+    scan_truncated = store.find_entities(
+        GraphEntityQuery(text="missing", actual_scopes=(scope,), scan_limit=1)
+    )
+    assert scan_truncated.matches == ()
+    assert scan_truncated.truncated is True
+
+
+def graph_store_cross_vault_query_contract(factory: Callable[[], GraphStore]) -> None:
+    store = factory()
+    first_scope = QueryScope(vault_ids=("first",), content_scopes=("wiki",))
+    second_scope = QueryScope(vault_ids=("second",), content_scopes=("wiki",))
+    source = make_entity("first", name="GraphRAG")
+    target = make_entity("second", name="Search")
+    relationship = make_relationship(source, target)
+    evidence_refs = source.evidence_refs + target.evidence_refs + relationship.evidence_refs
+    plan = GraphReconcilePlan(
+        requested_scope=QueryScope(vault_ids=("first", "second"), content_scopes=("wiki",)),
+        actual_scopes=(first_scope, second_scope),
+        graph_run_id="graph-run-1",
+        entity_upserts=(source, target),
+        relationship_upserts=(relationship,),
+        evidence_ref_upserts=evidence_refs,
+        entity_tombstones=(),
+        relationship_tombstones=(),
+        graph_revision_rows=(
+            make_revision(first_scope, entity_count=1, relationship_count=1),
+            make_revision(second_scope, entity_count=1, relationship_count=0),
+        ),
+        graph_extraction_spec=current_graph_extraction_spec(),
+        projection_cache_invalidations=(),
+    )
+    store.apply_reconcile_plan(plan)
+
+    local_result = store.relationships_for_entities(
+        GraphRelationshipQuery(seeds=(GraphEntityIdentity("first", source.entity_id),), actual_scopes=(first_scope,))
+    )
+    assert local_result.relationships == ()
+    assert local_result.omitted_cross_vault_count == 1
+
+    cross_result = store.relationships_for_entities(
+        GraphRelationshipQuery(
+            seeds=(GraphEntityIdentity("first", source.entity_id),),
+            actual_scopes=(
+                QueryScope(vault_ids=("first",), content_scopes=("wiki",), include_cross_vault=True),
+                QueryScope(vault_ids=("second",), content_scopes=("wiki",), include_cross_vault=True),
+            ),
+            include_cross_vault=True,
+        )
+    )
+    assert cross_result.relationships == (relationship,)
+
+
 def test_in_memory_graph_store_satisfies_contract() -> None:
     graph_store_contract(lambda: InMemoryGraphStore())
+
+
+def test_in_memory_graph_store_satisfies_query_contract() -> None:
+    graph_store_query_contract(lambda: InMemoryGraphStore())
+    graph_store_query_filter_contract(lambda: InMemoryGraphStore())
+    graph_store_cross_vault_query_contract(lambda: InMemoryGraphStore())
 
 
 def test_in_memory_graph_store_scopes_multi_scope_records() -> None:
@@ -276,6 +467,12 @@ def test_in_memory_graph_store_scopes_multi_scope_records() -> None:
 
 def test_sqlite_graph_store_scopes_multi_scope_records(tmp_path: Path) -> None:
     graph_store_multi_scope_contract(lambda: SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3"))
+
+
+def test_sqlite_graph_store_satisfies_query_contract(tmp_path: Path) -> None:
+    graph_store_query_contract(lambda: SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3"))
+    graph_store_query_filter_contract(lambda: SQLiteGraphStore.open_writable(tmp_path / "filters.sqlite3"))
+    graph_store_cross_vault_query_contract(lambda: SQLiteGraphStore.open_writable(tmp_path / "cross.sqlite3"))
 
 
 def test_read_only_graph_store_rejects_apply() -> None:

@@ -1,3 +1,14 @@
+from vault_graph.retrieval.graph_retrieval import (
+    DecisionTraceResponse,
+    DecisionTraceStep,
+    GraphOutputFormat,
+    GraphRetrievalRevision,
+    GraphRetrievalWarning,
+    GraphWarningSeverity,
+    RelatedItem,
+    RelatedRequest,
+    RelatedResponse,
+)
 from vault_graph.retrieval.retrieval_result import (
     RelationshipStatus,
     RetrievalResult,
@@ -21,7 +32,16 @@ from vault_graph.retrieval.search_response import (
 )
 
 __all__ = [
+    "DecisionTraceResponse",
+    "DecisionTraceStep",
+    "GraphOutputFormat",
+    "GraphRetrievalRevision",
+    "GraphRetrievalWarning",
+    "GraphWarningSeverity",
     "RelationshipStatus",
+    "RelatedItem",
+    "RelatedRequest",
+    "RelatedResponse",
     "RetrievalResult",
     "RetrievalSeverity",
     "RetrievalSignal",
