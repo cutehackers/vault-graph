@@ -37,6 +37,7 @@ from vault_graph.retrieval import (
     GraphOutputFormat,
     GraphRetrievalRevision,
     GraphRetrievalWarning,
+    GraphSearchCandidateProvider,
     RelatedResponse,
     RetrievalResult,
     RetrievalService,
@@ -108,12 +109,20 @@ def _service(state: Path, *, initialize_store: bool) -> tuple[CatalogService, Va
     )
 
 
-def _search_service(state: Path) -> tuple[CatalogService, VaultCatalog, RetrievalService]:
+def _search_service(
+    state: Path,
+    *,
+    include_graph: bool = False,
+) -> tuple[CatalogService, VaultCatalog, RetrievalService]:
     config, catalog = _catalog(state)
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=False)
     keyword_index = SQLiteKeywordIndex(config.metadata_path)
     vector_store = ChromaVectorStore(config.vector_path, initialize=False, read_only=True)
     text_embeddings = _search_text_embeddings(config)
+    graph_candidate_provider = None
+    if include_graph:
+        _, _, graph_service = _graph_retrieval_service(state)
+        graph_candidate_provider = GraphSearchCandidateProvider(graph_retrieval_service=graph_service)
     return (
         config,
         catalog,
@@ -129,6 +138,7 @@ def _search_service(state: Path) -> tuple[CatalogService, VaultCatalog, Retrieva
                 vector_store=vector_store,
                 text_embeddings=text_embeddings,
             ),
+            graph_candidate_provider=graph_candidate_provider,
         ),
     )
 
@@ -280,14 +290,23 @@ def search(
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Search all enabled registered Vaults."),
     limit: int = typer.Option(10, "--limit", help="Maximum number of final results."),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+    include_graph: bool = typer.Option(False, "--include-graph", help="Include explicit graph retrieval signals."),
+    include_cross_vault: bool = typer.Option(
+        False,
+        "--include-cross-vault",
+        help="Include explicit cross-Vault graph relationships.",
+    ),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
         raise typer.Exit(1)
+    if include_cross_vault and not (include_graph and all_vaults):
+        typer.echo("include_cross_vault_requires_multi_vault_graph_scope")
+        raise typer.Exit(1)
     if output_format not in {"text", "json"}:
         typer.echo("unsupported_format")
         raise typer.Exit(1)
-    _, catalog, service = _exit_on_domain_error(lambda: _search_service(state))
+    _, catalog, service = _exit_on_domain_error(lambda: _search_service(state, include_graph=include_graph))
     if all_vaults:
         scope = _exit_on_domain_error(catalog.scope_for_all_enabled)
     elif vault_id is not None:
@@ -301,6 +320,8 @@ def search(
             requested_scope=scope,
             limit=limit,
             output_format=output_format,  # type: ignore[arg-type]
+            include_graph=include_graph,
+            include_cross_vault=include_cross_vault,
         )
     )
     if output_format == "json":

@@ -28,7 +28,7 @@ from vault_graph.storage.interfaces.metadata_store import EvidenceReference, Met
 from vault_graph.storage.interfaces.vector_store import VectorHit, VectorQuery, VectorStore
 
 RANK_CONSTANT = 60.0
-SIGNAL_WEIGHTS: dict[RetrievalSignalKind, float] = {"keyword": 1.0, "vector": 1.0, "graph": 0.5}
+SIGNAL_WEIGHTS: dict[RetrievalSignalKind, float] = {"keyword": 1.0, "vector": 1.0, "graph": 0.75}
 
 
 class RetrievalService:
@@ -62,10 +62,14 @@ class RetrievalService:
         include_cross_vault: bool = False,
     ) -> SearchResponse:
         normalized_query = query_text.strip()
-        actual_scopes = actual_query_scopes(catalog=self._catalog, scope=requested_scope)
+        graph_requested_scope = _requested_scope_for_search(
+            requested_scope=requested_scope,
+            include_cross_vault=include_cross_vault,
+        )
+        actual_scopes = actual_query_scopes(catalog=self._catalog, scope=graph_requested_scope)
         request = SearchRequest(
             query_text=normalized_query,
-            requested_scope=requested_scope,
+            requested_scope=graph_requested_scope,
             actual_scopes=actual_scopes,
             limit=limit,
             output_format=output_format,
@@ -219,6 +223,16 @@ class RetrievalService:
             for rank, (candidate, evidence, summary) in enumerate(sorted_resolved, start=1)
         )
         return results, dropped, tuple(warnings)
+
+
+def _requested_scope_for_search(*, requested_scope: QueryScope, include_cross_vault: bool) -> QueryScope:
+    if not include_cross_vault or requested_scope.include_cross_vault:
+        return requested_scope
+    return QueryScope(
+        vault_ids=requested_scope.vault_ids,
+        content_scopes=requested_scope.content_scopes,
+        include_cross_vault=True,
+    )
 
 
 @dataclass(frozen=True)

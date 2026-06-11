@@ -27,6 +27,7 @@ from vault_graph.projection.graph_projection import (
     GraphProjectionInput,
     GraphProjectionNode,
 )
+from vault_graph.retrieval.graph_candidates import GraphCandidateResult
 from vault_graph.retrieval.graph_retrieval import (
     DecisionTraceResponse,
     DecisionTraceStep,
@@ -36,6 +37,9 @@ from vault_graph.retrieval.graph_retrieval import (
     RelatedItem,
     RelatedResponse,
 )
+from vault_graph.retrieval.retrieval_candidate import RetrievalCandidate
+from vault_graph.retrieval.retrieval_result import RetrievalSignal
+from vault_graph.retrieval.search_response import SearchStoreRevision, SearchWarning
 from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
 
@@ -93,6 +97,7 @@ class GraphRetrievalService:
                 requested_scope=requested_scope,
                 actual_scopes=actual_scopes,
                 warnings=warnings,
+                store_revisions=_store_revisions(readiness=readiness, projection_build_id=None, evidence=()),
             )
 
         target_result = self._graph_store.find_entities(
@@ -116,6 +121,7 @@ class GraphRetrievalService:
                 actual_scopes=actual_scopes,
                 warnings=warnings,
                 target_candidates=target_resolution.candidates,
+                store_revisions=_store_revisions(readiness=readiness, projection_build_id=None, evidence=()),
             )
 
         resolved_target = target_resolution.entity
@@ -348,9 +354,9 @@ class GraphRetrievalService:
             )
             for path in sorted_paths
         )
-        combined_steps: tuple[DecisionTraceStep, ...] = (
-            tuple(step for step in ((initial_step,) if initial_step is not None else ()) + path_steps)[:limit]
-        )
+        combined_steps: tuple[DecisionTraceStep, ...] = tuple(
+            step for step in ((initial_step,) if initial_step is not None else ()) + path_steps
+        )[:limit]
         ranked_steps = tuple(replace(step, rank=rank) for rank, step in enumerate(combined_steps, start=1))
         evidence = tuple(evidence for step in ranked_steps for evidence in step.evidence)
         return DecisionTraceResponse(
@@ -370,6 +376,50 @@ class GraphRetrievalService:
                 evidence=evidence,
             ),
             generated_at=datetime.now(UTC).isoformat(),
+        )
+
+    def graph_candidates_for_search(
+        self,
+        *,
+        query_text: str,
+        requested_scope: QueryScope,
+        actual_scopes: tuple[QueryScope, ...],
+        limit: int,
+        include_cross_vault: bool,
+    ) -> GraphCandidateResult:
+        del actual_scopes
+        try:
+            response = self.related(
+                target=query_text,
+                requested_scope=requested_scope,
+                depth=1,
+                include_cross_vault=include_cross_vault,
+                limit=limit,
+                output_format="text",
+            )
+        except GraphStoreError as exc:
+            return GraphCandidateResult(
+                candidates=(),
+                warnings=(
+                    SearchWarning(
+                        code="graph_query_failed",
+                        message=f"Graph query failed; keyword/vector results returned: {exc}",
+                        severity="warning",
+                        affected_vault_ids=_affected_vault_ids_for_request(requested_scope),
+                    ),
+                ),
+                store_revisions=(),
+            )
+
+        return GraphCandidateResult(
+            candidates=_search_candidates_from_related(response),
+            warnings=tuple(
+                _search_warning_from_graph_warning(warning, fallback_scope=requested_scope)
+                for warning in response.warnings
+            ),
+            store_revisions=tuple(
+                _search_revision_from_graph_revision(revision) for revision in response.store_revisions
+            ),
         )
 
     def _collect_relationships(
@@ -479,9 +529,7 @@ class GraphRetrievalService:
         rank: int,
     ) -> RelatedItem:
         target_key = (path.target.vault_id, path.target.entity_id)
-        relationship_path = tuple(
-            relationships[(edge.source_vault_id, edge.relationship_id)] for edge in path.edges
-        )
+        relationship_path = tuple(relationships[(edge.source_vault_id, edge.relationship_id)] for edge in path.edges)
         evidence = _dedupe_evidence(
             tuple(
                 item
@@ -700,9 +748,7 @@ def _decision_trace_step_from_path(
     relationship_evidence: dict[tuple[str, str], tuple[EvidenceReference, ...]],
 ) -> DecisionTraceStep:
     target_key = (path.target.vault_id, path.target.entity_id)
-    relationship_path = tuple(
-        relationships[(edge.source_vault_id, edge.relationship_id)] for edge in path.edges
-    )
+    relationship_path = tuple(relationships[(edge.source_vault_id, edge.relationship_id)] for edge in path.edges)
     evidence = _dedupe_evidence(
         tuple(
             item
@@ -817,6 +863,7 @@ def _empty_related_response(
     actual_scopes: tuple[QueryScope, ...],
     warnings: list[GraphRetrievalWarning],
     target_candidates: tuple[EntityRecord, ...] = (),
+    store_revisions: tuple[GraphRetrievalRevision, ...] = (),
 ) -> RelatedResponse:
     return RelatedResponse(
         target=target,
@@ -829,7 +876,7 @@ def _empty_related_response(
         result_count=0,
         items=(),
         warnings=tuple(warnings),
-        store_revisions=(),
+        store_revisions=store_revisions,
         generated_at=datetime.now(UTC).isoformat(),
     )
 
@@ -899,3 +946,80 @@ def _affected_vault_ids(scopes: tuple[QueryScope, ...]) -> tuple[str, ...]:
 def _candidate_vault_ids(candidates: tuple[EntityRecord, ...]) -> tuple[str, ...]:
     vault_ids = tuple(dict.fromkeys(candidate.vault_id for candidate in candidates))
     return vault_ids or ("unknown",)
+
+
+def _search_candidates_from_related(response: RelatedResponse) -> tuple[RetrievalCandidate, ...]:
+    seed = response.resolved_target
+    if seed is None:
+        return ()
+    candidates: list[RetrievalCandidate] = []
+    for item in response.items:
+        if not item.relationship_path:
+            continue
+        relationship = item.relationship_path[-1]
+        for evidence in item.evidence:
+            candidates.append(
+                RetrievalCandidate(
+                    vault_id=evidence.vault_id,
+                    document_id=evidence.document_id,
+                    chunk_id=evidence.chunk_id,
+                    signals=(
+                        RetrievalSignal(
+                            kind="graph",
+                            source_id=(
+                                f"graph:{relationship.source_vault_id}:"
+                                f"{relationship.relationship_id}:{evidence.chunk_id}"
+                            ),
+                            rank=item.rank,
+                            score=item.score,
+                            backend=GRAPH_PROJECTION_VERSION,
+                            index_revision=relationship.graph_index_revision,
+                            explanation=f"{seed.name} -> {item.entity.name} via {relationship.type}",
+                        ),
+                    ),
+                )
+            )
+    return tuple(candidates)
+
+
+def _search_warning_from_graph_warning(
+    warning: GraphRetrievalWarning,
+    *,
+    fallback_scope: QueryScope,
+) -> SearchWarning:
+    code = _search_warning_code(warning.code)
+    affected_vault_ids = warning.affected_vault_ids
+    if affected_vault_ids == ("unknown",):
+        affected_vault_ids = _affected_vault_ids_for_request(fallback_scope)
+    return SearchWarning(
+        code=code,
+        message=warning.message,
+        severity=warning.severity,
+        affected_vault_ids=affected_vault_ids,
+        scope_key=warning.scope_key,
+        source_id=warning.evidence_ref_id,
+    )
+
+
+def _search_warning_code(code: str) -> str:
+    return {
+        "target_not_found": "graph_target_not_found",
+        "graph_missing": "graph_empty",
+        "graph_empty": "graph_empty",
+        "graph_stale": "graph_stale",
+        "graph_incompatible": "graph_unavailable",
+        "graph_unavailable": "graph_unavailable",
+    }.get(code, code)
+
+
+def _search_revision_from_graph_revision(revision: GraphRetrievalRevision) -> SearchStoreRevision:
+    return SearchStoreRevision(
+        kind=revision.kind,
+        revision=revision.revision,
+        scope_key=revision.scope_key,
+        vault_id=revision.vault_id,
+    )
+
+
+def _affected_vault_ids_for_request(scope: QueryScope) -> tuple[str, ...]:
+    return scope.vault_ids or ("unknown",)

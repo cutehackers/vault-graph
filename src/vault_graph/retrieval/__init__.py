@@ -1,4 +1,8 @@
-from vault_graph.retrieval.graph_candidates import GraphCandidateProvider, GraphCandidateResult
+from vault_graph.retrieval.graph_candidates import (
+    GraphCandidateProvider,
+    GraphCandidateResult,
+    GraphSearchCandidateProvider,
+)
 from vault_graph.retrieval.graph_retrieval import (
     DecisionTraceResponse,
     DecisionTraceStep,
@@ -38,6 +42,7 @@ __all__ = [
     "DecisionTraceStep",
     "GraphCandidateProvider",
     "GraphCandidateResult",
+    "GraphSearchCandidateProvider",
     "GraphOutputFormat",
     "GraphRetrievalRevision",
     "GraphRetrievalWarning",

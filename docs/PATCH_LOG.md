@@ -3,6 +3,45 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-11 - Phase 3C Opt-In Graph Search Review Fixes
+
+**Trigger:** Subagent review of the Phase 3C `vg search --include-graph`
+slice found cross-Vault scope attribution and warning-only graph revision gaps.
+
+**Scope:** Opt-in graph search candidate conversion, `vg search` graph flags,
+search response scope metadata, and graph-search regression tests.
+
+**Core Values Protected:**
+
+- plain search remains keyword/vector unless graph is explicitly requested
+- graph search is evidence-first and degrades to visible warnings
+- multi-vault graph traversal preserves explicit scope identity
+- graph-derived results keep searched graph revision attribution
+
+**Changes Applied:**
+
+- Added `GraphSearchCandidateProvider` and wired it into search only when
+  `--include-graph` is provided.
+- Converted related graph paths into `RetrievalCandidate` rows only from
+  relationship evidence chunks.
+- Converted graph lookup, readiness, target, and ambiguity issues into
+  top-level `SearchWarning` records for opt-in graph search.
+- Marked requested and actual search scopes with `include_cross_vault=True`
+  when graph cross-Vault traversal is requested.
+- Preserved graph store revisions for fresh warning-only graph lookups such as
+  `graph_target_not_found`.
+- Added CLI and service regression tests for graph opt-in behavior, degradation,
+  ranking weight, cross-Vault flag validation, and plain-search graph isolation.
+
+**Verification:**
+
+- subagent spec review, code quality review, and focused re-review
+- `uv run --python 3.12 pytest tests/test_search_include_graph.py tests/test_cli_search.py -q`
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 ruff check .`
+- `uv run --python 3.12 mypy src tests`
+- `git diff --check`
+
 ## 2026-06-11 - Phase 3C `vg decision-trace` Implementation Review Fixes
 
 **Trigger:** Subagent review of the Phase 3C decision trace slice found target
