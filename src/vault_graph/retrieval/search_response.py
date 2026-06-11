@@ -50,6 +50,8 @@ class SearchRequest:
     actual_scopes: tuple[QueryScope, ...]
     limit: int
     output_format: SearchOutputFormat
+    include_graph: bool = False
+    include_cross_vault: bool = False
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

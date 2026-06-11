@@ -8,6 +8,8 @@ from vault_graph.embeddings.text_embeddings import EmbeddingInput, TextEmbedding
 from vault_graph.errors import KeywordIndexError, SearchError, TextEmbeddingsError, VectorStoreError
 from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
+from vault_graph.retrieval.graph_candidates import GraphCandidateProvider, GraphCandidateResult
+from vault_graph.retrieval.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.retrieval_result import (
     RetrievalResult,
     RetrievalSignal,
@@ -26,7 +28,7 @@ from vault_graph.storage.interfaces.metadata_store import EvidenceReference, Met
 from vault_graph.storage.interfaces.vector_store import VectorHit, VectorQuery, VectorStore
 
 RANK_CONSTANT = 60.0
-SIGNAL_WEIGHTS: dict[RetrievalSignalKind, float] = {"keyword": 1.0, "vector": 1.0}
+SIGNAL_WEIGHTS: dict[RetrievalSignalKind, float] = {"keyword": 1.0, "vector": 1.0, "graph": 0.5}
 
 
 class RetrievalService:
@@ -39,6 +41,7 @@ class RetrievalService:
         readiness: SearchReadiness,
         vector_store: VectorStore | None = None,
         text_embeddings: TextEmbeddings | None = None,
+        graph_candidate_provider: GraphCandidateProvider | None = None,
     ) -> None:
         self._catalog = catalog
         self._metadata_store = metadata_store
@@ -46,6 +49,7 @@ class RetrievalService:
         self._readiness = readiness
         self._vector_store = vector_store
         self._text_embeddings = text_embeddings
+        self._graph_candidate_provider = graph_candidate_provider
 
     def search(
         self,
@@ -54,6 +58,8 @@ class RetrievalService:
         requested_scope: QueryScope,
         limit: int = 10,
         output_format: SearchOutputFormat = "text",
+        include_graph: bool = False,
+        include_cross_vault: bool = False,
     ) -> SearchResponse:
         normalized_query = query_text.strip()
         actual_scopes = actual_query_scopes(catalog=self._catalog, scope=requested_scope)
@@ -63,6 +69,8 @@ class RetrievalService:
             actual_scopes=actual_scopes,
             limit=limit,
             output_format=output_format,
+            include_graph=include_graph,
+            include_cross_vault=include_cross_vault,
         )
         return self._search_request(request)
 
@@ -73,14 +81,17 @@ class RetrievalService:
         if fatal is not None:
             raise fatal
         warnings = list(_warnings_for_readiness(readiness, request.actual_scopes))
-        keyword_hits = self._keyword_hits(request=request, candidate_limit=candidate_limit)
-        vector_hits = self._vector_hits(
+        keyword_candidates = self._keyword_candidates(request=request, candidate_limit=candidate_limit)
+        vector_candidates = self._vector_candidates(
             request=request,
             candidate_limit=candidate_limit,
             readiness=readiness,
             warnings=warnings,
         )
-        candidates = _fuse_candidates(keyword_hits=keyword_hits, vector_hits=vector_hits)
+        graph_result = self._graph_candidates(request=request, candidate_limit=candidate_limit)
+        warnings.extend(graph_result.warnings)
+        signal_candidates = keyword_candidates + vector_candidates + graph_result.candidates
+        candidates = _fuse_candidates(candidates=signal_candidates)
         results, dropped, missing_warnings = self._resolve_results(candidates=candidates)
         warnings.extend(missing_warnings)
         limited_results = tuple(results[: request.limit])
@@ -90,16 +101,16 @@ class RetrievalService:
             actual_scopes=request.actual_scopes,
             limit=request.limit,
             result_count=len(limited_results),
-            candidate_count=len(keyword_hits) + len(vector_hits),
+            candidate_count=sum(len(candidate.signals) for candidate in signal_candidates),
             dropped_candidate_count=dropped,
             results=limited_results,
             warnings=tuple(warnings),
             degraded=bool(warnings),
-            store_revisions=readiness.store_revisions,
+            store_revisions=readiness.store_revisions + graph_result.store_revisions,
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-    def _keyword_hits(self, *, request: SearchRequest, candidate_limit: int) -> tuple[KeywordHit, ...]:
+    def _keyword_candidates(self, *, request: SearchRequest, candidate_limit: int) -> tuple[RetrievalCandidate, ...]:
         hits: list[KeywordHit] = []
         try:
             for scope in request.actual_scopes:
@@ -110,16 +121,16 @@ class RetrievalService:
                 )
         except KeywordIndexError as exc:
             raise SearchError(f"keyword_index_unavailable: {exc}. Run `vg index`.") from exc
-        return tuple(hits)
+        return tuple(_candidate_from_keyword_hit(hit) for hit in hits)
 
-    def _vector_hits(
+    def _vector_candidates(
         self,
         *,
         request: SearchRequest,
         candidate_limit: int,
         readiness: SearchReadinessReport,
         warnings: list[SearchWarning],
-    ) -> tuple[VectorHit, ...]:
+    ) -> tuple[RetrievalCandidate, ...]:
         if self._vector_store is None or self._text_embeddings is None:
             return ()
         if not _can_run_vector_search_globally(readiness):
@@ -150,7 +161,18 @@ class RetrievalService:
                 )
             )
             return ()
-        return tuple(hits)
+        return tuple(_candidate_from_vector_hit(hit) for hit in hits)
+
+    def _graph_candidates(self, *, request: SearchRequest, candidate_limit: int) -> GraphCandidateResult:
+        if not request.include_graph or self._graph_candidate_provider is None:
+            return GraphCandidateResult(candidates=(), warnings=(), store_revisions=())
+        return self._graph_candidate_provider.candidates(
+            query_text=request.query_text,
+            requested_scope=request.requested_scope,
+            actual_scopes=request.actual_scopes,
+            limit=candidate_limit,
+            include_cross_vault=request.include_cross_vault,
+        )
 
     def _resolve_results(
         self,
@@ -200,26 +222,13 @@ class RetrievalService:
 
 
 @dataclass(frozen=True)
-class _SignalCandidate:
-    kind: RetrievalSignalKind
-    vault_id: str
-    document_id: str
-    chunk_id: str
-    rank: int
-    score: float
-    backend: str
-    index_revision: str
-    source_id: str
-
-
-@dataclass(frozen=True)
 class _FusedCandidate:
     vault_id: str
     document_id: str
     chunk_id: str
     fused_score: float
     best_signal_rank: int
-    signals: tuple[_SignalCandidate, ...]
+    signals: tuple[RetrievalSignal, ...]
 
 
 def _fatal_readiness_error(readiness: SearchReadinessReport) -> SearchError | None:
@@ -322,25 +331,17 @@ def _vector_stale_count_for_scope(*, readiness: SearchReadinessReport, scope: Qu
     return readiness.vector_stale_count
 
 
-def _fuse_candidates(
-    *,
-    keyword_hits: tuple[KeywordHit, ...],
-    vector_hits: tuple[VectorHit, ...],
-) -> tuple[_FusedCandidate, ...]:
-    grouped: dict[tuple[str, str], list[_SignalCandidate]] = {}
+def _fuse_candidates(*, candidates: tuple[RetrievalCandidate, ...]) -> tuple[_FusedCandidate, ...]:
+    grouped: dict[tuple[str, str], list[RetrievalSignal]] = {}
     document_by_key: dict[tuple[str, str], str] = {}
-    for hit in keyword_hits:
-        key = (hit.vault_id, hit.chunk_id)
-        document_by_key.setdefault(key, hit.document_id)
-        grouped.setdefault(key, []).append(_keyword_signal(hit))
-    for vector_hit in vector_hits:
-        key = (vector_hit.vault_id, vector_hit.chunk_id)
-        document_by_key.setdefault(key, vector_hit.document_id)
-        grouped.setdefault(key, []).append(_vector_signal(vector_hit))
+    for candidate in candidates:
+        key = (candidate.vault_id, candidate.chunk_id)
+        document_by_key.setdefault(key, candidate.document_id)
+        grouped.setdefault(key, []).extend(candidate.signals)
 
-    candidates: list[_FusedCandidate] = []
+    fused_candidates: list[_FusedCandidate] = []
     for (vault_id, chunk_id), signals in grouped.items():
-        candidates.append(
+        fused_candidates.append(
             _FusedCandidate(
                 vault_id=vault_id,
                 document_id=document_by_key[(vault_id, chunk_id)],
@@ -352,7 +353,7 @@ def _fuse_candidates(
         )
     return tuple(
         sorted(
-            candidates,
+            fused_candidates,
             key=lambda candidate: (
                 -candidate.fused_score,
                 candidate.best_signal_rank,
@@ -363,31 +364,45 @@ def _fuse_candidates(
     )
 
 
-def _keyword_signal(hit: KeywordHit) -> _SignalCandidate:
-    return _SignalCandidate(
-        kind="keyword",
+def _candidate_from_keyword_hit(hit: KeywordHit) -> RetrievalCandidate:
+    return RetrievalCandidate(
         vault_id=hit.vault_id,
         document_id=hit.document_id,
         chunk_id=hit.chunk_id,
+        signals=(_keyword_signal(hit),),
+    )
+
+
+def _candidate_from_vector_hit(hit: VectorHit) -> RetrievalCandidate:
+    return RetrievalCandidate(
+        vault_id=hit.vault_id,
+        document_id=hit.document_id,
+        chunk_id=hit.chunk_id,
+        signals=(_vector_signal(hit),),
+    )
+
+
+def _keyword_signal(hit: KeywordHit) -> RetrievalSignal:
+    return RetrievalSignal(
+        kind="keyword",
         rank=hit.rank,
         score=hit.score,
         backend=hit.backend,
         index_revision=hit.index_revision,
         source_id=f"keyword:{hit.vault_id}:{hit.chunk_id}",
+        explanation="keyword candidate matched the query",
     )
 
 
-def _vector_signal(hit: VectorHit) -> _SignalCandidate:
-    return _SignalCandidate(
+def _vector_signal(hit: VectorHit) -> RetrievalSignal:
+    return RetrievalSignal(
         kind="vector",
-        vault_id=hit.vault_id,
-        document_id=hit.document_id,
-        chunk_id=hit.chunk_id,
         rank=hit.rank,
         score=hit.score,
         backend=hit.backend,
         index_revision=hit.vector_index_revision,
         source_id=f"vector:{hit.vault_id}:{hit.chunk_id}",
+        explanation="vector candidate matched the query",
     )
 
 
@@ -406,22 +421,10 @@ def _retrieval_result_for_candidate(
         summary=summary,
         rank=rank,
         evidence=(evidence,),
-        signals=tuple(_retrieval_signal(signal) for signal in candidate.signals),
+        signals=candidate.signals,
         relationship_status="not_applicable",
         warnings=(),
         store_revisions=_result_store_revisions(candidate=candidate, evidence=evidence),
-    )
-
-
-def _retrieval_signal(signal: _SignalCandidate) -> RetrievalSignal:
-    return RetrievalSignal(
-        kind=signal.kind,
-        source_id=signal.source_id,
-        rank=signal.rank,
-        score=signal.score,
-        backend=signal.backend,
-        index_revision=signal.index_revision,
-        explanation=f"{signal.kind} candidate matched the query",
     )
 
 

@@ -13,9 +13,12 @@ from vault_graph.embeddings.text_embeddings import EmbeddingInput
 from vault_graph.errors import SearchError
 from vault_graph.indexing.vector_indexer import stable_vector_id
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph_candidates import GraphCandidateResult
+from vault_graph.retrieval.retrieval_candidate import RetrievalCandidate
+from vault_graph.retrieval.retrieval_result import RetrievalSignal
 from vault_graph.retrieval.retrieval_service import RetrievalService
 from vault_graph.retrieval.search_readiness import SearchReadinessReport, SearchScopeReadiness
-from vault_graph.retrieval.search_response import SearchStoreRevision
+from vault_graph.retrieval.search_response import SearchStoreRevision, SearchWarning
 from vault_graph.storage.interfaces.keyword_index import KeywordHit
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.interfaces.vector_store import VectorEmbeddingRecord, VectorHit, VectorQuery
@@ -35,6 +38,37 @@ class FailingVectorStore(InMemoryVectorStore):
         from vault_graph.errors import VectorStoreError
 
         raise VectorStoreError("client failed")
+
+
+class FailingGraphCandidateProvider:
+    def candidates(self, **_: object) -> GraphCandidateResult:
+        raise AssertionError("graph provider must not be called by default search")
+
+
+class StaticGraphCandidateProvider:
+    def __init__(self, result: GraphCandidateResult) -> None:
+        self.result = result
+        self.calls: list[dict[str, object]] = []
+
+    def candidates(
+        self,
+        *,
+        query_text: str,
+        requested_scope: QueryScope,
+        actual_scopes: tuple[QueryScope, ...],
+        limit: int,
+        include_cross_vault: bool,
+    ) -> GraphCandidateResult:
+        self.calls.append(
+            {
+                "query_text": query_text,
+                "requested_scope": requested_scope,
+                "actual_scopes": actual_scopes,
+                "limit": limit,
+                "include_cross_vault": include_cross_vault,
+            }
+        )
+        return self.result
 
 
 def _catalog(tmp_path: Path, vault_id: str = "default") -> VaultCatalog:
@@ -376,3 +410,88 @@ def test_same_chunk_id_across_vaults_does_not_collapse_keyword_vector_fusion(tmp
     ]
     assert len({result.result_id for result in response.results}) == 2
     assert all(result.vault_id in signal.source_id for result in response.results for signal in result.signals)
+
+
+def test_search_without_include_graph_does_not_call_graph_candidate_provider(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store, document_id, chunk_id = _metadata_store(tmp_path)
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=InMemoryKeywordIndex((_keyword_hit(document_id, chunk_id),)),
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+        graph_candidate_provider=FailingGraphCandidateProvider(),
+    )
+
+    response = service.search(
+        query_text="Body",
+        requested_scope=catalog.default_scope(),
+        limit=10,
+        output_format="text",
+    )
+
+    assert response.result_count == 1
+    assert tuple(signal.kind for signal in response.results[0].signals) == ("keyword",)
+
+
+def test_retrieval_candidate_seam_preserves_signal_explanations(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store, document_id, chunk_id = _metadata_store(tmp_path)
+    graph_signal = RetrievalSignal(
+        kind="graph",
+        source_id=f"graph:default:rel-1:{chunk_id}",
+        rank=1,
+        score=0.8,
+        backend="graph-projection-v1",
+        index_revision="graph-1",
+        explanation="GraphRAG -> Search via depends_on",
+    )
+    graph_provider = StaticGraphCandidateProvider(
+        GraphCandidateResult(
+            candidates=(
+                RetrievalCandidate(
+                    vault_id="default",
+                    document_id=document_id,
+                    chunk_id=chunk_id,
+                    signals=(graph_signal,),
+                ),
+            ),
+            warnings=(
+                SearchWarning(
+                    code="graph_test_warning",
+                    message="graph warning",
+                    severity="warning",
+                    affected_vault_ids=("default",),
+                ),
+            ),
+            store_revisions=(
+                SearchStoreRevision(
+                    kind="graph",
+                    revision="graph-1",
+                    scope_key="default:wiki:local",
+                    vault_id="default",
+                ),
+            ),
+        )
+    )
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=InMemoryKeywordIndex((_keyword_hit(document_id, chunk_id),)),
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+        graph_candidate_provider=graph_provider,
+    )
+
+    response = service.search(
+        query_text="Body",
+        requested_scope=catalog.default_scope(),
+        limit=10,
+        output_format="text",
+        include_graph=True,
+    )
+
+    assert graph_provider.calls[0]["query_text"] == "Body"
+    assert response.results[0].signals[-1] == graph_signal
+    assert response.results[0].signals[-1].explanation == "GraphRAG -> Search via depends_on"
+    assert any(warning.code == "graph_test_warning" for warning in response.warnings)
+    assert any(revision.kind == "graph" for revision in response.store_revisions)

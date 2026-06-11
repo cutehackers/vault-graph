@@ -120,3 +120,18 @@ def test_search_output_format_type_allows_text_and_json() -> None:
 
     assert text_format == "text"
     assert json_format == "json"
+
+
+def test_search_request_records_graph_opt_in_flags() -> None:
+    request = SearchRequest(
+        query_text="GraphRAG",
+        requested_scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
+        actual_scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),),
+        limit=10,
+        output_format="text",
+        include_graph=True,
+        include_cross_vault=False,
+    )
+
+    assert request.include_graph is True
+    assert request.include_cross_vault is False
