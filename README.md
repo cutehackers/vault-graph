@@ -12,6 +12,10 @@ Vault remains the source of truth. Vault Graph reads, indexes, retrieves, and
 explains Vault-derived context. It does not publish wiki pages, mutate raw
 sources, edit Vault documents, or replace Vault's validation workflow.
 
+## Installation
+
+<!-- Installation details will be added after the supported install path is decided. -->
+
 ## User Interfaces
 
 Vault Graph is designed to expose three user-facing interfaces:
