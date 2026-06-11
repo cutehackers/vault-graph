@@ -33,6 +33,7 @@ from vault_graph.graph.graph_identity import graph_scope_key
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
 from vault_graph.retrieval import (
+    DecisionTraceResponse,
     GraphOutputFormat,
     GraphRetrievalRevision,
     GraphRetrievalWarning,
@@ -362,6 +363,52 @@ def related(
         _render_related_response(response)
 
 
+@app.command("decision-trace")
+def decision_trace(
+    topic: str = typer.Argument(..., help="Decision entity, topic, path, alias, or entity ID."),
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    vault_id: str | None = typer.Option(None, "--vault-id", help="Search one registered Vault ID."),
+    all_vaults: bool = typer.Option(False, "--all-vaults", help="Search all enabled registered Vaults."),
+    include_cross_vault: bool = typer.Option(
+        False,
+        "--include-cross-vault",
+        help="Include explicit cross-Vault graph relationships.",
+    ),
+    limit: int = typer.Option(10, "--limit", help="Maximum trace steps."),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+) -> None:
+    if all_vaults and vault_id:
+        typer.echo("Use either --vault-id or --all-vaults, not both.")
+        raise typer.Exit(1)
+    if include_cross_vault and not all_vaults:
+        typer.echo("include_cross_vault_requires_multi_vault_graph_scope")
+        raise typer.Exit(1)
+    if output_format not in {"text", "json"}:
+        typer.echo("unsupported_format")
+        raise typer.Exit(1)
+    _, catalog, service = _exit_on_domain_error(lambda: _graph_retrieval_service(state))
+    if all_vaults:
+        scope = _exit_on_domain_error(catalog.scope_for_all_enabled)
+    elif vault_id is not None:
+        selected_vault_id = vault_id
+        scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids([selected_vault_id]))
+    else:
+        scope = _exit_on_domain_error(catalog.default_scope)
+    response = _exit_on_domain_error(
+        lambda: service.decision_trace(
+            topic=topic,
+            requested_scope=scope,
+            include_cross_vault=include_cross_vault,
+            limit=limit,
+            output_format=cast(GraphOutputFormat, output_format),
+        )
+    )
+    if output_format == "json":
+        typer.echo(json.dumps(_decision_trace_response_json(response), sort_keys=True, indent=2))
+    else:
+        _render_decision_trace_response(response)
+
+
 @app.command()
 def status(
     state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
@@ -512,6 +559,67 @@ def _related_response_json(response: RelatedResponse) -> dict[str, object]:
     }
 
 
+def _render_decision_trace_response(response: DecisionTraceResponse) -> None:
+    if response.warnings:
+        for warning in response.warnings:
+            scope = ",".join(warning.affected_vault_ids)
+            scope_key = f" {warning.scope_key}" if warning.scope_key else ""
+            typer.echo(f"warning: {warning.code} [{scope}]{scope_key} {warning.message}")
+    typer.echo(f"topic: {response.topic}")
+    typer.echo(f"trace_kind: {response.trace_kind}")
+    if response.resolved_target is not None:
+        typer.echo(f"resolved: {_entity_text(response.resolved_target)}")
+    for candidate in response.target_candidates:
+        if response.resolved_target is not None and (
+            candidate.vault_id,
+            candidate.entity_id,
+        ) == (
+            response.resolved_target.vault_id,
+            response.resolved_target.entity_id,
+        ):
+            continue
+        typer.echo(f"candidate: {_entity_text(candidate)}")
+    build_id = response.projection_build_id or "none"
+    typer.echo(f"projection: {response.graph_projection_version} {build_id}")
+    typer.echo(f"steps: {len(response.steps)}")
+    for step in response.steps:
+        typer.echo(f"{step.rank}. {step.role} {_entity_text(step.entity)}")
+        typer.echo(f"   status: {step.relationship_status}")
+        if step.relationship_path:
+            typer.echo(f"   relationship: {_relationship_path_text(step.relationship_path)}")
+        for evidence in step.evidence:
+            typer.echo(f"   evidence: {_evidence_ref_text(evidence)}")
+        typer.echo(f"   explanation: {step.explanation}")
+
+
+def _decision_trace_response_json(response: DecisionTraceResponse) -> dict[str, object]:
+    return {
+        "topic": response.topic,
+        "trace_kind": response.trace_kind,
+        "resolved_target": _entity_json(response.resolved_target),
+        "target_candidates": [_entity_json(candidate) for candidate in response.target_candidates],
+        "requested_scope": _scope_json(response.requested_scope),
+        "actual_scopes": [_scope_json(scope) for scope in response.actual_scopes],
+        "projection_build_id": response.projection_build_id,
+        "graph_projection_version": response.graph_projection_version,
+        "steps": [
+            {
+                "rank": step.rank,
+                "role": step.role,
+                "entity": _entity_json(step.entity),
+                "relationship_path": [_relationship_json(relationship) for relationship in step.relationship_path],
+                "evidence": [_evidence_json(evidence) for evidence in step.evidence],
+                "relationship_status": step.relationship_status,
+                "explanation": step.explanation,
+            }
+            for step in response.steps
+        ],
+        "warnings": [_graph_warning_json(warning) for warning in response.warnings],
+        "store_revisions": [_graph_revision_json(revision) for revision in response.store_revisions],
+        "generated_at": response.generated_at,
+    }
+
+
 def _search_response_json(response: SearchResponse) -> dict[str, object]:
     return {
         "query_text": response.query_text,
@@ -618,10 +726,10 @@ def _relationship_path_text(relationships: tuple[RelationshipRecord, ...]) -> st
 
 def _evidence_ref_text(evidence: EvidenceReference) -> str:
     if evidence.anchor:
-        return f"{evidence.path}#{evidence.anchor}"
+        return f"[{evidence.vault_id}] {evidence.path}#{evidence.anchor}"
     if evidence.section:
-        return f"{evidence.path}#{evidence.section}"
-    return evidence.path
+        return f"[{evidence.vault_id}] {evidence.path}#{evidence.section}"
+    return f"[{evidence.vault_id}] {evidence.path}"
 
 
 def _result_json(result: RetrievalResult) -> dict[str, object]:

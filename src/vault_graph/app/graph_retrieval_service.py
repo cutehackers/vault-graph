@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Literal, Protocol, cast
 
@@ -29,6 +29,7 @@ from vault_graph.projection.graph_projection import (
 )
 from vault_graph.retrieval.graph_retrieval import (
     DecisionTraceResponse,
+    DecisionTraceStep,
     GraphOutputFormat,
     GraphRetrievalRevision,
     GraphRetrievalWarning,
@@ -199,7 +200,177 @@ class GraphRetrievalService:
         limit: int = 10,
         output_format: GraphOutputFormat = "text",
     ) -> DecisionTraceResponse:
-        raise NotImplementedError("decision_trace is implemented in Phase 3C Task 8")
+        if depth <= 0 or depth > MAX_GRAPH_PROJECTION_DEPTH:
+            raise GraphStoreError("unsupported graph projection depth")
+        if limit <= 0:
+            raise SearchError("limit must be positive")
+        actual_scopes = _actual_scopes(
+            catalog=self._catalog,
+            requested_scope=requested_scope,
+            include_cross_vault=include_cross_vault,
+        )
+        readiness = self._graph_readiness.check(requested_scope=requested_scope, actual_scopes=actual_scopes)
+        _raise_fatal_readiness(readiness)
+        fresh_scopes, warnings = _fresh_scopes_with_warnings(readiness=readiness, actual_scopes=actual_scopes)
+        if not fresh_scopes:
+            return _empty_decision_trace_response(
+                topic=topic,
+                requested_scope=requested_scope,
+                actual_scopes=actual_scopes,
+                warnings=warnings,
+            )
+
+        target_result = self._graph_store.find_entities(
+            GraphEntityQuery(text=topic, actual_scopes=fresh_scopes, limit=GRAPH_TARGET_LIMIT)
+        )
+        if target_result.truncated:
+            warnings.append(
+                GraphRetrievalWarning(
+                    code="graph_target_scan_truncated",
+                    message="Graph target lookup reached the scan limit.",
+                    severity="warning",
+                    affected_vault_ids=target_result.affected_vault_ids,
+                )
+            )
+        target_resolution = _resolve_decision_target(target_result.matches)
+        if target_resolution.warning is not None:
+            warnings.append(target_resolution.warning)
+            return _empty_decision_trace_response(
+                topic=topic,
+                requested_scope=requested_scope,
+                actual_scopes=actual_scopes,
+                warnings=warnings,
+                target_candidates=target_resolution.candidates,
+            )
+
+        resolved_target = target_resolution.entity
+        if resolved_target is None:
+            raise SearchError("resolved graph target is required")
+        trace_kind: Literal["decision", "topic"] = "decision" if _is_decision_entity(resolved_target) else "topic"
+        if trace_kind == "topic":
+            warnings.append(
+                GraphRetrievalWarning(
+                    code="topic_not_durable_decision",
+                    message="Graph target is not a durable Decision entity; returning a topic trace.",
+                    severity="warning",
+                    affected_vault_ids=(resolved_target.vault_id,),
+                    entity_id=resolved_target.entity_id,
+                )
+            )
+
+        initial_step = _initial_decision_trace_step(
+            entity=resolved_target,
+            trace_kind=trace_kind,
+            evidence=_resolve_graph_evidence(self._metadata_store, resolved_target.evidence_refs),
+            warnings=warnings,
+        )
+        remaining_path_limit = limit - (1 if initial_step is not None else 0)
+        if remaining_path_limit <= 0:
+            steps = (replace(initial_step, rank=1),) if initial_step is not None else ()
+            evidence = tuple(evidence for step in steps for evidence in step.evidence)
+            return DecisionTraceResponse(
+                topic=topic,
+                trace_kind=trace_kind,
+                resolved_target=resolved_target,
+                target_candidates=target_resolution.candidates,
+                requested_scope=requested_scope,
+                actual_scopes=actual_scopes,
+                projection_build_id=None,
+                graph_projection_version=GRAPH_PROJECTION_VERSION,
+                steps=steps,
+                warnings=tuple(warnings),
+                store_revisions=_store_revisions(
+                    readiness=readiness,
+                    projection_build_id=None,
+                    evidence=evidence,
+                ),
+                generated_at=datetime.now(UTC).isoformat(),
+            )
+
+        traversal = self._collect_relationships(
+            seed=GraphEntityIdentity(resolved_target.vault_id, resolved_target.entity_id),
+            actual_scopes=fresh_scopes,
+            depth=depth,
+            direction="both",
+            relationship_types=(),
+            include_cross_vault=include_cross_vault,
+            warnings=warnings,
+        )
+        evidence_valid_relationships, relationship_evidence = self._evidence_valid_relationships(
+            relationships=traversal.relationships,
+            warnings=warnings,
+        )
+        projection_result = self._projection.project(
+            GraphProjectionInput(
+                seeds=(_projection_node(resolved_target),),
+                nodes=tuple(_projection_node(entity) for entity in traversal.entities),
+                relationships=tuple(_projection_edge(relationship) for relationship in evidence_valid_relationships),
+                actual_scope_keys=tuple(graph_scope_key(scope) for scope in fresh_scopes),
+                source_graph_revisions=tuple(
+                    row.last_graph_revision for row in readiness.scope_readiness if row.last_graph_revision
+                ),
+                max_depth=depth,
+                direction="both",
+                relationship_types=(),
+                statuses=("stated", "inferred", "contested"),
+                include_cross_vault=include_cross_vault,
+                limit=remaining_path_limit,
+                edge_limit=DEFAULT_GRAPH_PROJECTION_EDGE_LIMIT,
+            )
+        )
+        if projection_result.truncated:
+            warnings.append(
+                GraphRetrievalWarning(
+                    code="graph_projection_truncated",
+                    message="Graph projection reached its result or edge limit.",
+                    severity="warning",
+                    affected_vault_ids=_affected_vault_ids(fresh_scopes),
+                )
+            )
+
+        sorted_paths = tuple(
+            path
+            for _, path in sorted(
+                enumerate(projection_result.paths, start=1),
+                key=lambda item: (
+                    _relationship_role_priority(_path_role(item[1])),
+                    -item[1].score,
+                    item[0],
+                ),
+            )
+        )
+        path_steps = tuple(
+            _decision_trace_step_from_path(
+                path=path,
+                entities=traversal.entities_by_identity,
+                relationships=traversal.relationships_by_identity,
+                relationship_evidence=relationship_evidence,
+            )
+            for path in sorted_paths
+        )
+        combined_steps: tuple[DecisionTraceStep, ...] = (
+            tuple(step for step in ((initial_step,) if initial_step is not None else ()) + path_steps)[:limit]
+        )
+        ranked_steps = tuple(replace(step, rank=rank) for rank, step in enumerate(combined_steps, start=1))
+        evidence = tuple(evidence for step in ranked_steps for evidence in step.evidence)
+        return DecisionTraceResponse(
+            topic=topic,
+            trace_kind=trace_kind,
+            resolved_target=resolved_target,
+            target_candidates=target_resolution.candidates,
+            requested_scope=requested_scope,
+            actual_scopes=actual_scopes,
+            projection_build_id=projection_result.projection_build_id,
+            graph_projection_version=projection_result.graph_projection_version,
+            steps=ranked_steps,
+            warnings=tuple(warnings),
+            store_revisions=_store_revisions(
+                readiness=readiness,
+                projection_build_id=projection_result.projection_build_id,
+                evidence=evidence,
+            ),
+            generated_at=datetime.now(UTC).isoformat(),
+        )
 
     def _collect_relationships(
         self,
@@ -436,6 +607,154 @@ def _resolve_target(matches: Iterable[GraphEntityMatch]) -> _TargetResolution:
     return _TargetResolution(entity=best_entities[0], candidates=candidates, warning=None)
 
 
+def _resolve_decision_target(matches: Iterable[GraphEntityMatch]) -> _TargetResolution:
+    typed_matches = tuple(matches)
+    candidates = tuple(match.entity for match in typed_matches)
+    exact_matches = tuple(
+        match
+        for match in typed_matches
+        if match.match_kind in {"entity_id", "canonical_path", "normalized_name", "alias"}
+    )
+    candidate_matches = exact_matches or typed_matches
+    if not candidate_matches:
+        return _TargetResolution(
+            entity=None,
+            candidates=candidates,
+            warning=GraphRetrievalWarning(
+                code="target_not_found",
+                message="Graph target was not found as an exact entity, path, name, or alias match.",
+                severity="warning",
+                affected_vault_ids=_candidate_vault_ids(candidates),
+            ),
+        )
+    best_type_rank = min(_entity_type_priority(match.entity.type) for match in candidate_matches)
+    best_type_matches = tuple(
+        match for match in candidate_matches if _entity_type_priority(match.entity.type) == best_type_rank
+    )
+    best_match_rank = min(match.match_rank for match in best_type_matches)
+    best = tuple(match for match in best_type_matches if match.match_rank == best_match_rank)
+    best_entities = tuple(match.entity for match in best)
+    if len({(entity.vault_id, entity.entity_id) for entity in best_entities}) != 1:
+        return _TargetResolution(
+            entity=None,
+            candidates=best_entities,
+            warning=GraphRetrievalWarning(
+                code="ambiguous_graph_target",
+                message="Graph target matched multiple equal-rank entities.",
+                severity="warning",
+                affected_vault_ids=_candidate_vault_ids(best_entities),
+            ),
+        )
+    return _TargetResolution(entity=best_entities[0], candidates=candidates, warning=None)
+
+
+def _is_decision_entity(entity: EntityRecord) -> bool:
+    return entity.type.casefold() == "decision"
+
+
+def _entity_type_priority(entity_type: str) -> tuple[int, str]:
+    priority = {
+        "decision": 0,
+        "wikipage": 1,
+        "document": 2,
+        "concept": 3,
+    }
+    normalized = entity_type.casefold()
+    return (priority.get(normalized, 4), normalized)
+
+
+def _initial_decision_trace_step(
+    *,
+    entity: EntityRecord,
+    trace_kind: Literal["decision", "topic"],
+    evidence: tuple[EvidenceReference, ...],
+    warnings: list[GraphRetrievalWarning],
+) -> DecisionTraceStep | None:
+    if not evidence:
+        warnings.append(
+            GraphRetrievalWarning(
+                code="graph_evidence_missing",
+                message="Decision trace target entity evidence could not be resolved from metadata.",
+                severity="warning",
+                affected_vault_ids=(entity.vault_id,),
+                entity_id=entity.entity_id,
+            )
+        )
+        return None
+    return DecisionTraceStep(
+        rank=1,
+        role="decision" if trace_kind == "decision" else "topic",
+        entity=entity,
+        relationship_path=(),
+        evidence=evidence,
+        relationship_status="not_applicable",
+        explanation=f"{trace_kind} identity evidence",
+    )
+
+
+def _decision_trace_step_from_path(
+    *,
+    path: GraphPath,
+    entities: dict[tuple[str, str], EntityRecord],
+    relationships: dict[tuple[str, str], RelationshipRecord],
+    relationship_evidence: dict[tuple[str, str], tuple[EvidenceReference, ...]],
+) -> DecisionTraceStep:
+    target_key = (path.target.vault_id, path.target.entity_id)
+    relationship_path = tuple(
+        relationships[(edge.source_vault_id, edge.relationship_id)] for edge in path.edges
+    )
+    evidence = _dedupe_evidence(
+        tuple(
+            item
+            for relationship in relationship_path
+            for item in relationship_evidence[(relationship.source_vault_id, relationship.relationship_id)]
+        )
+    )
+    return DecisionTraceStep(
+        rank=1,
+        role=_path_role(path),
+        entity=entities[target_key],
+        relationship_path=relationship_path,
+        evidence=evidence,
+        relationship_status=_path_relationship_status(path),
+        explanation=path.explanation,
+    )
+
+
+def _path_role(path: GraphPath) -> str:
+    if not path.edges:
+        return "related_to"
+    return path.edges[0].relationship_type
+
+
+def _path_relationship_status(path: GraphPath) -> str:
+    if not path.edges:
+        return "not_applicable"
+    return min((edge.status for edge in path.edges), key=_relationship_status_weight)
+
+
+def _relationship_role_priority(role: str) -> tuple[int, str]:
+    priority = {
+        "supersedes": 0,
+        "depends_on": 1,
+        "blocks": 2,
+        "implements": 3,
+        "related_to": 4,
+        "mentions": 5,
+    }
+    return (priority.get(role, 6), role)
+
+
+def _relationship_status_weight(status: str) -> float:
+    return {
+        "stated": 1.0,
+        "inferred": 0.75,
+        "contested": 0.45,
+        "deprecated": 0.0,
+        "not_applicable": 0.0,
+    }.get(status, 0.0)
+
+
 def _relationship_endpoints(relationship: RelationshipRecord) -> tuple[GraphEntityIdentity, GraphEntityIdentity]:
     return (
         GraphEntityIdentity(relationship.source_vault_id, relationship.source_entity_id),
@@ -515,10 +834,34 @@ def _empty_related_response(
     )
 
 
+def _empty_decision_trace_response(
+    *,
+    topic: str,
+    requested_scope: QueryScope,
+    actual_scopes: tuple[QueryScope, ...],
+    warnings: list[GraphRetrievalWarning],
+    target_candidates: tuple[EntityRecord, ...] = (),
+) -> DecisionTraceResponse:
+    return DecisionTraceResponse(
+        topic=topic,
+        trace_kind="topic",
+        resolved_target=None,
+        target_candidates=target_candidates,
+        requested_scope=requested_scope,
+        actual_scopes=actual_scopes,
+        projection_build_id=None,
+        graph_projection_version=GRAPH_PROJECTION_VERSION,
+        steps=(),
+        warnings=tuple(warnings),
+        store_revisions=(),
+        generated_at=datetime.now(UTC).isoformat(),
+    )
+
+
 def _store_revisions(
     *,
     readiness: GraphReadiness,
-    projection_build_id: str,
+    projection_build_id: str | None,
     evidence: tuple[EvidenceReference, ...],
 ) -> tuple[GraphRetrievalRevision, ...]:
     revisions: list[GraphRetrievalRevision] = []
@@ -542,9 +885,10 @@ def _store_revisions(
                     vault_id=item.vault_id,
                 )
             )
-    revisions.append(
-        GraphRetrievalRevision(kind="projection", revision=projection_build_id, scope_key="projection")
-    )
+    if projection_build_id is not None:
+        revisions.append(
+            GraphRetrievalRevision(kind="projection", revision=projection_build_id, scope_key="projection")
+        )
     return tuple(revisions)
 
 

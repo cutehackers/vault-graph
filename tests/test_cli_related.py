@@ -48,7 +48,7 @@ def test_cli_related_text_renders_evidence_linked_items(tmp_path: Path, monkeypa
     assert "projection: graph-projection-v1 build-1" in result.stdout
     assert "1. [default] Search" in result.stdout
     assert "relationship: depends_on stated" in result.stdout
-    assert "evidence: wiki/graphrag.md#dependency" in result.stdout
+    assert "evidence: [default] wiki/graphrag.md#dependency" in result.stdout
     assert "signals: graph" in result.stdout
 
 

@@ -3,6 +3,43 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-11 - Phase 3C `vg decision-trace` Implementation Review Fixes
+
+**Trigger:** Subagent review of the Phase 3C decision trace slice found target
+priority, projection-rank tie-break, text evidence identity, trace limit, and
+read-only regression gaps.
+
+**Scope:** `GraphRetrievalService.decision_trace`, `vg decision-trace` CLI
+rendering, service/CLI tests, and graph retrieval review fixtures.
+
+**Core Values Protected:**
+
+- decision traces remain evidence-first and do not synthesize answers
+- durable `Decision` entities are preferred without hiding topic fallback
+- graph output preserves Vault-scoped evidence identity
+- read-only graph commands do not create missing derived state or caches
+
+**Changes Applied:**
+
+- Made decision target resolution apply entity-type priority before match-rank
+  tie-breaks and allow lexical fallback only when no exact match exists.
+- Preserved projection rank after role priority and projection score while
+  ordering decision trace path steps.
+- Rendered text evidence with `[vault_id]` prefixes for related and decision
+  trace outputs.
+- Treated `limit` as total trace steps by subtracting the initial identity step
+  from the projection path budget.
+- Added real `vg decision-trace` factory no-mutation coverage and no-synthesis
+  output assertions.
+
+**Verification:**
+
+- subagent exploration, spec review, code quality review, and focused re-reviews
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src tests`
+- `git diff --check`
+
 ## 2026-06-11 - Phase 3C `vg related` Implementation Review Fixes
 
 **Trigger:** Subagent review of the Phase 3C `vg related` CLI slice found that
