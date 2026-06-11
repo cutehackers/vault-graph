@@ -1,5 +1,7 @@
 """Runtime graph projection contracts and local adapters."""
 
+from typing import TYPE_CHECKING
+
 from vault_graph.projection.graph_projection import (
     DEFAULT_GRAPH_PROJECTION_EDGE_LIMIT,
     DEFAULT_GRAPH_RELATED_DEPTH,
@@ -17,7 +19,9 @@ from vault_graph.projection.graph_projection import (
     GraphProjectionNode,
     GraphProjectionResult,
 )
-from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
+
+if TYPE_CHECKING:
+    from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
 
 __all__ = [
     "DEFAULT_GRAPH_PROJECTION_EDGE_LIMIT",
@@ -37,3 +41,11 @@ __all__ = [
     "GraphProjectionResult",
     "RustworkxGraphProjection",
 ]
+
+
+def __getattr__(name: str) -> object:
+    if name == "RustworkxGraphProjection":
+        from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
+
+        return RustworkxGraphProjection
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

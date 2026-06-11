@@ -43,9 +43,10 @@ class ReadOnlyGraphReadiness:
                 actual_scopes=actual_scopes,
             )
         try:
+            graph_lookup_scopes = _graph_lookup_scopes(actual_scopes)
             stored_specs = self._graph_store.stored_specs()
-            latest_revisions = self._graph_store.latest_revisions(actual_scopes)
-            manifest = self._graph_store.current_manifest(actual_scopes)
+            latest_revisions = self._graph_store.latest_revisions(graph_lookup_scopes)
+            manifest = self._graph_store.current_manifest(graph_lookup_scopes)
         except (GraphStoreUnavailable, GraphStoreError) as exc:
             return self._unavailable_readiness(
                 graph_health=graph_health,
@@ -261,7 +262,7 @@ class ReadOnlyGraphReadiness:
         readiness: list[GraphScopeReadiness] = []
         for scope in actual_scopes:
             scope_key = graph_scope_key(scope)
-            revision = revisions_by_scope.get(scope_key)
+            revision = _revision_for_scope(revisions_by_scope=revisions_by_scope, scope=scope)
             lineage = lineage_by_scope[scope_key]
             warnings: list[str] = []
             if revision is None:
@@ -293,7 +294,7 @@ class ReadOnlyGraphReadiness:
                     actual_scope=scope_key,
                     freshness=freshness,
                     stale_count=stale_count,
-                    tombstone_count=tombstones_by_scope.get(scope_key, 0),
+                    tombstone_count=_tombstone_count_for_scope(tombstones_by_scope=tombstones_by_scope, scope=scope),
                     last_graph_revision=revision.graph_index_revision if revision is not None else None,
                     warnings=tuple(warnings),
                 )
@@ -402,6 +403,52 @@ def _recovery_hint(freshness: str, warnings: tuple[str, ...]) -> str:
     if freshness == "unavailable":
         return "inspect graph state and rerun `vg status`"
     return "ok"
+
+
+def _graph_lookup_scopes(actual_scopes: tuple[QueryScope, ...]) -> tuple[QueryScope, ...]:
+    scopes: list[QueryScope] = []
+    for scope in actual_scopes:
+        scopes.append(scope)
+        if scope.include_cross_vault:
+            scopes.append(
+                QueryScope(
+                    vault_ids=scope.vault_ids,
+                    content_scopes=scope.content_scopes,
+                )
+            )
+    return tuple(dict.fromkeys(scopes))
+
+
+def _revision_for_scope(*, revisions_by_scope: dict[str, GraphRevision], scope: QueryScope) -> GraphRevision | None:
+    revision = revisions_by_scope.get(graph_scope_key(scope))
+    if revision is not None or not scope.include_cross_vault:
+        return revision
+    return revisions_by_scope.get(
+        graph_scope_key(
+            QueryScope(
+                vault_ids=scope.vault_ids,
+                content_scopes=scope.content_scopes,
+            )
+        )
+    )
+
+
+def _tombstone_count_for_scope(*, tombstones_by_scope: dict[str, int], scope: QueryScope) -> int:
+    scope_key = graph_scope_key(scope)
+    count = tombstones_by_scope.get(scope_key)
+    if count is not None or not scope.include_cross_vault:
+        return count or 0
+    return (
+        tombstones_by_scope.get(
+            graph_scope_key(
+                QueryScope(
+                    vault_ids=scope.vault_ids,
+                    content_scopes=scope.content_scopes,
+                )
+            )
+        )
+        or 0
+    )
 
 
 def _revision_from_values(values: tuple[str | None, ...], *, fallback: str) -> str:

@@ -31,7 +31,6 @@ from vault_graph.graph.graph_contracts import (
 )
 from vault_graph.graph.graph_identity import graph_scope_key
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
 from vault_graph.retrieval import (
     DecisionTraceResponse,
     GraphOutputFormat,
@@ -144,6 +143,8 @@ def _search_service(
 
 
 def _graph_retrieval_service(state: Path) -> tuple[CatalogService, VaultCatalog, GraphRetrievalService]:
+    from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
+
     config, catalog = _catalog(state)
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=False)
     graph_store = SQLiteGraphStore.open_read_only(config.graph_path)

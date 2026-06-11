@@ -3,6 +3,49 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-11 - Phase 3C Boundary Hardening Review Fixes
+
+**Trigger:** Subagent review of the Phase 3C boundary hardening slice found
+that cross-Vault readiness could reuse local graph revisions without inspecting
+the same local graph manifest rows, and plain CLI import loaded the rustworkx
+projection adapter too early.
+
+**Scope:** Graph readiness, projection package exports, CLI graph service
+factory imports, read-only boundary tests, multi-vault retrieval tests, and
+import boundary tests.
+
+**Core Values Protected:**
+
+- graph retrieval remains read-only and does not auto-create derived state
+- cross-Vault graph traversal preserves evidence freshness diagnostics
+- plain search avoids graph projection work until explicitly requested
+- public projection contracts stay lightweight while adapter loading is lazy
+
+**Changes Applied:**
+
+- Made `ReadOnlyGraphReadiness` use the same expanded graph lookup scopes for
+  graph revisions and graph manifests when actual scopes request cross-Vault
+  traversal.
+- Kept readiness output attributed to the original actual scope while falling
+  back to local graph revision and tombstone state for cross-Vault reads.
+- Added SQLite-backed regression coverage proving cross-scope readiness still
+  detects stale local graph evidence.
+- Moved `RustworkxGraphProjection` loading out of CLI module import and into
+  the graph retrieval factory.
+- Changed `vault_graph.projection` to lazily expose `RustworkxGraphProjection`
+  via `__getattr__` instead of importing rustworkx during package import.
+- Added read-only state-tree, multi-vault identity, stale-scope, import
+  boundary, and public export smoke tests.
+
+**Verification:**
+
+- subagent boundary review, code quality review, and focused re-reviews
+- `uv run --python 3.12 pytest tests/test_graph_readiness.py tests/test_graph_retrieval_read_only_boundary.py tests/test_multi_vault_graph_retrieval.py tests/test_retrieval_import_boundaries.py tests/test_package_import.py -q`
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 ruff check .`
+- `uv run --python 3.12 mypy src tests`
+- `git diff --check`
+
 ## 2026-06-11 - Phase 3C Opt-In Graph Search Review Fixes
 
 **Trigger:** Subagent review of the Phase 3C `vg search --include-graph`

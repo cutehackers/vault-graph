@@ -224,6 +224,33 @@ def test_graph_readiness_reports_fresh_with_sqlite_graph_store_opened_read_only(
     assert report.last_graph_revision == "graph-1"
 
 
+def test_graph_readiness_cross_scope_checks_local_sqlite_graph_evidence(tmp_path: Path) -> None:
+    metadata_store, document_id, chunk_id, _ = metadata_store_with_chunk_ids(tmp_path)
+    graph_path = tmp_path / "graph.sqlite3"
+    writable_graph_store = SQLiteGraphStore.open_writable(graph_path)
+    entity = make_entity(
+        "default",
+        document_id=document_id,
+        chunk_id=chunk_id,
+        content_hash="stale-graph-hash",
+        path="wiki/page.md",
+    )
+    writable_graph_store.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))
+    service = ReadOnlyGraphReadiness(
+        metadata_store=metadata_store,
+        graph_store=SQLiteGraphStore.open_read_only(graph_path),
+        expected_spec=current_graph_extraction_spec(),
+    )
+    cross_scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",), include_cross_vault=True)
+
+    report = service.check(requested_scope=cross_scope, actual_scopes=(cross_scope,))
+
+    assert report.scope_readiness[0].actual_scope == "default:wiki:cross"
+    assert report.scope_readiness[0].freshness == "stale"
+    assert report.scope_readiness[0].last_graph_revision == "graph-1"
+    assert any("stale graph evidence" in warning for warning in report.scope_readiness[0].warnings)
+
+
 def test_graph_readiness_reports_scope_rows_for_all_vaults(tmp_path: Path) -> None:
     first_store, document_id, chunk_id, content_hash = metadata_store_with_chunk_ids(
         tmp_path,
