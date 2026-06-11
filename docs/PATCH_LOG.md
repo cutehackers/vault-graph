@@ -3,6 +3,43 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-11 - Phase 3C Design Consistency Update
+
+**Trigger:** Phase 3C implementation planning needed a detailed design, while
+the top-level Phase 3 contract still described the Phase 3C slice as planned.
+
+**Scope:** Phase 3A/3C design documents, Phase 3 design index, overview, and
+top-level SPEC link references.
+
+**Core Values Protected:**
+
+- graph retrieval remains explicit, evidence-first, and read-only
+- `GraphProjection` stays a bounded runtime view, not graph authority
+- default search remains keyword/vector unless graph is explicitly requested
+- multi-vault graph traversal preserves source, target, and evidence Vault IDs
+
+**Changes Applied:**
+
+- Added the Phase 3C graph projection and retrieval design.
+- Linked Phase 3C from the Phase 3 README, overview, and top-level SPEC.
+- Removed stale "future Phase 3C" wording from the Phase 3A handoff.
+- Specified read-only graph commands, target resolution, graph warnings,
+  evidence resolution, and opt-in graph search integration.
+- Tightened graph evidence gating so every relationship edge must resolve
+  relationship evidence before ranking, rendering, or search fusion.
+- Changed stale and empty graph scopes to omit normal graph results by default.
+- Fixed all-vault same-name target handling as ambiguity-only, not automatic
+  multi-seed traversal.
+- Added graph query result wrappers, projection input/result types, and a public
+  retrieval candidate seam for opt-in graph search.
+- Kept persistent projection-cache writes out of Phase 3C read paths.
+
+**Verification:**
+
+- grill-with-docs consistency pass
+- multi-angle subagent review and focused re-review
+- stale-path and Markdown consistency scans
+
 ## 2026-06-11 - Phase 3B Implementation Review Fixes
 
 **Trigger:** Subagent implementation review found that delete/tombstone graph

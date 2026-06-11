@@ -1576,11 +1576,12 @@ Detailed Phase 3 contracts live under `docs/superpowers/specs/phase-3/`:
 - `2026-06-10-phase-3b-local-entity-relationship-indexing-design.md`: Phase 3B
   deterministic local entity and relationship indexing through scope-local
   graph reconcile
+- `2026-06-10-phase-3c-graph-projection-retrieval-design.md`: Phase 3C
+  bounded `GraphProjection`, graph retrieval commands, and opt-in graph search
 
-Future Phase 3C detailed design should be added in the same folder before
-implementation of that slice begins. `docs/SPEC.md` remains the top-level
-product and architecture contract; slice documents hold implementation details
-that would otherwise make this file too long.
+`docs/SPEC.md` remains the top-level product and architecture contract; slice
+documents hold implementation details that would otherwise make this file too
+long.
 
 Phase 3 slices:
 
@@ -1588,7 +1589,7 @@ Phase 3 slices:
 | --- | --- | --- | --- |
 | Phase 3A | Define graph record contracts, `GraphExtractionSpec`, `GraphStore`, scoped graph manifests, and graph readiness/status contracts | `docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md` | entity extraction execution, graph traversal, rustworkx ranking, decision traces |
 | Phase 3B | Build local deterministic entity and relationship indexing through scope-local graph reconcile | `docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md` | LLM-required extraction, cross-Vault entity merging, context packs |
-| Phase 3C | Add bounded `GraphProjection`, opt-in graph retrieval signals, `vg related`, and decision trace prototype | planned under `docs/superpowers/specs/phase-3/` | `vg ask`, MCP serving, HTTP serving, Neo4j |
+| Phase 3C | Add bounded `GraphProjection`, opt-in graph retrieval signals, `vg related`, and decision trace prototype | `docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md` | `vg ask`, MCP serving, HTTP serving, Neo4j |
 
 Phase 3 invariants:
 

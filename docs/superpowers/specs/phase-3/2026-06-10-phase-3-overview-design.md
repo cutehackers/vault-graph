@@ -28,7 +28,7 @@ owns its own detailed design document under `docs/superpowers/specs/phase-3/`.
 | `2026-06-10-phase-3-overview-design.md` | Cross-slice roadmap, invariants, and handoff map |
 | `2026-06-10-phase-3a-graphstore-contract-readiness-design.md` | Phase 3A graph contracts, `GraphStore`, and readiness design |
 | `2026-06-10-phase-3b-local-entity-relationship-indexing-design.md` | Phase 3B deterministic local indexing and scope-local reconcile design |
-| `2026-06-10-phase-3c-graph-projection-retrieval-design.md` | Planned Phase 3C projection and retrieval design |
+| `2026-06-10-phase-3c-graph-projection-retrieval-design.md` | Phase 3C bounded graph projection and retrieval design |
 
 `docs/SPEC.md` remains the top-level product contract. This folder is the
 implementation-design layer for Phase 3.
@@ -172,8 +172,9 @@ Phase 3 implementation planning should proceed in this order:
    contract tests.
 2. Phase 3B: deterministic extractors, `GraphIndexer`, scope-local reconcile,
    dry-run, status, and graph indexing tests.
-3. Phase 3C: rustworkx `GraphProjection`, opt-in graph signal integration,
-   `vg related`, `vg decision-trace`, graph warnings, and CLI/read-only tests.
+3. Phase 3C: bounded rustworkx `GraphProjection`, opt-in graph signal
+   integration, `vg related`, `vg decision-trace`, graph warnings, and
+   CLI/read-only tests.
 
 Each slice should preserve the rule that Vault Graph writes only derived state
 and never edits Vault content.

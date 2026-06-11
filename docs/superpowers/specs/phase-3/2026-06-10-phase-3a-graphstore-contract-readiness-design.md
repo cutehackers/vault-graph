@@ -138,7 +138,7 @@ MetadataStore current chunks
   -> GraphRevision rows
 ```
 
-Future Phase 3C read flow extends the same records and store boundary.
+Phase 3C read flow extends the same records and store boundary.
 
 ```text
 GraphStore graph lookup methods defined by Phase 3C
