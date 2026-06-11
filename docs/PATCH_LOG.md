@@ -3,6 +3,41 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-11 - Phase 3C `vg related` Implementation Review Fixes
+
+**Trigger:** Subagent review of the Phase 3C `vg related` CLI slice found that
+text output hid cross-Vault actual-scope state, JSON output compressed nested
+graph records, and the real read-only graph retrieval factory lacked regression
+coverage.
+
+**Scope:** `vg related` CLI rendering, JSON mapping, real factory read-only
+regression coverage, and Vault-scoped candidate suppression.
+
+**Core Values Protected:**
+
+- graph retrieval remains explicit and evidence-linked in text and JSON output
+- multi-vault graph output preserves Vault-scoped identities
+- read-only graph commands do not create missing derived state or caches
+
+**Changes Applied:**
+
+- Rendered `vg related` actual scopes with the graph scope key, including
+  `local`/`cross` state.
+- Expanded related JSON mapping to include full nested entity, relationship,
+  and graph evidence reference contract fields.
+- Added a real `vg related` factory regression proving missing graph state
+  returns a recovery warning without creating metadata, graph, or projection
+  cache files.
+- Changed resolved-target candidate suppression to compare
+  `(vault_id, entity_id)`.
+
+**Verification:**
+
+- subagent spec review, code quality review, and focused re-reviews
+- `uv run --python 3.12 pytest tests/test_cli_related.py tests/test_cli_surface_boundary.py tests/test_cli_search.py tests/test_graph_retrieval_service.py -q`
+- `uv run --python 3.12 ruff check src/vault_graph/cli/main.py tests/test_cli_related.py tests/test_cli_surface_boundary.py tests/test_cli_search.py tests/test_graph_retrieval_service.py`
+- `uv run --python 3.12 mypy src/vault_graph/cli/main.py tests/test_cli_related.py tests/test_cli_surface_boundary.py tests/test_cli_search.py tests/test_graph_retrieval_service.py`
+
 ## [PATCH-0001] Phase 3C Implementation Plan Review Hardening
 
 - **Reason:** Multi-angle subagent review found Phase 3C implementation-plan

@@ -12,6 +12,8 @@ def test_cli_surface_exposes_search_but_not_answer_or_context_commands() -> None
 
     assert result.exit_code == 0
     assert "search" in result.output
+    assert "related" in result.output
+    assert "decision-trace" not in result.output
     assert "ask" not in result.output
     assert "context" not in result.output
 
