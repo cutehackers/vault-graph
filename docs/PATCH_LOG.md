@@ -3,6 +3,28 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## [PATCH-0001] Phase 3C Implementation Plan Review Hardening
+
+- **Reason:** Multi-angle subagent review found Phase 3C implementation-plan
+  gaps that could cause unbounded graph lookup, hidden truncation, graph-search
+  degradation failures, projection/storage coupling, incomplete read-only tests,
+  and duplicated retrieval signal DTOs.
+- **Before:** Phase 3C plan used an unwrapped `find_entities` return value,
+  allowed alias/path fallback scans without a hard scan cap, passed only seed
+  nodes into `GraphProjectionInput`, did not require graph-search readiness
+  failures to degrade, used a duplicate `CandidateSignal`, and left some
+  read-only/multi-vault/test fixture requirements implicit.
+- **After:** Phase 3C plan and design now use `GraphEntityQueryResult` with
+  truncation metadata, bounded entity scan/read/result/projection limits,
+  `graph_target_scan_truncated` and `graph_relationship_read_truncated`
+  warnings, `GraphProjectionInput.nodes`, existing `RetrievalSignal` records in
+  `RetrievalCandidate`, `requested_scope` in graph candidate providers,
+  explicit graph-search readiness degradation tests, broader read-only state
+  tree assertions, and executable smoke setup.
+- **Scope:** `docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md`,
+  `docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md`,
+  `docs/PATCH_LOG.md`
+
 ## 2026-06-11 - Phase 3C Design Consistency Update
 
 **Trigger:** Phase 3C implementation planning needed a detailed design, while

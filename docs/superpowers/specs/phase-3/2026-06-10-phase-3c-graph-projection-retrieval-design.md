@@ -285,6 +285,7 @@ class GraphEntityQuery:
     actual_scopes: tuple[QueryScope, ...]
     types: tuple[str, ...] = ()
     limit: int = 20
+    scan_limit: int = 5000
 
 @dataclass(frozen=True)
 class GraphEntityMatch:
@@ -292,6 +293,12 @@ class GraphEntityMatch:
     match_kind: Literal["entity_id", "canonical_path", "normalized_name", "alias", "contains"]
     match_rank: int
     matched_value: str
+
+@dataclass(frozen=True)
+class GraphEntityQueryResult:
+    matches: tuple[GraphEntityMatch, ...]
+    truncated: bool
+    affected_vault_ids: tuple[str, ...]
 
 @dataclass(frozen=True)
 class GraphRelationshipQuery:
@@ -311,7 +318,7 @@ class GraphRelationshipQueryResult:
     affected_vault_ids: tuple[str, ...]
 
 class GraphStore(Protocol):
-    def find_entities(self, query: GraphEntityQuery) -> tuple[GraphEntityMatch, ...]: ...
+    def find_entities(self, query: GraphEntityQuery) -> GraphEntityQueryResult: ...
     def relationships_for_entities(
         self,
         query: GraphRelationshipQuery,
@@ -324,6 +331,10 @@ class GraphStore(Protocol):
 - match normalized name, aliases, canonical path, and entity ID
 - return match metadata so target resolution can distinguish exact matches,
   suggestions, and equal-best ambiguity without duplicating store rules
+- use indexed exact probes where indexes exist before bounded fallback scans
+- keep canonical-path, alias, and contained-text fallback scans under
+  `scan_limit` until a schema-versioned lookup table or index is added later
+- return truncation metadata if fallback scans reach `scan_limit`
 - keep results scoped by actual scopes
 - sort exact normalized-name matches before alias/path/substring matches
 - preserve Vault identity in every result
@@ -438,6 +449,7 @@ class GraphPath:
 @dataclass(frozen=True)
 class GraphProjectionInput:
     seeds: tuple[GraphProjectionNode, ...]
+    nodes: tuple[GraphProjectionNode, ...]
     relationships: tuple[GraphProjectionEdge, ...]
     actual_scope_keys: tuple[str, ...]
     source_graph_revisions: tuple[str, ...]
@@ -466,6 +478,8 @@ class GraphProjection(Protocol):
 Projection build input:
 
 - resolved seed entities
+- resolved endpoint entity nodes for every relationship included in the working
+  graph
 - relationship rows returned by `GraphStore`
 - graph revisions for selected actual scopes
 - projection version
@@ -487,6 +501,7 @@ Projection build output:
 - `GRAPH_PROJECTION_VERSION`
 - actual scope keys
 - seed identities
+- working node identities
 - graph revision identifiers
 - depth, direction, relationship type filters, and cross-Vault flag
 
@@ -690,21 +705,11 @@ class SearchRequest:
     include_cross_vault: bool = False
 
 @dataclass(frozen=True)
-class CandidateSignal:
-    kind: RetrievalSignalKind
-    source_id: str
-    rank: int
-    score: float
-    backend: str
-    index_revision: str
-    explanation: str
-
-@dataclass(frozen=True)
 class RetrievalCandidate:
     vault_id: str
     document_id: str
     chunk_id: str
-    signals: tuple[CandidateSignal, ...]
+    signals: tuple[RetrievalSignal, ...]
 
 @dataclass(frozen=True)
 class GraphCandidateResult:
@@ -721,6 +726,7 @@ class GraphCandidateProvider(Protocol):
         self,
         *,
         query_text: str,
+        requested_scope: QueryScope,
         actual_scopes: tuple[QueryScope, ...],
         limit: int,
         include_cross_vault: bool,
@@ -730,6 +736,7 @@ class GraphCandidateProvider(Protocol):
 `GraphCandidateResult` contains:
 
 - graph `RetrievalCandidate` rows keyed by `(vault_id, document_id, chunk_id)`
+- candidate signals using the existing public `RetrievalSignal` shape
 - graph warnings already shaped as `SearchWarning`
 - graph store revisions already shaped as `SearchStoreRevision`
 
@@ -783,6 +790,9 @@ Non-fatal warnings for graph commands:
 - `topic_not_durable_decision`
 - `graph_stale`
 - `graph_empty`
+- `graph_unavailable`
+- `graph_target_scan_truncated`
+- `graph_relationship_read_truncated`
 - `graph_projection_truncated`
 - `cross_vault_relationship_omitted`
 - `graph_evidence_missing`
@@ -791,8 +801,8 @@ Non-fatal warnings for graph commands:
 Opt-in graph search behavior:
 
 - keyword index missing remains fatal because search cannot run
-- graph missing, empty, stale, or incompatible is non-fatal when keyword search
-  can run
+- graph missing, empty, stale, incompatible, or unavailable is non-fatal when
+  keyword search can run
 - graph query failure returns keyword/vector results with `graph_query_failed`
 - no graph target returns keyword/vector results with `graph_target_not_found`
 - ambiguous graph target returns keyword/vector results with
@@ -997,7 +1007,8 @@ Search tests:
 - graph warnings join top-level `SearchResponse.warnings`
 - graph store revisions join `SearchResponse.store_revisions`
 - graph signal weight does not outrank stronger direct evidence unexpectedly
-- graph missing, empty, stale, or unavailable degrades to keyword/vector results
+- graph missing, empty, stale, incompatible, or unavailable degrades to
+  keyword/vector results
 
 ## 21. Implementation Handoff
 
