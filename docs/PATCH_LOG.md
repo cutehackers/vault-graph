@@ -3,6 +3,45 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-11 - Phase 3B Design Consistency Update
+
+**Trigger:** Phase 3B detailed design was needed before implementation, and the
+core documents still described the Phase 3B slice as planned.
+
+**Scope:** Phase 3B design document, Phase 3 design index, top-level SPEC,
+feature surface, and extraction module naming references.
+
+**Core Values Protected:**
+
+- graph indexing remains read-only and rebuildable over Vault-derived evidence
+- Phase 3B stays deterministic and local-first before graph retrieval is exposed
+- graph reconcile remains per Vault/actual scope
+- source module names describe domain responsibility instead of schedule labels
+
+**Changes Applied:**
+
+- Added the Phase 3B local entity and relationship indexing design.
+- Linked Phase 3B from the Phase 3 README, overview, and top-level SPEC.
+- Clarified Phase 3B index output for independent vector and graph indexing failures.
+- Standardized the extraction module reference to `relationship_extractor.py`.
+- Added Vault-scoped `GraphSourceStore` and `GraphExtractionContext` boundaries
+  after implementation-readiness review.
+- Limited Phase 3B graph indexing to whole selected Vault scopes until an
+  overlap-aware manifest contract exists.
+- Clarified that `projection_cache_invalidations` are plan keys only in Phase
+  3B, not projection-cache writes.
+
+**Verification:**
+
+- grill-with-docs consistency pass
+- multi-angle subagent review and focused re-review
+- stale-term and forbidden naming scans
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src`
+- `uv run --python 3.12 mypy tests`
+- `git diff --check`
+
 ## 2026-06-10 - Phase 3A Implementation Review Fixes
 
 **Trigger:** Subagent review of the Phase 3A implementation found consistency

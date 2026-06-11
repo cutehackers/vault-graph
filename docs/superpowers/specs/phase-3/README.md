@@ -14,13 +14,13 @@ inside that contract.
 | `CONTEXT.md` | Shared Phase 3 glossary and terminology boundaries |
 | `2026-06-10-phase-3-overview-design.md` | Cross-slice overview, common invariants, and implementation handoff map |
 | `2026-06-10-phase-3a-graphstore-contract-readiness-design.md` | Detailed Phase 3A design for graph contracts, `GraphStore`, and readiness |
+| `2026-06-10-phase-3b-local-entity-relationship-indexing-design.md` | Detailed Phase 3B design for deterministic local graph indexing and scope-local reconcile |
 
 ## Planned Slice Documents
 
 These files should be added before those slices move into implementation
 planning:
 
-- `2026-06-10-phase-3b-local-entity-relationship-indexing-design.md`
 - `2026-06-10-phase-3c-graph-projection-retrieval-design.md`
 
 ## Reading Order

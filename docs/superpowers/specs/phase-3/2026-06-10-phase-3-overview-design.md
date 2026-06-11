@@ -27,7 +27,7 @@ owns its own detailed design document under `docs/superpowers/specs/phase-3/`.
 | `README.md` | Phase 3 design folder index and reading order |
 | `2026-06-10-phase-3-overview-design.md` | Cross-slice roadmap, invariants, and handoff map |
 | `2026-06-10-phase-3a-graphstore-contract-readiness-design.md` | Phase 3A graph contracts, `GraphStore`, and readiness design |
-| `2026-06-10-phase-3b-local-entity-relationship-indexing-design.md` | Planned Phase 3B indexing and reconcile design |
+| `2026-06-10-phase-3b-local-entity-relationship-indexing-design.md` | Phase 3B deterministic local indexing and scope-local reconcile design |
 | `2026-06-10-phase-3c-graph-projection-retrieval-design.md` | Planned Phase 3C projection and retrieval design |
 
 `docs/SPEC.md` remains the top-level product contract. This folder is the

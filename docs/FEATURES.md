@@ -151,6 +151,8 @@ User-visible behavior:
 - in Phase 3B, returns a nonzero exit if metadata/vector work succeeds but graph
   reconcile fails, while preserving completed earlier projection state in output
   and status
+- in Phase 3B, reports vector and graph indexing failures independently when
+  both are enabled
 - reports warnings for source drift, duplicates, stale data, or missing evidence
 - supports dry-run planning before index mutation
 

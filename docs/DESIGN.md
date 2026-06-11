@@ -321,7 +321,7 @@ evidence is missing.
 Core modules:
 
 - `entity_extractor.py`
-- `relation_extractor.py`
+- `relationship_extractor.py`
 - `decision_extractor.py`
 - `issue_extractor.py`
 - `timeline_extractor.py`
