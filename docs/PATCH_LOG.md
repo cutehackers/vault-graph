@@ -3,6 +3,46 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-12 - Phase 4B Implementation Plan Review Hardening
+
+**Trigger:** Security, performance, testability, and maintainability subagent
+reviews found Phase 4B plan gaps around scope validation order, renderer safety,
+multi-vault preservation, and read-only integration coverage.
+
+**Scope:** Phase 4B implementation plan for local context pack assembly,
+Markdown rendering, CLI wiring, and verification coverage.
+
+**Core Values Protected:**
+
+- invalid context requests fail before opening read-only stores or graph state
+- context Markdown remains evidence-linked without unsafe Vault-derived text
+  injection
+- multi-vault evidence, warnings, and revisions preserve Vault identity
+- context assembly stays bounded without overstating all-Vault retrieval limits
+- CLI remains a thin adapter over the `vault_graph.context` deep module
+
+**Changes Applied:**
+
+- Reordered the planned `vg context` flow to load the catalog, resolve scope,
+  then create read-only retrieval and builder dependencies.
+- Removed the shallow context build helper and kept pack assembly behind
+  `SearchContextPackBuilder`.
+- Added a shared Markdown warning formatter, safe code-span helper, and renderer
+  tests for escaped Vault-derived text.
+- Replaced brittle CLI source-string boundary checks with fake-renderer
+  delegation tests.
+- Added tests for unknown Vault scope, graph read-only behavior, all-Vault
+  read-only behavior, multi-vault evidence/warning/revision preservation, and
+  builder retrieval-limit caps.
+- Documented the existing per-scope all-Vault retrieval fanout and the
+  evidence-excerpt meaning of `--max-tokens`.
+
+**Verification:**
+
+- Security, performance, testability, and maintainability subagent reviews.
+- Placeholder and stale-reference scans over the implementation plan.
+- Plan structure and current worktree checks.
+
 ## 2026-06-12 - Phase 4A Implementation Review Hardening
 
 **Trigger:** Security, performance, testability, and maintainability subagent
