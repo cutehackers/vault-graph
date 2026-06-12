@@ -420,10 +420,15 @@ Context packs are structured briefs for agents.
 Required fields:
 
 - `goal`
+- `context_pack_schema_version`
+- `pack_id`
 - `scope`
 - `vaults`
+- `vault_revisions`
 - `backend`
 - `store_revisions`
+- `retrieval_policy_version`
+- `budget`
 - `current_state`
 - `relevant_pages`
 - `relevant_sources`
@@ -433,8 +438,6 @@ Required fields:
 - `warnings`
 - `evidence`
 - `generated_at`
-- `vault_revisions`
-- `index_revision`
 
 ### 7.5 GraphRAG Exploration
 
@@ -1089,17 +1092,54 @@ their output. Commands without either option use the active Vault.
 
 ## 18. Context Pack Contract
 
-A context pack is a structured JSON or Markdown artifact generated from Vault Graph retrieval.
+A context pack is a structured artifact generated from Vault Graph retrieval
+for a concrete human or agent task. It is working context, not durable
+knowledge.
+
+The canonical context pack format is JSON. Markdown is a rendering view over
+that JSON and must not add facts, drop evidence, or hide warnings.
+
+The canonical evidence unit remains the `MetadataStore` evidence chunk:
+
+```text
+(vault_id, document_id, chunk_id)
+```
+
+Every normal pack item that makes a factual claim must reference at least one
+evidence chunk. Stored excerpts are rendering content only; `MetadataStore`
+remains the evidence authority.
+
+Detailed Phase 4 contracts live under `docs/superpowers/specs/phase-4/`:
+
+- `2026-06-12-phase-4-context-pack-overview-design.md`: cross-slice roadmap,
+  decisions, invariants, and handoff map
+- `2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md`: Phase
+  4A JSON contract, builder boundary, data models, warnings, and budget policy
+- `2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md`: Phase
+  4B local assembly, CLI context command, Markdown rendering, and verification
+  plan
 
 Minimum JSON shape:
 
 ```json
 {
+  "context_pack_schema_version": "context-pack-v1",
+  "pack_id": "sha256-of-canonical-pack-identity",
   "goal": "Implement GraphRAG MVP",
   "scope": {
-    "vault_ids": ["main"],
-    "content_scopes": ["wiki", "docs"],
-    "include_cross_vault": false
+    "requested": {
+      "vault_ids": ["main"],
+      "content_scopes": ["wiki", "docs"],
+      "include_cross_vault": false
+    },
+    "actual_scopes": [
+      {
+        "vault_ids": ["main"],
+        "content_scopes": ["wiki", "docs"],
+        "include_cross_vault": false,
+        "scope_key": "main:wiki,docs:local"
+      }
+    ]
   },
   "vaults": [
     {
@@ -1107,22 +1147,63 @@ Minimum JSON shape:
       "display_name": "Main Vault"
     }
   ],
-  "vault_revisions": {
-    "main": "git-sha-or-file-snapshot-id"
-  },
-  "index_revision": "index-revision-id",
+  "vault_revisions": [
+    {
+      "vault_id": "main",
+      "revision": "git-sha-or-file-snapshot-id",
+      "revision_kind": "git"
+    }
+  ],
   "backend": {
-    "metadata_store": "sqlite",
-    "vector_store": "chroma",
-    "graph_store": "sqlite",
-    "graph_projection": "rustworkx"
+    "metadata_store": {
+      "name": "sqlite",
+      "used": true
+    },
+    "keyword_index": {
+      "name": "sqlite-fts5",
+      "used": true
+    },
+    "vector_store": {
+      "name": "chroma",
+      "used": true
+    },
+    "graph_store": {
+      "name": null,
+      "used": false
+    },
+    "graph_projection": {
+      "name": null,
+      "used": false
+    }
   },
-  "store_revisions": {
-    "metadata": "metadata-revision-id",
-    "vector": "vector-revision-id",
-    "graph": "graph-revision-id",
-    "projection": "projection-cache-or-build-id"
+  "retrieval_policy_version": "retrieval-policy-v1",
+  "budget": {
+    "max_tokens": 8000,
+    "max_evidence_items": 24,
+    "max_excerpt_tokens": 320,
+    "used_tokens": 0,
+    "omitted_items": 0
   },
+  "store_revisions": [
+    {
+      "kind": "metadata",
+      "revision": "metadata-revision-id",
+      "vault_id": "main",
+      "scope_key": "main:wiki,docs:local"
+    },
+    {
+      "kind": "keyword",
+      "revision": "keyword-revision-id",
+      "vault_id": "main",
+      "scope_key": "main:wiki,docs:local"
+    },
+    {
+      "kind": "vector",
+      "revision": "vector-revision-id",
+      "vault_id": "main",
+      "scope_key": "main:wiki,docs:local"
+    }
+  ],
   "generated_at": "2026-06-04T00:00:00+09:00",
   "current_state": [],
   "relevant_pages": [],
@@ -1135,7 +1216,28 @@ Minimum JSON shape:
 }
 ```
 
-Context packs should be small enough for an agent to read directly and rich enough to avoid a full Vault scan.
+Context packs should be small enough for an agent to read directly and rich
+enough to avoid a full Vault scan.
+
+Phase 4 context pack policy:
+
+- default `max_tokens` is 8,000 estimated context tokens
+- default `max_evidence_items` is 24
+- default `max_excerpt_tokens` is 320 per evidence item
+- default retrieval limit is 10 results before context pack classification
+- warnings are first-class top-level and item-level records
+- stale, missing, contested, deprecated, truncated, and omitted material must
+  remain visible
+- graph signals are opt-in through an explicit graph option
+- cross-Vault graph expansion requires all-Vault scope plus explicit
+  cross-Vault graph mode
+- graph backend and projection metadata are marked `used=false` and graph store
+  revisions are omitted unless graph mode is explicitly requested
+
+`ContextPackBuilder` is the deep module for Phase 4. CLI, MCP, and HTTP
+surfaces must call the builder instead of assembling pack sections directly.
+The builder depends on application services and store interfaces, not concrete
+local backend adapters.
 
 ## 19. Roadmap
 
@@ -1305,8 +1407,9 @@ keeping Vault Graph read-only, rebuildable, and graph-ready.
 
 Accepted Phase 2C decisions:
 
-- The canonical search result unit is an evidence chunk: `(vault_id, chunk_id)`
-  resolved through `MetadataStore`.
+- The canonical search result unit is an evidence chunk resolved through
+  `MetadataStore`. Its full resolved evidence identity is
+  `(vault_id, document_id, chunk_id)`.
 - Document, page, source, or section results are rendering/grouping views over
   evidence chunks. They are not separate canonical retrieval identities in Phase
   2C.
@@ -1442,7 +1545,8 @@ Vector candidate contract:
 
 Fusion and ranking contract:
 
-- Dedupe candidates by `(vault_id, chunk_id)`.
+- Dedupe candidates by `(vault_id, chunk_id)`, then preserve the full resolved
+  evidence identity `(vault_id, document_id, chunk_id)` on every normal result.
 - Keep all contributing signals for each candidate. A chunk can have keyword,
   vector, and later graph signals.
 - Use rank-based fusion. A reciprocal-rank-style default is acceptable:
@@ -1652,10 +1756,27 @@ Qdrant implementation, Neo4j implementation, and cross-Vault entity merging.
 
 ### Phase 4: Context Pack Builder
 
-- context pack JSON contract
-- Markdown context pack rendering
-- ranking and evidence grouping
-- stale/conflict warnings
+Phase 4 turns Phase 2 and Phase 3 retrieval into bounded, evidence-linked
+context packs. The phase is split into slices so the schema can stabilize before
+the CLI surface and later MCP serving depend on it.
+
+Phase 4 slices:
+
+| Slice | Contract | Detailed Design | Explicitly Not Included |
+| --- | --- | --- | --- |
+| Phase 4A | Define canonical JSON context pack contract, `ContextPackBuilder` boundary, warning model, budget policy, and renderer boundary | `docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md` | `vg context`, MCP serving, HTTP serving, pack persistence, answer synthesis |
+| Phase 4B | Add local context pack assembly through existing retrieval services plus Markdown rendering view | `docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md` | `vg ask`, MCP serving, HTTP serving, durable pack store, automatic Vault publication |
+
+Phase 4 invariants:
+
+- Context packs are derived working context, not durable knowledge.
+- JSON is the canonical artifact. Markdown is a rendering view.
+- Evidence chunks remain authoritative for all pack items.
+- Warnings are first-class and cannot be hidden by renderers.
+- Budget omission and excerpt truncation are explicit warnings.
+- Graph signals are opt-in for context packs, matching Phase 3 search policy.
+- `ContextPackBuilder` depends on retrieval and storage interfaces, not local
+  backend implementations.
 
 ### Phase 5: MCP Server
 

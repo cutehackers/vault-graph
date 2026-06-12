@@ -473,7 +473,9 @@ Phase 2C keeps search simple and evidence-first:
 - `RetrievalService` or `HybridRetriever` owns candidate merge, dedupe,
   reciprocal-rank-style fusion, warnings, evidence resolution, and final
   `SearchResponse` assembly.
-- The canonical search result unit is an evidence chunk: `(vault_id, chunk_id)`.
+- The canonical search result unit is an evidence chunk. Candidate merge can use
+  `(vault_id, chunk_id)`, but resolved evidence identity is
+  `(vault_id, document_id, chunk_id)`.
   Document, page, source, and section views are renderer groupings over chunk
   evidence.
 - `RetrievalService` expands requested scopes into per-Vault actual scopes
@@ -790,13 +792,16 @@ A context pack is a structured brief generated for a goal.
 
 Required fields:
 
+- `context_pack_schema_version`
+- `pack_id`
 - `goal`
 - `scope`
 - `vaults`
 - `vault_revisions`
-- `index_revision`
 - `backend`
 - `store_revisions`
+- `retrieval_policy_version`
+- `budget`
 - `generated_at`
 - `current_state`
 - `relevant_pages`
@@ -1230,6 +1235,13 @@ unsupported synthesis.
 `build_context_pack(goal, scope=None, max_tokens=None)` turns retrieval output
 into an agent-readable brief.
 
+The canonical context pack artifact is JSON. Markdown is a rendering view over
+the JSON payload and must not add facts, omit evidence, or hide warnings.
+
+Detailed Phase 4 designs live under `docs/superpowers/specs/phase-4/`.
+`docs/SPEC.md` remains the top-level contract; the Phase 4 folder owns the
+long-form 4A/4B design details.
+
 ### 12.1 Selection Rules
 
 The builder should prioritize:
@@ -1256,6 +1268,7 @@ The builder should avoid:
 Goal
   -> QueryScope normalization
   -> hybrid retrieval
+  -> optional graph retrieval only when graph mode is explicit
   -> decision and constraint extraction
   -> current-state summary
   -> evidence grouping
@@ -1266,9 +1279,37 @@ Goal
 
 ### 12.3 Token Budgeting
 
-When `max_tokens` is set, the builder should keep required fields and evidence
-metadata before long excerpts. If content must be omitted, it should include a
-warning that names the omitted category.
+Public `max_tokens` is an estimated context budget for excerpt-bearing content,
+based on stored chunk token counts and deterministic truncation. It is not a
+model-specific tokenizer guarantee.
+
+Phase 4 defaults:
+
+- `max_tokens`: 8,000
+- `max_evidence_items`: 24
+- `max_excerpt_tokens`: 320 per evidence item
+
+The builder keeps required metadata, scope, backend, revisions, warnings, and
+evidence metadata before long excerpts. If content must be omitted or
+truncated, it includes `budget_omitted` or `excerpt_truncated` warnings.
+
+### 12.4 Graph Signals
+
+Context packs use keyword/vector retrieval by default. Graph signals are
+included only when the caller explicitly requests graph mode.
+
+Cross-Vault graph expansion requires all-Vault scope plus explicit
+cross-Vault graph mode. This mirrors Phase 3 search and prevents context packs
+from silently widening the user's scope.
+
+### 12.5 Builder Boundary
+
+`ContextPackBuilder` owns pack assembly, section classification, budget packing,
+warning conversion, and JSON DTO construction.
+
+The builder depends on application services and storage interfaces. It must not
+import local SQLite, Chroma, or rustworkx adapters. CLI, MCP, and HTTP surfaces
+must call the builder instead of assembling pack sections directly.
 
 ## 13. Decision Trace Design
 

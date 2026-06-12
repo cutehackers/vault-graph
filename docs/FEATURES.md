@@ -95,6 +95,20 @@ Default `vg search "query"` stays keyword/vector evidence search until graph
 relevance is proven through focused tests. Users must opt into graph expansion
 with an explicit graph command or flag.
 
+## Phase 4 User-Facing Slices
+
+Phase 4 exposes context packs as bounded, evidence-linked working briefs.
+Context packs are not answers and are not durable Vault knowledge.
+
+| Slice | User-Facing Change | Explicitly Not Included |
+| --- | --- | --- |
+| Phase 4A | no new command; stabilizes the canonical JSON context pack contract and builder boundary | CLI context command, MCP serving, HTTP serving, pack persistence |
+| Phase 4B | `vg context "goal"` returns JSON or Markdown context packs with evidence, revisions, and first-class warnings | `vg ask`, MCP serving, HTTP serving, automatic Vault publication |
+
+Markdown context output is a rendering view over canonical JSON. Users must opt
+into graph expansion with `--include-graph`; plain `vg context "goal"` uses
+keyword/vector retrieval only.
+
 ## CLI Features
 
 ### Initialize
@@ -234,12 +248,28 @@ inferred, contested, deprecated, or stale relationships.
 ```bash
 vg context "Implement GraphRAG MVP"
 vg context --vault-id main "Implement GraphRAG MVP"
+vg context --all-vaults "Implement GraphRAG MVP"
+vg context --include-graph "Implement GraphRAG MVP"
+vg context --format json "Implement GraphRAG MVP"
+vg context --format markdown "Implement GraphRAG MVP"
+vg context --max-tokens 8000 "Implement GraphRAG MVP"
 ```
 
 Builds a scoped context pack for a concrete task.
 
 The output should be small enough for an agent to read directly and rich enough
 to avoid a full Vault scan.
+
+Phase 4 context behavior:
+
+- JSON is the canonical artifact
+- Markdown is a rendering view over the JSON artifact
+- evidence chunks remain the authority unit
+- stale, missing, contested, deprecated, truncated, and omitted material appears
+  as warnings
+- `--include-graph` is required for graph signals
+- `--include-cross-vault` requires `--all-vaults --include-graph`
+- graph backend and graph revision fields are not used by default context packs
 
 ### Decision Trace
 
@@ -367,10 +397,15 @@ Builds a structured brief for a human or agent.
 Required fields:
 
 - `goal`
+- `context_pack_schema_version`
+- `pack_id`
 - `scope`
 - `vaults`
+- `vault_revisions`
 - `backend`
 - `store_revisions`
+- `retrieval_policy_version`
+- `budget`
 - `current_state`
 - `relevant_pages`
 - `relevant_sources`
@@ -380,8 +415,6 @@ Required fields:
 - `warnings`
 - `evidence`
 - `generated_at`
-- `vault_revisions`
-- `index_revision`
 
 ### `summarize_project_memory(scope=None)`
 
@@ -442,18 +475,30 @@ Durable publication still belongs to Vault's validation workflow.
 
 ## Context Pack Output
 
-A context pack is a structured JSON or Markdown artifact generated from Vault
-Graph retrieval.
+A context pack is a structured artifact generated from Vault Graph retrieval.
+JSON is canonical. Markdown is a rendering view over the same JSON payload.
 
 Minimum JSON shape:
 
 ```json
 {
+  "context_pack_schema_version": "context-pack-v1",
+  "pack_id": "sha256-of-canonical-pack-identity",
   "goal": "Implement GraphRAG MVP",
   "scope": {
-    "vault_ids": ["main"],
-    "content_scopes": ["wiki", "docs"],
-    "include_cross_vault": false
+    "requested": {
+      "vault_ids": ["main"],
+      "content_scopes": ["wiki", "docs"],
+      "include_cross_vault": false
+    },
+    "actual_scopes": [
+      {
+        "vault_ids": ["main"],
+        "content_scopes": ["wiki", "docs"],
+        "include_cross_vault": false,
+        "scope_key": "main:wiki,docs:local"
+      }
+    ]
   },
   "vaults": [
     {
@@ -461,22 +506,63 @@ Minimum JSON shape:
       "display_name": "Main Vault"
     }
   ],
-  "vault_revisions": {
-    "main": "git-sha-or-file-snapshot-id"
-  },
-  "index_revision": "index-revision-id",
+  "vault_revisions": [
+    {
+      "vault_id": "main",
+      "revision": "git-sha-or-file-snapshot-id",
+      "revision_kind": "git"
+    }
+  ],
   "backend": {
-    "metadata_store": "sqlite",
-    "vector_store": "chroma",
-    "graph_store": "sqlite",
-    "graph_projection": "rustworkx"
+    "metadata_store": {
+      "name": "sqlite",
+      "used": true
+    },
+    "keyword_index": {
+      "name": "sqlite-fts5",
+      "used": true
+    },
+    "vector_store": {
+      "name": "chroma",
+      "used": true
+    },
+    "graph_store": {
+      "name": null,
+      "used": false
+    },
+    "graph_projection": {
+      "name": null,
+      "used": false
+    }
   },
-  "store_revisions": {
-    "metadata": "metadata-revision-id",
-    "vector": "vector-revision-id",
-    "graph": "graph-revision-id",
-    "projection": "projection-cache-or-build-id"
+  "retrieval_policy_version": "retrieval-policy-v1",
+  "budget": {
+    "max_tokens": 8000,
+    "max_evidence_items": 24,
+    "max_excerpt_tokens": 320,
+    "used_tokens": 0,
+    "omitted_items": 0
   },
+  "store_revisions": [
+    {
+      "kind": "metadata",
+      "revision": "metadata-revision-id",
+      "vault_id": "main",
+      "scope_key": "main:wiki,docs:local"
+    },
+    {
+      "kind": "keyword",
+      "revision": "keyword-revision-id",
+      "vault_id": "main",
+      "scope_key": "main:wiki,docs:local"
+    },
+    {
+      "kind": "vector",
+      "revision": "vector-revision-id",
+      "vault_id": "main",
+      "scope_key": "main:wiki,docs:local"
+    }
+  ],
   "generated_at": "2026-06-04T00:00:00+09:00",
   "current_state": [],
   "relevant_pages": [],

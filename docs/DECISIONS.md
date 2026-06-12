@@ -17,6 +17,25 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-12 - Use JSON-Canonical Opt-In Graph Context Packs
+
+**Question:** What should Phase 4 context packs treat as canonical, and should
+graph expansion be automatic?
+
+**Decision:** Use canonical JSON context packs with Markdown as a rendering
+view. Keep evidence chunks as the authority unit, make stale/conflict/budget
+warnings first-class, use an 8,000-token default context budget, and keep graph
+signals opt-in.
+
+**Reason:** This preserves Vault Graph's evidence-first, read-only, rebuildable
+value while keeping Phase 4 simple enough for MCP and HTTP to reuse later.
+
+**Implications:**
+
+- `vg context "goal"` uses keyword/vector retrieval by default.
+- Graph and cross-Vault graph signals require explicit flags.
+- Context packs are generated working context, not durable Vault knowledge.
+
 ## 2026-06-10 - Use Actual Scope Terminology During Pre-Release Development
 
 **Question:** How should Vault Graph handle the scope terminology rename to

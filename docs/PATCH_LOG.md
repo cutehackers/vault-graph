@@ -3,6 +3,46 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-12 - Phase 4 Context Pack SPEC Alignment
+
+**Trigger:** Phase 4 context pack design needed to move from roadmap bullets to
+a detailed, implementation-ready SPEC while staying aligned with Phase 1-3
+retrieval and graph contracts.
+
+**Scope:** `docs/SPEC.md`, `docs/DESIGN.md`, `docs/FEATURES.md`,
+`docs/DECISIONS.md`, and new Phase 4 detailed design documents.
+
+**Core Values Protected:**
+
+- context packs remain derived working context, not durable Vault knowledge
+- evidence chunks remain the context pack authority unit
+- Markdown output cannot hide JSON warnings or invent facts
+- graph expansion stays explicit instead of silently widening retrieval scope
+- future MCP/HTTP serving can reuse one stable context pack contract
+
+**Changes Applied:**
+
+- Added Phase 4 slice documents under `docs/superpowers/specs/phase-4/`.
+- Expanded the top-level Phase 4 `docs/SPEC.md` contract with JSON-canonical
+  context packs, evidence authority, budget defaults, warning policy, and
+  graph opt-in behavior.
+- Aligned `docs/DESIGN.md` and `docs/FEATURES.md` with the Phase 4 context pack
+  contract.
+- Clarified that candidate merge may use `(vault_id, chunk_id)`, while resolved
+  evidence identity is `(vault_id, document_id, chunk_id)`.
+- Recorded the accepted Phase 4 context pack policy in `docs/DECISIONS.md`.
+
+**Verification:**
+
+- Phase 3 smoke verification using `init`, `index`, `status`, `related`,
+  `decision-trace`, and `search --include-graph` on a temporary Vault.
+- Self-grill corrections for multi-vault revision attribution and deterministic
+  `pack_id` identity.
+- Subagent review and re-review for product value alignment, implementation
+  readiness, and multi-vault/evidence/warning consistency.
+- JSON contract parse checks for `docs/SPEC.md` and `docs/FEATURES.md`.
+- Full local test, lint, typing, and `git diff --check` verification.
+
 ## 2026-06-11 - Phase 3C Boundary Hardening Review Fixes
 
 **Trigger:** Subagent review of the Phase 3C boundary hardening slice found

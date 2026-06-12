@@ -53,9 +53,10 @@ Phase 2C follows these accepted decisions.
 
 1. Evidence chunk is the canonical search result unit.
 
-   A normal result represents `(vault_id, chunk_id)` resolved through
-   `MetadataStore`. Document, page, source, and section displays are grouping or
-   rendering views over chunk evidence.
+   A normal result preserves full resolved evidence identity
+   `(vault_id, document_id, chunk_id)` through `MetadataStore`. Document, page,
+   source, and section displays are grouping or rendering views over chunk
+   evidence.
 
 2. Keyword lookup is metadata-owned.
 
@@ -418,7 +419,8 @@ Rules:
 - Actual scope resolution follows the Phase 2B rule: use the narrower of the
   requested scope and catalog entry scope when one contains the other; skip
   disjoint scope pairs.
-- Candidate identity is `(vault_id, chunk_id)`.
+- Candidate merge identity is `(vault_id, chunk_id)`. Resolved evidence identity
+  is `(vault_id, document_id, chunk_id)`.
 - Document grouping is `(vault_id, document_id)`.
 - Result IDs must include `vault_id` or otherwise be derived from
   Vault-scoped identity.
