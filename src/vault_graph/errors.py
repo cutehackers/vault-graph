@@ -34,6 +34,10 @@ class SearchError(VaultGraphError):
     """Raised when search cannot produce a valid response."""
 
 
+class ContextPackError(VaultGraphError):
+    """Raised when context pack contracts are violated."""
+
+
 class GraphStoreError(VaultGraphError):
     """Raised when graph store contracts are violated."""
 

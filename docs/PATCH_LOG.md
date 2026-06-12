@@ -3,6 +3,87 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-12 - Phase 4A Implementation Review Hardening
+
+**Trigger:** Security, performance, testability, and maintainability subagent
+reviews found Phase 4A implementation gaps after the first context-pack code
+pass.
+
+**Scope:** `vault_graph.context` implementation, Phase 4A context-pack tests,
+and context package import-boundary checks.
+
+**Core Values Protected:**
+
+- context packs fail closed when retrieval widens scope unexpectedly
+- evidence excerpts and JSON serialization remain safe and deterministic
+- budget packing does not leave orphan evidence or hidden omissions
+- graph metadata stays opt-in for default context packs
+- context package imports stay lightweight and backend-agnostic
+
+**Changes Applied:**
+
+- Added response-scope and result-evidence validation before pack assembly.
+- Staged evidence per item and committed it only after the full item fits the
+  evidence and token budgets.
+- Applied section priority during budget packing so decisions and constraints
+  are not displaced by lower-value page hits.
+- Validated resolved evidence paths against Vault-relative actual content
+  scopes and rejected resolver chunk/evidence mismatches.
+- Made Markdown excerpt fences collision-safe and JSON serialization reject
+  non-finite float values.
+- Added Markdown sections for budget, backend use, Vault revisions, and store
+  revisions so the renderer does not hide JSON contract metadata.
+- Normalized `stale_vector` to `stale_projection` while preserving
+  `source_code`.
+- Omitted graph and projection store revisions from non-graph context packs.
+- Kept builder exports lazy while making them visible through `dir()` and
+  import-boundary tests.
+
+**Verification:**
+
+- `uv run --python 3.12 pytest tests/test_context_pack_contract.py tests/test_context_pack_serialization.py tests/test_context_pack_docs_contract.py tests/test_context_pack_warnings.py tests/test_context_pack_evidence_budget.py tests/test_context_pack_builder.py tests/test_context_pack_import_boundaries.py tests/test_context_pack_read_only_boundary.py -q`
+- `uv run --python 3.12 pytest tests/test_retrieval_service_search.py tests/test_search_response_contract.py tests/test_search_include_graph.py tests/test_graph_retrieval_service.py tests/test_multi_vault_graph_retrieval.py -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src tests`
+
+## 2026-06-12 - Phase 4A Implementation Plan Review Hardening
+
+**Trigger:** Multi-angle subagent review of the Phase 4A implementation plan
+found warning attribution, budget, renderer, package-boundary, and schema-test
+gaps that could weaken the context-pack contract before implementation.
+
+**Scope:** Phase 4A implementation plan, Phase 4A design notes, top-level
+package-boundary docs, and agent documentation rules.
+
+**Core Values Protected:**
+
+- context packs preserve Vault-scoped evidence identity
+- warnings remain visible across JSON and Markdown rendering
+- context assembly stays bounded and read-only
+- `vault_graph.context` becomes an explicit deep module boundary
+- docs and DTO schema drift is caught by tests before implementation
+
+**Changes Applied:**
+
+- Required single-Vault attribution before converting search warnings into
+  evidence refs.
+- Required result-level retrieval warnings to survive as item warnings.
+- Added Vault-relative path validation, Markdown escaping, and fail-closed DTO
+  serialization rules.
+- Changed budget behavior to resolve deduped evidence only within budget and
+  aggregate omission warnings.
+- Added docs/DTO schema parity, nested JSON shape, warning mapping, resolver
+  protocol, budget accounting, import-boundary, and read-only test requirements.
+- Recorded `vault_graph.context` as the package boundary in `docs/SPEC.md` and
+  `docs/DESIGN.md`.
+- Tightened cross-Vault request validation in the Phase 4A design.
+
+**Verification:**
+
+- Security, performance, testability, and maintainability subagent reviews.
+- Placeholder scan over the implementation plan.
+- Markdown formatting and whitespace checks.
+
 ## 2026-06-12 - Phase 4 Context Pack SPEC Alignment
 
 **Trigger:** Phase 4 context pack design needed to move from roadmap bullets to

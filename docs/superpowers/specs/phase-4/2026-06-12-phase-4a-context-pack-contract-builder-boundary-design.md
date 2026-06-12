@@ -295,7 +295,7 @@ Warning conversion preserves original warning identity:
 | --- | --- | --- |
 | `vector_query_failed` | `search_degraded` | keep `source_code="vector_query_failed"` |
 | `vector_stale` | `stale_projection` | keep affected Vault IDs and evidence refs when available |
-| `keyword_index_unavailable` | `metadata_unavailable` or `search_degraded` | fatal only when no evidence can be produced |
+| `keyword_index_unavailable` | `search_degraded` | applies only if retrieval returns it as a warning; fatal `SearchError` remains fatal |
 | `graph_query_failed` | `graph_unavailable` | keep `source_code="graph_query_failed"` |
 | `graph_missing` | `graph_unavailable` | keep graph recovery hint |
 | `graph_stale` | `graph_stale` | preserve source code and scope key |
@@ -380,8 +380,12 @@ Rules:
 - `include_graph=False` uses keyword/vector retrieval only.
 - `include_graph=True` may add graph signals through the same
   `RetrievalService` graph candidate provider introduced in Phase 3C.
-- `include_cross_vault=True` is valid only when the requested scope includes
-  multiple Vault IDs and `include_graph=True`.
+- `include_cross_vault=True` is valid only when `include_graph=True`, the
+  requested scope already has `include_cross_vault=True`, and the requested
+  scope includes multiple Vault IDs.
+- `ContextPackRequest.include_cross_vault` and
+  `ContextPackRequest.requested_scope.include_cross_vault` must match so the
+  builder has one explicit cross-Vault state.
 - If graph is requested and unavailable, the pack may still succeed with
   keyword/vector evidence plus `graph_unavailable`.
 - `retrieval_limit` is passed to `RetrievalService.search(...)` before section
@@ -390,6 +394,11 @@ Rules:
 ## 10. Builder Boundary
 
 `ContextPackBuilder` is an application service.
+
+The implementation package is `vault_graph.context`. This keeps context-pack
+DTOs, warning conversion, budget packing, serialization, and rendering out of
+the lower-level retrieval package while still depending on retrieval services
+through a narrow boundary.
 
 ```python
 class ContextPackBuilder(Protocol):

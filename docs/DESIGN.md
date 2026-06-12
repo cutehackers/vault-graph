@@ -456,7 +456,6 @@ Core modules:
 - `hybrid_retriever.py`
 - `reranker.py`
 - `search_response.py`
-- `context_pack_builder.py`
 
 Retrieval output must include enough metadata for `explain_result(result_id)`
 to describe scores, evidence, relationship status, confidence, and warnings.
@@ -1307,9 +1306,12 @@ from silently widening the user's scope.
 `ContextPackBuilder` owns pack assembly, section classification, budget packing,
 warning conversion, and JSON DTO construction.
 
+The `vault_graph.context` package owns context-pack DTOs, builder boundary,
+warning conversion, budget packing, JSON serialization, and Markdown rendering.
 The builder depends on application services and storage interfaces. It must not
-import local SQLite, Chroma, or rustworkx adapters. CLI, MCP, and HTTP surfaces
-must call the builder instead of assembling pack sections directly.
+import local SQLite, Chroma, rustworkx, CLI, MCP, HTTP, or LLM adapters. CLI,
+MCP, and HTTP surfaces must call the builder instead of assembling pack
+sections directly.
 
 ## 13. Decision Trace Design
 

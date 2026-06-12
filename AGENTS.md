@@ -12,6 +12,28 @@ renames, rewrites, or deletes Vault content.
   or context-pack behavior.
 - Follow `docs/CONVENTIONS.md` for Python style and naming.
 
+## Documentation Operation Rules
+
+Use these rules when writing specs, implementation plans, or prompt templates.
+
+- Keep prompt templates compact. Move repeatable repository policy here instead
+  of duplicating it inside every goal prompt.
+- `docs/PATCH_LOG.md` records corrections made after review or verification.
+  Use it only when a plan, spec, or implementation is changed because a mismatch,
+  defect, or risk was found.
+- New patch entries must match the existing project style:
+  `## YYYY-MM-DD - <Short Title>`, then `**Trigger:**`, `**Scope:**`,
+  `**Core Values Protected:**`, `**Changes Applied:**`, and
+  `**Verification:**`.
+- `docs/DECISIONS.md` records accepted product, architecture, and policy
+  decisions only. Do not add pending decisions there.
+- If a decision needs user judgment, keep it in the active plan under
+  `Open Decisions` with context, options, trade-offs, and a recommendation.
+  Move it to `docs/DECISIONS.md` only after approval, using the existing
+  `Question`, `Decision`, `Reason`, and `Implications` style.
+- For both logs, be short, specific, and evidence-linked. Do not copy long
+  implementation-plan content into them.
+
 ## 🤖 Software Engineering Philosophy
 
 > **Core Principle:**

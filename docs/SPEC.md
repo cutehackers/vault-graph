@@ -247,8 +247,13 @@ vault-graph/
 │       │   ├── graph_retriever.py
 │       │   ├── hybrid_retriever.py
 │       │   ├── reranker.py
-│       │   ├── search_response.py
-│       │   └── context_pack_builder.py
+│       │   └── search_response.py
+│       ├── context/
+│       │   ├── context_pack.py
+│       │   ├── context_pack_builder.py
+│       │   ├── context_pack_renderer.py
+│       │   ├── context_pack_serialization.py
+│       │   └── context_pack_warnings.py
 │       ├── memory/
 │       │   ├── project_memory.py
 │       │   ├── decision_memory.py
@@ -291,6 +296,11 @@ vault-graph/
 The default implementation is local-first. Files under `storage/local/` are required for MVP. Files under `storage/adapters/` define optional scale-up adapter boundaries for Postgres, Qdrant, and Neo4j; they must not make hosted services mandatory for the default workflow.
 
 `storage/interfaces/` owns the stable store contracts. Indexing, retrieval, MCP tools, and context pack builders must depend on these interfaces instead of importing local or scale-up backend implementations directly.
+
+`context/` owns canonical context-pack DTOs, pack assembly, warning conversion,
+budget packing, JSON serialization, and Markdown rendering. It consumes
+retrieval application services and storage interfaces; it must not import local
+SQLite, Chroma, rustworkx, CLI, MCP, HTTP, or LLM adapters.
 
 `projection/` owns runtime algorithm projections only. It may read from `GraphStore` and write disposable cache files under `data/projection_cache/`, but it must not persist authoritative graph records.
 
