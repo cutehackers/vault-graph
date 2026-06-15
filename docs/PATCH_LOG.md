@@ -3,6 +3,47 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-15 - Phase 5A Implementation Plan Review Corrections
+
+**Trigger:** Security, performance, testability, and maintainability subagent
+reviews found Phase 5A plan gaps around path redaction, runtime dependency
+scope, startup import laziness, service handoff ownership, and smoke-test
+coverage.
+
+**Scope:** Phase 5A MCP stdio implementation plan for dependency selection,
+`vault_graph.mcp` package boundaries, error mapping, service factory
+construction, CLI serve tests, and verification gates.
+
+**Core Values Protected:**
+
+- MCP remains a thin adapter over read-only application services
+- stdio startup avoids hidden indexing, model loading, graph projection, and
+  stdout contamination
+- local path details are not leaked through MCP error payloads
+- Phase 5B/5C can reuse owned service boundaries without SDK-private coupling
+
+**Changes Applied:**
+
+- Changed the planned runtime dependency from `mcp[cli]` to `mcp`.
+- Replaced private FastMCP attribute handoff with an owned
+  `RegisteredMcpServer` wrapper.
+- Changed `McpServices` to expose interface-typed services and renamed
+  `config` to `catalog_service`.
+- Moved status, graph, vector, FastEmbed, Chroma, and rustworkx imports behind
+  method boundaries.
+- Added explicit absolute-path redaction rules and tests for domain/internal
+  MCP errors.
+- Strengthened service-factory read-only constructor tests and startup import
+  laziness tests.
+- Made the official MCP stdio smoke test timeout-bounded and required in final
+  verification.
+
+**Verification:**
+
+- Security, performance, testability, and maintainability subagent reviews.
+- Plan red-flag and stale-reference scans.
+- `git diff --no-index --check /dev/null docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md`
+
 ## 2026-06-15 - Phase 5 MCP SPEC Alignment Corrections
 
 **Trigger:** Phase 5 SPEC self-grill found that roadmap bullets were too thin
