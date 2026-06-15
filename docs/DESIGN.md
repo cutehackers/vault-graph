@@ -263,14 +263,13 @@ the Phase 3 folder owns long-form 3A/3B/3C design details.
 
 Responsibility:
 
-- expose MCP and HTTP adapters
-- own request and response translation
-- share application services with CLI
+- own application services shared by CLI, MCP, and future HTTP adapters
+- compose indexing, retrieval, graph, context, readiness, and catalog services
 - enforce read-only behavior at the serving boundary
 
-`app/mcp_server.py` maps MCP resources, tools, and prompts to application
-services. `app/http_server.py` exposes the same capabilities for custom
-clients. Neither server owns retrieval logic.
+The `app` package is not a protocol adapter package. MCP adapter code belongs
+under `vault_graph.mcp`; future HTTP adapter code should likewise stay outside
+the application service package. Neither adapter may own retrieval logic.
 
 ### 6.3 `ingestion`
 
@@ -1377,6 +1376,16 @@ warning.
 
 MCP is the primary agent integration surface.
 
+Detailed Phase 5 designs live under `docs/superpowers/specs/phase-5/`.
+`docs/SPEC.md` remains the top-level contract; the Phase 5 folder owns the
+long-form 5A/5B/5C design details.
+
+The MCP server is an adapter over application services. It must not introduce a
+second retrieval, graph, context-pack, answer, or memory implementation.
+Phase 5 registers only tools backed by existing services; answer synthesis and
+rich memory projections remain later phases until their application services
+exist.
+
 ### 15.1 Resources
 
 Initial resources:
@@ -1401,7 +1410,7 @@ the `QueryScope` used at creation time.
 
 ### 15.2 Tools
 
-Initial tools:
+Full roadmap tools:
 
 - `search_vault(query, scope=None, limit=10)`
 - `ask_vault(question, mode="evidence-first", scope=None)`
@@ -1419,6 +1428,9 @@ They must not write to Vault.
 
 Tool `scope` arguments use `QueryScope`. Without scope, tools query only the
 active Vault. Cross-Vault retrieval requires explicit Vault IDs.
+Phase 5 registers only the subset backed by existing application services; tools
+that require answer synthesis or Phase 6 memory projections stay out of the
+listed MCP tool set until those services exist.
 
 ### 15.3 Prompts
 

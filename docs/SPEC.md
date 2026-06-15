@@ -218,8 +218,12 @@ vault-graph/
 ├── src/
 │   └── vault_graph/
 │       ├── app/
-│       │   ├── mcp_server.py
-│       │   └── http_server.py
+│       │   ├── catalog_service.py
+│       │   ├── index_service.py
+│       │   ├── search_readiness_service.py
+│       │   ├── graph_readiness_service.py
+│       │   ├── graph_retrieval_service.py
+│       │   └── path_guard.py
 │       ├── ingestion/
 │       │   ├── vault_catalog.py
 │       │   ├── vault_loader.py
@@ -254,6 +258,14 @@ vault-graph/
 │       │   ├── context_pack_renderer.py
 │       │   ├── context_pack_serialization.py
 │       │   └── context_pack_warnings.py
+│       ├── mcp/
+│       │   ├── mcp_server.py
+│       │   ├── mcp_service_factory.py
+│       │   ├── mcp_scope.py
+│       │   ├── mcp_errors.py
+│       │   ├── mcp_resources.py
+│       │   ├── mcp_tools.py
+│       │   └── mcp_prompts.py
 │       ├── memory/
 │       │   ├── project_memory.py
 │       │   ├── decision_memory.py
@@ -301,6 +313,12 @@ The default implementation is local-first. Files under `storage/local/` are requ
 budget packing, JSON serialization, and Markdown rendering. It consumes
 retrieval application services and storage interfaces; it must not import local
 SQLite, Chroma, rustworkx, CLI, MCP, HTTP, or LLM adapters.
+
+`mcp/` owns the MCP adapter: stdio server construction, MCP tool/resource/prompt
+registration, MCP argument DTOs, MCP error mapping, and local client
+configuration examples. It calls application services and must not own
+retrieval ranking, graph algorithms, context-pack assembly, indexing, or Vault
+publication.
 
 `projection/` owns runtime algorithm projections only. It may read from `GraphStore` and write disposable cache files under `data/projection_cache/`, but it must not persist authoritative graph records.
 
@@ -1029,7 +1047,7 @@ creation time.
 
 ## 15. MCP Tools
 
-Initial tools:
+Full roadmap tools:
 
 - `search_vault(query, scope=None, limit=10)`
 - `ask_vault(question, mode="evidence-first", scope=None)`
@@ -1052,6 +1070,8 @@ Tool responses must separate:
 
 Tool `scope` arguments use `QueryScope`. If no scope is provided, tools search
 the active Vault only. Cross-Vault retrieval requires explicit `vault_ids`.
+Phase 5 registers only the subset backed by existing application services; tools
+that need answer synthesis or Phase 6 memory projections are registered later.
 
 ## 16. MCP Prompts
 
@@ -1790,10 +1810,53 @@ Phase 4 invariants:
 
 ### Phase 5: MCP Server
 
-- MCP resources
-- MCP tools
-- MCP prompts
-- Codex-compatible local configuration examples
+Phase 5 turns the existing Phase 2-4 retrieval, graph, and context-pack
+services into a local MCP surface for agents. MCP is an adapter layer, not a
+new reasoning engine or knowledge store. It must preserve the same read-only,
+evidence-first, Vault-scoped behavior as CLI commands.
+
+Detailed Phase 5 contracts live under `docs/superpowers/specs/phase-5/`:
+
+- `2026-06-15-phase-5-mcp-server-overview-design.md`: cross-slice roadmap,
+  invariants, service-backed tool policy, and handoff map
+- `2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md`: Phase 5A local
+  stdio server foundation, service factory, capability registration, error
+  mapping, and Codex configuration examples
+- `2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md`: Phase
+  5B read-only resources, resource templates, URI validation, and generated
+  context-pack resource cache
+- `2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md`: Phase 5C
+  service-backed tools, prompt templates, structured output policy, and agent
+  workflow contracts
+
+Phase 5 slices:
+
+| Slice | Contract | Detailed Design | Explicitly Not Included |
+| --- | --- | --- | --- |
+| Phase 5A | Add a local stdio MCP server boundary, `vg serve --mcp`, read-only service construction, capability registration, and Codex-compatible local config examples | `docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md` | Streamable HTTP transport, authentication, remote hosting, answer synthesis, memory projections |
+| Phase 5B | Expose read-only MCP resource templates for indexed Vault documents/pages/sources, graph entities, current context, and generated context packs | `docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md` | Vault file mutation, resource subscriptions, durable pack persistence, full-Vault resource dumps |
+| Phase 5C | Expose service-backed MCP tools and prompts over existing search, graph, decision-trace, status, and context-pack services | `docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md` | `ask_vault` answer generation, Phase 6 memory tools, autonomous wiki publication, LLM clients |
+
+Phase 5 invariants:
+
+- MCP tools, resources, and prompts are adapters over application services.
+- The server must not write to Vault or create durable knowledge outside Vault.
+- The default transport is local stdio. Streamable HTTP belongs to a later HTTP
+  serving phase because it needs origin validation, authentication, and network
+  hardening.
+- The MCP process may write only Vault Graph derived state when a later explicit
+  indexing tool exists. Phase 5 tools are read-only and must not index.
+- Tool responses use structured JSON as the contract and may include text as a
+  compatibility mirror. Warnings remain first-class.
+- Only tools backed by existing services are registered in Phase 5. Tools that
+  require answer synthesis or Phase 6 memory projections are not listed until
+  their application services exist.
+- Context-pack resources are generated artifacts. Without a durable pack store,
+  `vault://context/packs/{pack_id}` is backed only by a bounded in-process cache
+  and can be regenerated by calling `build_context_pack`.
+- Multi-vault behavior follows `QueryScope`: active Vault by default,
+  `vault_ids` only when explicit, and cross-Vault graph expansion only when
+  explicit.
 
 ### Phase 6: Memory And Explorer Views
 

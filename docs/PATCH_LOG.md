@@ -3,6 +3,39 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-15 - Phase 5 MCP SPEC Alignment Corrections
+
+**Trigger:** Phase 5 SPEC self-grill found that roadmap bullets were too thin
+for implementation planning and older docs could imply MCP should register
+answer or memory tools before those services exist.
+
+**Scope:** `docs/SPEC.md`, `docs/DESIGN.md`, `docs/FEATURES.md`, and new Phase
+5 detailed design documents under `docs/superpowers/specs/phase-5/`.
+
+**Core Values Protected:**
+
+- MCP remains an adapter over application services, not a second reasoning layer
+- Vault Graph stays read-only, rebuildable, and evidence-first through MCP
+- Phase 5 exposes only service-backed tools instead of unavailable tool entries
+- context-pack resources remain generated working context, not durable knowledge
+
+**Changes Applied:**
+
+- Split Phase 5 into overview, 5A stdio foundation, 5B resources, and 5C
+  tools/prompts design documents.
+- Expanded `docs/SPEC.md` Phase 5 summary with slice contracts and invariants.
+- Aligned `docs/FEATURES.md` and `docs/DESIGN.md` with the service-backed MCP
+  tool policy.
+- Replaced the old `app/mcp_server.py` adapter wording with a dedicated
+  `vault_graph.mcp` adapter boundary.
+
+**Verification:**
+
+- Self-grill against `docs/SPEC.md`, `docs/DESIGN.md`, `docs/FEATURES.md`, and
+  Phase 4 context-pack handoff docs.
+- Placeholder/stale-reference scans over Phase 5 docs and core docs.
+- Phase 5 file/link existence checks.
+
 ## 2026-06-15 - Phase 4B Implementation Review Corrections
 
 **Trigger:** Final subagent review found Phase 4B implementation gaps around

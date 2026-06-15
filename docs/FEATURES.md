@@ -109,6 +109,23 @@ Markdown context output is a rendering view over canonical JSON. Users must opt
 into graph expansion with `--include-graph`; plain `vg context "goal"` uses
 keyword/vector retrieval only.
 
+## Phase 5 User-Facing Slices
+
+Phase 5 exposes the existing Vault Graph services through MCP for local agents.
+MCP is an adapter over the same evidence-first services used by CLI commands;
+it does not add answer synthesis, memory projections, or Vault publication.
+
+| Slice | User-Facing Change | Explicitly Not Included |
+| --- | --- | --- |
+| Phase 5A | `vg serve --mcp` starts a local stdio MCP server and provides Codex-compatible local configuration examples | Streamable HTTP, authentication, remote hosting, tools that synthesize answers |
+| Phase 5B | MCP resource templates expose read-only indexed Vault documents, pages, sources, graph entities, current context availability, and generated context packs | resource subscriptions, durable context-pack persistence, full-Vault resource dumps |
+| Phase 5C | MCP tools expose service-backed search, context-pack building, related entities, decision traces, and index status; prompts guide common agent workflows | `ask_vault`, Phase 6 memory tools, autonomous wiki updates, LLM clients |
+
+Only service-backed tools are listed in Phase 5. Future roadmap tools such as
+`ask_vault`, `summarize_project_memory`, `get_open_questions`,
+`get_recent_changes`, and `explain_result` become MCP tools only after their
+application services exist.
+
 ## CLI Features
 
 ### Initialize
@@ -318,6 +335,10 @@ retrieval reason, confidence, warning, vault revision, and index revision.
 the `QueryScope` used when it was created.
 
 ## MCP Tools
+
+The feature matrix lists the full roadmap. Phase 5 registers only tools backed
+by existing application services. Tools that require answer synthesis or Phase 6
+memory projections are deferred instead of being listed before they work.
 
 ### `search_vault(query, scope=None, limit=10)`
 
