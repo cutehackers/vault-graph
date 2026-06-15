@@ -3,6 +3,46 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-15 - Phase 4B Implementation Review Corrections
+
+**Trigger:** Final subagent review found Phase 4B implementation gaps around
+single-Vault cross-Vault validation order, builder actual-scope validation, and
+test coverage masking.
+
+**Scope:** `vg context` CLI wiring, `SearchContextPackBuilder` response
+validation, and Phase 4B CLI/builder tests.
+
+**Core Values Protected:**
+
+- invalid context requests fail before opening search, graph, or builder
+  dependencies
+- context packs cannot accept retrieval responses that widen Vault, content, or
+  cross-Vault scope
+- multi-Vault context assembly preserves evidence Vault identity through the
+  real local retrieval path
+- degraded vector search remains visible as first-class context warnings
+
+**Changes Applied:**
+
+- Moved `ContextPackRequest` validation before context builder creation.
+- Rejected actual scopes that exceed requested Vault IDs, content scopes, or
+  cross-Vault mode.
+- Added real all-Vault CLI context coverage and degraded vector fallback
+  coverage.
+- Strengthened builder tests so signal-count ordering and current-state suffix
+  classification are independently proven.
+- Added explicit exit-code assertions for CLI validation failures.
+
+**Verification:**
+
+- Security, performance, testability, and maintainability subagent reviews.
+- `uv run --python 3.12 pytest tests/test_cli_context.py tests/test_context_pack_builder.py -q`
+- `uv run --python 3.12 pytest tests/test_cli_context.py tests/test_cli_search.py tests/test_cli_surface_boundary.py tests/test_context_pack_renderer.py tests/test_context_pack_builder.py tests/test_context_pack_serialization.py tests/test_context_pack_import_boundaries.py -q`
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src tests`
+- `git diff --check`
+
 ## 2026-06-12 - Phase 4B Implementation Plan Review Hardening
 
 **Trigger:** Security, performance, testability, and maintainability subagent

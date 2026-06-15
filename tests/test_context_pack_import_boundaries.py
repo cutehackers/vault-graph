@@ -60,3 +60,19 @@ def test_context_package_public_dir_lists_lazy_builder_exports() -> None:
     import vault_graph.context
 
     assert "SearchContextPackBuilder" in dir(vault_graph.context)
+
+
+def test_cli_import_with_context_command_does_not_load_rustworkx_projection_adapter() -> None:
+    code = """
+import sys
+import vault_graph.cli.main
+for name in (
+    'vault_graph.projection.rustworkx_projection',
+    'rustworkx',
+):
+    if name in sys.modules:
+        raise SystemExit(name)
+"""
+    completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout

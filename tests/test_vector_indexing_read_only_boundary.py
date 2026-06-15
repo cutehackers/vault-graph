@@ -46,13 +46,12 @@ def test_dry_run_does_not_create_vector_or_metadata_state(tmp_path: Path) -> Non
     assert (vault_root / "wiki" / "page.md").read_text(encoding="utf-8") == "# Page\nBody\n"
 
 
-def test_search_exposes_search_but_not_answer_or_context_commands() -> None:
+def test_search_exposes_search_but_not_answer_command() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
     assert "search" in result.output
     assert "ask" not in result.output
-    assert "context" not in result.output
 
 
 def test_embedding_cache_path_cannot_be_inside_vault_root(tmp_path: Path) -> None:

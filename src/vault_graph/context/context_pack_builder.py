@@ -275,7 +275,7 @@ class SearchContextPackBuilder:
             retrieval_policy_version=self._retrieval_policy_version,
             budget=budget,
             generated_at=generated_at,
-            current_state=(),
+            current_state=items_by_type["current_state"],
             relevant_pages=items_by_type["page"],
             relevant_sources=items_by_type["source"],
             decisions=items_by_type["decision"],
@@ -301,7 +301,14 @@ def _planned_item(result: RetrievalResult) -> _PlannedItem:
     return _PlannedItem(result=result, item_type=_item_type(result), evidence_refs=refs, warnings=item_warnings)
 
 
-def _planned_item_sort_key(item: _PlannedItem) -> tuple[int, int]:
+_CONSTRAINT_TERMS = ("constraint", "principle", "invariant", "policy", "convention")
+_OPEN_QUESTION_TERMS = ("question", "todo", "follow-up", "issue", "revisit")
+_CURRENT_STATE_TERMS = ("current-state", "current_state")
+_CURRENT_STATE_PATH_SUFFIXES = ("/status.md", "/current-state.md", "/current_state.md")
+
+
+def _planned_item_sort_key(item: _PlannedItem) -> tuple[int, int, int, int, str, str, str]:
+    first_evidence = item.result.evidence[0]
     priority = {
         "decision": 0,
         "constraint": 1,
@@ -310,17 +317,40 @@ def _planned_item_sort_key(item: _PlannedItem) -> tuple[int, int]:
         "page": 4,
         "source": 5,
     }[item.item_type]
-    return priority, item.result.rank
+    signal_kind_count = len({signal.kind for signal in item.result.signals})
+    raw_source_penalty = 1 if first_evidence.path.startswith("raw/") else 0
+    return (
+        priority,
+        item.result.rank,
+        -signal_kind_count,
+        raw_source_penalty,
+        item.result.vault_id,
+        first_evidence.path,
+        first_evidence.chunk_id,
+    )
 
 
 def _item_type(result: RetrievalResult) -> ContextPackItemType:
-    if result.kind == "decision":
+    first_evidence = result.evidence[0]
+    path = first_evidence.path.lower()
+    section = (first_evidence.section or "").lower()
+    title = result.title.lower()
+    kind = result.kind.lower()
+    text = " ".join((kind, path, section, title))
+    path_with_slashes = f"/{path}"
+    if kind == "decision" or "/decisions/" in path_with_slashes:
         return "decision"
-    if result.kind == "constraint":
+    if kind == "constraint" or any(term in text for term in _CONSTRAINT_TERMS):
         return "constraint"
-    if result.kind == "open_question":
+    if kind == "open_question" or any(term in text for term in _OPEN_QUESTION_TERMS):
         return "open_question"
-    if result.evidence and result.evidence[0].path.startswith("raw/"):
+    if (
+        kind == "current_state"
+        or any(term in text for term in _CURRENT_STATE_TERMS)
+        or any(path_with_slashes.endswith(suffix) for suffix in _CURRENT_STATE_PATH_SUFFIXES)
+    ):
+        return "current_state"
+    if path.startswith("raw/"):
         return "source"
     return "page"
 
@@ -451,6 +481,7 @@ def _items_by_type(items: tuple[ContextPackItem, ...]) -> dict[str, tuple[Contex
         "decision": tuple(item for item in items if item.item_type == "decision"),
         "constraint": tuple(item for item in items if item.item_type == "constraint"),
         "open_question": tuple(item for item in items if item.item_type == "open_question"),
+        "current_state": tuple(item for item in items if item.item_type == "current_state"),
     }
 
 
@@ -553,16 +584,31 @@ def _store_revisions(*, response: SearchResponse, include_graph: bool) -> tuple[
 def _validate_response(*, request: ContextPackRequest, response: SearchResponse) -> None:
     if response.requested_scope != request.requested_scope:
         raise ContextPackError("response requested_scope must match the context pack request")
-    requested_vault_ids = set(request.requested_scope.vault_ids)
+    for actual_scope in response.actual_scopes:
+        if not _actual_scope_inside_requested(actual_scope=actual_scope, requested_scope=request.requested_scope):
+            raise ContextPackError("response actual scope contains values outside requested scope")
     actual_vault_ids = {vault_id for scope in response.actual_scopes for vault_id in scope.vault_ids}
-    if not actual_vault_ids <= requested_vault_ids:
-        raise ContextPackError("response actual scope contains vault_id outside requested scope")
     for result in response.results:
         if result.vault_id not in actual_vault_ids:
             raise ContextPackError("retrieval result vault_id is outside actual scope")
         for evidence in result.evidence:
             if evidence.vault_id not in actual_vault_ids:
                 raise ContextPackError("retrieval result evidence vault_id is outside actual scope")
+
+
+def _actual_scope_inside_requested(*, actual_scope: QueryScope, requested_scope: QueryScope) -> bool:
+    if not set(actual_scope.vault_ids) <= set(requested_scope.vault_ids):
+        return False
+    if actual_scope.include_cross_vault != requested_scope.include_cross_vault:
+        return False
+    return all(
+        _content_scope_inside_requested(actual=content_scope, requested_scopes=requested_scope.content_scopes)
+        for content_scope in actual_scope.content_scopes
+    )
+
+
+def _content_scope_inside_requested(*, actual: str, requested_scopes: tuple[str, ...]) -> bool:
+    return any(actual == requested or actual.startswith(f"{requested}/") for requested in requested_scopes)
 
 
 def _affected_vault_ids(actual_scopes: tuple[QueryScope, ...]) -> tuple[str, ...]:

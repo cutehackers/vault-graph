@@ -12,9 +12,20 @@ from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.app.graph_retrieval_service import GraphRetrievalService
 from vault_graph.app.index_service import IndexService, StatusReport
 from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
+from vault_graph.context import (
+    DEFAULT_CONTEXT_MAX_TOKENS,
+    DEFAULT_CONTEXT_RETRIEVAL_LIMIT,
+    ContextPackBudget,
+    ContextPackRenderer,
+    ContextPackRequest,
+    DefaultContextPackRenderer,
+    MetadataContextEvidenceResolver,
+    SearchContextPackBuilder,
+)
 from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
 from vault_graph.errors import (
     CatalogError,
+    ContextPackError,
     GraphIndexingError,
     GraphStoreError,
     KeywordIndexError,
@@ -113,7 +124,32 @@ def _search_service(
     *,
     include_graph: bool = False,
 ) -> tuple[CatalogService, VaultCatalog, RetrievalService]:
+    config, catalog, _, service = _search_service_with_metadata(state, include_graph=include_graph)
+    return config, catalog, service
+
+
+def _search_service_with_metadata(
+    state: Path,
+    *,
+    include_graph: bool = False,
+) -> tuple[CatalogService, VaultCatalog, SQLiteMetadataStore, RetrievalService]:
     config, catalog = _catalog(state)
+    metadata_store, service = _read_only_search_components(
+        state,
+        config=config,
+        catalog=catalog,
+        include_graph=include_graph,
+    )
+    return config, catalog, metadata_store, service
+
+
+def _read_only_search_components(
+    state: Path,
+    *,
+    config: CatalogService,
+    catalog: VaultCatalog,
+    include_graph: bool = False,
+) -> tuple[SQLiteMetadataStore, RetrievalService]:
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=False)
     keyword_index = SQLiteKeywordIndex(config.metadata_path)
     vector_store = ChromaVectorStore(config.vector_path, initialize=False, read_only=True)
@@ -123,8 +159,7 @@ def _search_service(
         _, _, graph_service = _graph_retrieval_service(state)
         graph_candidate_provider = GraphSearchCandidateProvider(graph_retrieval_service=graph_service)
     return (
-        config,
-        catalog,
+        metadata_store,
         RetrievalService(
             catalog=catalog,
             metadata_store=metadata_store,
@@ -140,6 +175,51 @@ def _search_service(
             graph_candidate_provider=graph_candidate_provider,
         ),
     )
+
+
+def _context_builder_service(
+    state: Path,
+    *,
+    config: CatalogService,
+    catalog: VaultCatalog,
+    include_graph: bool = False,
+) -> tuple[SearchContextPackBuilder, ContextPackRenderer]:
+    metadata_store, retrieval_service = _read_only_search_components(
+        state,
+        config=config,
+        catalog=catalog,
+        include_graph=include_graph,
+    )
+    return (
+        SearchContextPackBuilder(
+            catalog=catalog,
+            retrieval_service=retrieval_service,
+            evidence_resolver=MetadataContextEvidenceResolver(metadata_store=metadata_store),
+        ),
+        DefaultContextPackRenderer(),
+    )
+
+
+def _context_scope_for_flags(
+    catalog: VaultCatalog,
+    *,
+    vault_id: str | None,
+    all_vaults: bool,
+    include_cross_vault: bool,
+) -> QueryScope:
+    if all_vaults:
+        scope = catalog.scope_for_all_enabled()
+    elif vault_id is not None:
+        scope = catalog.scope_for_vault_ids([vault_id])
+    else:
+        scope = catalog.default_scope()
+    if include_cross_vault:
+        return QueryScope(
+            vault_ids=scope.vault_ids,
+            content_scopes=scope.content_scopes,
+            include_cross_vault=True,
+        )
+    return scope
 
 
 def _graph_retrieval_service(state: Path) -> tuple[CatalogService, VaultCatalog, GraphRetrievalService]:
@@ -281,6 +361,74 @@ def index(
             typer.echo(f"graph_warning: {warning}")
     if report.exit_code:
         raise typer.Exit(report.exit_code)
+
+
+@app.command()
+def context(
+    goal: str = typer.Argument(..., help="Concrete task or goal."),
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    vault_id: str | None = typer.Option(None, "--vault-id", help="Build context for one registered Vault ID."),
+    all_vaults: bool = typer.Option(False, "--all-vaults", help="Build context for all enabled registered Vaults."),
+    output_format: str = typer.Option("markdown", "--format", help="Output format: json or markdown."),
+    max_tokens: int = typer.Option(DEFAULT_CONTEXT_MAX_TOKENS, "--max-tokens", help="Estimated context token budget."),
+    limit: int = typer.Option(DEFAULT_CONTEXT_RETRIEVAL_LIMIT, "--limit", help="Retrieval results before packing."),
+    include_graph: bool = typer.Option(False, "--include-graph", help="Include explicit graph retrieval signals."),
+    include_cross_vault: bool = typer.Option(
+        False,
+        "--include-cross-vault",
+        help="Include explicit cross-Vault graph relationships.",
+    ),
+) -> None:
+    if not goal.strip():
+        typer.echo("empty_goal")
+        raise typer.Exit(1)
+    if all_vaults and vault_id:
+        typer.echo("Use either --vault-id or --all-vaults, not both.")
+        raise typer.Exit(1)
+    if output_format not in {"json", "markdown"}:
+        typer.echo("unsupported_format")
+        raise typer.Exit(1)
+    if max_tokens < 1000:
+        typer.echo("context_budget_too_small")
+        raise typer.Exit(1)
+    if limit <= 0:
+        typer.echo("context_limit_must_be_positive")
+        raise typer.Exit(1)
+    if include_cross_vault and not (include_graph and all_vaults):
+        typer.echo("include_cross_vault_requires_multi_vault_graph_scope")
+        raise typer.Exit(1)
+    config, catalog = _exit_on_domain_error(lambda: _catalog(state))
+    scope = _exit_on_domain_error(
+        lambda: _context_scope_for_flags(
+            catalog,
+            vault_id=vault_id,
+            all_vaults=all_vaults,
+            include_cross_vault=include_cross_vault,
+        )
+    )
+    request = _exit_on_domain_error(
+        lambda: ContextPackRequest(
+            goal=goal,
+            requested_scope=scope,
+            budget=ContextPackBudget(max_tokens=max_tokens),
+            retrieval_limit=limit,
+            include_graph=include_graph,
+            include_cross_vault=include_cross_vault,
+        )
+    )
+    builder, renderer = _exit_on_domain_error(
+        lambda: _context_builder_service(
+            state,
+            config=config,
+            catalog=catalog,
+            include_graph=include_graph,
+        )
+    )
+    pack = _exit_on_domain_error(lambda: builder.build(request))
+    if output_format == "json":
+        typer.echo(renderer.render_json(pack), nl=False)
+    else:
+        typer.echo(renderer.render_markdown(pack), nl=False)
 
 
 @app.command()
@@ -937,6 +1085,7 @@ def _exit_on_domain_error[T](operation: Callable[[], T]) -> T:
         return operation()
     except (
         CatalogError,
+        ContextPackError,
         GraphIndexingError,
         GraphStoreError,
         KeywordIndexError,

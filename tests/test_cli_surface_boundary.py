@@ -7,7 +7,7 @@ from vault_graph.cli.main import app
 runner = CliRunner()
 
 
-def test_cli_surface_exposes_search_but_not_answer_or_context_commands() -> None:
+def test_cli_surface_exposes_context_but_not_answer_command() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
@@ -15,7 +15,7 @@ def test_cli_surface_exposes_search_but_not_answer_or_context_commands() -> None
     assert "related" in result.output
     assert "decision-trace" in result.output
     assert "ask" not in result.output
-    assert "context" not in result.output
+    assert "context" in result.output
 
 
 def test_cli_status_exposes_vector_fields(tmp_path: Path) -> None:

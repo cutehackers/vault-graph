@@ -119,12 +119,3 @@ def test_context_pack_json_rejects_non_finite_float_scores() -> None:
 
     with pytest.raises(ContextPackError, match="non-finite float"):
         render_context_pack_json(pack)
-
-
-def test_cli_does_not_format_context_pack_sections_in_phase_4a() -> None:
-    cli_source = "src/vault_graph/cli/main.py"
-    with open(cli_source, encoding="utf-8") as file:
-        source = file.read()
-
-    assert "ContextPackRenderer" not in source
-    assert "render_context_pack" not in source

@@ -499,6 +499,39 @@ def test_builder_rejects_response_that_widens_requested_scope(tmp_path: Path) ->
         )
 
 
+def test_builder_rejects_response_that_widens_requested_content_scope(tmp_path: Path) -> None:
+    ref = ContextEvidenceRef("main", "doc-1", "chunk-1")
+    response = make_search_response(
+        requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+        actual_scopes=(QueryScope(vault_ids=("main",), content_scopes=("wiki", "docs")),),
+    )
+
+    with pytest.raises(ContextPackError, match="outside requested scope"):
+        make_builder(
+            tmp_path=tmp_path,
+            response=response,
+            resolver=StaticResolver({ref: make_resolved(ref, path="docs/spec.md")}),
+        ).build(
+            ContextPackRequest(
+                goal="Build context",
+                requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+            )
+        )
+
+
+def test_builder_rejects_response_that_adds_cross_vault_scope(tmp_path: Path) -> None:
+    ref = ContextEvidenceRef("main", "doc-1", "chunk-1")
+    response = make_search_response(
+        requested_scope=QueryScope(vault_ids=("main",)),
+        actual_scopes=(QueryScope(vault_ids=("main",), include_cross_vault=True),),
+    )
+
+    with pytest.raises(ContextPackError, match="outside requested scope"):
+        make_builder(tmp_path=tmp_path, response=response, resolver=StaticResolver({ref: make_resolved(ref)})).build(
+            ContextPackRequest(goal="Build context", requested_scope=QueryScope(vault_ids=("main",)))
+        )
+
+
 def test_builder_rejects_result_evidence_outside_actual_scope(tmp_path: Path) -> None:
     ref = ContextEvidenceRef("second", "doc-1", "chunk-1")
     response = make_search_response(
@@ -510,3 +543,157 @@ def test_builder_rejects_result_evidence_outside_actual_scope(tmp_path: Path) ->
         make_builder(tmp_path=tmp_path, response=response, resolver=StaticResolver({ref: make_resolved(ref)})).build(
             ContextPackRequest(goal="Build context", requested_scope=QueryScope(vault_ids=("main",)))
         )
+
+
+def test_builder_classifies_decisions_constraints_questions_current_state_and_sources(tmp_path: Path) -> None:
+    decision_ref = ContextEvidenceRef("main", "doc-decision", "chunk-decision")
+    constraint_ref = ContextEvidenceRef("main", "doc-constraint", "chunk-constraint")
+    question_ref = ContextEvidenceRef("main", "doc-question", "chunk-question")
+    state_ref = ContextEvidenceRef("main", "doc-state", "chunk-state")
+    source_ref = ContextEvidenceRef("main", "doc-source", "chunk-source")
+    results = (
+        make_result(rank=1, document_id="doc-decision", chunk_id="chunk-decision", path="wiki/decisions/choice.md"),
+        make_result(rank=2, document_id="doc-constraint", chunk_id="chunk-constraint", path="docs/policy.md"),
+        make_result(rank=3, document_id="doc-question", chunk_id="chunk-question", path="wiki/follow-up.md"),
+        make_result(
+            rank=4,
+            document_id="doc-state",
+            chunk_id="chunk-state",
+            kind="evidence_chunk",
+            path="wiki/status.md",
+        ),
+        make_result(rank=5, document_id="doc-source", chunk_id="chunk-source", path="raw/source.md"),
+    )
+    resolver = StaticResolver(
+        {
+            decision_ref: make_resolved(decision_ref, path="wiki/decisions/choice.md"),
+            constraint_ref: make_resolved(constraint_ref, path="docs/policy.md"),
+            question_ref: make_resolved(question_ref, path="wiki/follow-up.md"),
+            state_ref: make_resolved(state_ref, path="wiki/status.md"),
+            source_ref: make_resolved(source_ref, path="raw/source.md"),
+        }
+    )
+    pack = make_builder(
+        tmp_path=tmp_path,
+        response=make_search_response(results=results),
+        resolver=resolver,
+    ).build(ContextPackRequest(goal="Build context", requested_scope=QueryScope(vault_ids=("main",))))
+
+    assert [item.item_type for item in pack.decisions] == ["decision"]
+    assert [item.item_type for item in pack.constraints] == ["constraint"]
+    assert [item.item_type for item in pack.open_questions] == ["open_question"]
+    assert [item.item_type for item in pack.current_state] == ["current_state"]
+    assert [item.item_type for item in pack.relevant_sources] == ["source"]
+
+
+def test_builder_tie_breaks_by_signal_count_then_path(tmp_path: Path) -> None:
+    first_ref = ContextEvidenceRef("main", "doc-first", "chunk-first")
+    second_ref = ContextEvidenceRef("main", "doc-second", "chunk-second")
+    first = make_result(
+        rank=1,
+        document_id="doc-first",
+        chunk_id="chunk-first",
+        path="wiki/a.md",
+        signals=(
+            RetrievalSignal(
+                kind="keyword",
+                source_id="keyword:first",
+                rank=1,
+                score=1.0,
+                backend="sqlite-fts5",
+                index_revision="keyword-1",
+                explanation="keyword matched",
+            ),
+        ),
+    )
+    second = make_result(
+        rank=1,
+        document_id="doc-second",
+        chunk_id="chunk-second",
+        path="wiki/b.md",
+        signals=(
+            RetrievalSignal(
+                kind="keyword",
+                source_id="keyword:second",
+                rank=1,
+                score=1.0,
+                backend="sqlite-fts5",
+                index_revision="keyword-1",
+                explanation="keyword matched",
+            ),
+            RetrievalSignal(
+                kind="vector",
+                source_id="vector:second",
+                rank=2,
+                score=0.9,
+                backend="chroma",
+                index_revision="vector-1",
+                explanation="vector matched",
+            ),
+        ),
+    )
+    pack = make_builder(
+        tmp_path=tmp_path,
+        response=make_search_response(results=(first, second)),
+        resolver=StaticResolver(
+            {
+                first_ref: make_resolved(first_ref, path="wiki/a.md"),
+                second_ref: make_resolved(second_ref, path="wiki/b.md"),
+            }
+        ),
+    ).build(ContextPackRequest(goal="Build context", requested_scope=QueryScope(vault_ids=("main",))))
+
+    assert [item.evidence_refs[0].chunk_id for item in pack.relevant_pages] == ["chunk-second", "chunk-first"]
+
+
+def test_builder_caps_large_retrieval_limit_by_evidence_budget(tmp_path: Path) -> None:
+    ref = ContextEvidenceRef("main", "doc-1", "chunk-1")
+    retrieval = RecordingRetrievalService(make_search_response())
+    builder = SearchContextPackBuilder(
+        catalog=make_catalog(tmp_path),
+        retrieval_service=cast(ContextRetrievalService, retrieval),
+        evidence_resolver=StaticResolver({ref: make_resolved(ref)}),
+        clock=fixed_clock,
+    )
+
+    builder.build(
+        ContextPackRequest(
+            goal="Build context",
+            requested_scope=QueryScope(vault_ids=("main",)),
+            retrieval_limit=10_000,
+            budget=ContextPackBudget(max_evidence_items=24),
+        )
+    )
+
+    assert retrieval.calls[0]["limit"] == 96
+
+
+def test_builder_keeps_durable_page_before_raw_source_and_lexical_tie_break(tmp_path: Path) -> None:
+    page_ref = ContextEvidenceRef("main", "doc-page", "chunk-page")
+    raw_ref = ContextEvidenceRef("main", "doc-raw", "chunk-raw")
+    alpha_ref = ContextEvidenceRef("main", "doc-alpha", "chunk-alpha")
+    beta_ref = ContextEvidenceRef("main", "doc-beta", "chunk-beta")
+    page = make_result(rank=1, document_id="doc-page", chunk_id="chunk-page", path="wiki/page.md")
+    raw = make_result(rank=1, document_id="doc-raw", chunk_id="chunk-raw", path="raw/source.md")
+    alpha = make_result(rank=1, document_id="doc-alpha", chunk_id="chunk-alpha", path="wiki/a.md")
+    beta = make_result(rank=1, document_id="doc-beta", chunk_id="chunk-beta", path="wiki/b.md")
+
+    pack = make_builder(
+        tmp_path=tmp_path,
+        response=make_search_response(results=(raw, beta, page, alpha)),
+        resolver=StaticResolver(
+            {
+                page_ref: make_resolved(page_ref, path="wiki/page.md"),
+                raw_ref: make_resolved(raw_ref, path="raw/source.md"),
+                alpha_ref: make_resolved(alpha_ref, path="wiki/a.md"),
+                beta_ref: make_resolved(beta_ref, path="wiki/b.md"),
+            }
+        ),
+    ).build(ContextPackRequest(goal="Build context", requested_scope=QueryScope(vault_ids=("main",))))
+
+    assert [evidence.path for evidence in pack.evidence] == [
+        "wiki/a.md",
+        "wiki/b.md",
+        "wiki/page.md",
+        "raw/source.md",
+    ]
