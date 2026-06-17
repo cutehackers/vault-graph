@@ -3,6 +3,41 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-17 - Phase 5B MCP Resource SPEC Corrections
+
+**Trigger:** Phase 5B SPEC self-grill against the completed Phase 5A FastMCP
+implementation found that raw slash path examples and dynamic per-resource
+metadata would not map cleanly onto the public FastMCP resource-template API.
+
+**Scope:** Phase 5B MCP resource URI contract, resource body contract, context
+pack cache boundary, and resource implementation handoff.
+
+**Core Values Protected:**
+
+- MCP remains a thin adapter over the completed Phase 5A server foundation
+- URI parsing fails closed for path traversal and multi-Vault collisions
+- evidence metadata and warnings stay first-class in resource output
+- context-pack resources remain generated working context, not durable state
+
+**Changes Applied:**
+
+- Replaced raw slash document URI examples with FastMCP-compatible
+  percent-encoded single-segment path rules.
+- Changed Phase 5B resource output to a canonical JSON envelope so dynamic
+  evidence metadata and warnings do not depend on SDK-private attributes.
+- Made `list_document_chunks(vault_id, document_id)` a required
+  `MetadataStore` extension for scalable document resource rendering.
+- Added explicit graph resource service, current-context availability, timeline
+  unavailable, and context-pack cache handoff contracts.
+
+**Verification:**
+
+- Compared Phase 5B design with current Phase 5A `vault_graph.mcp`
+  implementation.
+- Inspected the installed MCP SDK FastMCP resource-template behavior.
+- Checked consistency against `docs/SPEC.md`, `docs/DESIGN.md`,
+  `docs/FEATURES.md`, and `docs/CONVENTIONS.md`.
+
 ## 2026-06-15 - Phase 5A Implementation Plan Review Corrections
 
 **Trigger:** Security, performance, testability, and maintainability subagent
