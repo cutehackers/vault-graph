@@ -148,3 +148,33 @@ if "vault_graph.projection.rustworkx_projection" not in sys.modules:
     completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_mcp_factory_graph_resource_service_does_not_import_rustworkx_projection(tmp_path: Path) -> None:
+    code = f"""
+from pathlib import Path
+import sys
+from typer.testing import CliRunner
+from vault_graph.cli.main import app
+from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+vault_root = Path({str(tmp_path / "vault")!r})
+(vault_root / "wiki").mkdir(parents=True)
+(vault_root / "wiki" / "page.md").write_text("# Page\\nBody\\n", encoding="utf-8")
+state_path = Path({str(tmp_path / "state")!r})
+runner = CliRunner()
+runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+factory = McpServiceFactory(state_path=state_path)
+factory.open_read_only()
+if "vault_graph.projection.rustworkx_projection" in sys.modules:
+    raise SystemExit("eager")
+try:
+    factory.open_graph_resource_service()
+except Exception:
+    pass
+if "vault_graph.projection.rustworkx_projection" in sys.modules:
+    raise SystemExit("resource service imported rustworkx")
+"""
+    completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout

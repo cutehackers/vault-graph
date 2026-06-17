@@ -42,9 +42,13 @@ def test_mcp_stdio_initializes_with_official_client(tmp_path: Path) -> None:
                     await session.initialize()
                     tools = await session.list_tools()
                     resources = await session.list_resources()
+                    resource_templates = await session.list_resource_templates()
                     prompts = await session.list_prompts()
+                    template_uris = {str(template.uriTemplate) for template in resource_templates.resourceTemplates}
                     assert tools.tools == []
                     assert resources.resources == []
+                    assert "vault://{vault_id}/documents/{path}" in template_uris
+                    assert "vault://context/packs/{pack_id}" in template_uris
                     assert prompts.prompts == []
 
     anyio.run(run_client)

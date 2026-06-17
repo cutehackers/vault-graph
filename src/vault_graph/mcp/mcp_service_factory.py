@@ -9,6 +9,7 @@ from vault_graph.ingestion.vault_catalog import VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 if TYPE_CHECKING:
+    from vault_graph.app.graph_resource_service import GraphResourceService
     from vault_graph.app.graph_retrieval_service import GraphRetrievalService
     from vault_graph.app.index_service import IndexService
     from vault_graph.context.context_pack_builder import ContextPackBuilder
@@ -127,6 +128,28 @@ class McpServiceFactory:
             graph_store=graph_store,
             graph_readiness=readiness,
             projection=RustworkxGraphProjection(),
+        )
+
+    def open_graph_resource_service(self) -> GraphResourceService:
+        from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
+        from vault_graph.app.graph_resource_service import GraphResourceService
+        from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+        from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
+        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+
+        catalog_service, catalog = self._catalog()
+        metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
+        graph_store = SQLiteGraphStore.open_read_only(catalog_service.graph_path)
+        readiness = ReadOnlyGraphReadiness(
+            metadata_store=metadata_store,
+            graph_store=graph_store,
+            expected_spec=current_graph_extraction_spec(),
+        )
+        return GraphResourceService(
+            catalog=catalog,
+            metadata_store=metadata_store,
+            graph_store=graph_store,
+            graph_readiness=readiness,
         )
 
     def open_graph_search_candidate_provider(self) -> GraphSearchCandidateProvider:

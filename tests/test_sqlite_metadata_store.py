@@ -22,15 +22,22 @@ def make_document(vault_id: str, path: str, content_hash: str) -> DocumentSnapsh
     )
 
 
-def make_chunk(vault_id: str, document_id: str, path: str) -> ChunkSnapshot:
+def make_chunk(
+    vault_id: str,
+    document_id: str,
+    path: str,
+    *,
+    chunk_id: str | None = None,
+    text: str = "Body",
+) -> ChunkSnapshot:
     return ChunkSnapshot(
         vault_id=vault_id,
-        chunk_id=f"{vault_id}:{path}:chunk",
+        chunk_id=chunk_id or f"{vault_id}:{path}:chunk",
         document_id=document_id,
         path=path,
         section="Section",
         anchor="section",
-        text="Body",
+        text=text,
         token_count=1,
         content_hash="chunk",
         chunker_version="chunker",
@@ -156,3 +163,82 @@ def test_tombstoned_document_does_not_resolve_as_fresh(tmp_path: Path) -> None:
     assert store.resolve_document(document.document_id) is None
     assert store.resolve_chunk(vault_id="default", chunk_id=chunk.chunk_id) is None
     assert store.export_documents() == ()
+
+
+def test_list_document_chunks_returns_only_requested_document(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    first = make_document("default", "wiki/first.md", "hash-1")
+    second = make_document("default", "wiki/second.md", "hash-2")
+    first_chunk = make_chunk("default", first.document_id, first.path, chunk_id="first", text="First")
+    second_chunk = make_chunk("default", second.document_id, second.path, chunk_id="second", text="Second")
+    store.apply_metadata_revision(
+        index_revision="rev-1",
+        documents=[first, second],
+        chunks=[first_chunk, second_chunk],
+        tombstones=[],
+    )
+
+    chunks = store.list_document_chunks(vault_id="default", document_id=first.document_id)
+
+    assert [chunk.chunk_id for chunk in chunks] == ["first"]
+    assert chunks[0].text == "First"
+
+
+def test_list_document_chunks_is_scoped_by_vault_id(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    first = make_document("first", "wiki/same.md", "hash-first")
+    second = make_document("second", "wiki/same.md", "hash-second")
+    first_chunk = make_chunk("first", first.document_id, first.path, chunk_id="shared", text="First")
+    second_chunk = make_chunk("second", second.document_id, second.path, chunk_id="shared", text="Second")
+    store.apply_metadata_revision(
+        index_revision="rev-1",
+        documents=[first, second],
+        chunks=[first_chunk, second_chunk],
+        tombstones=[],
+    )
+
+    chunks = store.list_document_chunks(vault_id="first", document_id=first.document_id)
+
+    assert len(chunks) == 1
+    assert chunks[0].vault_id == "first"
+    assert chunks[0].text == "First"
+
+
+def test_list_document_chunks_returns_empty_for_tombstoned_document(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    document = make_document("default", "wiki/page.md", "hash")
+    chunk = make_chunk("default", document.document_id, document.path)
+    store.apply_metadata_revision(index_revision="rev-1", documents=[document], chunks=[chunk], tombstones=[])
+    store.apply_metadata_revision(
+        index_revision="rev-2",
+        documents=[],
+        chunks=[],
+        tombstones=[("default", document.path)],
+    )
+
+    assert store.list_document_chunks(vault_id="default", document_id=document.document_id) == ()
+
+
+def test_list_document_chunks_missing_database_does_not_create_file(tmp_path: Path) -> None:
+    database_path = tmp_path / "metadata.sqlite3"
+    store = SQLiteMetadataStore(database_path)
+
+    assert store.list_document_chunks(vault_id="default", document_id="missing") == ()
+    assert not database_path.exists()
+
+
+def test_list_document_chunks_preserves_indexed_document_order(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    document = make_document("default", "wiki/page.md", "hash")
+    first_chunk = make_chunk("default", document.document_id, document.path, chunk_id="z-last-lexical", text="First")
+    second_chunk = make_chunk("default", document.document_id, document.path, chunk_id="a-first-lexical", text="Second")
+    store.apply_metadata_revision(
+        index_revision="rev-1",
+        documents=[document],
+        chunks=[first_chunk, second_chunk],
+        tombstones=[],
+    )
+
+    chunks = store.list_document_chunks(vault_id="default", document_id=document.document_id)
+
+    assert [chunk.text for chunk in chunks] == ["First", "Second"]

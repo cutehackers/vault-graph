@@ -51,6 +51,13 @@ class MetadataStore(Protocol):
 
     def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]: ...
 
+    def list_document_chunks(
+        self,
+        *,
+        vault_id: str,
+        document_id: str,
+    ) -> tuple[ChunkSnapshot, ...]: ...
+
     def resolve_document(self, document_id: str) -> DocumentSnapshot | None: ...
 
     def resolve_chunk(self, *, vault_id: str, chunk_id: str) -> ChunkSnapshot | None: ...

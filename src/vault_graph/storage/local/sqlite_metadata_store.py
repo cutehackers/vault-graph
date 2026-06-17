@@ -229,6 +229,33 @@ class SQLiteMetadataStore:
             if _path_in_content_scope(path=str(row["path"]), content_scopes=scope.content_scopes)
         )
 
+    def list_document_chunks(
+        self,
+        *,
+        vault_id: str,
+        document_id: str,
+    ) -> tuple[ChunkSnapshot, ...]:
+        if not self._database_path.exists():
+            return ()
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
+                       c.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision
+                FROM chunks c
+                INNER JOIN documents d
+                  ON d.vault_id = c.vault_id
+                 AND d.document_id = c.document_id
+                 AND d.path = c.path
+                WHERE c.vault_id = ?
+                  AND c.document_id = ?
+                  AND d.is_tombstoned = 0
+                ORDER BY c.rowid
+                """,
+                (vault_id, document_id),
+            ).fetchall()
+        return tuple(_chunk_snapshot_from_row(row) for row in rows)
+
     def resolve_document(self, document_id: str) -> DocumentSnapshot | None:
         if not self._database_path.exists():
             return None

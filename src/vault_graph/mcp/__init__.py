@@ -5,14 +5,23 @@ from typing import Any
 __all__ = [
     "McpErrorPayload",
     "McpProtocolError",
+    "McpResourceBody",
+    "McpResourceRegistry",
+    "McpResourceRequest",
+    "McpResourceUri",
     "McpScopeInput",
     "McpServerConfig",
     "McpServiceFactory",
     "McpServices",
     "RegisteredMcpServer",
+    "CachedContextPack",
+    "ContextPackResourceCache",
     "codex_stdio_config_json",
     "create_mcp_server",
+    "decode_resource_segment",
+    "encode_resource_segment",
     "map_exception_to_mcp_error",
+    "parse_mcp_resource_uri",
     "run_mcp_server",
     "scope_from_mcp_input",
     "serve_mcp",
@@ -52,6 +61,32 @@ def __getattr__(name: str) -> Any:
             "McpProtocolError": McpProtocolError,
             "map_exception_to_mcp_error": map_exception_to_mcp_error,
         }[name]
+    if name in {"McpResourceUri", "parse_mcp_resource_uri", "encode_resource_segment", "decode_resource_segment"}:
+        from vault_graph.mcp.mcp_uri import (
+            McpResourceUri,
+            decode_resource_segment,
+            encode_resource_segment,
+            parse_mcp_resource_uri,
+        )
+
+        return {
+            "McpResourceUri": McpResourceUri,
+            "parse_mcp_resource_uri": parse_mcp_resource_uri,
+            "encode_resource_segment": encode_resource_segment,
+            "decode_resource_segment": decode_resource_segment,
+        }[name]
+    if name in {"McpResourceRequest", "McpResourceBody", "McpResourceRegistry"}:
+        from vault_graph.mcp.mcp_resources import McpResourceBody, McpResourceRegistry, McpResourceRequest
+
+        return {
+            "McpResourceRequest": McpResourceRequest,
+            "McpResourceBody": McpResourceBody,
+            "McpResourceRegistry": McpResourceRegistry,
+        }[name]
+    if name in {"ContextPackResourceCache", "CachedContextPack"}:
+        from vault_graph.mcp.context_pack_resource_cache import CachedContextPack, ContextPackResourceCache
+
+        return {"ContextPackResourceCache": ContextPackResourceCache, "CachedContextPack": CachedContextPack}[name]
     if name == "codex_stdio_config_json":
         from vault_graph.mcp.mcp_config_examples import codex_stdio_config_json
 

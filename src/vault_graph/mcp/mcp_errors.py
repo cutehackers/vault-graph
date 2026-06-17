@@ -58,7 +58,15 @@ def map_exception_to_mcp_error(
             _sanitize_error_message(str(exc), user_state_path=user_state_path),
             affected_vault_ids,
         )
-    if isinstance(exc, (KeywordIndexError, VectorStoreError, GraphStoreError, TextEmbeddingsError)):
+    if isinstance(exc, GraphStoreError):
+        code = _code_for_domain_error(exc)
+        return _error(
+            _kind_for_domain_code(code),
+            code,
+            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            affected_vault_ids,
+        )
+    if isinstance(exc, (KeywordIndexError, VectorStoreError, TextEmbeddingsError)):
         return _error(
             "execution",
             _code_for_domain_error(exc),
@@ -108,6 +116,17 @@ def _error(
 
 
 def _code_for_domain_error(exc: Exception) -> str:
+    message = str(exc)
+    if ":" in message:
+        prefix = message.split(":", 1)[0].strip()
+        if prefix in {
+            "graph_unavailable",
+            "resource_not_found",
+            "ambiguous_resource",
+            "metadata_unavailable",
+            "resource_not_available",
+        }:
+            return prefix
     name = exc.__class__.__name__
     chars: list[str] = []
     for index, char in enumerate(name):
@@ -115,6 +134,14 @@ def _code_for_domain_error(exc: Exception) -> str:
             chars.append("_")
         chars.append(char.lower())
     return "".join(chars)
+
+
+def _kind_for_domain_code(code: str) -> McpProtocolErrorKind:
+    if code == "resource_not_found":
+        return "not_found"
+    if code == "ambiguous_resource":
+        return "invalid_parameter"
+    return "execution"
 
 
 def _sanitize_internal_message(exc: Exception, *, user_state_path: Path | None) -> str:
