@@ -3,6 +3,35 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-17 - Phase 5B Implementation Plan Chunk Order Correction
+
+**Trigger:** Phase 5B implementation-plan review found that ordering document
+resource chunks by `chunk_id` would sort stable hashes, not preserve
+`heading-section-v1` document order.
+
+**Scope:** Phase 5B MCP resource implementation plan for
+`MetadataStore.list_document_chunks(...)` and SQLite metadata-store tests.
+
+**Core Values Protected:**
+
+- evidence resources preserve indexed document structure
+- no metadata schema migration is introduced just for MCP serving
+- resource rendering remains simple and rebuildable from existing indexed state
+
+**Changes Applied:**
+
+- Changed the planned SQLite document-chunk query from `ORDER BY c.path,
+  c.chunk_id` to `ORDER BY c.rowid`.
+- Added a test requirement that chunk order remains document insertion order
+  even when lexical `chunk_id` order differs.
+
+**Verification:**
+
+- Inspected the current `metadata-v1` SQLite schema and
+  `apply_metadata_revision(...)` chunk insertion flow.
+- Rechecked the Phase 5B plan against the SPEC requirement that resources
+  preserve `heading-section-v1` chunk order.
+
 ## 2026-06-17 - Phase 5B MCP Resource SPEC Corrections
 
 **Trigger:** Phase 5B SPEC self-grill against the completed Phase 5A FastMCP
