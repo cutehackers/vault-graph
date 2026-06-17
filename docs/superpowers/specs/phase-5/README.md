@@ -15,6 +15,7 @@ while preserving the read-only, rebuildable, evidence-first boundary over Vault.
 | `2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md` | Local stdio server foundation, service construction, error mapping, and Codex configuration examples |
 | `2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md` | Read-only resource templates, URI validation, resource rendering, and generated context-pack resource cache |
 | `2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md` | Service-backed tools, prompt templates, structured output policy, and agent workflow contracts |
+| `codex-local-stdio-config.example.json` | Local Codex MCP stdio configuration example for `vg serve --mcp` |
 
 ## Reading Order
 

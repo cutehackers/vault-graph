@@ -14,6 +14,7 @@ def test_cli_surface_exposes_context_but_not_answer_command() -> None:
     assert "search" in result.output
     assert "related" in result.output
     assert "decision-trace" in result.output
+    assert "serve" in result.output
     assert "ask" not in result.output
     assert "context" in result.output
 

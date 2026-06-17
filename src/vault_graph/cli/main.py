@@ -647,6 +647,28 @@ def status(
     typer.echo(f"graph_recovery_hint: {graph.recovery_hint}")
 
 
+@app.command()
+def serve(
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    mcp: bool = typer.Option(False, "--mcp", help="Start the local stdio MCP server."),
+    http: bool = typer.Option(False, "--http", help="Reserved for a future HTTP server."),
+) -> None:
+    if mcp and http:
+        typer.echo("Use either --mcp or --http, not both.", err=True)
+        raise typer.Exit(1)
+    if http:
+        typer.echo("http_transport_not_supported_in_phase_5a", err=True)
+        raise typer.Exit(1)
+    if not mcp:
+        typer.echo("select one server transport: --mcp", err=True)
+        raise typer.Exit(1)
+    from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server, run_mcp_server
+
+    config = _exit_on_domain_error_stderr(lambda: McpServerConfig(state_path=state))
+    registered = _exit_on_domain_error_stderr(lambda: create_mcp_server(config))
+    _exit_on_domain_error_stderr(lambda: run_mcp_server(registered, config=config))
+
+
 def _render_search_response(response: SearchResponse) -> None:
     if response.warnings:
         for warning in response.warnings:
@@ -1095,4 +1117,22 @@ def _exit_on_domain_error[T](operation: Callable[[], T]) -> T:
         VectorStoreError,
     ) as exc:
         typer.echo(str(exc))
+        raise typer.Exit(1) from exc
+
+
+def _exit_on_domain_error_stderr[T](operation: Callable[[], T]) -> T:
+    try:
+        return operation()
+    except (
+        CatalogError,
+        ContextPackError,
+        GraphIndexingError,
+        GraphStoreError,
+        KeywordIndexError,
+        ReadOnlyBoundaryError,
+        SearchError,
+        TextEmbeddingsError,
+        VectorStoreError,
+    ) as exc:
+        typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc

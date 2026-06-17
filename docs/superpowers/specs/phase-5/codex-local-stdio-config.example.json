@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "vault-graph": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--python",
+        "3.12",
+        "vg",
+        "serve",
+        "--mcp",
+        "--state",
+        "/path/to/.vault-graph"
+      ]
+    }
+  }
+}
