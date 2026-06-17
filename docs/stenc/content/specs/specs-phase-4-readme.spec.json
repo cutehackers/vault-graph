@@ -1,0 +1,252 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:specs-phase-4-readme",
+  "slug": "specs-phase-4-readme",
+  "status": "canonical",
+  "title": "Phase 4 Design Documents",
+  "description": "This folder holds detailed Phase 4 context pack design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical produc.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-17",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-4/README.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "This folder holds detailed Phase 4 context pack design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical produc.",
+    "agentSummary": "Read docs/superpowers/specs/phase-4/README.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "This folder holds detailed Phase 4 context pack design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how Phase 4 should be implemented while preserving Vault Graph's read-only, rebuildable, evidence-first boundary.",
+    "problem": "This folder holds detailed Phase 4 context pack design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how Phase 4 should be implemented while preserving Vault Graph's read-only, rebuildable, evidence-first boundary.",
+    "scope": {
+      "in": [
+        "Structured Stenc view of the source spec Markdown.",
+        "Original Markdown remains at docs/superpowers/specs/phase-4/README.md."
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown source.",
+        "Changing Vault Graph runtime behavior."
+      ]
+    },
+    "architecture": {
+      "summary": "This folder holds detailed Phase 4 context pack design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how Phase 4 should be implemented while preserving Vault Graph's read-only, rebuildable, evidence-first boundary.",
+      "flow": [
+        "Markdown source -> Stenc JSON -> generated fixed web page"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Overview",
+        "detail": "This folder holds detailed Phase 4 context pack design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how Phase 4 should be implemented while preserving Vault Graph's read-only, rebuildable, evidence-first boundary.",
+        "acceptanceCriteria": [
+          "Review the Overview section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "Documents",
+        "detail": "| File | Role | | --- | --- | | 2026-06-12-phase-4-context-pack-overview-design.md | Cross-slice overview, decisions, invariants, and handoff map | | 2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md | Detailed JSON contract, builder boundary, data models, warning model, and budget policy | | 2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md | Detailed local assembly flow, CLI surface, Markdown rendering view, and verification plan |",
+        "acceptanceCriteria": [
+          "Review the Documents section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Reading Order",
+        "detail": "Read docs/SPEC.md for the top-level product contract. Read 2026-06-12-phase-4-context-pack-overview-design.md for Phase 4 invariants and dependencies. Read the target slice document before writing an implementation plan.",
+        "acceptanceCriteria": [
+          "Read docs/SPEC.md for the top-level product contract.",
+          "Read 2026-06-12-phase-4-context-pack-overview-design.md for Phase 4",
+          "Read the target slice document before writing an implementation plan."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "This folder holds detailed Phase 4 context pack design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how Phase 4 should be implemented while preserving Vault Graph's read-only, rebuildable, evidence-first boundary.",
+        "interfaces": [
+          "docs/SPEC.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Original Markdown is converted into Stenc JSON and rendered as a deterministic static page."
+    ],
+    "errorHandling": [
+      {
+        "case": "Conversion drift",
+        "behavior": "Treat the original Markdown and docs/SPEC.md as the source of truth if generated Stenc content is ambiguous."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Overview",
+        "rules": [
+          "Review the Overview section in the source Markdown."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-4/README.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "docs/SPEC.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/specs-phase-4-readme.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/specs-phase-4-readme.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-4/README.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "This folder holds detailed Phase 4 context pack design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how Phase 4 should be implemented while preserving Vault Graph's read-only, rebuildable, evidence-first boundary.",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/README.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/README.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Documents",
+        "content": "| File | Role | | --- | --- | | 2026-06-12-phase-4-context-pack-overview-design.md | Cross-slice overview, decisions, invariants, and handoff map | | 2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md | Detailed JSON contract, builder boundary, data models, warning model, and budget policy | | 2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md | Detailed local assembly flow, CLI surface, Markdown rendering view, and verification plan |",
+        "items": [
+          "Review the Documents section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/README.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/README.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Reading Order",
+        "content": "Read docs/SPEC.md for the top-level product contract. Read 2026-06-12-phase-4-context-pack-overview-design.md for Phase 4 invariants and dependencies. Read the target slice document before writing an implementation plan.",
+        "items": [
+          "Read docs/SPEC.md for the top-level product contract.",
+          "Read 2026-06-12-phase-4-context-pack-overview-design.md for Phase 4",
+          "Read the target slice document before writing an implementation plan."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/README.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/README.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

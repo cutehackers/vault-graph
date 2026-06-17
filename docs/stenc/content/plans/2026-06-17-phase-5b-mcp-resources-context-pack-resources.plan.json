@@ -1,0 +1,1635 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-17-phase-5b-mcp-resources-context-pack-resources",
+  "slug": "2026-06-17-phase-5b-mcp-resources-context-pack-resources",
+  "status": "canonical",
+  "title": "Phase 5B MCP Resources And Context Pack Resources Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-17",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "docs/SPEC.md"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "Do not implement:\nresource subscriptions durable context-pack persistence full resource listing of all indexed Vault documents resource reads that build context packs as a side effect indexing from MCP direct Vault file reads from MCP resources editing, renaming, rewriting, deleting, or publishing Vault files binary resources remote HTTP resources LLM answer synthesis Phase 6 memory, issue, timeline, or project-memory projections",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Add read-only MCP resource templates over indexed Vault Graph evidence, graph entities, current-context availability, and generated context packs without giving MCP ownership of Vault reading, indexing, retrieval, graph algorithms, or durable knowledge.\nArchitecture: Keep vault_graph.mcp as a thin adapter over Phase 5A services. All resource reads go through one URI parser, MetadataStore, a reusable GraphResourceService, status/catalog state, or a bounded in-process ContextPackResourceCache; every resource returns a canonical JSON envelope with evidence metadata and warni...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "Implement Phase 5B:\nvault:// URI parser, normalization, percent-encoding helpers, and validation. Canonical JSON resource envelope used by every resource. FastMCP resource-template registration for: vault://{vault_id}/documents/{path} vault://{vault_id}/pages/{path} vault://{vault_id}/sources/{id} vault://{vault_id}/concepts/{name} vault://{vault_id}/decisions/{id} vault://{vault_id}/issues/{id} vault://{vault_id}/timeline/recent vault://{vault_id}/context/current vault://{vault_id}/graph/entities/{id} vault://context/packs/{pack_id} Metadata-backed document/page/source/decision/issue resources rendered from indexed chunks only. MetadataStore.list_document_chunks(vault_id, document_id) and...",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "vault:// URI parser, normalization, percent-encoding helpers, and validation.",
+        "Canonical JSON resource envelope used by every resource.",
+        "FastMCP resource-template registration for:",
+        "vault://{vault_id}/documents/{path}",
+        "vault://{vault_id}/pages/{path}",
+        "vault://{vault_id}/sources/{id}",
+        "vault://{vault_id}/concepts/{name}",
+        "vault://{vault_id}/decisions/{id}",
+        "vault://{vault_id}/issues/{id}",
+        "vault://{vault_id}/timeline/recent"
+      ],
+      "out": [
+        "resource subscriptions",
+        "durable context-pack persistence",
+        "full resource listing of all indexed Vault documents",
+        "resource reads that build context packs as a side effect",
+        "indexing from MCP",
+        "direct Vault file reads from MCP resources",
+        "editing, renaming, rewriting, deleting, or publishing Vault files",
+        "binary resources",
+        "remote HTTP resources",
+        "LLM answer synthesis"
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "AGENTS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/SPEC.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/FEATURES.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DESIGN.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/CONVENTIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-5/README.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_server.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_service_factory.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_uri.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_resources.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/metadata_resource_reader.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/graph_resource_reader.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/context_pack_resource_cache.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/graph_resource_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_mcp_uri.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_mcp_resources.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_metadata_resource_reader.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_graph_resource_reader.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_context_pack_resource_cache.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Implementation Tasks",
+        "status": "todo",
+        "surfaces": [
+          "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Review the Implementation Tasks section in the source Markdown.",
+            "status": "todo",
+            "instruction": "Review the Implementation Tasks section in the source Markdown.",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 1: URI Parser And Resource Error Helpers",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_uri.py",
+          "src/vault_graph/mcp/mcp_errors.py",
+          "tests/test_mcp_uri.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_uri.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_uri.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_uri.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/mcp/mcp_uri.py src/vault_graph/mcp/mcp_errors.py tests/test_mcp_uri.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(mcp): add resource uri parser\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Create: src/vault_graph/mcp/mcp_uri.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/mcp/mcp_uri.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 2: Resource Envelope, Cache, Registry Skeleton, And FastMCP Templates",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_resources.py",
+          "src/vault_graph/mcp/context_pack_resource_cache.py",
+          "src/vault_graph/mcp/mcp_server.py",
+          "src/vault_graph/mcp/init.py",
+          "tests/test_context_pack_resource_cache.py",
+          "tests/test_mcp_resources.py",
+          "tests/test_mcp_server.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_resources.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/context_pack_resource_cache.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_server.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_context_pack_resource_cache.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_resources.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_server.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_context_pack_resource_cache.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_resources.py tests/test_mcp_server.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_context_pack_resource_cache.py tests/test_mcp_resources.py tests/test_mcp_server.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_import_boundaries.py tests/test_mcp_service_factory.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-5",
+            "title": "Create: src/vault_graph/mcp/mcp_resources.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/mcp/mcp_resources.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 3: Metadata Store Document Chunk Read",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/interfaces/metadata_store.py",
+          "src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "tests/test_sqlite_metadata_store.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_sqlite_metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_sqlite_metadata_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/storage/interfaces/metadata_store.py src/vault_graph/storage/local/sqlite_metadata_store.py tests/test_sqlite_metadata_store.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(metadata): read chunks by document\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Modify: src/vault_graph/storage/interfaces/metadata_store.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/storage/interfaces/metadata_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 4: Metadata Resource Reader",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/metadata_resource_reader.py",
+          "src/vault_graph/mcp/mcp_resources.py",
+          "tests/test_metadata_resource_reader.py",
+          "tests/test_mcp_resources.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/metadata_resource_reader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_resources.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_metadata_resource_reader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_resources.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_metadata_resource_reader.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_metadata_resource_reader.py tests/test_mcp_resources.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/mcp/metadata_resource_reader.py src/vault_graph/mcp/mcp_resources.py tests/test_metadata_resource_reader.py tests/test_mcp_resources.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(mcp): read metadata resources\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-5",
+            "title": "Create: src/vault_graph/mcp/metadata_resource_reader.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/mcp/metadata_resource_reader.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 5: Graph Resource Service",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/app/graph_resource_service.py",
+          "src/vault_graph/mcp/mcp_service_factory.py",
+          "tests/test_graph_resource_reader.py",
+          "tests/test_mcp_service_factory.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/graph_resource_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_service_factory.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_resource_reader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_service_factory.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_resource_reader.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_resource_reader.py tests/test_mcp_service_factory.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/app/graph_resource_service.py src/vault_graph/mcp/mcp_service_factory.py tests/test_graph_resource_reader.py tests/test_mcp_service_factory.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(graph): add resource read service\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-5",
+            "title": "Create: src/vault_graph/app/graph_resource_service.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/app/graph_resource_service.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Task 6: Graph Resource Reader And MCP Dispatch",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/graph_resource_reader.py",
+          "src/vault_graph/mcp/mcp_resources.py",
+          "src/vault_graph/mcp/mcp_errors.py",
+          "tests/test_graph_resource_reader.py",
+          "tests/test_mcp_resources.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/graph_resource_reader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_resources.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_resource_reader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_resources.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_resource_reader.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_resource_reader.py tests/test_mcp_resources.py tests/test_mcp_import_boundaries.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/mcp/graph_resource_reader.py src/vault_graph/mcp/mcp_resources.py src/vault_graph/mcp/mcp_errors.py tests/test_graph_resource_reader.py tests/test_mcp_resources.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(mcp): read graph resources\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-5",
+            "title": "Create: src/vault_graph/mcp/graph_resource_reader.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/mcp/graph_resource_reader.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-8",
+        "title": "Task 7: Read-Only Boundary And Multi-Vault Resource Tests",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_mcp_resource_read_only_boundary.py",
+          "tests/test_mcp_resources.py",
+          "tests/test_metadata_resource_reader.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_resource_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_resources.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_metadata_resource_reader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-8-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_resource_read_only_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_metadata_resource_reader.py tests/test_mcp_resources.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add tests/test_mcp_resource_read_only_boundary.py tests/test_mcp_resources.py tests/test_metadata_resource_reader.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"test(mcp): cover resource read boundaries\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-5",
+            "title": "Create: tests/test_mcp_resource_read_only_boundary.py",
+            "status": "todo",
+            "instruction": "Create: tests/test_mcp_resource_read_only_boundary.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-9",
+        "title": "Task 8: Official MCP Stdio Smoke And Full Verification",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_mcp_stdio_smoke.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_stdio_smoke.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-9-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "pytest passes with no new failures.",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "ruff exits 0.",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "mypy exits 0.",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git diff --check exits 0.",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-5",
+            "title": "Modify: tests/test_mcp_stdio_smoke.py",
+            "status": "todo",
+            "instruction": "Modify: tests/test_mcp_stdio_smoke.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7",
+      "slice-8",
+      "slice-9"
+    ],
+    "risks": [
+      {
+        "risk": "Task 1: URI Parser And Resource Error Helpers",
+        "mitigation": "Files:\nCreate: src/vault_graph/mcp/mcp_uri.py Modify: src/vault_graph/mcp/mcp_errors.py Test: tests/test_mcp_uri.py\n[ ] Step 1: Write failing URI parser tests\nCover:\nencoded document path normalizes to vault://main/documents/wiki%2Fspec.md and value wiki/spec.md. encoded page path under wiki/ is accepted. raw slash document path vault://main/documents/wiki/spec.md is rejected before store lookup. query and fragment are rejected. unknown scheme is rejected. absolute paths and traversal are rejec..."
+      },
+      {
+        "risk": "Error Handling And Edge Cases",
+        "mitigation": "URI errors:\nmalformed URI -> invalid_resource_uri unsupported scheme -> invalid_resource_uri query or fragment -> invalid_resource_uri unknown resource kind -> invalid_resource_uri raw slash template value -> FastMCP no match or parser invalid_resource_uri encoded traversal -> invalid_resource_uri non-Markdown path -> invalid_resource_uri page outside wiki/ -> invalid_resource_uri unknown Vault -> unknown_vault_id disabled Vault -> vault_disabled\nMetadata errors:\nmissing database -> missing res..."
+      },
+      {
+        "risk": "Risks And Mitigations",
+        "mitigation": "Risk: FastMCP wraps handler exceptions as SDK resource errors, which may hide custom exception types from external clients.\nMitigation: Keep direct McpResourceRegistry.read(...) tests for structured payloads and smoke-test external client behavior for template listing. Preserve structured error payload messages when raising McpProtocolError.\nRisk: Existing chunk ordering does not store an explicit ordinal. Mitigation: Use the current list_chunks(...) ordering style for Phase 5B and do not add a..."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "pytest passes with no new failures.",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "ruff exits 0.",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "mypy exits 0.",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git diff --check exits 0.",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_mcp_uri.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/mcp/mcp_uri.py src/vault_graph/mcp/mcp_errors.py tests/test_mcp_uri.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(mcp): add resource uri parser\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_context_pack_resource_cache.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Add read-only MCP resource templates over indexed Vault Graph evidence, graph entities, current-context availability, and generated context packs without giving MCP ownership of Vault reading, indexing, retrieval, graph algorithms, or durable knowledge.\nArchitecture: Keep vault_graph.mcp as a thin adapter over Phase 5A services. All resource reads go through one URI parser, MetadataStore, a reusable GraphResourceService, status/catalog state, or a bounded in-process ContextPackResourceCache; every resource returns a canonical JSON envelope with evidence metadata and warnings.\nTech Stack: Python 3.12, official MCP Python SDK v1.27.x FastMCP resources, frozen dataclasses, SQLite metadata/graph stores opened read-only, existing context-pack JSON renderer, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Source Documents",
+        "content": "Read these before implementation:\nAGENTS.md docs/SPEC.md docs/FEATURES.md docs/DESIGN.md docs/CONVENTIONS.md docs/superpowers/specs/phase-5/README.md docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md\nCurrent repo facts to preserve:\nsrc/vault_graph/mcp/mcp_server.py already owns McpServerConfig, RegisteredMcpServer, create_mcp_server(...), run_mcp_server(...), and serve_mcp(...). src/vault_graph/mcp/mcp_service_factory.py already opens read-only catalog, metadata, keyword, vector, retrieval, context-pack builder, and context-pack renderer services. McpServiceFactory.open_read_only() must not import rustworkx, create missing metadata/vector/graph/projection/model state, or write registered Vault roots. McpServiceFactory.open_graph_retrieval_service() is lazy and may import RustworkxGraphProjection only when graph behavior is explicitly requested. mcp 1.27.2 exposes public FastMCP.resource(...), Fa...",
+        "items": [
+          "AGENTS.md",
+          "docs/SPEC.md",
+          "docs/FEATURES.md",
+          "docs/DESIGN.md",
+          "docs/CONVENTIONS.md",
+          "docs/superpowers/specs/phase-5/README.md",
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+          "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+          "src/vault_graph/mcp/mcp_server.py already owns McpServerConfig, RegisteredMcpServer, create_mcp_server(...), run_mcp_server(...), and serve_mcp(...).",
+          "src/vault_graph/mcp/mcp_service_factory.py already opens read-only catalog, metadata, keyword, vector, retrieval, context-pack builder, and context-pack renderer services.",
+          "McpServiceFactory.open_read_only() must not import rustworkx, create missing metadata/vector/graph/projection/model state, or write registered Vault roots.",
+          "McpServiceFactory.open_graph_retrieval_service() is lazy and may import RustworkxGraphProjection only when graph behavior is explicitly requested.",
+          "mcp 1.27.2 exposes public FastMCP.resource(...), FastMCP.read_resource(...), FastMCP.list_resources(), and FastMCP.list_resource_templates() APIs.",
+          "FastMCP passes percent-encoded URI template arguments to handlers unchanged. Example: vault://main/documents/wiki%2Fspec.md calls the handler with path=\"wiki%2Fspec.md\"."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope",
+        "content": "Implement Phase 5B:\nvault:// URI parser, normalization, percent-encoding helpers, and validation. Canonical JSON resource envelope used by every resource. FastMCP resource-template registration for: vault://{vault_id}/documents/{path} vault://{vault_id}/pages/{path} vault://{vault_id}/sources/{id} vault://{vault_id}/concepts/{name} vault://{vault_id}/decisions/{id} vault://{vault_id}/issues/{id} vault://{vault_id}/timeline/recent vault://{vault_id}/context/current vault://{vault_id}/graph/entities/{id} vault://context/packs/{pack_id} Metadata-backed document/page/source/decision/issue resources rendered from indexed chunks only. MetadataStore.list_document_chunks(vault_id, document_id) and SQLite implementation. Graph entity and concept resources through a new reusable GraphResourceService. Current-context availability and timeline-unavailable resources. Bounded in-process context-pack resource cache shared through RegisteredMcpServer for Phase 5C. Unit, integration, MCP SDK, import-boundary, read-only, and multi-Vault tests.",
+        "items": [
+          "vault:// URI parser, normalization, percent-encoding helpers, and validation.",
+          "Canonical JSON resource envelope used by every resource.",
+          "FastMCP resource-template registration for:",
+          "vault://{vault_id}/documents/{path}",
+          "vault://{vault_id}/pages/{path}",
+          "vault://{vault_id}/sources/{id}",
+          "vault://{vault_id}/concepts/{name}",
+          "vault://{vault_id}/decisions/{id}",
+          "vault://{vault_id}/issues/{id}",
+          "vault://{vault_id}/timeline/recent",
+          "vault://{vault_id}/context/current",
+          "vault://{vault_id}/graph/entities/{id}",
+          "vault://context/packs/{pack_id}",
+          "Metadata-backed document/page/source/decision/issue resources rendered from indexed chunks only.",
+          "MetadataStore.list_document_chunks(vault_id, document_id) and SQLite implementation.",
+          "Graph entity and concept resources through a new reusable GraphResourceService."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Non-Goals",
+        "content": "Do not implement:\nresource subscriptions durable context-pack persistence full resource listing of all indexed Vault documents resource reads that build context packs as a side effect indexing from MCP direct Vault file reads from MCP resources editing, renaming, rewriting, deleting, or publishing Vault files binary resources remote HTTP resources LLM answer synthesis Phase 6 memory, issue, timeline, or project-memory projections",
+        "items": [
+          "resource subscriptions",
+          "durable context-pack persistence",
+          "full resource listing of all indexed Vault documents",
+          "resource reads that build context packs as a side effect",
+          "indexing from MCP",
+          "direct Vault file reads from MCP resources",
+          "editing, renaming, rewriting, deleting, or publishing Vault files",
+          "binary resources",
+          "remote HTTP resources",
+          "LLM answer synthesis",
+          "Phase 6 memory, issue, timeline, or project-memory projections"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Directory And File Structure",
+        "content": "Create:\nsrc/vault_graph/mcp/mcp_uri.py: parse, normalize, encode, decode, and validate all vault:// resource URIs. src/vault_graph/mcp/mcp_resources.py: resource DTOs, registry dispatch, current/timeline readers, and FastMCP resource-template registration. src/vault_graph/mcp/metadata_resource_reader.py: render document-like resources from indexed metadata and chunks only. src/vault_graph/mcp/graph_resource_reader.py: convert app-layer graph resource results into MCP JSON envelopes. src/vault_graph/mcp/context_pack_resource_cache.py: bounded in-process LRU cache for rendered context-pack JSON. src/vault_graph/app/graph_resource_service.py: reusable application service for graph entity/concept resource reads. tests/test_mcp_uri.py tests/test_mcp_resources.py tests/test_metadata_resource_reader.py tests/test_graph_resource_reader.py tests/test_context_pack_resource_cache.py tests/test_mcp_resource_read_only_boundary.py\nModify:\nsrc/vault_graph/mcp/init.py: add lazy exports for Phase 5B public DTOs/helpers without eager SDK or graph imports. src/vault_graph/mcp/mcp_server.py: expand RegisteredMcpServer, construct cache, and register resources during server creation. src/vault_graph/mc...",
+        "items": [
+          "src/vault_graph/mcp/mcp_uri.py: parse, normalize, encode, decode, and validate all vault:// resource URIs.",
+          "src/vault_graph/mcp/mcp_resources.py: resource DTOs, registry dispatch, current/timeline readers, and FastMCP resource-template registration.",
+          "src/vault_graph/mcp/metadata_resource_reader.py: render document-like resources from indexed metadata and chunks only.",
+          "src/vault_graph/mcp/graph_resource_reader.py: convert app-layer graph resource results into MCP JSON envelopes.",
+          "src/vault_graph/mcp/context_pack_resource_cache.py: bounded in-process LRU cache for rendered context-pack JSON.",
+          "src/vault_graph/app/graph_resource_service.py: reusable application service for graph entity/concept resource reads.",
+          "tests/test_mcp_uri.py",
+          "tests/test_mcp_resources.py",
+          "tests/test_metadata_resource_reader.py",
+          "tests/test_graph_resource_reader.py",
+          "tests/test_context_pack_resource_cache.py",
+          "tests/test_mcp_resource_read_only_boundary.py",
+          "src/vault_graph/mcp/init.py: add lazy exports for Phase 5B public DTOs/helpers without eager SDK or graph imports.",
+          "src/vault_graph/mcp/mcp_server.py: expand RegisteredMcpServer, construct cache, and register resources during server creation.",
+          "src/vault_graph/mcp/mcp_service_factory.py: add open_graph_resource_service(...).",
+          "src/vault_graph/mcp/mcp_errors.py: add helper constructors for expected resource errors if needed; keep existing sanitization and McpErrorPayload."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Component And Interface Spec",
+        "content": "See Component And Interface Spec in the source Markdown document.",
+        "items": [
+          "Review the Component And Interface Spec section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_uri.py",
+        "content": "Own all vault:// parsing. Resource readers must receive McpResourceUri; they must not reparse URI strings or decode handler parameters.\nParser rules:\nUse urllib.parse.urlsplit, quote, and unquote. Reject any query string or fragment. Treat urlsplit(uri).netloc as vault_id, except netloc == \"context\" for vault://context/packs/{pack_id}. For vault://{vault_id}/documents/{path}, require path parts exactly [\"documents\", \"{path}\"]. For vault://{vault_id}/pages/{path}, require path parts exactly [\"pages\", \"{path}\"]. For vault://{vault_id}/sources/{id}, decisions/{id}, issues/{id}, and concepts/{name}, require exactly two path parts. For vault://{vault_id}/graph/entities/{id}, require exactly three path parts. For vault://{vault_id}/timeline/recent and context/current, require no value. For vault://context/packs/{pack_id}, require exactly [\"packs\", \"{pack_id}\"]. Reject raw slash values by rejecting path part counts other than the exact template count. Reject empty values after decode and before normalization. Reject decoded . and .. path segments for every value. Reject absolute decoded paths for every value. Allow decoded slash only for document and page. Reject encoded slash for all op...",
+        "items": [
+          "Use urllib.parse.urlsplit, quote, and unquote.",
+          "Reject any query string or fragment.",
+          "Treat urlsplit(uri).netloc as vault_id, except netloc == \"context\" for vault://context/packs/{pack_id}.",
+          "For vault://{vault_id}/documents/{path}, require path parts exactly [\"documents\", \"{path}\"].",
+          "For vault://{vault_id}/pages/{path}, require path parts exactly [\"pages\", \"{path}\"].",
+          "For vault://{vault_id}/sources/{id}, decisions/{id}, issues/{id}, and concepts/{name}, require exactly two path parts.",
+          "For vault://{vault_id}/graph/entities/{id}, require exactly three path parts.",
+          "For vault://{vault_id}/timeline/recent and context/current, require no value.",
+          "For vault://context/packs/{pack_id}, require exactly [\"packs\", \"{pack_id}\"].",
+          "Reject raw slash values by rejecting path part counts other than the exact template count.",
+          "Reject empty values after decode and before normalization.",
+          "Reject decoded . and .. path segments for every value.",
+          "Reject absolute decoded paths for every value.",
+          "Allow decoded slash only for document and page.",
+          "Reject encoded slash for all opaque values: source ID, concept name, decision ID, issue ID, graph entity ID, pack ID.",
+          "Require decoded document/page path to end with .md."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Literal\n\nfrom vault_graph.ingestion.vault_catalog import VaultCatalog\n\nMcpResourceKind = Literal[\n    \"document\",\n    \"page\",\n    \"source\",\n    \"concept\",\n    \"decision\",\n    \"issue\",\n    \"timeline_recent\",\n    \"context_current\",\n    \"graph_entity\",\n    \"context_pack\",\n]\n\n\n@dataclass(frozen=True)\nclass McpResourceUri:\n    raw_uri: str\n    normalized_uri: str\n    kind: McpResourceKind\n    vault_id: str | None\n    value: str | None\n\n\ndef encode_resource_segment(value: str) -> str: ...\ndef decode_resource_segment(value: str, *, allow_slash: bool) -> str: ...\ndef parse_mcp_resource_uri(uri: str, *, catalog: VaultCatalog) -> McpResourceUri: ..."
+          },
+          {
+            "language": "python",
+            "content": "def _same_or_child(path: str, parent: str) -> bool:\n    return path == parent or path.startswith(f\"{parent}/\")"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_resources.py",
+        "content": "Own resource DTOs, registry dispatch, current/timeline resource rendering, and FastMCP registration.\nMcpResourceBody.to_json_dict() must return JSON-safe values only:\nuri content_mime_type text metadata warnings, as a list of dictionaries with code, message, severity, affected_vault_ids, and recovery_hint\nMcpResourceRegistry.read(...) dispatch table:\ndocument -> metadata_reader.read_document(uri) page -> metadata_reader.read_page(uri) source -> metadata_reader.read_source(uri) decision -> metadata_reader.read_decision(uri) issue -> metadata_reader.read_issue(uri) graph_entity -> graph_reader_factory.get().read_entity(uri) concept -> graph_reader_factory.get().read_concept(uri) context_current -> current_context_reader.read_current_context(uri) timeline_recent -> current_context_reader.read_recent_timeline(uri) context_pack -> cache lookup and body rendering\nMcpResourceRegistry.read_json(...) must serialize with:\nExpected resource failures should raise McpProtocolError. Unexpected domain exceptions should go through map_exception_to_mcp_error(...) with the request's affected Vault IDs when available. Do not swallow errors by returning Markdown-only warnings.\nFastMCP registration ru...",
+        "items": [
+          "uri",
+          "content_mime_type",
+          "text",
+          "metadata",
+          "warnings, as a list of dictionaries with code, message, severity, affected_vault_ids, and recovery_hint",
+          "document -> metadata_reader.read_document(uri)",
+          "page -> metadata_reader.read_page(uri)",
+          "source -> metadata_reader.read_source(uri)",
+          "decision -> metadata_reader.read_decision(uri)",
+          "issue -> metadata_reader.read_issue(uri)",
+          "graph_entity -> graph_reader_factory.get().read_entity(uri)",
+          "concept -> graph_reader_factory.get().read_concept(uri)",
+          "context_current -> current_context_reader.read_current_context(uri)",
+          "timeline_recent -> current_context_reader.read_recent_timeline(uri)",
+          "context_pack -> cache lookup and body rendering",
+          "Register templates only with server.resource(...)."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom collections.abc import Callable\nfrom dataclasses import dataclass\nfrom typing import Literal, Protocol\n\nfrom vault_graph.mcp.mcp_errors import McpErrorPayload\n\nMcpResourceContentMime = Literal[\"text/markdown\", \"application/json\"]\n\n\n@dataclass(frozen=True)\nclass McpResourceRequest:\n    uri: str\n\n\n@dataclass(frozen=True)\nclass McpResourceBody:\n    uri: str\n    content_mime_type: McpResourceContentMime\n    text: str\n    metadata: dict[str, object]\n    warnings: tuple[McpErrorPayload, ...] = ()\n\n    def to_json_dict(self) -> dict[str, object]: ...\n\n\nclass McpResourceServer(Protocol):\n    def resource(\n        self,\n        uri: str,\n        *,\n        name: str | None = None,\n        title: str | None = None,\n        description: str | None = None,\n        mime_type: str | None = None,\n        meta: dict[str, object] | None = None,\n    ) -> Callable[[Callable[..., object]], Callable[..., object]]: ...\n\n\nclass GraphResourceReaderFactory(Protocol):\n    def get(self) -> GraphResourceReader: ...\n\n\nclass McpResourceRegistry:\n    def __init__(\n        self,\n        *,\n        catalog: VaultCatalog,\n        metadata_reader: MetadataResourceReader,\n        graph_reader_factory: GraphResourceReaderFactory,\n        context_pack_cache: ContextPackResourceCache,\n        current_context_reader: CurrentContextResourceReader,\n    ) -> None: ...\n\n    def read(self, request: McpResourceRequest) -> McpResourceBody: ...\n    def read_json(self, request: McpResourceRequest) -> str: ...\n\n\nclass CurrentContextResourceReader:\n    def __init__(\n        self,\n        *,\n        catalog: VaultCatalog,\n        service_factory: McpServiceFactory,\n        context_pack_cache: ContextPackResourceCache,\n    ) -> None: ...\n\n    def read_current_context(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_recent_timeline(self, uri: McpResourceUri) -> McpResourceBody: ...\n\n\ndef register_mcp_resources(\n    server: McpResourceServer,\n    *,\n    services: McpServices,\n    service_factory: McpServiceFactory,\n    context_pack_cache: ContextPackResourceCache,\n) -> McpResourceRegistry: ..."
+          },
+          {
+            "language": "python",
+            "content": "json.dumps(body.to_json_dict(), sort_keys=True, ensure_ascii=False, indent=2) + \"\\n\""
+          },
+          {
+            "language": "python",
+            "content": "@server.resource(\"vault://{vault_id}/documents/{path}\", mime_type=\"application/json\")\ndef read_document_resource(vault_id: str, path: str) -> str:\n    return registry.read_json(McpResourceRequest(uri=f\"vault://{vault_id}/documents/{path}\"))"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/context_pack_resource_cache.py",
+        "content": "Own only in-process resource cache behavior.\nCache rules:\nReject max_entries <= 0 with ContextPackError. Reject empty pack.pack_id. Store rendered_json exactly as provided by the existing renderer. Set requested_scope_key as: \",\".join(pack.scope.requested.vault_ids) + \":\" + \",\".join(pack.scope.requested.content_scopes) + f\":cross={pack.scope.requested.include_cross_vault}\" Set actual_scope_keys from scope.scope_key for each pack.scope.actual_scopes. Set cached_at from clock() in UTC ISO format. Use OrderedDict[str, CachedContextPack] and move entries to the end on get. Evict least-recently-used entries while len(cache) > max_entries. Do not write files. Do not mutate the ContextPack.\nWhen McpResourceRegistry reads a missing pack ID, raise resource_not_found with recovery hint \"Call build_context_pack again to regenerate this in-process resource.\"",
+        "items": [
+          "Reject max_entries <= 0 with ContextPackError.",
+          "Reject empty pack.pack_id.",
+          "Store rendered_json exactly as provided by the existing renderer.",
+          "Set requested_scope_key as:",
+          "\",\".join(pack.scope.requested.vault_ids) + \":\" + \",\".join(pack.scope.requested.content_scopes) + f\":cross={pack.scope.requested.include_cross_vault}\"",
+          "Set actual_scope_keys from scope.scope_key for each pack.scope.actual_scopes.",
+          "Set cached_at from clock() in UTC ISO format.",
+          "Use OrderedDict[str, CachedContextPack] and move entries to the end on get.",
+          "Evict least-recently-used entries while len(cache) > max_entries.",
+          "Do not write files.",
+          "Do not mutate the ContextPack."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom collections import OrderedDict\nfrom collections.abc import Callable\nfrom dataclasses import dataclass\nfrom datetime import UTC, datetime\n\nfrom vault_graph.context.context_pack import ContextPack\n\n\n@dataclass(frozen=True)\nclass CachedContextPack:\n    pack_id: str\n    pack_json: str\n    generated_at: str\n    requested_scope_key: str\n    actual_scope_keys: tuple[str, ...]\n    cached_at: str\n\n\nclass ContextPackResourceCache:\n    def __init__(\n        self,\n        *,\n        max_entries: int = 32,\n        clock: Callable[[], datetime] | None = None,\n    ) -> None: ...\n\n    @property\n    def max_entries(self) -> int: ...\n\n    def put(self, pack: ContextPack, *, rendered_json: str) -> CachedContextPack: ...\n    def get(self, pack_id: str) -> CachedContextPack | None: ...\n    def __len__(self) -> int: ..."
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/storage/interfaces/metadata_store.py",
+        "content": "Add the focused chunk read method to the MetadataStore protocol:\nContract:\nReturn current non-tombstoned chunks only. Filter by both vault_id and document_id. Return () if the document is unknown, tombstoned, or has no current chunks. Return chunks in indexed document order. The current metadata-v1 schema has no explicit chunk ordinal, so Phase 5B must use SQLite c.rowid for this document-specific query because apply_metadata_revision(...) deletes then reinserts a document's chunks in normalizer order. Perform no writes and no implicit schema initialization.",
+        "items": [
+          "Return current non-tombstoned chunks only.",
+          "Filter by both vault_id and document_id.",
+          "Return () if the document is unknown, tombstoned, or has no current chunks.",
+          "Return chunks in indexed document order. The current metadata-v1 schema has",
+          "Perform no writes and no implicit schema initialization."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class MetadataStore(Protocol):\n    ...\n    def list_document_chunks(\n        self,\n        *,\n        vault_id: str,\n        document_id: str,\n    ) -> tuple[ChunkSnapshot, ...]: ..."
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+        "content": "Implement:\nDo not use ORDER BY chunk_id for this method. chunk_id is a stable hash and does not preserve heading-section-v1 document order.",
+        "items": [
+          "Review the src/vault_graph/storage/local/sqlite_metadata_store.py section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def list_document_chunks(\n    self,\n    *,\n    vault_id: str,\n    document_id: str,\n) -> tuple[ChunkSnapshot, ...]:\n    if not self._database_path.exists():\n        return ()\n    with self._connect() as connection:\n        rows = connection.execute(\n            \"\"\"\n            SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,\n                   c.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision\n            FROM chunks c\n            INNER JOIN documents d\n              ON d.vault_id = c.vault_id\n             AND d.document_id = c.document_id\n             AND d.path = c.path\n            WHERE c.vault_id = ?\n              AND c.document_id = ?\n              AND d.is_tombstoned = 0\n            ORDER BY c.rowid\n            \"\"\",\n            (vault_id, document_id),\n        ).fetchall()\n    return tuple(_chunk_snapshot_from_row(row) for row in rows)"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/metadata_resource_reader.py",
+        "content": "Render document-like resources from indexed metadata only.\nResolution rules:\nread_document(...) and read_page(...) use uri.value as decoded logical path. read_source(...), read_decision(...), and read_issue(...) use uri.value as document_id. Path resources call metadata_store.document_state(vault_id, path) first. If DocumentState.document_id is None or is_tombstoned is True, raise resource_not_found. Resolve the document with metadata_store.resolve_document(document_id). Reject missing document or document.vault_id != uri.vault_id as resource_not_found. Fetch chunks with metadata_store.list_document_chunks(vault_id=uri.vault_id, document_id=document.document_id). Build evidence by calling resolve_chunk_evidence(...) for each chunk. Missing evidence refs produce missing_evidence warnings. Do not call VaultLoader, Path.read_text, or any direct Vault filesystem read.\nClassification rules:\nread_page(...): require document.path.startswith(\"wiki/\"). read_source(...): require path under raw/, docs/, or scratch/reports/, or document.frontmatter.get(\"type\") == \"source\". read_decision(...): require path under wiki/decisions/ or document.frontmatter.get(\"type\") == \"decision\". read_issue(...)...",
+        "items": [
+          "read_document(...) and read_page(...) use uri.value as decoded logical path.",
+          "read_source(...), read_decision(...), and read_issue(...) use uri.value as document_id.",
+          "Path resources call metadata_store.document_state(vault_id, path) first.",
+          "If DocumentState.document_id is None or is_tombstoned is True, raise resource_not_found.",
+          "Resolve the document with metadata_store.resolve_document(document_id).",
+          "Reject missing document or document.vault_id != uri.vault_id as resource_not_found.",
+          "Fetch chunks with metadata_store.list_document_chunks(vault_id=uri.vault_id, document_id=document.document_id).",
+          "Build evidence by calling resolve_chunk_evidence(...) for each chunk. Missing evidence refs produce missing_evidence warnings.",
+          "Do not call VaultLoader, Path.read_text, or any direct Vault filesystem read.",
+          "read_page(...): require document.path.startswith(\"wiki/\").",
+          "read_source(...): require path under raw/, docs/, or scratch/reports/, or document.frontmatter.get(\"type\") == \"source\".",
+          "read_decision(...): require path under wiki/decisions/ or document.frontmatter.get(\"type\") == \"decision\".",
+          "read_issue(...): require path under wiki/issues/ or document.frontmatter.get(\"type\") == \"issue\".",
+          "Classification mismatch raises resource_not_found, not a misleading partial resource.",
+          "Preserve each chunk's text.",
+          "Join chunks with \"\\n\\n\" unless the adjacent text already has a blank line boundary."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\n\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.ingestion.vault_catalog import VaultCatalog\nfrom vault_graph.mcp.mcp_resources import McpResourceBody\nfrom vault_graph.mcp.mcp_uri import McpResourceUri\nfrom vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore\n\n\n@dataclass(frozen=True)\nclass MetadataResourceRead:\n    document: DocumentSnapshot\n    chunks: tuple[ChunkSnapshot, ...]\n    evidence: tuple[EvidenceReference, ...]\n    warnings: tuple[McpErrorPayload, ...]\n\n\nclass MetadataResourceReader:\n    def __init__(self, *, catalog: VaultCatalog, metadata_store: MetadataStore) -> None: ...\n\n    def read_document(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_page(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_source(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_decision(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_issue(self, uri: McpResourceUri) -> McpResourceBody: ..."
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/app/graph_resource_service.py",
+        "content": "Add a reusable app-layer service for graph resource reads. MCP readers should not contain graph readiness or graph-store query policy.\nService rules:\nBuild requested scope as catalog.scope_for_vault_ids((vault_id,)). Reject disabled Vault entries with CatalogError(\"disabled vault_id: ...\"). Compute per-Vault actual scopes with actual_query_scopes(...). Call graph_readiness.check(...). If readiness freshness is incompatible or unavailable, raise GraphStoreError(f\"graph_{readiness.freshness}: {readiness.recovery_hint}\").\nTreat freshness missing, empty, or stale as warnings. If there is no fresh scope, raise GraphStoreError(\"graph_unavailable: ...\") for entity/concept resources because Phase 5B must not silently degrade to metadata text.\nget_entity(...) calls graph_store.get_entity(vault_id=vault_id, entity_id=entity_id) and requires active status. find_concept(...) calls graph_store.find_entities(GraphEntityQuery(text=name, actual_scopes=fresh_scopes, limit=20)).\nFor concept lookup, exact matches are entity.normalized_name == normalized_name(name) or name in entity.aliases after applying the same normalization policy used by graph indexing. If no shared normalizer exists, add a loca...",
+        "items": [
+          "Build requested scope as catalog.scope_for_vault_ids((vault_id,)).",
+          "Reject disabled Vault entries with CatalogError(\"disabled vault_id: ...\").",
+          "Compute per-Vault actual scopes with actual_query_scopes(...).",
+          "Call graph_readiness.check(...).",
+          "If readiness freshness is incompatible or unavailable, raise GraphStoreError(f\"graph_{readiness.freshness}: {readiness.recovery_hint}\").",
+          "Treat freshness missing, empty, or stale as warnings. If there is no fresh scope, raise GraphStoreError(\"graph_unavailable: ...\") for entity/concept resources because Phase 5B must not silently degrade to metadata text.",
+          "get_entity(...) calls graph_store.get_entity(vault_id=vault_id, entity_id=entity_id) and requires active status.",
+          "find_concept(...) calls graph_store.find_entities(GraphEntityQuery(text=name, actual_scopes=fresh_scopes, limit=20)).",
+          "For concept lookup, exact matches are entity.normalized_name == normalized_name(name) or name in entity.aliases after applying the same normalization policy used by graph indexing. If no shared normalizer exists, add a local private _normalize_concept_name(value: str) -> str using lowercase and whitespace collapse only.",
+          "No exact concept match raises resource_not_found.",
+          "More than one exact active concept match raises ambiguous_resource.",
+          "Related relationships come from graph_store.relationships_for_entities(...) with:",
+          "seed identity for the entity",
+          "direction=\"both\"",
+          "statuses=(\"stated\", \"inferred\", \"contested\", \"deprecated\")",
+          "include_cross_vault=False"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Literal\n\nfrom vault_graph.app.graph_retrieval_service import GraphReadinessChecker\nfrom vault_graph.graph.graph_contracts import EntityRecord, RelationshipRecord\nfrom vault_graph.retrieval.graph_retrieval import GraphRetrievalRevision\nfrom vault_graph.storage.interfaces.graph_store import GraphStore\nfrom vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore\n\nGraphResourceWarningSeverity = Literal[\"info\", \"warning\", \"error\"]\n\n\n@dataclass(frozen=True)\nclass GraphResourceWarning:\n    code: str\n    message: str\n    severity: GraphResourceWarningSeverity\n    affected_vault_ids: tuple[str, ...]\n    recovery_hint: str | None = None\n\n\n@dataclass(frozen=True)\nclass GraphEntityResource:\n    entity: EntityRecord\n    evidence: tuple[EvidenceReference, ...]\n    related_relationships: tuple[RelationshipRecord, ...]\n    warnings: tuple[GraphResourceWarning, ...]\n    store_revisions: tuple[GraphRetrievalRevision, ...]\n\n\nclass GraphResourceService:\n    def __init__(\n        self,\n        *,\n        catalog: VaultCatalog,\n        metadata_store: MetadataStore,\n        graph_store: GraphStore,\n        graph_readiness: GraphReadinessChecker,\n    ) -> None: ...\n\n    def get_entity(\n        self,\n        *,\n        vault_id: str,\n        entity_id: str,\n    ) -> GraphEntityResource: ...\n\n    def find_concept(\n        self,\n        *,\n        vault_id: str,\n        name: str,\n    ) -> GraphEntityResource: ..."
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/graph_resource_reader.py",
+        "content": "Convert GraphResourceService output into the canonical MCP envelope.\nOutput rules:\ncontent_mime_type=\"application/json\". text is stable JSON string with sort_keys=True, ensure_ascii=False, indent=2, and a final newline. JSON text includes: entity evidence relationships_by_status store_revisions warnings metadata includes: vault_id entity_id resource_kind graph_extraction_spec_version graph_extraction_spec_digest graph_index_revision relationship_count evidence_count Convert GraphResourceWarning to McpErrorPayload. Preserve relationship source_vault_id, target_vault_id, evidence_vault_id, and owner_vault_id in JSON.",
+        "items": [
+          "content_mime_type=\"application/json\".",
+          "text is stable JSON string with sort_keys=True, ensure_ascii=False, indent=2, and a final newline.",
+          "JSON text includes:",
+          "entity",
+          "evidence",
+          "relationships_by_status",
+          "store_revisions",
+          "warnings",
+          "metadata includes:",
+          "vault_id",
+          "entity_id",
+          "resource_kind",
+          "graph_extraction_spec_version",
+          "graph_extraction_spec_digest",
+          "graph_index_revision",
+          "relationship_count"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom vault_graph.app.graph_resource_service import GraphEntityResource, GraphResourceService\nfrom vault_graph.mcp.mcp_resources import McpResourceBody\nfrom vault_graph.mcp.mcp_uri import McpResourceUri\n\n\nclass GraphResourceReader:\n    def __init__(self, *, graph_resource_service: GraphResourceService) -> None: ...\n\n    def read_entity(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_concept(self, uri: McpResourceUri) -> McpResourceBody: ..."
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_service_factory.py",
+        "content": "Add lazy graph resource service construction:\nDo not import RustworkxGraphProjection in this method. Graph resource reads do not need projection building.",
+        "items": [
+          "Review the src/vault_graph/mcp/mcp_service_factory.py section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def open_graph_resource_service(self) -> GraphResourceService:\n    from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness\n    from vault_graph.app.graph_resource_service import GraphResourceService\n    from vault_graph.graph.graph_contracts import current_graph_extraction_spec\n    from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore\n    from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n    catalog_service, catalog = self._catalog()\n    metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)\n    graph_store = SQLiteGraphStore.open_read_only(catalog_service.graph_path)\n    readiness = ReadOnlyGraphReadiness(\n        metadata_store=metadata_store,\n        graph_store=graph_store,\n        expected_spec=current_graph_extraction_spec(),\n    )\n    return GraphResourceService(\n        catalog=catalog,\n        metadata_store=metadata_store,\n        graph_store=graph_store,\n        graph_readiness=readiness,\n    )"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_server.py",
+        "content": "Expand the server wrapper:\nUpdate create_mcp_server(...):\nRules:\nKeep FastMCP import lazy. Keep Phase 5A stdio behavior unchanged. Startup must not open graph resource service, status service, or context-pack builder work beyond existing read-only service construction. Startup must not list documents or scan metadata.",
+        "items": [
+          "Keep FastMCP import lazy.",
+          "Keep Phase 5A stdio behavior unchanged.",
+          "Startup must not open graph resource service, status service, or context-pack builder work beyond existing read-only service construction.",
+          "Startup must not list documents or scan metadata."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass RegisteredMcpServer:\n    server: McpServer\n    services: McpServices\n    service_factory: McpServiceFactory\n    server_version: str\n    context_pack_cache: ContextPackResourceCache\n    resource_registry: McpResourceRegistry"
+          },
+          {
+            "language": "python",
+            "content": "def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:\n    from mcp.server.fastmcp import FastMCP\n\n    from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache\n    from vault_graph.mcp.mcp_resources import register_mcp_resources\n\n    factory = McpServiceFactory(state_path=config.state_path)\n    services = factory.open_read_only()\n    server = FastMCP(...)\n    context_pack_cache = ContextPackResourceCache(max_entries=32)\n    resource_registry = register_mcp_resources(\n        server,\n        services=services,\n        service_factory=factory,\n        context_pack_cache=context_pack_cache,\n    )\n    return RegisteredMcpServer(\n        server=server,\n        services=services,\n        service_factory=factory,\n        server_version=config.server_version,\n        context_pack_cache=context_pack_cache,\n        resource_registry=resource_registry,\n    )"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/init.py",
+        "content": "Add lazy exports:\nMcpResourceUri parse_mcp_resource_uri encode_resource_segment decode_resource_segment McpResourceRequest McpResourceBody McpResourceRegistry ContextPackResourceCache CachedContextPack\nKeep exports lazy through getattr. Importing vault_graph.mcp must not import mcp.server.fastmcp, chromadb, fastembed, huggingface_hub, rustworkx, or graph projection modules.",
+        "items": [
+          "McpResourceUri",
+          "parse_mcp_resource_uri",
+          "encode_resource_segment",
+          "decode_resource_segment",
+          "McpResourceRequest",
+          "McpResourceBody",
+          "McpResourceRegistry",
+          "ContextPackResourceCache",
+          "CachedContextPack"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "State Management And Data Flow",
+        "content": "See State Management And Data Flow in the source Markdown document.",
+        "items": [
+          "Review the State Management And Data Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-17-phase-5b-mcp-resources-context-pack-resources.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

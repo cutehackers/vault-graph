@@ -1,0 +1,931 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-10-phase-3c-graph-projection-retrieval-design",
+  "slug": "2026-06-10-phase-3c-graph-projection-retrieval-design",
+  "status": "draft",
+  "title": "Phase 3C Graph Projection And Retrieval Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-11\nScope: Phase 3C only",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-10",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-11\nScope: Phase 3C only",
+    "agentSummary": "Read docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 3C makes the Phase 3 graph useful to humans and agents without turning it into a second source of truth.\nThe deliverable is a bounded graph retrieval layer over the Phase 3A GraphStore and Phase 3B indexed graph records:\nvg related TARGET vg decision-trace TOPIC optional vg search --include-graph bounded runtime GraphProjection for traversal and ranking\nThis slice keeps the product evidence-first:\ngraph records remain derived Vault Graph state user-visible evidence resolves through MetadataStore plain vg search \"query\" remains keyword/vector search unless graph is explicitly requested graph projection state is disposable runtime state, not durable authority",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-11\nScope: Phase 3C only",
+    "scope": {
+      "in": [
+        "Review the Scope section in the source Markdown."
+      ],
+      "out": [
+        "vg ask",
+        "answer generation or LLM synthesis",
+        "context-pack generation",
+        "MCP serving",
+        "HTTP serving",
+        "Neo4j",
+        "graph node embeddings or relationship embeddings",
+        "LLM-assisted extraction",
+        "cross-Vault entity merging",
+        "projection-cache writes from read-only graph commands"
+      ]
+    },
+    "architecture": {
+      "summary": "Phase 3C uses read-only, bounded graph retrieval.\nThe graph layer is valuable when it explains why items are connected. It is harmful when it silently expands search with stale, ambiguous, or unsupported relationships. Therefore:\ngraph retrieval is opt-in graph commands run only over existing indexed graph state graph traversal is bounded by depth, candidate count, and relationship count graph output includes relationship status and evidence unresolved evidence drops a normal result and creates a warning ambiguous targets are not guessed\nThe first implementation should build projections per request. A projection cache interface may exist later, but Phase 3C read paths must not write projection-cache files. This keeps graph retrieval read-only and avoids adding a cache invalidation system...",
+      "flow": [
+        "graph retrieval is opt-in",
+        "graph commands run only over existing indexed graph state",
+        "graph traversal is bounded by depth, candidate count, and relationship count",
+        "graph output includes relationship status and evidence",
+        "unresolved evidence drops a normal result and creates a warning",
+        "ambiguous targets are not guessed"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Scope",
+        "detail": "See Scope in the source Markdown document.",
+        "acceptanceCriteria": [
+          "Review the Scope section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "3.1 In Scope",
+        "detail": "Phase 3C implements:\nread-only graph target resolution graph neighborhood lookup through GraphStore bounded runtime GraphProjection rustworkx projection adapter graph evidence resolution through MetadataStore GraphRetrievalService vg related TARGET vg decision-trace TOPIC prototype optional graph signals for vg search --include-graph graph-specific warnings, recovery hints, and JSON output fields tests for read-only behavior, stale state, missing evidence, ambiguous targets, multi-vault identity, and opt-in search behavior",
+        "acceptanceCriteria": [
+          "read-only graph target resolution",
+          "graph neighborhood lookup through GraphStore",
+          "bounded runtime GraphProjection",
+          "rustworkx projection adapter",
+          "graph evidence resolution through MetadataStore",
+          "GraphRetrievalService",
+          "vg related TARGET",
+          "vg decision-trace TOPIC prototype"
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "3.2 Out Of Scope",
+        "detail": "Phase 3C must not implement:\nvg ask answer generation or LLM synthesis context-pack generation MCP serving HTTP serving Neo4j graph node embeddings or relationship embeddings LLM-assisted extraction cross-Vault entity merging projection-cache writes from read-only graph commands automatic indexing from graph commands or search Vault file mutation",
+        "acceptanceCriteria": [
+          "vg ask",
+          "answer generation or LLM synthesis",
+          "context-pack generation",
+          "MCP serving",
+          "HTTP serving",
+          "Neo4j",
+          "graph node embeddings or relationship embeddings",
+          "LLM-assisted extraction"
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "GraphStore Read Contract Extensions",
+        "detail": "Phase 3A GraphStore already owns persistence. Phase 3C adds read-only graph query methods so services do not depend on SQLite internals.\nfind_entities rules:\nsearch only active entities match normalized name, aliases, canonical path, and entity ID return match metadata so target resolution can distinguish exact matches, suggestions, and equal-best ambiguity without duplicating store rules use indexed exact probes where indexes exist before bounded fallback scans keep canonical-path, alias, and contained-text fallback scans under scan_limit until a schema-versioned lookup table or index is added later return truncation metadata if fallback scans reach scan_limit keep results scoped by actual...",
+        "acceptanceCriteria": [
+          "search only active entities",
+          "match normalized name, aliases, canonical path, and entity ID",
+          "return match metadata so target resolution can distinguish exact matches,",
+          "use indexed exact probes where indexes exist before bounded fallback scans",
+          "keep canonical-path, alias, and contained-text fallback scans under",
+          "return truncation metadata if fallback scans reach scan_limit",
+          "keep results scoped by actual scopes",
+          "sort exact normalized-name matches before alias/path/substring matches"
+        ]
+      },
+      {
+        "id": "REQ-5",
+        "title": "GraphProjection Contract",
+        "detail": "GraphProjection owns runtime graph algorithms over a bounded working graph.\nProjection build input:\nresolved seed entities resolved endpoint entity nodes for every relationship included in the working graph relationship rows returned by GraphStore graph revisions for selected actual scopes projection version query parameters limits and truncation policy\nProjection build output:\nprojection_build_id graph_projection_version source graph revisions node count edge count truncation flags paths\nprojection_build_id is a deterministic hash of:\nGRAPH_PROJECTION_VERSION actual scope keys seed identities working node identities graph revision identifiers depth, direction, relationship type filters, an...",
+        "acceptanceCriteria": [
+          "resolved seed entities",
+          "resolved endpoint entity nodes for every relationship included in the working",
+          "relationship rows returned by GraphStore",
+          "graph revisions for selected actual scopes",
+          "projection version",
+          "query parameters",
+          "limits and truncation policy",
+          "projection_build_id"
+        ]
+      },
+      {
+        "id": "REQ-6",
+        "title": "Testing Requirements",
+        "detail": "Contract tests:\nGraphStore.find_entities respects scope, status, type, alias, path, and deterministic ordering GraphStore.find_entities returns match metadata for exact, alias, path, and suggestion-only contained matches GraphStore.relationships_for_entities returns direct relationships and respects direction, type, status, cross-Vault, and limit filters GraphStore.relationships_for_entities reports cross-Vault omission metadata GraphRetrievalService performs bounded depth expansion without pushing multi-hop traversal into GraphStore GraphProjection.project returns deterministic bounded paths, build metadata, and truncation flags graph response models require resolved relationship evidence...",
+        "acceptanceCriteria": [
+          "GraphStore.find_entities respects scope, status, type, alias, path, and",
+          "GraphStore.find_entities returns match metadata for exact, alias, path, and",
+          "GraphStore.relationships_for_entities returns direct relationships and",
+          "GraphStore.relationships_for_entities reports cross-Vault omission metadata",
+          "GraphRetrievalService performs bounded depth expansion without pushing",
+          "GraphProjection.project returns deterministic bounded paths, build metadata,",
+          "graph response models require resolved relationship evidence for every edge in",
+          "vg related TARGET returns evidence-linked related items"
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-11\nScope: Phase 3C only",
+        "interfaces": [
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "See Data Flow in the source Markdown document."
+    ],
+    "errorHandling": [
+      {
+        "case": "12.1 Shared Graph Warning",
+        "behavior": "See 12.1 Shared Graph Warning in the source Markdown document."
+      },
+      {
+        "case": "Error And Degradation Policy",
+        "behavior": "Fatal for graph commands:\ninvalid Vault scope graph store schema incompatible graph store unavailable for graph-specific command metadata store unavailable for graph-specific command unsupported depth unsupported output format\nNon-fatal warnings for graph commands:\ntarget_not_found ambiguous_graph_target topic_not_durable_decision graph_stale graph_empty graph_unavailable graph_target_scan_truncated graph_relationship_read_truncated graph_projection_truncated cross_vault_relationship_omitted gr..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "GraphStore Read Contract Extensions",
+        "rules": [
+          "search only active entities",
+          "match normalized name, aliases, canonical path, and entity ID",
+          "return match metadata so target resolution can distinguish exact matches,",
+          "use indexed exact probes where indexes exist before bounded fallback scans",
+          "keep canonical-path, alias, and contained-text fallback scans under",
+          "return truncation metadata if fallback scans reach scan_limit",
+          "keep results scoped by actual scopes",
+          "sort exact normalized-name matches before alias/path/substring matches"
+        ]
+      },
+      {
+        "name": "GraphProjection Contract",
+        "rules": [
+          "resolved seed entities",
+          "resolved endpoint entity nodes for every relationship included in the working",
+          "relationship rows returned by GraphStore",
+          "graph revisions for selected actual scopes",
+          "projection version",
+          "query parameters",
+          "limits and truncation policy",
+          "projection_build_id"
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "src/vault_graph/",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node count",
+        "expected": "Command succeeds as described by the source spec."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-10-phase-3c-graph-projection-retrieval-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "node count",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-11\nScope: Phase 3C only",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 3C makes the Phase 3 graph useful to humans and agents without turning it into a second source of truth.\nThe deliverable is a bounded graph retrieval layer over the Phase 3A GraphStore and Phase 3B indexed graph records:\nvg related TARGET vg decision-trace TOPIC optional vg search --include-graph bounded runtime GraphProjection for traversal and ranking\nThis slice keeps the product evidence-first:\ngraph records remain derived Vault Graph state user-visible evidence resolves through MetadataStore plain vg search \"query\" remains keyword/vector search unless graph is explicitly requested graph projection state is disposable runtime state, not durable authority",
+        "items": [
+          "vg related TARGET",
+          "vg decision-trace TOPIC",
+          "optional vg search --include-graph",
+          "bounded runtime GraphProjection for traversal and ranking",
+          "graph records remain derived Vault Graph state",
+          "user-visible evidence resolves through MetadataStore",
+          "plain vg search \"query\" remains keyword/vector search unless graph is",
+          "graph projection state is disposable runtime state, not durable authority"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Value Alignment",
+        "content": "| Vault Graph value | Phase 3C design rule | | --- | --- | | Vault is the source of truth | Graph commands read Vault Graph projections only and never mutate Vault files. | | Derived data is rebuildable | GraphProjection is built from GraphStore rows and can be discarded at any time. | | Evidence over fluency | Normal graph outputs resolve evidence through MetadataStore. | | Local first | The default projection adapter is local rustworkx; no hosted graph service or LLM is required. | | Simplicity before scale | Phase 3C builds bounded per-request projections and defers persistent projection cache writes. | | Multi-vault correctness | Multi-Vault and cross-Vault traversal are explicit and preserve Vault IDs. | | Changeability | CLI, search, and future MCP/HTTP adapters call app services, not SQLite or rustworkx directly. |",
+        "items": [
+          "Review the Value Alignment section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope",
+        "content": "See Scope in the source Markdown document.",
+        "items": [
+          "Review the Scope section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "3.1 In Scope",
+        "content": "Phase 3C implements:\nread-only graph target resolution graph neighborhood lookup through GraphStore bounded runtime GraphProjection rustworkx projection adapter graph evidence resolution through MetadataStore GraphRetrievalService vg related TARGET vg decision-trace TOPIC prototype optional graph signals for vg search --include-graph graph-specific warnings, recovery hints, and JSON output fields tests for read-only behavior, stale state, missing evidence, ambiguous targets, multi-vault identity, and opt-in search behavior",
+        "items": [
+          "read-only graph target resolution",
+          "graph neighborhood lookup through GraphStore",
+          "bounded runtime GraphProjection",
+          "rustworkx projection adapter",
+          "graph evidence resolution through MetadataStore",
+          "GraphRetrievalService",
+          "vg related TARGET",
+          "vg decision-trace TOPIC prototype",
+          "optional graph signals for vg search --include-graph",
+          "graph-specific warnings, recovery hints, and JSON output fields",
+          "tests for read-only behavior, stale state, missing evidence, ambiguous"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "3.2 Out Of Scope",
+        "content": "Phase 3C must not implement:\nvg ask answer generation or LLM synthesis context-pack generation MCP serving HTTP serving Neo4j graph node embeddings or relationship embeddings LLM-assisted extraction cross-Vault entity merging projection-cache writes from read-only graph commands automatic indexing from graph commands or search Vault file mutation",
+        "items": [
+          "vg ask",
+          "answer generation or LLM synthesis",
+          "context-pack generation",
+          "MCP serving",
+          "HTTP serving",
+          "Neo4j",
+          "graph node embeddings or relationship embeddings",
+          "LLM-assisted extraction",
+          "cross-Vault entity merging",
+          "projection-cache writes from read-only graph commands",
+          "automatic indexing from graph commands or search",
+          "Vault file mutation"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Core Design Choice",
+        "content": "Phase 3C uses read-only, bounded graph retrieval.\nThe graph layer is valuable when it explains why items are connected. It is harmful when it silently expands search with stale, ambiguous, or unsupported relationships. Therefore:\ngraph retrieval is opt-in graph commands run only over existing indexed graph state graph traversal is bounded by depth, candidate count, and relationship count graph output includes relationship status and evidence unresolved evidence drops a normal result and creates a warning ambiguous targets are not guessed\nThe first implementation should build projections per request. A projection cache interface may exist later, but Phase 3C read paths must not write projection-cache files. This keeps graph retrieval read-only and avoids adding a cache invalidation system before there is measured need.",
+        "items": [
+          "graph retrieval is opt-in",
+          "graph commands run only over existing indexed graph state",
+          "graph traversal is bounded by depth, candidate count, and relationship count",
+          "graph output includes relationship status and evidence",
+          "unresolved evidence drops a normal result and creates a warning",
+          "ambiguous targets are not guessed"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Package Layout",
+        "content": "Use stable domain names, not roadmap labels.\nResponsibilities:\ngraph_query.py owns read-only query request and row types that extend GraphStore. projection/graph_projection.py owns the projection protocol and projection result types. projection/rustworkx_projection.py owns the local adapter implementation. retrieval/graph_candidates.py adapts graph results into existing RetrievalSignal(kind=\"graph\") candidates for opt-in search. retrieval/graph_retrieval.py owns related-item and decision-trace response types. app/graph_retrieval_service.py is the deep module that CLI, future MCP, and future HTTP adapters call. CLI renders service responses only.\nAvoid names such as phase3c.py, graph_utils.py, graph_manager.py, rustworkx_store.py, or decision_ai.py.",
+        "items": [
+          "graph_query.py owns read-only query request and row types that extend",
+          "projection/graph_projection.py owns the projection protocol and projection",
+          "projection/rustworkx_projection.py owns the local adapter implementation.",
+          "retrieval/graph_candidates.py adapts graph results into existing",
+          "retrieval/graph_retrieval.py owns related-item and decision-trace response",
+          "app/graph_retrieval_service.py is the deep module that CLI, future MCP, and",
+          "CLI renders service responses only."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "src/vault_graph/\n  graph/\n    graph_query.py\n  projection/\n    __init__.py\n    graph_projection.py\n    rustworkx_projection.py\n  retrieval/\n    graph_retrieval.py\n    graph_candidates.py\n  app/\n    graph_retrieval_service.py\n  cli/\n    main.py\n\ntests/\n  test_graph_query_contract.py\n  test_graph_projection.py\n  test_graph_retrieval_service.py\n  test_cli_related.py\n  test_cli_decision_trace.py\n  test_search_include_graph.py\n  test_graph_retrieval_read_only_boundary.py\n  test_multi_vault_graph_retrieval.py"
+          }
+        ]
+      },
+      {
+        "heading": "Architecture",
+        "content": "Rules:\nCLI must not import SQLiteGraphStore row helpers or rustworkx. GraphRetrievalService must not mutate graph, metadata, vector, keyword, model-cache, projection-cache, or Vault files. GraphProjection must not read SQLite directly. GraphProjection receives typed graph rows from GraphStore. Search keeps RetrievalService as the final owner of candidate fusion and final evidence chunk ranking.",
+        "items": [
+          "CLI must not import SQLiteGraphStore row helpers or rustworkx.",
+          "GraphRetrievalService must not mutate graph, metadata, vector, keyword,",
+          "GraphProjection must not read SQLite directly.",
+          "GraphProjection receives typed graph rows from GraphStore.",
+          "Search keeps RetrievalService as the final owner of candidate fusion and"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "CLI\n  -> CatalogService resolves requested QueryScope\n  -> GraphRetrievalService\n       -> actual_query_scopes(...)\n       -> GraphReadinessService.check(...)\n       -> GraphStore graph target and neighborhood reads\n       -> GraphProjection bounded traversal/ranking\n       -> MetadataStore.resolve_chunk_evidence(...)\n       -> related / decision trace / graph search response"
+          }
+        ]
+      },
+      {
+        "heading": "Data Flow",
+        "content": "See Data Flow in the source Markdown document.",
+        "items": [
+          "Review the Data Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.1 vg related TARGET",
+        "content": "Default behavior:\nscope: active Vault only depth: 1 max depth in Phase 3C: 2 direction: both limit: 10 relationship status filter: stated, inferred, contested deprecated relationships are omitted unless explicitly requested later\nCLI shape:",
+        "items": [
+          "scope: active Vault only",
+          "depth: 1",
+          "max depth in Phase 3C: 2",
+          "direction: both",
+          "limit: 10",
+          "relationship status filter: stated, inferred, contested",
+          "deprecated relationships are omitted unless explicitly requested later"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg related TARGET\n  -> resolve selected QueryScope\n  -> expand to per-Vault actual scopes\n  -> check graph readiness\n  -> keep only fresh graph scopes\n  -> resolve TARGET to one active graph entity\n  -> if no unique target: return warnings and target candidates\n  -> read active relationships around target from GraphStore\n  -> resolve relationship evidence through MetadataStore\n  -> drop unsupported relationship edges with warnings\n  -> build bounded GraphProjection\n  -> rank related entities and paths\n  -> attach supplemental target entity evidence through MetadataStore\n  -> render related items, paths, evidence, warnings, and revisions"
+          },
+          {
+            "language": "text",
+            "content": "vg related TARGET\nvg related --vault-id main TARGET\nvg related --all-vaults TARGET\nvg related --all-vaults --include-cross-vault TARGET\nvg related --depth 2 --relationship-type depends_on TARGET\nvg related --format json TARGET"
+          }
+        ]
+      },
+      {
+        "heading": "7.2 vg decision-trace TOPIC",
+        "content": "The Phase 3C decision trace is a trace, not an answer. It must not synthesize a final recommendation. It may label sections such as \"decision\", \"supports\", \"depends on\", \"implements\", \"supersedes\", \"blocks\", and \"mentions\" when those relationships exist in the graph.\nRelationship type priority:\nsupersedes depends_on blocks implements related_to mentions other relationship types in deterministic lexical order\nIf the target is not a durable decision entity, the response must include topic_not_durable_decision and clearly mark the trace as a topic trace.",
+        "items": [
+          "supersedes",
+          "depends_on",
+          "blocks",
+          "implements",
+          "related_to",
+          "mentions",
+          "other relationship types in deterministic lexical order"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg decision-trace TOPIC\n  -> resolve selected QueryScope\n  -> check graph readiness\n  -> keep only fresh graph scopes\n  -> prefer Decision entities matching TOPIC\n  -> if no Decision entity: fall back to Concept or Document with warning\n  -> expand evidence-valid decision relationships with bounded projection\n  -> group trace steps by relationship type and status\n  -> resolve evidence through MetadataStore\n  -> render decision, context, alternatives/tradeoff links when present,\n     related evidence, warnings, and revisions"
+          }
+        ]
+      },
+      {
+        "heading": "7.3 vg search --include-graph",
+        "content": "Rules:\nvg search \"query\" without --include-graph must not read graph state. Graph unavailability must not make opt-in search fail if keyword search is available. It returns keyword/vector results with graph_unavailable or graph_stale warnings. Graph candidates are still evidence-chunk candidates. Entity and relationship rows are not final search result identities. Graph candidates must use RetrievalSignal(kind=\"graph\"). Graph signal explanations must include the seed entity and relationship that produced the signal. Graph candidate fusion must not hide direct keyword/vector evidence. The default graph signal weight should be lower than or equal to direct evidence signal weights.",
+        "items": [
+          "vg search \"query\" without --include-graph must not read graph state.",
+          "Graph unavailability must not make opt-in search fail if keyword search is",
+          "Graph candidates are still evidence-chunk candidates. Entity and relationship",
+          "Graph candidates must use RetrievalSignal(kind=\"graph\").",
+          "Graph signal explanations must include the seed entity and relationship that",
+          "Graph candidate fusion must not hide direct keyword/vector evidence. The"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg search \"query\" --include-graph\n  -> normal keyword/vector search readiness\n  -> graph readiness check\n  -> keyword/vector candidates\n  -> graph candidate provider resolves query as a graph target\n  -> bounded graph expansion produces evidence-validated graph candidates\n  -> RetrievalService fuses keyword, vector, and graph signals\n  -> MetadataStore evidence resolution\n  -> evidence chunk results plus graph warnings"
+          }
+        ]
+      },
+      {
+        "heading": "GraphStore Read Contract Extensions",
+        "content": "Phase 3A GraphStore already owns persistence. Phase 3C adds read-only graph query methods so services do not depend on SQLite internals.\nfind_entities rules:\nsearch only active entities match normalized name, aliases, canonical path, and entity ID return match metadata so target resolution can distinguish exact matches, suggestions, and equal-best ambiguity without duplicating store rules use indexed exact probes where indexes exist before bounded fallback scans keep canonical-path, alias, and contained-text fallback scans under scan_limit until a schema-versioned lookup table or index is added later return truncation metadata if fallback scans reach scan_limit keep results scoped by actual scopes sort exact normalized-name matches before alias/path/substring matches preserve Vault identity in every result never merge entities with the same name across Vaults\nrelationships_for_entities rules:\nreturn direct relationships whose source or target is connected to the seed frontier apply status, type, direction, scope, and cross-Vault filters in the store omit deprecated relationships by default include evidence refs on returned relationships return omission metadata when cross-Vault re...",
+        "items": [
+          "search only active entities",
+          "match normalized name, aliases, canonical path, and entity ID",
+          "return match metadata so target resolution can distinguish exact matches,",
+          "use indexed exact probes where indexes exist before bounded fallback scans",
+          "keep canonical-path, alias, and contained-text fallback scans under",
+          "return truncation metadata if fallback scans reach scan_limit",
+          "keep results scoped by actual scopes",
+          "sort exact normalized-name matches before alias/path/substring matches",
+          "preserve Vault identity in every result",
+          "never merge entities with the same name across Vaults",
+          "return direct relationships whose source or target is connected to the seed",
+          "apply status, type, direction, scope, and cross-Vault filters in the store",
+          "omit deprecated relationships by default",
+          "include evidence refs on returned relationships",
+          "return omission metadata when cross-Vault relationships are filtered out",
+          "respect limit and return deterministic ordering"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass GraphEntityQuery:\n    text: str\n    actual_scopes: tuple[QueryScope, ...]\n    types: tuple[str, ...] = ()\n    limit: int = 20\n    scan_limit: int = 5000\n\n@dataclass(frozen=True)\nclass GraphEntityMatch:\n    entity: EntityRecord\n    match_kind: Literal[\"entity_id\", \"canonical_path\", \"normalized_name\", \"alias\", \"contains\"]\n    match_rank: int\n    matched_value: str\n\n@dataclass(frozen=True)\nclass GraphEntityQueryResult:\n    matches: tuple[GraphEntityMatch, ...]\n    truncated: bool\n    affected_vault_ids: tuple[str, ...]\n\n@dataclass(frozen=True)\nclass GraphRelationshipQuery:\n    seeds: tuple[GraphEntityIdentity, ...]\n    actual_scopes: tuple[QueryScope, ...]\n    direction: Literal[\"out\", \"in\", \"both\"] = \"both\"\n    relationship_types: tuple[str, ...] = ()\n    statuses: tuple[str, ...] = (\"stated\", \"inferred\", \"contested\")\n    include_cross_vault: bool = False\n    limit: int = 200\n\n@dataclass(frozen=True)\nclass GraphRelationshipQueryResult:\n    relationships: tuple[RelationshipRecord, ...]\n    truncated: bool\n    omitted_cross_vault_count: int\n    affected_vault_ids: tuple[str, ...]\n\nclass GraphStore(Protocol):\n    def find_entities(self, query: GraphEntityQuery) -> GraphEntityQueryResult: ...\n    def relationships_for_entities(\n        self,\n        query: GraphRelationshipQuery,\n    ) -> GraphRelationshipQueryResult: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Target Resolution",
+        "content": "GraphTargetResolver is part of GraphRetrievalService.\nInputs:\nraw target text actual scopes optional entity type preference output limit for candidate suggestions\nResolution order:\nexact entity_id within selected Vaults exact canonical path exact normalized name alias match contained normalized text match as suggestions only\nDecision-trace type priority:\nDecision WikiPage Document Concept any other type\nRules:\nzero matches returns a successful response with target_not_found warning and no normal graph paths multiple equal-best matches returns ambiguous_graph_target with candidate suggestions and no traversal traversal may run only for a unique exact entity_id, canonical path, normalized name, or alias match contained text matches are suggestions only and never trigger traversal in Phase 3C cross-Vault same-name matches stay separate target candidates all-vault same-name matches are ambiguity, not automatic multi-seed traversal the resolver must not call keyword, vector, or LLM search to invent a target",
+        "items": [
+          "raw target text",
+          "actual scopes",
+          "optional entity type preference",
+          "output limit for candidate suggestions",
+          "exact entity_id within selected Vaults",
+          "exact canonical path",
+          "exact normalized name",
+          "alias match",
+          "contained normalized text match as suggestions only",
+          "Decision",
+          "WikiPage",
+          "Document",
+          "Concept",
+          "any other type",
+          "zero matches returns a successful response with target_not_found warning",
+          "multiple equal-best matches returns ambiguous_graph_target with candidate"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "GraphProjection Contract",
+        "content": "GraphProjection owns runtime graph algorithms over a bounded working graph.\nProjection build input:\nresolved seed entities resolved endpoint entity nodes for every relationship included in the working graph relationship rows returned by GraphStore graph revisions for selected actual scopes projection version query parameters limits and truncation policy\nProjection build output:\nprojection_build_id graph_projection_version source graph revisions node count edge count truncation flags paths\nprojection_build_id is a deterministic hash of:\nGRAPH_PROJECTION_VERSION actual scope keys seed identities working node identities graph revision identifiers depth, direction, relationship type filters, and cross-Vault flag\nIt is a runtime correlation ID and future cache key. It is not durable knowledge.",
+        "items": [
+          "resolved seed entities",
+          "resolved endpoint entity nodes for every relationship included in the working",
+          "relationship rows returned by GraphStore",
+          "graph revisions for selected actual scopes",
+          "projection version",
+          "query parameters",
+          "limits and truncation policy",
+          "projection_build_id",
+          "graph_projection_version",
+          "source graph revisions",
+          "node count",
+          "edge count",
+          "truncation flags",
+          "paths",
+          "GRAPH_PROJECTION_VERSION",
+          "actual scope keys"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "GRAPH_PROJECTION_VERSION = \"graph-projection-v1\"\n\n@dataclass(frozen=True)\nclass GraphProjectionNode:\n    vault_id: str\n    entity_id: str\n    type: str\n    name: str\n    normalized_name: str\n\n@dataclass(frozen=True)\nclass GraphProjectionEdge:\n    source_vault_id: str\n    source_entity_id: str\n    target_vault_id: str\n    target_entity_id: str\n    relationship_id: str\n    relationship_type: str\n    status: str\n    confidence: float\n    evidence_ref_ids: tuple[str, ...]\n    graph_index_revision: str\n\n@dataclass(frozen=True)\nclass GraphPath:\n    seed: GraphProjectionNode\n    target: GraphProjectionNode\n    edges: tuple[GraphProjectionEdge, ...]\n    depth: int\n    score: float\n    explanation: str\n\n@dataclass(frozen=True)\nclass GraphProjectionInput:\n    seeds: tuple[GraphProjectionNode, ...]\n    nodes: tuple[GraphProjectionNode, ...]\n    relationships: tuple[GraphProjectionEdge, ...]\n    actual_scope_keys: tuple[str, ...]\n    source_graph_revisions: tuple[str, ...]\n    max_depth: int\n    direction: Literal[\"out\", \"in\", \"both\"]\n    relationship_types: tuple[str, ...]\n    statuses: tuple[str, ...]\n    include_cross_vault: bool\n    limit: int\n    edge_limit: int\n\n@dataclass(frozen=True)\nclass GraphProjectionResult:\n    projection_build_id: str\n    graph_projection_version: str\n    source_graph_revisions: tuple[str, ...]\n    node_count: int\n    edge_count: int\n    truncated: bool\n    paths: tuple[GraphPath, ...]\n\nclass GraphProjection(Protocol):\n    def project(self, request: GraphProjectionInput) -> GraphProjectionResult: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Bounded Traversal And Ranking",
+        "content": "Phase 3C must stay bounded by default.\nLimits:\ndefault depth: 1 maximum depth: 2 default result limit: 10 default target candidate limit: 20 default relationship read limit: 200 default projection edge limit: 500\nIf a limit truncates traversal, the response includes graph_projection_truncated.\nRanking score:\nDefault weights:\nstated: 1.0 inferred: 0.75 contested: 0.45 deprecated: 0.0 unless explicitly requested later depth 1: 1.0 depth 2: 0.6\nEvery relationship edge must have at least one resolved relationship evidence chunk before it enters GraphProjection. Missing relationship evidence drops the edge before ranking; it is not represented as a lower score. Target entity evidence may supplement display, but it must not save an unsupported relationship path.\nTie-breakers:\nhigher score lower depth relationship type priority target Vault ID target entity normalized name relationship ID\nPhase 3C must not use hidden LLM confidence or global PageRank-style ranking. Those can be added later only behind explicit versioned retrieval policy tests.",
+        "items": [
+          "default depth: 1",
+          "maximum depth: 2",
+          "default result limit: 10",
+          "default target candidate limit: 20",
+          "default relationship read limit: 200",
+          "default projection edge limit: 500",
+          "stated: 1.0",
+          "inferred: 0.75",
+          "contested: 0.45",
+          "deprecated: 0.0 unless explicitly requested later",
+          "depth 1: 1.0",
+          "depth 2: 0.6",
+          "higher score",
+          "lower depth",
+          "relationship type priority",
+          "target Vault ID"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "score =\n  relationship_confidence\n  * status_weight\n  * depth_weight"
+          }
+        ]
+      },
+      {
+        "heading": "Response Models",
+        "content": "See Response Models in the source Markdown document.",
+        "items": [
+          "Review the Response Models section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

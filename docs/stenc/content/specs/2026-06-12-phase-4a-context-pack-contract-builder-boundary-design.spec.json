@@ -1,0 +1,717 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-12-phase-4a-context-pack-contract-builder-boundary-design",
+  "slug": "2026-06-12-phase-4a-context-pack-contract-builder-boundary-design",
+  "status": "canonical",
+  "title": "Phase 4A Context Pack Contract And Builder Boundary Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4A only",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-12",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [
+      "plan:2026-06-12-phase-4a-context-pack-contract-builder-boundary"
+    ],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4A only",
+    "agentSummary": "Read docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 4A defines the context pack contract before any user-facing vg context implementation. The goal is to create a stable, testable boundary that Phase 4B CLI output and Phase 5 MCP resources can reuse without changing the pack schema.\nPhase 4A implements:\ncanonical ContextPack JSON data model ContextPackBuilder application boundary context pack warning model token and chunk budget policy JSON and Markdown renderer boundaries contract tests for schema shape, evidence references, warnings, and budget accounting\nPhase 4A must not implement:\nvg context MCP serving HTTP serving pack persistence LLM answer generation direct SQLite, Chroma, or rustworkx access from context pack code",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4A only",
+    "scope": {
+      "in": [
+        "Structured Stenc view of the source spec Markdown.",
+        "Original Markdown remains at docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md."
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown source.",
+        "Changing Vault Graph runtime behavior."
+      ]
+    },
+    "architecture": {
+      "summary": "| Vault Graph value | Phase 4A design rule | | --- | --- | | Vault is source of truth | Context packs include evidence refs and never become durable knowledge. | | Rebuildability | Pack output records schema, policy, scope, and store revisions needed to reproduce the same retrieval boundary. | | Evidence over fluency | Pack fields contain evidence-backed brief items and warnings, not synthesized answers. | | Local first | The contract assumes local stores and no hosted service dependency. | | Simplicity before scale | No ContextPackStore in Phase 4A. Persistence belongs to a later serving/resource layer. |",
+      "flow": [
+        "Review the Design Rules section in the source Markdown."
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Public Contract",
+        "detail": "The canonical artifact is JSON.\nMarkdown is a rendering view over the JSON. Renderers may reorder sections for readability only if they preserve every item, evidence reference, warning, revision, and omission marker from the JSON payload.\nRequired top-level fields:\ncontext_pack_schema_version starts as context-pack-v1.\npack_id is a SHA-256 digest of canonical pack identity JSON with pack_id and generated_at omitted. It is a generated artifact identity, not durable knowledge identity. Phase 4 does not persist it by default.\nVault revisions are Vault-attributed records:\nScope records preserve both the user's requested scope and the actual scopes used for store reads:\nStore revisions are scope...",
+        "acceptanceCriteria": [
+          "Review the Public Contract section in the source Markdown."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4A only",
+        "interfaces": [
+          "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Original Markdown is converted into Stenc JSON and rendered as a deterministic static page."
+    ],
+    "errorHandling": [
+      {
+        "case": "Warning Model",
+        "behavior": "Warnings are first-class records.\nRequired warning codes:\n| Code | When | | --- | --- | | metadata_unavailable | required metadata projection cannot be opened | | search_degraded | retrieval returned results with degraded keyword/vector behavior | | graph_unavailable | graph was requested but graph state is missing or incompatible | | target_not_found | graph target could not be resolved | | ambiguous_graph_target | graph target matched multiple equal-rank entities | | topic_not_durable_decisio..."
+      },
+      {
+        "case": "Error Handling",
+        "behavior": "Fatal errors:\nempty goal invalid QueryScope invalid budget values unsupported output format metadata store unavailable before any evidence can be resolved\nNon-fatal warnings:\nvector unavailable with keyword fallback graph unavailable when explicitly requested stale store revisions missing evidence for individual candidates truncation and omission contested or deprecated relationship status\nFatal errors should produce nonzero CLI exits in Phase 4B. Non-fatal warnings remain in ContextPack.warnin..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Design Rules",
+        "rules": [
+          "Review the Design Rules section in the source Markdown."
+        ]
+      },
+      {
+        "name": "Public Contract",
+        "rules": [
+          "Review the Public Contract section in the source Markdown."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "docs/SPEC.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "docs/FEATURES.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/2026-06-12-phase-4a-context-pack-contract-builder-boundary.md",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4A only",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 4A defines the context pack contract before any user-facing vg context implementation. The goal is to create a stable, testable boundary that Phase 4B CLI output and Phase 5 MCP resources can reuse without changing the pack schema.\nPhase 4A implements:\ncanonical ContextPack JSON data model ContextPackBuilder application boundary context pack warning model token and chunk budget policy JSON and Markdown renderer boundaries contract tests for schema shape, evidence references, warnings, and budget accounting\nPhase 4A must not implement:\nvg context MCP serving HTTP serving pack persistence LLM answer generation direct SQLite, Chroma, or rustworkx access from context pack code",
+        "items": [
+          "canonical ContextPack JSON data model",
+          "ContextPackBuilder application boundary",
+          "context pack warning model",
+          "token and chunk budget policy",
+          "JSON and Markdown renderer boundaries",
+          "contract tests for schema shape, evidence references, warnings, and budget",
+          "vg context",
+          "MCP serving",
+          "HTTP serving",
+          "pack persistence",
+          "LLM answer generation",
+          "direct SQLite, Chroma, or rustworkx access from context pack code"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Design Rules",
+        "content": "| Vault Graph value | Phase 4A design rule | | --- | --- | | Vault is source of truth | Context packs include evidence refs and never become durable knowledge. | | Rebuildability | Pack output records schema, policy, scope, and store revisions needed to reproduce the same retrieval boundary. | | Evidence over fluency | Pack fields contain evidence-backed brief items and warnings, not synthesized answers. | | Local first | The contract assumes local stores and no hosted service dependency. | | Simplicity before scale | No ContextPackStore in Phase 4A. Persistence belongs to a later serving/resource layer. |",
+        "items": [
+          "Review the Design Rules section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Public Contract",
+        "content": "The canonical artifact is JSON.\nMarkdown is a rendering view over the JSON. Renderers may reorder sections for readability only if they preserve every item, evidence reference, warning, revision, and omission marker from the JSON payload.\nRequired top-level fields:\ncontext_pack_schema_version starts as context-pack-v1.\npack_id is a SHA-256 digest of canonical pack identity JSON with pack_id and generated_at omitted. It is a generated artifact identity, not durable knowledge identity. Phase 4 does not persist it by default.\nVault revisions are Vault-attributed records:\nScope records preserve both the user's requested scope and the actual scopes used for store reads:\nStore revisions are scope-attributed records rather than a single object:\nThis keeps multi-vault packs inspectable and prevents a stale or missing projection in one Vault from being confused with another Vault.\nBackend records describe which backends contributed to the pack. A backend with used=False must not require opening that backend.\nDefault keyword/vector context packs set graph_store.used=False and graph_projection.used=False. They do not include graph or projection store revision rows. Graph backend names and gr...",
+        "items": [
+          "Review the Public Contract section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPack:\n    context_pack_schema_version: str\n    pack_id: str\n    goal: str\n    scope: ContextPackScope\n    vaults: tuple[ContextPackVault, ...]\n    vault_revisions: tuple[ContextPackVaultRevision, ...]\n    backend: ContextPackBackend\n    store_revisions: tuple[ContextPackStoreRevision, ...]\n    retrieval_policy_version: str\n    budget: ContextPackBudget\n    generated_at: str\n    current_state: tuple[ContextPackItem, ...]\n    relevant_pages: tuple[ContextPackItem, ...]\n    relevant_sources: tuple[ContextPackItem, ...]\n    decisions: tuple[ContextPackItem, ...]\n    constraints: tuple[ContextPackItem, ...]\n    open_questions: tuple[ContextPackItem, ...]\n    warnings: tuple[ContextPackWarning, ...]\n    evidence: tuple[ContextEvidence, ...]"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPackVaultRevision:\n    vault_id: str\n    revision: str | None\n    revision_kind: Literal[\"git\", \"snapshot\", \"unknown\"]"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPackScope:\n    requested: ContextPackRequestedScope\n    actual_scopes: tuple[ContextPackActualScope, ...]\n\n@dataclass(frozen=True)\nclass ContextPackRequestedScope:\n    vault_ids: tuple[str, ...]\n    content_scopes: tuple[str, ...]\n    include_cross_vault: bool\n\n@dataclass(frozen=True)\nclass ContextPackActualScope:\n    vault_ids: tuple[str, ...]\n    content_scopes: tuple[str, ...]\n    include_cross_vault: bool\n    scope_key: str"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPackStoreRevision:\n    kind: Literal[\"metadata\", \"keyword\", \"vector\", \"graph\", \"projection\"]\n    revision: str | None\n    vault_id: str | None\n    scope_key: str"
+          }
+        ]
+      },
+      {
+        "heading": "Evidence Authority",
+        "content": "The canonical evidence reference remains:\nEvery normal item that makes a factual claim must include at least one ContextEvidenceRef.\nEvidence details are resolved from MetadataStore and represented once in the top-level evidence list:\nPack items reference evidence by (vault_id, document_id, chunk_id) instead of duplicating evidence text.\nThe builder creates ContextEvidence from a raw resolved evidence snapshot plus retrieval and budget decisions. The resolver must not fill builder-owned fields such as retrieval_reasons, warnings, excerpt, or truncated.",
+        "items": [
+          "Review the Evidence Authority section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextEvidenceRef:\n    vault_id: str\n    document_id: str\n    chunk_id: str"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextEvidence:\n    ref: ContextEvidenceRef\n    path: str\n    section: str | None\n    anchor: str | None\n    content_hash: str\n    raw_sha256: str | None\n    metadata_index_revision: str\n    vault_revision: str | None\n    excerpt: str\n    excerpt_token_count: int\n    truncated: bool\n    retrieval_reasons: tuple[str, ...]\n    warnings: tuple[ContextPackWarning, ...]"
+          }
+        ]
+      },
+      {
+        "heading": "Item Model",
+        "content": "ContextPackItem is a section-neutral brief item. Section placement explains how the builder classified it.\nsummary must be extractive or template-based in Phase 4A/4B. It must not be an LLM-generated answer.",
+        "items": [
+          "Review the Item Model section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPackItem:\n    item_id: str\n    item_type: Literal[\n        \"current_state\",\n        \"page\",\n        \"source\",\n        \"decision\",\n        \"constraint\",\n        \"open_question\",\n    ]\n    title: str\n    summary: str\n    evidence_refs: tuple[ContextEvidenceRef, ...]\n    retrieval_signals: tuple[ContextPackSignal, ...]\n    relationship_status: str | None\n    rank: int\n    warnings: tuple[ContextPackWarning, ...]"
+          }
+        ]
+      },
+      {
+        "heading": "Signal Model",
+        "content": "Signals preserve why an item entered the pack.\nBackend-native scores are not compared directly. The builder consumes the ranked SearchResponse produced by RetrievalService.",
+        "items": [
+          "Review the Signal Model section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPackSignal:\n    kind: Literal[\"keyword\", \"vector\", \"graph\"]\n    rank: int | None\n    score: float | None\n    explanation: str"
+          }
+        ]
+      },
+      {
+        "heading": "Warning Model",
+        "content": "Warnings are first-class records.\nRequired warning codes:\n| Code | When | | --- | --- | | metadata_unavailable | required metadata projection cannot be opened | | search_degraded | retrieval returned results with degraded keyword/vector behavior | | graph_unavailable | graph was requested but graph state is missing or incompatible | | target_not_found | graph target could not be resolved | | ambiguous_graph_target | graph target matched multiple equal-rank entities | | topic_not_durable_decision | decision trace target is a topic, not a durable Decision entity | | graph_stale | graph readiness or retrieval reported stale graph state | | graph_empty | graph lookup found no related graph records | | graph_target_scan_truncated | target scan exceeded bounded lookup limits | | graph_relationship_read_truncated | relationship read exceeded bounded lookup limits | | graph_projection_truncated | graph traversal exceeded the Phase 3C projection budget | | cross_vault_relationship_omitted | cross-Vault graph relationships were omitted because cross-Vault mode was not explicit | | graph_evidence_missing | graph relationship evidence could not be resolved | | deprecated_relationship_omitted...",
+        "items": [
+          "Review the Warning Model section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPackWarning:\n    code: str\n    severity: Literal[\"info\", \"warning\", \"error\"]\n    message: str\n    affected_vault_ids: tuple[str, ...]\n    evidence_refs: tuple[ContextEvidenceRef, ...]\n    scope_key: str | None\n    source_code: str | None\n    source_kind: Literal[\"retrieval\", \"graph\", \"budget\", \"builder\"] | None\n    entity_id: str | None\n    relationship_id: str | None\n    evidence_ref_id: str | None\n    recovery_hint: str | None"
+          }
+        ]
+      },
+      {
+        "heading": "Budget Policy",
+        "content": "Public max_tokens means estimated context tokens for excerpt-bearing content. It is based on ChunkSnapshot.token_count and deterministic truncation, not a model-specific tokenizer.\nDefault Phase 4 budget:\nBudget rules:\nRequired metadata, scope, backend, revisions, and warnings are never omitted. Evidence metadata is preserved even when excerpts are truncated. Normal items are packed in deterministic priority order. If an item does not fit, omit it and add budget_omitted. If an excerpt is too large, truncate it at a deterministic word boundary and add excerpt_truncated. Duplicate evidence refs are represented once in top-level evidence. The builder stops after max_evidence_items normal evidence entries.\nDefault priority order:\nwarnings and recovery hints durable decisions constraints open questions current state relevant pages relevant sources optional graph-related evidence\nThe order intentionally favors durable project memory over raw supporting material. It can be revised later through retrieval_policy_version.",
+        "items": [
+          "Required metadata, scope, backend, revisions, and warnings are never omitted.",
+          "Evidence metadata is preserved even when excerpts are truncated.",
+          "Normal items are packed in deterministic priority order.",
+          "If an item does not fit, omit it and add budget_omitted.",
+          "If an excerpt is too large, truncate it at a deterministic word boundary and",
+          "Duplicate evidence refs are represented once in top-level evidence.",
+          "The builder stops after max_evidence_items normal evidence entries.",
+          "warnings and recovery hints",
+          "durable decisions",
+          "constraints",
+          "open questions",
+          "current state",
+          "relevant pages",
+          "relevant sources",
+          "optional graph-related evidence"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPackBudget:\n    max_tokens: int = 8000\n    max_evidence_items: int = 24\n    max_excerpt_tokens: int = 320\n    used_tokens: int = 0\n    omitted_items: int = 0"
+          }
+        ]
+      },
+      {
+        "heading": "Graph Policy",
+        "content": "Graph signals are opt-in.\nPhase 4A request options:\nRules:\ninclude_graph=False uses keyword/vector retrieval only. include_graph=True may add graph signals through the same RetrievalService graph candidate provider introduced in Phase 3C. include_cross_vault=True is valid only when include_graph=True, the requested scope already has include_cross_vault=True, and the requested scope includes multiple Vault IDs. ContextPackRequest.include_cross_vault and ContextPackRequest.requested_scope.include_cross_vault must match so the builder has one explicit cross-Vault state. If graph is requested and unavailable, the pack may still succeed with keyword/vector evidence plus graph_unavailable. retrieval_limit is passed to RetrievalService.search(...) before section classification.",
+        "items": [
+          "include_graph=False uses keyword/vector retrieval only.",
+          "include_graph=True may add graph signals through the same",
+          "include_cross_vault=True is valid only when include_graph=True, the",
+          "ContextPackRequest.include_cross_vault and",
+          "If graph is requested and unavailable, the pack may still succeed with",
+          "retrieval_limit is passed to RetrievalService.search(...) before section"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass ContextPackRequest:\n    goal: str\n    requested_scope: QueryScope\n    budget: ContextPackBudget\n    retrieval_limit: int = 10\n    include_graph: bool = False\n    include_cross_vault: bool = False"
+          }
+        ]
+      },
+      {
+        "heading": "Builder Boundary",
+        "content": "ContextPackBuilder is an application service.\nThe implementation package is vault_graph.context. This keeps context-pack DTOs, warning conversion, budget packing, serialization, and rendering out of the lower-level retrieval package while still depending on retrieval services through a narrow boundary.\nDependencies:\nVaultCatalog RetrievalService ContextEvidenceResolver clock function for generated_at\nEvidence resolver boundary:\nThe local resolver may use MetadataStore.resolve_chunk(...) and MetadataStore.resolve_chunk_evidence(...) through the MetadataStore interface. It must not depend on SQLiteMetadataStore.\nContextPackBuilder converts ResolvedContextEvidence into ContextEvidence by applying excerpt truncation, token accounting, retrieval reasons, and evidence-level warnings.\nRenderer boundary:\nRenderers may serialize and format only. They must not select evidence, change budget decisions, or suppress warnings.\nForbidden dependencies:\nSQLiteMetadataStore SQLiteGraphStore ChromaVectorStore RustworkxGraphProjection filesystem writes under registered Vault roots LLM clients",
+        "items": [
+          "VaultCatalog",
+          "RetrievalService",
+          "ContextEvidenceResolver",
+          "clock function for generated_at",
+          "SQLiteMetadataStore",
+          "SQLiteGraphStore",
+          "ChromaVectorStore",
+          "RustworkxGraphProjection",
+          "filesystem writes under registered Vault roots",
+          "LLM clients"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class ContextPackBuilder(Protocol):\n    def build(self, request: ContextPackRequest) -> ContextPack: ..."
+          },
+          {
+            "language": "python",
+            "content": "class ContextEvidenceResolver(Protocol):\n    def resolve(self, ref: ContextEvidenceRef) -> ResolvedContextEvidence | None: ...\n\n@dataclass(frozen=True)\nclass ResolvedContextEvidence:\n    ref: ContextEvidenceRef\n    path: str\n    section: str | None\n    anchor: str | None\n    content_hash: str\n    raw_sha256: str | None\n    metadata_index_revision: str\n    vault_revision: str | None\n    text: str\n    token_count: int"
+          },
+          {
+            "language": "python",
+            "content": "class ContextPackRenderer(Protocol):\n    def render_json(self, pack: ContextPack) -> str: ...\n    def render_markdown(self, pack: ContextPack) -> str: ..."
+          }
+        ]
+      },
+      {
+        "heading": "JSON Serialization",
+        "content": "JSON output must be stable:\nsorted object keys where practical deterministic tuple/list ordering ISO-8601 generated_at explicit null for optional fields that are part of the schema no backend-specific raw records\nThe JSON serializer is the contract test target. Markdown tests should compare against the JSON-derived data, not independently reconstructed content.",
+        "items": [
+          "sorted object keys where practical",
+          "deterministic tuple/list ordering",
+          "ISO-8601 generated_at",
+          "explicit null for optional fields that are part of the schema",
+          "no backend-specific raw records"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Error Handling",
+        "content": "Fatal errors:\nempty goal invalid QueryScope invalid budget values unsupported output format metadata store unavailable before any evidence can be resolved\nNon-fatal warnings:\nvector unavailable with keyword fallback graph unavailable when explicitly requested stale store revisions missing evidence for individual candidates truncation and omission contested or deprecated relationship status\nFatal errors should produce nonzero CLI exits in Phase 4B. Non-fatal warnings remain in ContextPack.warnings.",
+        "items": [
+          "empty goal",
+          "invalid QueryScope",
+          "invalid budget values",
+          "unsupported output format",
+          "metadata store unavailable before any evidence can be resolved",
+          "vector unavailable with keyword fallback",
+          "graph unavailable when explicitly requested",
+          "stale store revisions",
+          "missing evidence for individual candidates",
+          "truncation and omission",
+          "contested or deprecated relationship status"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Tests Required Before Implementation",
+        "content": "Phase 4A implementation must include tests for:\nJSON contract includes every required top-level field. docs/SPEC.md, docs/FEATURES.md, and Phase 4A DTOs agree on one canonical schema. Every normal item references at least one evidence chunk. Evidence refs are Vault-scoped and do not collide across Vaults. Store revisions include keyword for default keyword/vector packs. Graph and projection revisions are absent unless graph mode is explicit. Markdown renderer cannot hide top-level warnings. Renderer tests use ContextPackRenderer; CLI must not format pack sections directly. Evidence resolver tests prove excerpts and token counts come from MetadataStore interfaces. Budget omission and truncation produce warnings. Budget output includes used_tokens and omitted_items. ContextPackRequest.retrieval_limit is passed to retrieval. include_graph=False does not open graph retrieval dependencies. include_graph=True preserves graph warnings in context pack output. Source warning codes are preserved during context warning conversion. Builder depends on retrieval and storage interfaces, not local backend implementations. Context pack code does not write Vault files.",
+        "items": [
+          "JSON contract includes every required top-level field.",
+          "docs/SPEC.md, docs/FEATURES.md, and Phase 4A DTOs agree on one",
+          "Every normal item references at least one evidence chunk.",
+          "Evidence refs are Vault-scoped and do not collide across Vaults.",
+          "Store revisions include keyword for default keyword/vector packs.",
+          "Graph and projection revisions are absent unless graph mode is explicit.",
+          "Markdown renderer cannot hide top-level warnings.",
+          "Renderer tests use ContextPackRenderer; CLI must not format pack sections",
+          "Evidence resolver tests prove excerpts and token counts come from",
+          "Budget omission and truncation produce warnings.",
+          "Budget output includes used_tokens and omitted_items.",
+          "ContextPackRequest.retrieval_limit is passed to retrieval.",
+          "include_graph=False does not open graph retrieval dependencies.",
+          "include_graph=True preserves graph warnings in context pack output.",
+          "Source warning codes are preserved during context warning conversion.",
+          "Builder depends on retrieval and storage interfaces, not local backend"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Handoff To Phase 4B",
+        "content": "Phase 4B may implement vg context only after Phase 4A contract tests are stable. The CLI should call ContextPackBuilder.build(...) and render either canonical JSON or Markdown. It must not assemble sections directly in CLI code.",
+        "items": [
+          "Review the Handoff To Phase 4B section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4a-context-pack-contract-builder-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

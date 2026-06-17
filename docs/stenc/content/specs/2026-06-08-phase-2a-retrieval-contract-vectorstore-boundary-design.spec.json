@@ -1,0 +1,937 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design",
+  "slug": "2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design",
+  "status": "draft",
+  "title": "Phase 2A Retrieval Contract And VectorStore Boundary Design",
+  "description": "Status: Draft for user review\nDate: 2026-06-08\nScope: Phase 2A only",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-08",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [
+      "plan:2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary"
+    ],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for user review\nDate: 2026-06-08\nScope: Phase 2A only",
+    "agentSummary": "Read docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 2A defines the smallest stable retrieval and vector contracts needed before Vault Graph adds local vector indexing in Phase 2B and user-visible search in Phase 2C.\nThis phase is intentionally contract-only. It should make the next phases easier to build without prematurely coupling Vault Graph to Chroma, Qdrant, graph traversal, LLM answer generation, MCP, HTTP, or CLI search surfaces.\nThe design follows the project boundary:\nVault remains the durable source of truth. Vault Graph state remains read-only and rebuildable. Vector search returns semantic candidates, not final evidence. Metadata resolution remains the authority for document and chunk evidence. Retrieval policy remains outs...",
+    "problem": "Status: Draft for user review\nDate: 2026-06-08\nScope: Phase 2A only",
+    "scope": {
+      "in": [
+        "Structured Stenc view of the source spec Markdown.",
+        "Original Markdown remains at docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md."
+      ],
+      "out": [
+        "Chroma collections",
+        "Qdrant support",
+        "vector indexing from real Vault chunks",
+        "vg search",
+        "vg ask",
+        "vg status vector output",
+        "hybrid ranking implementation",
+        "keyword search implementation",
+        "graph extraction",
+        "graph traversal"
+      ]
+    },
+    "architecture": {
+      "summary": "Phase 2A defines the boundary, not the runtime flow.\nPhase 2B uses these contracts to build real vector indexing:\nPhase 2C uses these contracts to build user-visible search:\nPhase 3 adds graph candidates to the same result contract:",
+      "flow": [
+        "Review the Architecture section in the source Markdown."
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Embedding Contract",
+        "detail": "See Embedding Contract in the source Markdown document.",
+        "acceptanceCriteria": [
+          "Review the Embedding Contract section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "VectorStore Contract",
+        "detail": "VectorStore stores embeddings and returns semantic candidates. It is a candidate provider, not a retrieval engine.",
+        "acceptanceCriteria": [
+          "Review the VectorStore Contract section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Retrieval Result Contract",
+        "detail": "Phase 2A defines a graph-ready result shape before graph storage exists.",
+        "acceptanceCriteria": [
+          "Review the Retrieval Result Contract section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "12.2 VectorStore Contract Tests",
+        "detail": "Use a test-only in-memory vector store to define backend-neutral behavior.\nVerify:\nupserted records can be searched by vector query. search filters by QueryScope.vault_ids. search filters by QueryScope.content_scopes before applying limit. QueryScope.include_cross_vault does not grant graph traversal behavior in VectorStore. same relative content from different Vault IDs does not collide. stale records can be tombstoned by vault_id and chunk_id. dimension mismatch fails loudly. model spec mismatch fails loudly. vector hits omit path, text, title, summary, and final evidence fields. health reports backend name, schema version, compatibility, and message. manifest export is stable and inspect...",
+        "acceptanceCriteria": [
+          "upserted records can be searched by vector query.",
+          "search filters by QueryScope.vault_ids.",
+          "search filters by QueryScope.content_scopes before applying limit.",
+          "QueryScope.include_cross_vault does not grant graph traversal behavior in",
+          "same relative content from different Vault IDs does not collide.",
+          "stale records can be tombstoned by vault_id and chunk_id.",
+          "dimension mismatch fails loudly.",
+          "model spec mismatch fails loudly."
+        ]
+      },
+      {
+        "id": "REQ-5",
+        "title": "12.3 Retrieval Contract Tests",
+        "detail": "Verify:\nnormal results require evidence. EvidenceReference is assembled only through MetadataStore.resolve_chunk_evidence(...). VectorHit.vault_id, document_id, and chunk_id must match resolved metadata evidence before becoming a normal result. vector signals can be attached without graph signals. graph signal kind is accepted but not produced by Phase 2A runtime. warnings remain visible on result records. result identity and dedupe examples are Vault-scoped. result-level backend scores are not exposed; backend score metadata stays on RetrievalSignal.",
+        "acceptanceCriteria": [
+          "normal results require evidence.",
+          "EvidenceReference is assembled only through",
+          "VectorHit.vault_id, document_id, and chunk_id must match resolved",
+          "vector signals can be attached without graph signals.",
+          "graph signal kind is accepted but not produced by Phase 2A runtime.",
+          "warnings remain visible on result records.",
+          "result identity and dedupe examples are Vault-scoped.",
+          "result-level backend scores are not exposed; backend score metadata stays on"
+        ]
+      },
+      {
+        "id": "REQ-6",
+        "title": "Acceptance Criteria",
+        "detail": "Phase 2A is complete when:\nTextEmbeddings and EmbeddingModelSpec contracts are implemented. vector store protocol and record shapes are implemented. vector records and hits carry content_scope filter metadata. vector search enforces both Vault ID and content-scope filtering. metadata evidence can be resolved through one deep MetadataStore boundary. graph-ready retrieval result shapes are implemented. deterministic test TextEmbeddings implementation exists for contract tests. in-memory test vector store exists for contract tests. tests prove multi-vault identity is preserved. tests prove content-scope filtering is preserved. tests prove vector hits are not evidence authority. tests prove vec...",
+        "acceptanceCriteria": [
+          "TextEmbeddings and EmbeddingModelSpec contracts are implemented.",
+          "vector store protocol and record shapes are implemented.",
+          "vector records and hits carry content_scope filter metadata.",
+          "vector search enforces both Vault ID and content-scope filtering.",
+          "metadata evidence can be resolved through one deep MetadataStore boundary.",
+          "graph-ready retrieval result shapes are implemented.",
+          "deterministic test TextEmbeddings implementation exists for contract tests.",
+          "in-memory test vector store exists for contract tests."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for user review\nDate: 2026-06-08\nScope: Phase 2A only",
+        "interfaces": [
+          "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Phase 2A must add a deep evidence-resolution boundary to MetadataStore before retrieval result assembly depends on it.\nExpected protocol addition:\nRules:\nthe method validates that vault_id, document_id, and chunk_id refer to the same current, non-tombstoned metadata records. evidence resolution must also verify that the chunk path matches the reso..."
+    ],
+    "errorHandling": [
+      {
+        "case": "10.3 RetrievalWarning",
+        "behavior": "RetrievalWarning captures degraded result quality.\nRequired fields:\ncode message severity\nRecommended initial warning codes:\nmissing_evidence stale_metadata stale_vector model_spec_mismatch scope_excluded backend_unhealthy graph_unavailable"
+      },
+      {
+        "case": "Error Handling",
+        "behavior": "Phase 2A should fail loudly at contract boundaries.\nContract errors:\nembedding vector dimensions do not match model spec dimensions vector record model spec does not match collection model spec search query model spec is incompatible with stored vectors QueryScope has no Vault IDs vector record is missing vault_id, document_id, chunk_id, or content_scope vector search returns a candidate outside QueryScope vector hit IDs do not match resolved metadata evidence vector backend reports incompatibl..."
+      },
+      {
+        "case": "Design Risks",
+        "behavior": "Risk: VectorStore becomes too smart.\nMitigation: keep VectorHit small and require MetadataStore evidence resolution before rendering.\nRisk: backend scores are treated as globally comparable.\nMitigation: record local scores and ranks on RetrievalSignal, omit top-level backend scores from RetrievalResult, and let HybridRetriever own rank-based fusion in Phase 2C.\nRisk: multi-vault identity drifts back to path-only assumptions.\nMitigation: require vault_id on all vector, evidence, and retrieval re..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Embedding Contract",
+        "rules": [
+          "Review the Embedding Contract section in the source Markdown."
+        ]
+      },
+      {
+        "name": "VectorStore Contract",
+        "rules": [
+          "Review the VectorStore Contract section in the source Markdown."
+        ]
+      },
+      {
+        "name": "Retrieval Result Contract",
+        "rules": [
+          "Review the Retrieval Result Contract section in the source Markdown."
+        ]
+      },
+      {
+        "name": "Multi-Vault Consistency Rules",
+        "rules": [
+          "every vector record includes vault_id.",
+          "every vector hit includes vault_id.",
+          "every vector record and hit includes content_scope filter metadata.",
+          "every retrieval result includes vault_id.",
+          "every evidence reference includes vault_id.",
+          "dedupe keys include vault_id.",
+          "identical relative paths from different Vaults are different records.",
+          "default query scope is resolved before calling VectorStore."
+        ]
+      },
+      {
+        "name": "12.2 VectorStore Contract Tests",
+        "rules": [
+          "upserted records can be searched by vector query.",
+          "search filters by QueryScope.vault_ids.",
+          "search filters by QueryScope.content_scopes before applying limit.",
+          "QueryScope.include_cross_vault does not grant graph traversal behavior in",
+          "same relative content from different Vault IDs does not collide.",
+          "stale records can be tombstoned by vault_id and chunk_id.",
+          "dimension mismatch fails loudly.",
+          "model spec mismatch fails loudly."
+        ]
+      },
+      {
+        "name": "12.3 Retrieval Contract Tests",
+        "rules": [
+          "normal results require evidence.",
+          "EvidenceReference is assembled only through",
+          "VectorHit.vault_id, document_id, and chunk_id must match resolved",
+          "vector signals can be attached without graph signals.",
+          "graph signal kind is accepted but not produced by Phase 2A runtime.",
+          "warnings remain visible on result records.",
+          "result identity and dedupe examples are Vault-scoped.",
+          "result-level backend scores are not exposed; backend score metadata stays on"
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "src/vault_graph/",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "docs/SPEC.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "pytest -q",
+        "expected": "Command succeeds as described by the source spec."
+      },
+      {
+        "command": "ruff check src tests",
+        "expected": "Command succeeds as described by the source spec."
+      },
+      {
+        "command": "mypy src",
+        "expected": "Command succeeds as described by the source spec."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "pytest -q",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      },
+      {
+        "command": "ruff check src tests",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      },
+      {
+        "command": "mypy src",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for user review\nDate: 2026-06-08\nScope: Phase 2A only",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 2A defines the smallest stable retrieval and vector contracts needed before Vault Graph adds local vector indexing in Phase 2B and user-visible search in Phase 2C.\nThis phase is intentionally contract-only. It should make the next phases easier to build without prematurely coupling Vault Graph to Chroma, Qdrant, graph traversal, LLM answer generation, MCP, HTTP, or CLI search surfaces.\nThe design follows the project boundary:\nVault remains the durable source of truth. Vault Graph state remains read-only and rebuildable. Vector search returns semantic candidates, not final evidence. Metadata resolution remains the authority for document and chunk evidence. Retrieval policy remains outside VectorStore.",
+        "items": [
+          "Vault remains the durable source of truth.",
+          "Vault Graph state remains read-only and rebuildable.",
+          "Vector search returns semantic candidates, not final evidence.",
+          "Metadata resolution remains the authority for document and chunk evidence.",
+          "Retrieval policy remains outside VectorStore."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Non-Goals",
+        "content": "Phase 2A must not implement:\nChroma collections Qdrant support vector indexing from real Vault chunks vg search vg ask vg status vector output hybrid ranking implementation keyword search implementation graph extraction graph traversal context packs MCP or HTTP serving LLM answer generation\nThose belong to later slices. Phase 2A should only define contracts and deterministic contract tests.",
+        "items": [
+          "Chroma collections",
+          "Qdrant support",
+          "vector indexing from real Vault chunks",
+          "vg search",
+          "vg ask",
+          "vg status vector output",
+          "hybrid ranking implementation",
+          "keyword search implementation",
+          "graph extraction",
+          "graph traversal",
+          "context packs",
+          "MCP or HTTP serving",
+          "LLM answer generation"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Recommended Direction",
+        "content": "Use the contract-only approach.\nPhase 2A introduces:\nTextEmbeddings contract EmbeddingModelSpec metadata VectorStore contract VectorHit and vector manifest record shapes graph-ready retrieval result shapes deterministic test-only TextEmbeddings implementation and in-memory vector store contract tests that future Chroma and Qdrant implementations must satisfy\nThis gives Vault Graph a deep, narrow boundary: consumers can depend on simple interfaces while embedding generation, vector storage, and backend replacement stay hidden.",
+        "items": [
+          "TextEmbeddings contract",
+          "EmbeddingModelSpec metadata",
+          "VectorStore contract",
+          "VectorHit and vector manifest record shapes",
+          "graph-ready retrieval result shapes",
+          "deterministic test-only TextEmbeddings implementation and in-memory vector store",
+          "contract tests that future Chroma and Qdrant implementations must satisfy"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Responsibility Map",
+        "content": "| Component | Owns | Must Not Own | | --- | --- | --- | | VaultCatalog | registered Vault identity, active Vault, root path resolution | derived index state, retrieval policy | | QueryScope | selected Vault IDs and content scopes | candidate ranking, backend filtering policy beyond scope fields | | MetadataStore | document identity, chunk identity, evidence resolution, source hashes, metadata revision | embedding generation, vector similarity, durable semantic truth | | TextEmbeddings | converting text into embedding vectors under one model spec | storage, search, evidence resolution, ranking | | EmbeddingModelSpec | model name, model version, dimensions, spec version | backend choice, ranking policy, Vault identity | | VectorStore | persisted embeddings, vector revision state, filtered semantic candidate lookup | chunk text authority, path authority, evidence authority, hybrid ranking, graph relationships | | RetrievalResult contract | final graph-ready result shape after evidence resolution | vector backend behavior, global backend scores, ranking algorithm | | HybridRetriever | Phase 2C candidate merge, dedupe, ranking, warnings, evidence resolution | Phase 2A implementation |...",
+        "items": [
+          "Review the Responsibility Map section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Architecture",
+        "content": "Phase 2A defines the boundary, not the runtime flow.\nPhase 2B uses these contracts to build real vector indexing:\nPhase 2C uses these contracts to build user-visible search:\nPhase 3 adds graph candidates to the same result contract:",
+        "items": [
+          "Review the Architecture section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "Phase 2A contracts\n\nTextEmbeddings\n  -> EmbeddingVector\n  -> VectorStore\n  -> VectorHit\n\nMetadataStore\n  -> resolve_chunk_evidence(...)\n\nRetrieval result contracts\n  -> EvidenceReference\n  -> RetrievalSignal\n  -> RetrievalWarning\n  -> RetrievalResult"
+          },
+          {
+            "language": "text",
+            "content": "MetadataStore chunks\n  -> TextEmbeddings\n  -> VectorStore.apply_vector_revision(...)"
+          },
+          {
+            "language": "text",
+            "content": "query text\n  -> TextEmbeddings\n  -> VectorStore.search(...)\n  -> keyword candidates\n  -> HybridRetriever\n  -> MetadataStore.resolve_chunk_evidence(...), scoped by `vault_id`\n  -> RetrievalResult"
+          },
+          {
+            "language": "text",
+            "content": "GraphStore relationship candidates\n  -> HybridRetriever\n  -> RetrievalResult.signals[kind=\"graph\"]"
+          }
+        ]
+      },
+      {
+        "heading": "Package Layout",
+        "content": "Use precise modules that match the existing Phase 1 style.\nRationale:\ntext_embeddings.py owns the embedding lifecycle contract. vector_store.py follows the existing metadata_store.py interface pattern. retrieval_result.py owns result shapes only, not search execution. test fakes stay out of production code until a production feature needs them.\nAvoid module names such as utils.py, helpers.py, manager.py, or generic shared buckets.",
+        "items": [
+          "text_embeddings.py owns the embedding lifecycle contract.",
+          "vector_store.py follows the existing metadata_store.py interface pattern.",
+          "retrieval_result.py owns result shapes only, not search execution.",
+          "test fakes stay out of production code until a production feature needs them."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "src/vault_graph/\n  embeddings/\n    __init__.py\n    text_embeddings.py\n  retrieval/\n    __init__.py\n    retrieval_result.py\n  storage/\n    interfaces/\n      vector_store.py\n\ntests/\n  fakes/\n    deterministic_text_embeddings.py\n    in_memory_vector_store.py\n  test_text_embeddings_contract.py\n  test_vector_store_contract.py\n  test_retrieval_result_contract.py"
+          }
+        ]
+      },
+      {
+        "heading": "Embedding Contract",
+        "content": "See Embedding Contract in the source Markdown document.",
+        "items": [
+          "Review the Embedding Contract section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.1 EmbeddingModelSpec",
+        "content": "EmbeddingModelSpec is immutable metadata that makes vectors comparable and rebuildable.\nRequired fields:\nmodel_name model_version dimensions spec_version\nOptional future fields may include normalization and distance metric policy, but Phase 2A should not add them unless needed by the first local vector backend.\nEmbeddingModelSpec is not a backend configuration object. It does not name Chroma, Qdrant, filesystem paths, network endpoints, ranking weights, or retrieval modes.",
+        "items": [
+          "model_name",
+          "model_version",
+          "dimensions",
+          "spec_version"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.2 EmbeddingInput",
+        "content": "EmbeddingInput represents one text item to embed.\nRequired fields:\ninput_id text\nRules:\ninput_id must be unique within one embedding call. input_id is a batch correlation key, not durable Vault identity. Phase 2B indexers must join embedding output back to `(vault_id, document_id, chunk_id) before creating VectorEmbeddingRecord`. TextEmbeddings implementations remain Vault-agnostic and must not interpret Vault IDs, paths, or content scopes.",
+        "items": [
+          "input_id",
+          "text",
+          "input_id must be unique within one embedding call.",
+          "input_id is a batch correlation key, not durable Vault identity.",
+          "Phase 2B indexers must join embedding output back to `(vault_id, document_id,",
+          "TextEmbeddings implementations remain Vault-agnostic and must not interpret"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.3 EmbeddingVector",
+        "content": "EmbeddingVector is the output of TextEmbeddings.\nRequired fields:\ninput_id values model_spec\nRules:\nlen(values) must equal model_spec.dimensions. vectors must not carry Vault paths, chunk text, or evidence fields. vectors may be produced in batches, but output order must preserve input order or include enough input_id data to restore it.",
+        "items": [
+          "input_id",
+          "values",
+          "model_spec",
+          "len(values) must equal model_spec.dimensions.",
+          "vectors must not carry Vault paths, chunk text, or evidence fields.",
+          "vectors may be produced in batches, but output order must preserve input order"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.4 TextEmbeddings",
+        "content": "TextEmbeddings converts text into embedding vectors.\nExpected protocol:\nRules:\nTextEmbeddings output must use exactly the implementation's EmbeddingModelSpec. empty input returns an empty tuple. dimension mismatch is a TextEmbeddings contract error, not a retriever concern. TextEmbeddings implementations must not write Vault files. TextEmbeddings implementations must not write vector store state directly. TextEmbeddings implementations must not decide retrieval ranking.",
+        "items": [
+          "TextEmbeddings output must use exactly the implementation's",
+          "empty input returns an empty tuple.",
+          "dimension mismatch is a TextEmbeddings contract error, not a retriever concern.",
+          "TextEmbeddings implementations must not write Vault files.",
+          "TextEmbeddings implementations must not write vector store state directly.",
+          "TextEmbeddings implementations must not decide retrieval ranking."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class TextEmbeddings(Protocol):\n    def model_spec(self) -> EmbeddingModelSpec: ...\n\n    def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]: ..."
+          }
+        ]
+      },
+      {
+        "heading": "VectorStore Contract",
+        "content": "VectorStore stores embeddings and returns semantic candidates. It is a candidate provider, not a retrieval engine.",
+        "items": [
+          "Review the VectorStore Contract section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "8.1 VectorEmbeddingRecord",
+        "content": "VectorEmbeddingRecord is the record accepted by VectorStore.\nRequired fields:\nvector_id vault_id document_id chunk_id content_scope embedding metadata_index_revision vector_index_revision\nRules:\nvault_id, document_id, and chunk_id are required for every record. content_scope is required and must be derived from the metadata document path using the active QueryScope content-scope vocabulary. content_scope is filter metadata, not user evidence. content-scope matching uses same-or-child semantics: a query for wiki includes records scoped to wiki/systems, while a query for wiki/systems does not include a broader wiki record. vector_id must be stable for (vault_id, chunk_id, embedding.model_spec). embedding.model_spec.dimensions must match the vector length. metadata_index_revision records which metadata projection the embedding came from. vector_index_revision records the vector projection revision being written.\nThe vector store may keep internal backend metadata and source chunk hashes for stale detection, but those fields are not user evidence and must not replace MetadataStore resolution.",
+        "items": [
+          "vector_id",
+          "vault_id",
+          "document_id",
+          "chunk_id",
+          "content_scope",
+          "embedding",
+          "metadata_index_revision",
+          "vector_index_revision",
+          "vault_id, document_id, and chunk_id are required for every record.",
+          "content_scope is required and must be derived from the metadata document",
+          "content_scope is filter metadata, not user evidence.",
+          "content-scope matching uses same-or-child semantics: a query for wiki",
+          "vector_id must be stable for (vault_id, chunk_id, embedding.model_spec).",
+          "embedding.model_spec.dimensions must match the vector length.",
+          "metadata_index_revision records which metadata projection the embedding came",
+          "vector_index_revision records the vector projection revision being written."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "8.2 VectorHit",
+        "content": "VectorHit is the only normal search output from VectorStore.\nRequired fields:\nvector_id vault_id document_id chunk_id content_scope score rank embedding_spec metadata_index_revision vector_index_revision backend\nRules:\nVectorHit must not include chunk text. VectorHit must not include final title, summary, path, anchor, or rendered evidence. content_scope may be returned only as filter metadata. score is backend-local and must not be treated as comparable to keyword or graph scores. rank is local to the vector result set. callers must resolve document_id and chunk_id through MetadataStore before presenting a normal result to users.\nThis resolves the possible ambiguity in docs/SPEC.md: vector stores may keep metadata needed for freshness checks, but user-facing evidence fields are resolved from MetadataStore, not trusted from vector hits.",
+        "items": [
+          "vector_id",
+          "vault_id",
+          "document_id",
+          "chunk_id",
+          "content_scope",
+          "score",
+          "rank",
+          "embedding_spec",
+          "metadata_index_revision",
+          "vector_index_revision",
+          "backend",
+          "VectorHit must not include chunk text.",
+          "VectorHit must not include final title, summary, path, anchor, or rendered",
+          "content_scope may be returned only as filter metadata.",
+          "score is backend-local and must not be treated as comparable to keyword or",
+          "rank is local to the vector result set."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "8.3 VectorQuery",
+        "content": "VectorQuery describes a semantic lookup.\nRequired fields:\nquery_vector scope limit embedding_spec\nRules:\nscope is a QueryScope. default scope handling belongs to application services, not VectorStore. VectorStore must filter by scope.vault_ids and scope.content_scopes. scope filtering must happen before the final limit is applied. If a backend cannot push down all scope filters, the adapter must overfetch and post-filter before returning hits. content-scope filtering must use the same same-or-child rule as metadata indexing so narrower policy scopes and broader Vault scopes stay consistent. VectorStore must not treat identical paths from different Vaults as the same item. multiple Vault IDs are allowed only because QueryScope explicitly names them. cross-vault graph relationships are not inferred by vector search.",
+        "items": [
+          "query_vector",
+          "scope",
+          "limit",
+          "embedding_spec",
+          "scope is a QueryScope.",
+          "default scope handling belongs to application services, not VectorStore.",
+          "VectorStore must filter by scope.vault_ids and scope.content_scopes.",
+          "scope filtering must happen before the final limit is applied. If a backend",
+          "content-scope filtering must use the same same-or-child rule as metadata",
+          "VectorStore must not treat identical paths from different Vaults as the same",
+          "multiple Vault IDs are allowed only because QueryScope explicitly names",
+          "cross-vault graph relationships are not inferred by vector search."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "8.4 VectorStore Protocol",
+        "content": "Expected protocol:\nRules:\napply_vector_revision writes only Vault Graph derived state. stale records are removed or tombstoned by chunk_id plus vault_id. search returns only scoped semantic candidates. health uses the existing StoreHealth shape unless implementation evidence shows it is insufficient. export_manifest returns inspectable projection metadata, not source truth.",
+        "items": [
+          "apply_vector_revision writes only Vault Graph derived state.",
+          "stale records are removed or tombstoned by chunk_id plus vault_id.",
+          "search returns only scoped semantic candidates.",
+          "health uses the existing StoreHealth shape unless implementation evidence",
+          "export_manifest returns inspectable projection metadata, not source truth."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class VectorStore(Protocol):\n    def apply_vector_revision(\n        self,\n        *,\n        vector_index_revision: str,\n        records: tuple[VectorEmbeddingRecord, ...],\n        tombstones: tuple[VectorTombstone, ...],\n    ) -> None: ...\n\n    def search(self, query: VectorQuery) -> tuple[VectorHit, ...]: ...\n\n    def health(self) -> StoreHealth: ...\n\n    def export_manifest(self, scope: QueryScope) -> tuple[VectorManifestRecord, ...]: ..."
+          }
+        ]
+      },
+      {
+        "heading": "MetadataStore Evidence Resolution Boundary",
+        "content": "Phase 2A must add a deep evidence-resolution boundary to MetadataStore before retrieval result assembly depends on it.\nExpected protocol addition:\nRules:\nthe method validates that vault_id, document_id, and chunk_id refer to the same current, non-tombstoned metadata records. evidence resolution must also verify that the chunk path matches the resolved document path; malformed rows with matching IDs but mismatched paths must not become normal evidence. the method joins document-level evidence such as raw_sha256 and vault_revision with chunk-level evidence such as section, anchor, and chunk hash. mismatched IDs must not produce normal evidence. missing or stale records return None or a typed diagnostic that retrieval can convert into a warning. HybridRetriever must not assemble evidence by learning metadata table internals.",
+        "items": [
+          "the method validates that vault_id, document_id, and chunk_id refer to",
+          "evidence resolution must also verify that the chunk path matches the resolved",
+          "the method joins document-level evidence such as raw_sha256 and",
+          "mismatched IDs must not produce normal evidence.",
+          "missing or stale records return None or a typed diagnostic that retrieval can",
+          "HybridRetriever must not assemble evidence by learning metadata table"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class MetadataStore(Protocol):\n    def resolve_chunk_evidence(\n        self,\n        *,\n        vault_id: str,\n        document_id: str,\n        chunk_id: str,\n    ) -> EvidenceReference | None: ..."
+          }
+        ]
+      }
+    ],
+    "openQuestions": []
+  }
+}

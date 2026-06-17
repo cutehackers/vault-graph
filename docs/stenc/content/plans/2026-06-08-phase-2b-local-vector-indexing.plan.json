@@ -1,0 +1,1685 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-08-phase-2b-local-vector-indexing",
+  "slug": "2026-06-08-phase-2b-local-vector-indexing",
+  "status": "approved",
+  "title": "Phase 2B Local Vector Indexing Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-08",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "spec:2026-06-08-phase-2b-local-vector-indexing-design"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 2B release slice: Chroma-backed local vector indexing, FastEmbed local CPU embeddings, metadata-to-vector reconcile, vg index vector updates, and vg status vector health without adding user search.\nArchitecture: Keep Phase 2B as a derived projection pipeline after metadata indexing. MetadataStore remains the chunk and evidence authority, TextEmbeddings converts text under one EmbeddingModelSpec, VectorIndexer owns reconcile planning and apply, and VectorStor...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 2B release slice: Chroma-backed local vector indexing, FastEmbed local CPU embeddings, metadata-to-vector reconcile, vg index vector updates, and vg status vector health without adding user search.\nArchitecture: Keep Phase 2B as a derived projection pipeline after metadata indexing. MetadataStore remains the chunk and evidence authority, TextEmbeddings converts text under one EmbeddingModelSpec, VectorIndexer owns reconcile planning and apply, and VectorStore hides Chroma persistence behind the Phase 2A contract. Chroma is used only as a local PersistentCl...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "In scope:\nCore dependencies for local vector indexing: chromadb, fastembed, and direct huggingface-hub use for pinned model snapshots. FastEmbedTextEmbeddings as the default production local TextEmbeddings implementation. CPU tuning through embedding_batch_size, embedding_parallelism, and embedding_lazy_load. MetadataStore.list_chunks(scope). Expanded vector records, manifests, and tombstones with freshness metadata. Chroma implementation of VectorStore. VectorIndexer plan and apply for scope-local reconcile. IndexService orchestration: metadata first, vector second. vg index vector output, dry-run vector planning, and vector failure exit behavior. vg status --vault-id and vg status --all-v...",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "Core dependencies for local vector indexing: chromadb, fastembed, and direct huggingface-hub use for pinned model snapshots.",
+        "FastEmbedTextEmbeddings as the default production local TextEmbeddings implementation.",
+        "CPU tuning through embedding_batch_size, embedding_parallelism, and embedding_lazy_load.",
+        "MetadataStore.list_chunks(scope).",
+        "Expanded vector records, manifests, and tombstones with freshness metadata.",
+        "Chroma implementation of VectorStore.",
+        "VectorIndexer plan and apply for scope-local reconcile.",
+        "IndexService orchestration: metadata first, vector second.",
+        "vg index vector output, dry-run vector planning, and vector failure exit behavior.",
+        "vg status --vault-id and vg status --all-vaults with vector health, model spec, stale count, and last error."
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/embeddings/fastembed_text_embeddings.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/indexing/vector_indexer.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/chroma_vector_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/vector_status_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_fastembed_text_embeddings.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_metadata_chunk_listing.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_vector_indexer.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_chroma_vector_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_cli_vector_indexing.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_vector_indexing_read_only_boundary.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "pyproject.toml",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "uv.lock",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/catalog_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/index_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/path_guard.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/cli/main.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/embeddings/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/errors.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/indexing/metadata_indexer.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/indexing/revision_planner.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/metadata_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/vector_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Task 1: Dependency And Contract Expansion",
+        "status": "todo",
+        "surfaces": [
+          "pyproject.toml",
+          "uv.lock",
+          "src/vault_graph/errors.py",
+          "src/vault_graph/storage/interfaces/vector_store.py",
+          "tests/fakes/in_memory_vector_store.py",
+          "tests/test_vector_store_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "pyproject.toml",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "uv.lock",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/vector_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/in_memory_vector_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_vector_store_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_vector_store_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv lock",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 python - <<'PY'",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add pyproject.toml uv.lock src/vault_graph/errors.py src/vault_graph/storage/interfaces/vector_store.py tests/fakes/in_memory_vector_store.py tests/test_vector_store_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-5",
+            "title": "Modify: pyproject.toml",
+            "status": "todo",
+            "instruction": "Modify: pyproject.toml",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 2: Metadata Chunk Listing Boundary",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/indexing/metadata_indexer.py",
+          "src/vault_graph/indexing/revision_planner.py",
+          "src/vault_graph/storage/interfaces/metadata_store.py",
+          "src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "tests/test_metadata_chunk_listing.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/indexing/metadata_indexer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/indexing/revision_planner.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_metadata_chunk_listing.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_metadata_chunk_listing.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_metadata_chunk_listing.py tests/test_sqlite_metadata_store.py tests/test_metadata_indexer.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: list metadata chunks for vector indexing\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Modify: src/vault_graph/indexing/metadata_indexer.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/indexing/metadata_indexer.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 3: FastEmbed TextEmbeddings Adapter",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/embeddings/fastembed_text_embeddings.py",
+          "src/vault_graph/embeddings/init.py",
+          "tests/fakes/deterministic_text_embeddings.py",
+          "tests/test_fastembed_text_embeddings.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/embeddings/fastembed_text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/embeddings/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/deterministic_text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_fastembed_text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_fastembed_text_embeddings.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_fastembed_text_embeddings.py tests/test_text_embeddings_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/embeddings/init.py src/vault_graph/embeddings/fastembed_text_embeddings.py tests/fakes/deterministic_text_embeddings.py tests/test_fastembed_text_embeddings.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat: add fastembed text embeddings adapter\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-5",
+            "title": "Create: src/vault_graph/embeddings/fastembed_text_embeddings.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/embeddings/fastembed_text_embeddings.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 4: Chroma VectorStore Adapter",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/local/chroma_vector_store.py",
+          "tests/test_chroma_vector_store.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/chroma_vector_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_chroma_vector_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_chroma_vector_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_chroma_vector_store.py tests/test_vector_store_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/storage/local/chroma_vector_store.py tests/test_chroma_vector_store.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat: add local chroma vector store\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-5",
+            "title": "Create: src/vault_graph/storage/local/chroma_vector_store.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/local/chroma_vector_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 5: VectorIndexer Plan And Apply",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/indexing/vector_indexer.py",
+          "tests/test_vector_indexer.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/indexing/vector_indexer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_vector_indexer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_vector_indexer.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_vector_indexer.py tests/test_vector_store_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/indexing/vector_indexer.py tests/test_vector_indexer.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat: reconcile vector index from metadata chunks\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-5",
+            "title": "Create: src/vault_graph/indexing/vector_indexer.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/indexing/vector_indexer.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 6: Status Store And Service Wiring",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/local/vector_status_store.py",
+          "src/vault_graph/app/catalog_service.py",
+          "src/vault_graph/app/index_service.py",
+          "tests/test_index_service_vector_reconcile.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/vector_status_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/catalog_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/index_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_index_service_vector_reconcile.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_index_service_vector_reconcile.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_index_service_vector_reconcile.py tests/test_metadata_indexer.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/app/catalog_service.py src/vault_graph/app/index_service.py src/vault_graph/storage/local/vector_status_store.py tests/test_index_service_vector_reconcile.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat: wire vector indexing through index service\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-5",
+            "title": "Create: src/vault_graph/storage/local/vector_status_store.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/local/vector_status_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Task 7: CLI Index And Status",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/cli/main.py",
+          "tests/test_cli_vector_indexing.py",
+          "tests/test_cli_catalog_metadata.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_vector_indexing.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_catalog_metadata.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_vector_indexing.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_vector_indexing.py tests/test_cli_catalog_metadata.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/cli/main.py tests/test_cli_vector_indexing.py tests/test_cli_catalog_metadata.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat: expose phase 2b vector index status\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-5",
+            "title": "Modify: src/vault_graph/cli/main.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/cli/main.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-8",
+        "title": "Task 8: Read-Only Boundary And Failure Recovery",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/app/path_guard.py",
+          "src/vault_graph/app/catalog_service.py",
+          "tests/test_vector_indexing_read_only_boundary.py",
+          "tests/test_read_only_boundary.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/path_guard.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/catalog_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_vector_indexing_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-8-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_vector_indexing_read_only_boundary.py tests/test_read_only_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/app/path_guard.py src/vault_graph/app/catalog_service.py tests/test_vector_indexing_read_only_boundary.py tests/test_read_only_boundary.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"test: guard phase 2b vector read only boundary\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-4",
+            "title": "Modify: src/vault_graph/app/path_guard.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/app/path_guard.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-9",
+        "title": "Task 9: End-To-End Verification And Documentation Sync",
+        "status": "todo",
+        "surfaces": [
+          "docs/PATCH_LOG.md",
+          "docs/DECISIONS.md",
+          "README.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/PATCH_LOG.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/DECISIONS.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "README.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-9-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "pytest passes",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "ruff passes",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "mypy passes for src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "mypy passes for tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-5",
+            "title": "Modify only if needed: docs/PATCH_LOG.md",
+            "status": "todo",
+            "instruction": "Modify only if needed: docs/PATCH_LOG.md",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7",
+      "slice-8",
+      "slice-9"
+    ],
+    "risks": [
+      {
+        "risk": "Task 8: Read-Only Boundary And Failure Recovery",
+        "mitigation": "Files:\nModify: src/vault_graph/app/path_guard.py Modify: src/vault_graph/app/catalog_service.py Create: tests/test_vector_indexing_read_only_boundary.py Modify: tests/test_read_only_boundary.py\n[ ] Step 1: Write failing read-only and recovery tests\nCreate tests/test_vector_indexing_read_only_boundary.py:\n[ ] Step 2: Run tests and verify failure if guards are incomplete\nRun:\nExpected: PASS after Task 7 guard wiring. If it fails, fix only the guard path causing the failure.\n[ ] Step 3: Add cache..."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-08-phase-2b-local-vector-indexing.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "pytest passes",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "ruff passes",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "mypy passes for src",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "mypy passes for tests",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git diff --check prints no whitespace errors",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_vector_store_contract.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv lock",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 python - <<'PY'",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 2B release slice: Chroma-backed local vector indexing, FastEmbed local CPU embeddings, metadata-to-vector reconcile, vg index vector updates, and vg status vector health without adding user search.\nArchitecture: Keep Phase 2B as a derived projection pipeline after metadata indexing. MetadataStore remains the chunk and evidence authority, TextEmbeddings converts text under one EmbeddingModelSpec, VectorIndexer owns reconcile planning and apply, and VectorStore hides Chroma persistence behind the Phase 2A contract. Chroma is used only as a local PersistentClient; Vault Graph must not run or expose a Chroma HTTP server in this slice.\nTech Stack: Python 3.12, dataclasses, Protocol interfaces, SQLite, Chroma local persistent client, FastEmbed, Hugging Face Hub snapshot downloads for pinned model revisions, Typer CLI, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope",
+        "content": "In scope:\nCore dependencies for local vector indexing: chromadb, fastembed, and direct huggingface-hub use for pinned model snapshots. FastEmbedTextEmbeddings as the default production local TextEmbeddings implementation. CPU tuning through embedding_batch_size, embedding_parallelism, and embedding_lazy_load. MetadataStore.list_chunks(scope). Expanded vector records, manifests, and tombstones with freshness metadata. Chroma implementation of VectorStore. VectorIndexer plan and apply for scope-local reconcile. IndexService orchestration: metadata first, vector second. vg index vector output, dry-run vector planning, and vector failure exit behavior. vg status --vault-id and vg status --all-vaults with vector health, model spec, stale count, and last error. Read-only boundary tests for Chroma state and embedding cache paths.\nOut of scope:\nvg search vg ask keyword retrieval hybrid ranking execution graph extraction graph traversal decision traces context packs MCP serving HTTP serving Qdrant hosted embedding APIs non-Markdown file indexing MacBook acceleration adapters",
+        "items": [
+          "Core dependencies for local vector indexing: chromadb, fastembed, and direct huggingface-hub use for pinned model snapshots.",
+          "FastEmbedTextEmbeddings as the default production local TextEmbeddings implementation.",
+          "CPU tuning through embedding_batch_size, embedding_parallelism, and embedding_lazy_load.",
+          "MetadataStore.list_chunks(scope).",
+          "Expanded vector records, manifests, and tombstones with freshness metadata.",
+          "Chroma implementation of VectorStore.",
+          "VectorIndexer plan and apply for scope-local reconcile.",
+          "IndexService orchestration: metadata first, vector second.",
+          "vg index vector output, dry-run vector planning, and vector failure exit behavior.",
+          "vg status --vault-id and vg status --all-vaults with vector health, model spec, stale count, and last error.",
+          "Read-only boundary tests for Chroma state and embedding cache paths.",
+          "vg search",
+          "vg ask",
+          "keyword retrieval",
+          "hybrid ranking execution",
+          "graph extraction"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "External API Notes",
+        "content": "Use these current API assumptions during implementation:\nChroma PersistentClient(path=...) is the local disk client. Chroma collections support get_or_create_collection(...), upsert(...), delete(...), get(...), and query(query_embeddings=...). Chroma collection configuration should set HNSW cosine distance with configuration={\"hnsw\": {\"space\": \"cosine\"}}. FastEmbed TextEmbedding embeds lists of strings and returns a generator of vectors. FastEmbed embed(...) supports batch_size and parallel. FastEmbed model loading must be wrapped so status and dry-run can inspect config without loading the model. Use huggingface_hub.snapshot_download(repo_id=..., revision=..., cache_dir=...) before constructing FastEmbed so the accepted model revision is pinned.",
+        "items": [
+          "Chroma PersistentClient(path=...) is the local disk client.",
+          "Chroma collections support get_or_create_collection(...), upsert(...), delete(...), get(...), and query(query_embeddings=...).",
+          "Chroma collection configuration should set HNSW cosine distance with configuration={\"hnsw\": {\"space\": \"cosine\"}}.",
+          "FastEmbed TextEmbedding embeds lists of strings and returns a generator of vectors.",
+          "FastEmbed embed(...) supports batch_size and parallel.",
+          "FastEmbed model loading must be wrapped so status and dry-run can inspect config without loading the model.",
+          "Use huggingface_hub.snapshot_download(repo_id=..., revision=..., cache_dir=...) before constructing FastEmbed so the accepted model revision is pinned."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "File Structure",
+        "content": "Create these files:\nsrc/vault_graph/embeddings/fastembed_text_embeddings.py: production local CPU TextEmbeddings adapter, default model spec, runtime config, cache-status helper, and FastEmbed lazy loading. src/vault_graph/indexing/vector_indexer.py: vector reconcile plan, vector apply result, stable vector IDs, content-scope derivation, batching, and stale-record comparison. src/vault_graph/storage/local/chroma_vector_store.py: Chroma-backed VectorStore implementation and Chroma schema guard. src/vault_graph/storage/local/vector_status_store.py: small JSON diagnostic state for last vector success/failure; this is derived status only. tests/test_fastembed_text_embeddings.py: default spec, config, cache, duplicate input, lazy-load, and failure tests. tests/test_metadata_chunk_listing.py: MetadataStore.list_chunks(scope) behavior. tests/test_vector_indexer.py: reconcile planning and apply behavior with fakes. tests/test_chroma_vector_store.py: Chroma persistence, manifest, filtering, schema, and tombstone contract tests. tests/test_cli_vector_indexing.py: CLI index and status Phase 2B behavior. tests/test_vector_indexing_read_only_boundary.py: state path, Chroma path, model cache pa...",
+        "items": [
+          "src/vault_graph/embeddings/fastembed_text_embeddings.py: production local CPU TextEmbeddings adapter, default model spec, runtime config, cache-status helper, and FastEmbed lazy loading.",
+          "src/vault_graph/indexing/vector_indexer.py: vector reconcile plan, vector apply result, stable vector IDs, content-scope derivation, batching, and stale-record comparison.",
+          "src/vault_graph/storage/local/chroma_vector_store.py: Chroma-backed VectorStore implementation and Chroma schema guard.",
+          "src/vault_graph/storage/local/vector_status_store.py: small JSON diagnostic state for last vector success/failure; this is derived status only.",
+          "tests/test_fastembed_text_embeddings.py: default spec, config, cache, duplicate input, lazy-load, and failure tests.",
+          "tests/test_metadata_chunk_listing.py: MetadataStore.list_chunks(scope) behavior.",
+          "tests/test_vector_indexer.py: reconcile planning and apply behavior with fakes.",
+          "tests/test_chroma_vector_store.py: Chroma persistence, manifest, filtering, schema, and tombstone contract tests.",
+          "tests/test_cli_vector_indexing.py: CLI index and status Phase 2B behavior.",
+          "tests/test_vector_indexing_read_only_boundary.py: state path, Chroma path, model cache path, and Vault mutation guards.",
+          "pyproject.toml: add Chroma, FastEmbed, and Hugging Face Hub dependencies.",
+          "uv.lock: refresh dependency lock.",
+          "src/vault_graph/app/catalog_service.py: add vector_path, vector_status_path, and embedding_cache_path.",
+          "src/vault_graph/app/index_service.py: orchestrate metadata plus vector projection and scoped status.",
+          "src/vault_graph/app/path_guard.py: reuse write-target guard for vector and cache paths.",
+          "src/vault_graph/cli/main.py: wire vector defaults into index and scoped vector status into status."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Task 1: Dependency And Contract Expansion",
+        "content": "Files:\nModify: pyproject.toml Modify: uv.lock Modify: src/vault_graph/errors.py Modify: src/vault_graph/storage/interfaces/vector_store.py Modify: tests/fakes/in_memory_vector_store.py Modify: tests/test_vector_store_contract.py\n[ ] Step 1: Add failing vector contract tests for Phase 2B freshness\nAdd tests to tests/test_vector_store_contract.py that prove the expanded contract:\nUpdate make_record(...) in that file to pass:\n[ ] Step 2: Run the focused contract tests and verify failure\nRun:\nExpected: FAIL because VectorEmbeddingRecord, VectorManifestRecord, and VectorTombstone do not yet expose the new fields.\n[ ] Step 3: Add dependencies\nModify pyproject.toml dependencies:\nRun:\nExpected: uv.lock updates and resolves on Python 3.12.\n[ ] Step 4: Probe dependency API assumptions\nRun:\nExpected: exits 0. If this fails, stop and update the plan before writing adapter code. FastEmbed 0.8.0 accepts specific_model_path through TextEmbedding(kwargs) and forwards it to the concrete ONNX text embedding model, so the probe verifies actual propagation instead of the public wrapper signature. Do not continue with an unpinned FastEmbed model load.\n[ ] Step 5: Expand vector interface records\nModify...",
+        "items": [
+          "Modify: pyproject.toml",
+          "Modify: uv.lock",
+          "Modify: src/vault_graph/errors.py",
+          "Modify: src/vault_graph/storage/interfaces/vector_store.py",
+          "Modify: tests/fakes/in_memory_vector_store.py",
+          "Modify: tests/test_vector_store_contract.py",
+          "[ ] Step 1: Add failing vector contract tests for Phase 2B freshness",
+          "[ ] Step 2: Run the focused contract tests and verify failure",
+          "[ ] Step 3: Add dependencies",
+          "[ ] Step 4: Probe dependency API assumptions",
+          "[ ] Step 5: Expand vector interface records",
+          "all string fields are non-empty",
+          "content_scope is validated through QueryScope",
+          "VectorQuery.query_vector.model_spec must equal VectorQuery.embedding_spec",
+          "VectorHit remains evidence-free and does not expose path, text, anchor, or source hash",
+          "[ ] Step 6: Update in-memory vector fake"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def test_manifest_exposes_vector_freshness_fields() -> None:\n    store = InMemoryVectorStore()\n    record = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n\n    manifest = store.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert manifest[0].source_chunk_hash == \"chunk-hash-wiki/page.md\"\n    assert manifest[0].chunker_version == \"heading-section-v1\"\n    assert manifest[0].backend_schema_version == \"memory-vector-v1\"\n    assert manifest[0].metadata_index_revision == \"metadata-1\"\n    assert manifest[0].vector_index_revision == \"vector-1\"\n\n\ndef test_tombstone_targets_exact_vector_identity() -> None:\n    store = InMemoryVectorStore()\n    old_record = make_record(\n        vault_id=\"default\",\n        path=\"wiki/page.md\",\n        text=\"alpha\",\n        content_scope=\"wiki\",\n        model_spec=SECOND_SPEC,\n        vector_index_revision=\"vector-old\",\n    )\n    new_record = make_record(\n        vault_id=\"default\",\n        path=\"wiki/page.md\",\n        text=\"alpha\",\n        content_scope=\"wiki\",\n        vector_index_revision=\"vector-new\",\n    )\n    store.apply_vector_revision(vector_index_revision=\"vector-old\", records=(old_record,), tombstones=())\n    store.apply_vector_revision(\n        vector_index_revision=\"vector-new\",\n        records=(new_record,),\n        tombstones=(\n            VectorTombstone(\n                vector_id=old_record.vector_id,\n                vault_id=old_record.vault_id,\n                chunk_id=old_record.chunk_id,\n                embedding_spec=old_record.embedding.model_spec,\n            ),\n        ),\n    )\n\n    manifest = store.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert tuple(row.vector_id for row in manifest) == (new_record.vector_id,)"
+          },
+          {
+            "language": "python",
+            "content": "source_chunk_hash=f\"chunk-hash-{path}\",\nchunker_version=\"heading-section-v1\",\nbackend_schema_version=\"memory-vector-v1\","
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_vector_store_contract.py -q"
+          },
+          {
+            "language": "toml",
+            "content": "dependencies = [\n  \"PyYAML>=6.0.2\",\n  \"chromadb>=1.5.9,<2.0\",\n  \"fastembed>=0.8.0,<1.0\",\n  \"huggingface-hub>=0.31,<1.0\",\n  \"typer>=0.12.5\",\n]"
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: Metadata Chunk Listing Boundary",
+        "content": "Files:\nModify: src/vault_graph/indexing/metadata_indexer.py Modify: src/vault_graph/indexing/revision_planner.py Modify: src/vault_graph/storage/interfaces/metadata_store.py Modify: src/vault_graph/storage/local/sqlite_metadata_store.py Create: tests/test_metadata_chunk_listing.py\n[ ] Step 1: Write failing chunk-listing tests\nCreate tests/test_metadata_chunk_listing.py:\n[ ] Step 2: Run tests and verify failure\nRun:\nExpected: FAIL because MetadataStore.list_chunks does not exist.\n[ ] Step 3: Add metadata preview dataclass\nModify src/vault_graph/indexing/revision_planner.py:\nchunks_after_apply means the chunk set that vector dry-run should use if the metadata plan were applied. Changed and new chunks must carry the new plan.index_revision; unchanged chunks must keep their current stored index_revision; deleted documents must not contribute chunks.\n[ ] Step 4: Add MetadataIndexer.preview(...)\nModify src/vault_graph/indexing/metadata_indexer.py:\nAdd imports:\nAdd helper:\nThis preview is required because vg index --dry-run must report vector work without writing metadata first. Do not make vector dry-run read new chunks from SQLite, because dry-run must not create or update SQLite state...",
+        "items": [
+          "Modify: src/vault_graph/indexing/metadata_indexer.py",
+          "Modify: src/vault_graph/indexing/revision_planner.py",
+          "Modify: src/vault_graph/storage/interfaces/metadata_store.py",
+          "Modify: src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "Create: tests/test_metadata_chunk_listing.py",
+          "[ ] Step 1: Write failing chunk-listing tests",
+          "[ ] Step 2: Run tests and verify failure",
+          "[ ] Step 3: Add metadata preview dataclass",
+          "[ ] Step 4: Add MetadataIndexer.preview(...)",
+          "[ ] Step 5: Add protocol method",
+          "[ ] Step 6: Implement SQLite chunk listing",
+          "[ ] Step 7: Run metadata chunk-listing tests",
+          "[ ] Step 8: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom vault_graph.indexing.metadata_indexer import MetadataIndexer\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\ndef write_page(root: Path, path: str, body: str) -> None:\n    file_path = root / path\n    file_path.parent.mkdir(parents=True, exist_ok=True)\n    file_path.write_text(body, encoding=\"utf-8\")\n\n\ndef make_catalog(root: Path, vault_id: str = \"default\") -> VaultCatalog:\n    return VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=vault_id, root_path=root)],\n        active_vault_id=vault_id,\n    )\n\n\ndef test_list_chunks_returns_current_non_tombstoned_chunks(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nBody\\n\")\n    catalog = make_catalog(vault_root)\n    store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\", initialize=True)\n    indexer = MetadataIndexer(catalog=catalog, metadata_store=store)\n    indexer.apply(scope=catalog.default_scope())\n\n    chunks = store.list_chunks(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert len(chunks) == 1\n    assert chunks[0].vault_id == \"default\"\n    assert chunks[0].path == \"wiki/page.md\"\n    assert chunks[0].text == \"Body\"\n    assert chunks[0].content_hash\n    assert chunks[0].chunker_version == \"heading-section-v1\"\n    assert chunks[0].index_revision is not None\n\n\ndef test_list_chunks_filters_vault_and_content_scope(tmp_path: Path) -> None:\n    first_root = tmp_path / \"first\"\n    second_root = tmp_path / \"second\"\n    write_page(first_root, \"wiki/page.md\", \"# First\\nBody\\n\")\n    write_page(first_root, \"docs/page.md\", \"# Docs\\nBody\\n\")\n    write_page(second_root, \"wiki/page.md\", \"# Second\\nBody\\n\")\n    catalog = VaultCatalog.from_entries(\n        entries=[\n            VaultCatalogEntry.from_root(vault_id=\"first\", root_path=first_root),\n            VaultCatalogEntry.from_root(vault_id=\"second\", root_path=second_root),\n        ],\n        active_vault_id=\"first\",\n    )\n    store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\", initialize=True)\n    MetadataIndexer(catalog=catalog, metadata_store=store).apply(scope=catalog.scope_for_all_enabled())\n\n    chunks = store.list_chunks(QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\",)))\n\n    assert tuple((chunk.vault_id, chunk.path) for chunk in chunks) == ((\"first\", \"wiki/page.md\"),)\n\n\ndef test_list_chunks_excludes_tombstoned_documents(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nBody\\n\")\n    catalog = make_catalog(vault_root)\n    store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\", initialize=True)\n    indexer = MetadataIndexer(catalog=catalog, metadata_store=store)\n    indexer.apply(scope=catalog.default_scope())\n    (vault_root / \"wiki\" / \"page.md\").unlink()\n    indexer.apply(scope=catalog.default_scope())\n\n    chunks = store.list_chunks(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert chunks == ()\n\n\ndef test_metadata_preview_contains_chunks_after_apply_without_writing(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nBody\\n\")\n    catalog = make_catalog(vault_root)\n    store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\")\n    preview = MetadataIndexer(catalog=catalog, metadata_store=store).preview(scope=catalog.default_scope())\n\n    assert preview.plan.changed_paths == ((\"default\", \"wiki/page.md\"),)\n    assert len(preview.chunks_after_apply) == 1\n    assert preview.chunks_after_apply[0].index_revision == preview.plan.index_revision\n    assert not (tmp_path / \"state\" / \"metadata.sqlite3\").exists()"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_metadata_chunk_listing.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.ingestion.document_normalizer import ChunkSnapshot\n\n\n@dataclass(frozen=True)\nclass MetadataIndexPreview:\n    plan: MetadataRevisionPlan\n    chunks_after_apply: tuple[ChunkSnapshot, ...]"
+          },
+          {
+            "language": "python",
+            "content": "def preview(self, *, scope: QueryScope, full: bool = False) -> MetadataIndexPreview:\n    plan, normalized = self._build_plan(scope=scope, full=full)\n    changed_keys = set(plan.changed_paths)\n    changed_chunks = tuple(\n        replace(chunk, index_revision=plan.index_revision)\n        for item in normalized\n        if (item.document.vault_id, item.document.path) in changed_keys\n        for chunk in item.chunks\n    )\n    unchanged_chunks = tuple(\n        chunk\n        for chunk in self._metadata_store.list_chunks(scope)\n        if (chunk.vault_id, chunk.path) in set(plan.unchanged_paths)\n    )\n    return MetadataIndexPreview(plan=plan, chunks_after_apply=tuple(sorted(changed_chunks + unchanged_chunks, key=_chunk_sort_key)))"
+          }
+        ]
+      },
+      {
+        "heading": "Task 3: FastEmbed TextEmbeddings Adapter",
+        "content": "Files:\nCreate: src/vault_graph/embeddings/fastembed_text_embeddings.py Modify: src/vault_graph/embeddings/init.py Modify: tests/fakes/deterministic_text_embeddings.py Create: tests/test_fastembed_text_embeddings.py\n[ ] Step 1: Write failing FastEmbed adapter tests\nCreate tests/test_fastembed_text_embeddings.py:\n[ ] Step 2: Run tests and verify failure\nRun:\nExpected: FAIL because fastembed_text_embeddings.py does not exist.\n[ ] Step 3: Implement config and adapter\nCreate src/vault_graph/embeddings/fastembed_text_embeddings.py:\nAdd helpers in the same file:\nThe adapter must always construct the production FastEmbed backend from the pinned snapshot path returned by snapshot_download(..., revision=config.model_version, ...). If the installed FastEmbed version removes specific_model_path, stop implementation and update the plan with an explicit replacement path before continuing; do not silently use an unpinned model download.\n[ ] Step 4: Export adapter\nModify src/vault_graph/embeddings/init.py:\n[ ] Step 5: Run FastEmbed adapter tests\nRun:\nExpected: PASS without downloading the real model.\n[ ] Step 6: Commit",
+        "items": [
+          "Create: src/vault_graph/embeddings/fastembed_text_embeddings.py",
+          "Modify: src/vault_graph/embeddings/init.py",
+          "Modify: tests/fakes/deterministic_text_embeddings.py",
+          "Create: tests/test_fastembed_text_embeddings.py",
+          "[ ] Step 1: Write failing FastEmbed adapter tests",
+          "[ ] Step 2: Run tests and verify failure",
+          "[ ] Step 3: Implement config and adapter",
+          "[ ] Step 4: Export adapter",
+          "[ ] Step 5: Run FastEmbed adapter tests",
+          "[ ] Step 6: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nimport pytest\n\nfrom vault_graph.embeddings.fastembed_text_embeddings import (\n    DEFAULT_FASTEMBED_MODEL_SPEC,\n    FastEmbedTextEmbeddings,\n    FastEmbedTextEmbeddingsConfig,\n)\nfrom vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector\nfrom vault_graph.errors import TextEmbeddingsError\n\n\ndef test_default_model_spec_is_fixed() -> None:\n    assert DEFAULT_FASTEMBED_MODEL_SPEC.model_name == \"sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2\"\n    assert DEFAULT_FASTEMBED_MODEL_SPEC.model_version == \"faf4aa4225822f3bc6376869cb1164e8e3feedd0\"\n    assert DEFAULT_FASTEMBED_MODEL_SPEC.dimensions == 384\n    assert DEFAULT_FASTEMBED_MODEL_SPEC.spec_version == \"fastembed-multilingual-minilm-l12-v2-cosine-v1\"\n\n\ndef test_runtime_config_does_not_change_model_spec(tmp_path: Path) -> None:\n    first = FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path / \"cache\", embedding_batch_size=16)\n    second = FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path / \"cache\", embedding_batch_size=512, embedding_parallelism=0)\n\n    assert first.model_spec() == second.model_spec()\n\n\ndef test_duplicate_input_ids_fail_before_backend_load(tmp_path: Path) -> None:\n    embeddings = FastEmbedTextEmbeddings(\n        config=FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path / \"cache\"),\n        backend_factory=lambda _, __: pytest.fail(\"backend must not load\"),\n    )\n\n    with pytest.raises(TextEmbeddingsError, match=\"input_id must be unique\"):\n        embeddings.embed(\n            (\n                EmbeddingInput(input_id=\"same\", text=\"alpha\"),\n                EmbeddingInput(input_id=\"same\", text=\"beta\"),\n            )\n        )\n\n\ndef test_embed_binds_backend_vectors_to_input_ids(tmp_path: Path) -> None:\n    class Backend:\n        def embed(self, documents: list[str], *, batch_size: int, parallel: int | None):\n            assert documents == [\"alpha\", \"beta\"]\n            assert batch_size == 256\n            assert parallel is None\n            return ([0.1] * 384, [0.2] * 384)\n\n    embeddings = FastEmbedTextEmbeddings(\n        config=FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path / \"cache\"),\n        backend_factory=lambda _, __: Backend(),\n        snapshot_resolver=lambda _: tmp_path / \"cache\" / \"snapshot\",\n    )\n\n    vectors = embeddings.embed((EmbeddingInput(input_id=\"a\", text=\"alpha\"), EmbeddingInput(input_id=\"b\", text=\"beta\")))\n\n    assert vectors == (\n        EmbeddingVector(input_id=\"a\", values=tuple([0.1] * 384), model_spec=DEFAULT_FASTEMBED_MODEL_SPEC),\n        EmbeddingVector(input_id=\"b\", values=tuple([0.2] * 384), model_spec=DEFAULT_FASTEMBED_MODEL_SPEC),\n    )\n\n\ndef test_backend_dimension_mismatch_fails_loudly(tmp_path: Path) -> None:\n    class Backend:\n        def embed(self, documents: list[str], *, batch_size: int, parallel: int | None):\n            return ([0.1] * 2,)\n\n    embeddings = FastEmbedTextEmbeddings(\n        config=FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path / \"cache\"),\n        backend_factory=lambda _, __: Backend(),\n        snapshot_resolver=lambda _: tmp_path / \"cache\" / \"snapshot\",\n    )\n\n    with pytest.raises(TextEmbeddingsError, match=\"embedding dimension mismatch\"):\n        embeddings.embed((EmbeddingInput(input_id=\"a\", text=\"alpha\"),))\n\n\ndef test_model_unavailable_error_is_clear(tmp_path: Path) -> None:\n    def fail_snapshot(_: FastEmbedTextEmbeddingsConfig) -> Path:\n        raise TextEmbeddingsError(\"embedding model unavailable: offline and not cached\")\n\n    embeddings = FastEmbedTextEmbeddings(\n        config=FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path / \"cache\"),\n        backend_factory=lambda _, __: pytest.fail(\"backend must not load\"),\n        snapshot_resolver=fail_snapshot,\n    )\n\n    with pytest.raises(TextEmbeddingsError, match=\"embedding model unavailable\"):\n        embeddings.embed((EmbeddingInput(input_id=\"a\", text=\"alpha\"),))"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_fastembed_text_embeddings.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom collections.abc import Callable, Iterable\nfrom dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import Protocol\n\nfrom vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector\nfrom vault_graph.errors import TextEmbeddingsError\n\nDEFAULT_FASTEMBED_MODEL_SPEC = EmbeddingModelSpec(\n    model_name=\"sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2\",\n    model_version=\"faf4aa4225822f3bc6376869cb1164e8e3feedd0\",\n    dimensions=384,\n    spec_version=\"fastembed-multilingual-minilm-l12-v2-cosine-v1\",\n)\n\nFASTEMBED_ARTIFACT_REPO_ID = \"qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q\"\nSOURCE_MODEL_REVISION = \"e8f8c211226b894fcb81acc59f3b34ba3efd5f42\"\n\n\nclass FastEmbedBackend(Protocol):\n    def embed(self, documents: list[str], *, batch_size: int, parallel: int | None) -> Iterable[Iterable[float]]: ...\n\n\n@dataclass(frozen=True)\nclass FastEmbedTextEmbeddingsConfig:\n    model_name: str = DEFAULT_FASTEMBED_MODEL_SPEC.model_name\n    model_version: str = DEFAULT_FASTEMBED_MODEL_SPEC.model_version\n    dimensions: int = DEFAULT_FASTEMBED_MODEL_SPEC.dimensions\n    spec_version: str = DEFAULT_FASTEMBED_MODEL_SPEC.spec_version\n    artifact_repo_id: str = FASTEMBED_ARTIFACT_REPO_ID\n    source_model_revision: str = SOURCE_MODEL_REVISION\n    cache_dir: Path = Path(\"~/.cache/vault-graph/embeddings\")\n    embedding_batch_size: int = 256\n    embedding_parallelism: int | None = None\n    embedding_lazy_load: bool = True\n\n    def __post_init__(self) -> None:\n        if self.embedding_batch_size <= 0:\n            raise TextEmbeddingsError(\"embedding_batch_size must be positive\")\n        if self.embedding_parallelism is not None and self.embedding_parallelism < 0:\n            raise TextEmbeddingsError(\"embedding_parallelism must be None, 0, or positive\")\n\n    def model_spec(self) -> EmbeddingModelSpec:\n        return EmbeddingModelSpec(\n            model_name=self.model_name,\n            model_version=self.model_version,\n            dimensions=self.dimensions,\n            spec_version=self.spec_version,\n        )\n\n\nclass FastEmbedTextEmbeddings:\n    def __init__(\n        self,\n        *,\n        config: FastEmbedTextEmbeddingsConfig,\n        backend_factory: Callable[[FastEmbedTextEmbeddingsConfig, Path], FastEmbedBackend] | None = None,\n        snapshot_resolver: Callable[[FastEmbedTextEmbeddingsConfig], Path] | None = None,\n    ) -> None:\n        self._config = config\n        self._backend_factory = backend_factory or _default_backend_factory\n        self._snapshot_resolver = snapshot_resolver or _resolve_snapshot\n        self._backend: FastEmbedBackend | None = None\n        if not config.embedding_lazy_load:\n            self._backend = self._load_backend()\n\n    @property\n    def config(self) -> FastEmbedTextEmbeddingsConfig:\n        return self._config\n\n    def model_spec(self) -> EmbeddingModelSpec:\n        return self._config.model_spec()\n\n    def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]:\n        _validate_unique_input_ids(inputs)\n        if not inputs:\n            return ()\n        backend = self._backend or self._load_backend()\n        self._backend = backend\n        documents = [item.text for item in inputs]\n        raw_vectors = tuple(\n            backend.embed(\n                documents,\n                batch_size=self._config.embedding_batch_size,\n                parallel=self._config.embedding_parallelism,\n            )\n        )\n        if len(raw_vectors) != len(inputs):\n            raise TextEmbeddingsError(\"embedding output count must match input count\")\n        return tuple(\n            EmbeddingVector(\n                input_id=item.input_id,\n                values=tuple(float(value) for value in values),\n                model_spec=self.model_spec(),\n            )\n            for item, values in zip(inputs, raw_vectors, strict=True)\n        )\n\n    def _load_backend(self) -> FastEmbedBackend:\n        snapshot_path = self._snapshot_resolver(self._config)\n        try:\n            return self._backend_factory(self._config, snapshot_path)\n        except Exception as exc:\n            raise TextEmbeddingsError(f\"embedding model unavailable: {exc}\") from exc"
+          },
+          {
+            "language": "python",
+            "content": "def _validate_unique_input_ids(inputs: tuple[EmbeddingInput, ...]) -> None:\n    seen: set[str] = set()\n    for item in inputs:\n        if item.input_id in seen:\n            raise TextEmbeddingsError(\"input_id must be unique within one embedding call\")\n        seen.add(item.input_id)\n\n\ndef _resolve_snapshot(config: FastEmbedTextEmbeddingsConfig) -> Path:\n    try:\n        from huggingface_hub import snapshot_download\n\n        return Path(\n            snapshot_download(\n                repo_id=config.artifact_repo_id,\n                revision=config.model_version,\n                cache_dir=str(config.cache_dir.expanduser()),\n            )\n        )\n    except Exception as exc:\n        raise TextEmbeddingsError(f\"embedding model unavailable: {exc}\") from exc\n\n\ndef _default_backend_factory(config: FastEmbedTextEmbeddingsConfig, snapshot_path: Path) -> FastEmbedBackend:\n    from fastembed import TextEmbedding\n\n    return TextEmbedding(\n        model_name=config.model_name,\n        specific_model_path=str(snapshot_path),\n        cache_dir=str(config.cache_dir.expanduser()),\n        lazy_load=config.embedding_lazy_load,\n    )"
+          }
+        ]
+      },
+      {
+        "heading": "Task 4: Chroma VectorStore Adapter",
+        "content": "Files:\nCreate: src/vault_graph/storage/local/chroma_vector_store.py Create: tests/test_chroma_vector_store.py\n[ ] Step 1: Write failing Chroma adapter tests\nCreate tests/test_chroma_vector_store.py:\n[ ] Step 2: Run tests and verify failure\nRun:\nExpected: FAIL because ChromaVectorStore does not exist.\n[ ] Step 3: Implement Chroma adapter\nCreate src/vault_graph/storage/local/chroma_vector_store.py with these core pieces:\nImplement:\n_client() using chromadb.PersistentClient(path=str(self._path)) _get_or_create_collection(...) with metadata plus configuration={\"hnsw\": {\"space\": \"cosine\"}} _collection_name(spec) using sha256 of model name, model version, dimensions, and spec version _metadata_for_record(record) with only scalar Chroma metadata values export_manifest(scope) by iterating Vault Graph collections, reading metadatas, and filtering with same-or-child content-scope semantics search(query) by first collecting scoped IDs, then calling collection.query(query_embeddings=[...], ids=scoped_ids, n_results=query.limit, include=[\"metadatas\", \"distances\"]) health() returning uninitialized status without creating the path when initialize=False and the path is missing export_manifest(sco...",
+        "items": [
+          "Create: src/vault_graph/storage/local/chroma_vector_store.py",
+          "Create: tests/test_chroma_vector_store.py",
+          "[ ] Step 1: Write failing Chroma adapter tests",
+          "[ ] Step 2: Run tests and verify failure",
+          "[ ] Step 3: Implement Chroma adapter",
+          "_client() using chromadb.PersistentClient(path=str(self._path))",
+          "_get_or_create_collection(...) with metadata plus configuration={\"hnsw\": {\"space\": \"cosine\"}}",
+          "_collection_name(spec) using sha256 of model name, model version, dimensions, and spec version",
+          "_metadata_for_record(record) with only scalar Chroma metadata values",
+          "export_manifest(scope) by iterating Vault Graph collections, reading metadatas, and filtering with same-or-child content-scope semantics",
+          "search(query) by first collecting scoped IDs, then calling collection.query(query_embeddings=[...], ids=scoped_ids, n_results=query.limit, include=[\"metadatas\", \"distances\"])",
+          "health() returning uninitialized status without creating the path when initialize=False and the path is missing",
+          "export_manifest(scope) returning () without creating the path when initialize=False and the path is missing",
+          "search(query) returning () without creating the path when initialize=False and the path is missing",
+          "_metadata_matches_tombstone(metadata, tombstone) checking vector_id,",
+          "[ ] Step 4: Run Chroma tests"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nimport pytest\n\nfrom tests.test_vector_store_contract import SECOND_SPEC, SPEC, make_query, make_record\nfrom vault_graph.errors import VectorStoreError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.local.chroma_vector_store import CHROMA_VECTOR_SCHEMA_VERSION, ChromaVectorStore\nfrom vault_graph.storage.interfaces.vector_store import VectorTombstone\n\n\ndef test_chroma_persists_records_and_exports_manifest(tmp_path: Path) -> None:\n    store = ChromaVectorStore(tmp_path / \"chroma\", initialize=True)\n    record = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n    reopened = ChromaVectorStore(tmp_path / \"chroma\", initialize=False)\n\n    manifest = reopened.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert tuple(row.vector_id for row in manifest) == (record.vector_id,)\n    assert manifest[0].backend == \"chroma\"\n    assert manifest[0].backend_schema_version == CHROMA_VECTOR_SCHEMA_VERSION\n\n\ndef test_chroma_filters_scope_before_limit(tmp_path: Path) -> None:\n    store = ChromaVectorStore(tmp_path / \"chroma\", initialize=True)\n    wiki = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"exact query\", content_scope=\"wiki\")\n    docs = make_record(vault_id=\"default\", path=\"docs/page.md\", text=\"exact query\", content_scope=\"docs\")\n    other = make_record(vault_id=\"other\", path=\"wiki/page.md\", text=\"exact query\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(wiki, docs, other), tombstones=())\n\n    hits = store.search(make_query(text=\"exact query\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)), limit=1))\n\n    assert tuple((hit.vault_id, hit.content_scope) for hit in hits) == ((\"default\", \"wiki\"),)\n\n\ndef test_chroma_exports_old_model_manifest_rows(tmp_path: Path) -> None:\n    store = ChromaVectorStore(tmp_path / \"chroma\", initialize=True)\n    old_record = make_record(\n        vault_id=\"default\",\n        path=\"wiki/page.md\",\n        text=\"alpha\",\n        content_scope=\"wiki\",\n        model_spec=SECOND_SPEC,\n    )\n    store.apply_vector_revision(vector_index_revision=\"vector-old\", records=(old_record,), tombstones=())\n\n    manifest = store.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert tuple(row.embedding_spec for row in manifest) == (SECOND_SPEC,)\n\n\ndef test_chroma_exact_tombstone_removes_record(tmp_path: Path) -> None:\n    store = ChromaVectorStore(tmp_path / \"chroma\", initialize=True)\n    record = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n    store.apply_vector_revision(\n        vector_index_revision=\"vector-2\",\n        records=(),\n        tombstones=(\n            VectorTombstone(\n                vector_id=record.vector_id,\n                vault_id=record.vault_id,\n                chunk_id=record.chunk_id,\n                embedding_spec=record.embedding.model_spec,\n            ),\n        ),\n    )\n\n    assert store.search(make_query(text=\"alpha\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))) == ()\n\n\ndef test_chroma_tombstone_requires_matching_vault_chunk_and_spec(tmp_path: Path) -> None:\n    store = ChromaVectorStore(tmp_path / \"chroma\", initialize=True)\n    record = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n    store.apply_vector_revision(\n        vector_index_revision=\"vector-2\",\n        records=(),\n        tombstones=(\n            VectorTombstone(\n                vector_id=record.vector_id,\n                vault_id=\"other\",\n                chunk_id=record.chunk_id,\n                embedding_spec=record.embedding.model_spec,\n            ),\n        ),\n    )\n\n    manifest = store.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert tuple(row.vector_id for row in manifest) == (record.vector_id,)\n\n\ndef test_chroma_missing_path_reports_uninitialized_health(tmp_path: Path) -> None:\n    store = ChromaVectorStore(tmp_path / \"missing\", initialize=False)\n\n    health = store.health()\n\n    assert health.ok is False\n    assert health.backend == \"chroma\"\n    assert health.schema_compatible is False\n    assert \"not initialized\" in health.message\n\n\ndef test_chroma_missing_readonly_path_export_and_search_do_not_create_state(tmp_path: Path) -> None:\n    path = tmp_path / \"missing\"\n    store = ChromaVectorStore(path, initialize=False)\n\n    manifest = store.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n    hits = store.search(make_query(text=\"alpha\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",))))\n\n    assert manifest == ()\n    assert hits == ()\n    assert not path.exists()"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_chroma_vector_store.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport hashlib\nfrom collections.abc import Iterable\nfrom pathlib import Path\nfrom typing import Any\n\nfrom vault_graph.embeddings.text_embeddings import EmbeddingModelSpec\nfrom vault_graph.errors import VectorStoreError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\nfrom vault_graph.storage.interfaces.vector_store import (\n    VectorEmbeddingRecord,\n    VectorHit,\n    VectorManifestRecord,\n    VectorQuery,\n    VectorStore,\n    VectorTombstone,\n)\n\nCHROMA_VECTOR_SCHEMA_VERSION = \"chroma-vector-v1\"\nCHROMA_BACKEND = \"chroma\"\nCOLLECTION_PREFIX = \"vault_graph\"\n\n\nclass ChromaVectorStore(VectorStore):\n    def __init__(self, path: Path, *, initialize: bool = False) -> None:\n        self._path = path.expanduser().resolve()\n        self._initialize = initialize\n        self._client: Any | None = None\n        if initialize:\n            self._path.mkdir(parents=True, exist_ok=True)\n\n    def apply_vector_revision(\n        self,\n        *,\n        vector_index_revision: str,\n        records: tuple[VectorEmbeddingRecord, ...],\n        tombstones: tuple[VectorTombstone, ...],\n    ) -> None:\n        if not vector_index_revision:\n            raise VectorStoreError(\"vector_index_revision is required\")\n        client = self._require_client()\n        for tombstone in tombstones:\n            collection = self._get_collection_if_exists(client, tombstone.embedding_spec)\n            if collection is not None:\n                metadata = collection.get(ids=[tombstone.vector_id], include=[\"metadatas\"])[\"metadatas\"]\n                if metadata and _metadata_matches_tombstone(metadata[0], tombstone):\n                    collection.delete(ids=[tombstone.vector_id])\n        for embedding_spec, grouped in _group_records_by_spec(records).items():\n            collection = self._get_or_create_collection(client, embedding_spec)\n            collection.upsert(\n                ids=[record.vector_id for record in grouped],\n                embeddings=[list(record.embedding.values) for record in grouped],\n                metadatas=[_metadata_for_record(record) for record in grouped],\n            )"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_chroma_vector_store.py tests/test_vector_store_contract.py -q"
+          }
+        ]
+      },
+      {
+        "heading": "Task 5: VectorIndexer Plan And Apply",
+        "content": "Files:\nCreate: src/vault_graph/indexing/vector_indexer.py Create: tests/test_vector_indexer.py\n[ ] Step 1: Write failing vector indexer tests\nCreate tests/test_vector_indexer.py:\n[ ] Step 2: Run tests and verify failure\nRun:\nExpected: FAIL because VectorIndexer does not exist.\n[ ] Step 3: Implement vector indexer dataclasses and planning\nCreate src/vault_graph/indexing/vector_indexer.py with:\nAdd VectorApplyResult with the same counts plus failed: bool and error: str | None.\nImplement VectorIndexer with a narrow chunk-listing dependency:\nPlanning rules:\ndesired vector ID: stable_id(\"vector\", vault_id, chunk_id, model_spec_key) content scope: parent directory of ChunkSnapshot.path upsert when no current row exists under current spec upsert when source chunk hash, chunker version, metadata revision, embedding spec, or backend schema version differs tombstone current rows in selected scope with no desired chunk tombstone old-model rows for the same (vault_id, chunk_id) do not use vector_index_revision as a staleness comparison key depend on ChunkListingStore, not the full MetadataStore, so tests and dry-run previews can supply only the chunk-listing boundary read backend_schema_versi...",
+        "items": [
+          "Create: src/vault_graph/indexing/vector_indexer.py",
+          "Create: tests/test_vector_indexer.py",
+          "[ ] Step 1: Write failing vector indexer tests",
+          "[ ] Step 2: Run tests and verify failure",
+          "[ ] Step 3: Implement vector indexer dataclasses and planning",
+          "desired vector ID: stable_id(\"vector\", vault_id, chunk_id, model_spec_key)",
+          "content scope: parent directory of ChunkSnapshot.path",
+          "upsert when no current row exists under current spec",
+          "upsert when source chunk hash, chunker version, metadata revision, embedding spec, or backend schema version differs",
+          "tombstone current rows in selected scope with no desired chunk",
+          "tombstone old-model rows for the same (vault_id, chunk_id)",
+          "do not use vector_index_revision as a staleness comparison key",
+          "depend on ChunkListingStore, not the full MetadataStore, so tests and",
+          "read backend_schema_version from VectorStore.health().schema_version; the",
+          "[ ] Step 4: Implement apply with batching",
+          "create EmbeddingInput(input_id=chunk.chunk_id, text=chunk.text)"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from dataclasses import replace\n\nimport pytest\n\nfrom tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings\nfrom tests.fakes.in_memory_vector_store import InMemoryVectorStore\nfrom vault_graph.embeddings.text_embeddings import EmbeddingModelSpec\nfrom vault_graph.errors import TextEmbeddingsError, VectorStoreError\nfrom vault_graph.indexing.vector_indexer import VectorIndexer, stable_vector_id\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot\nfrom vault_graph.ingestion.vault_catalog import QueryScope\n\n\nSPEC = EmbeddingModelSpec(model_name=\"deterministic\", model_version=\"v1\", dimensions=4, spec_version=\"spec-v1\")\nSECOND_SPEC = EmbeddingModelSpec(model_name=\"deterministic\", model_version=\"v2\", dimensions=4, spec_version=\"spec-v2\")\n\n\nclass ChunkStore:\n    def __init__(self, chunks: tuple[ChunkSnapshot, ...]) -> None:\n        self.chunks = chunks\n\n    def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]:\n        return tuple(\n            chunk\n            for chunk in self.chunks\n            if chunk.vault_id in scope.vault_ids\n            and any(chunk.path == content_scope or chunk.path.startswith(f\"{content_scope}/\") for content_scope in scope.content_scopes)\n        )\n\n\ndef chunk(vault_id: str = \"default\", path: str = \"wiki/page.md\", text: str = \"alpha\") -> ChunkSnapshot:\n    return ChunkSnapshot(\n        vault_id=vault_id,\n        chunk_id=f\"{vault_id}:{path}:chunk\",\n        document_id=f\"{vault_id}:{path}:document\",\n        path=path,\n        section=\"Page\",\n        anchor=\"page\",\n        text=text,\n        token_count=len(text.split()),\n        content_hash=f\"hash:{text}\",\n        chunker_version=\"heading-section-v1\",\n        index_revision=\"metadata-1\",\n    )\n\n\ndef test_plan_marks_new_chunks_for_upsert() -> None:\n    indexer = VectorIndexer(\n    chunk_store=ChunkStore((chunk(),)),\n        vector_store=InMemoryVectorStore(),\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n    )\n\n    plan = indexer.plan(scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n\n    assert plan.upsert_count == 1\n    assert plan.tombstone_count == 0\n    assert plan.unchanged_count == 0\n    assert plan.embedding_count == 1\n\n\ndef test_apply_embeds_upserts_and_records_manifest() -> None:\n    vector_store = InMemoryVectorStore()\n    indexer = VectorIndexer(\n        chunk_store=ChunkStore((chunk(),)),\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n    )\n\n    result = indexer.apply(scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n\n    manifest = vector_store.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n    assert result.upsert_count == 1\n    assert result.tombstone_count == 0\n    assert manifest[0].source_chunk_hash == \"hash:alpha\"\n    assert manifest[0].metadata_index_revision == \"metadata-1\"\n\n\ndef test_changed_chunk_hash_replaces_existing_vector() -> None:\n    vector_store = InMemoryVectorStore()\n    first = chunk(text=\"alpha\")\n    VectorIndexer(\n        chunk_store=ChunkStore((first,)),\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n    ).apply(scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n    second = replace(first, text=\"beta\", content_hash=\"hash:beta\")\n    indexer = VectorIndexer(\n        chunk_store=ChunkStore((second,)),\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n    )\n\n    plan = indexer.plan(scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n    result = indexer.apply(scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n\n    assert plan.upsert_count == 1\n    assert plan.tombstone_count == 1\n    assert result.upsert_count == 1\n\n\ndef test_model_spec_change_tombstones_old_model_row() -> None:\n    vector_store = InMemoryVectorStore()\n    VectorIndexer(\n        chunk_store=ChunkStore((chunk(),)),\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n    ).apply(scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n    indexer = VectorIndexer(\n        chunk_store=ChunkStore((chunk(),)),\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SECOND_SPEC),\n    )\n\n    result = indexer.apply(scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n    manifest = vector_store.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert result.upsert_count == 1\n    assert result.tombstone_count == 1\n    assert tuple(row.embedding_spec for row in manifest) == (SECOND_SPEC,)\n\n\ndef test_narrow_scope_does_not_tombstone_other_vault() -> None:\n    vector_store = InMemoryVectorStore()\n    chunks = (chunk(vault_id=\"first\"), chunk(vault_id=\"second\"))\n    VectorIndexer(\n        chunk_store=ChunkStore(chunks),\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n    ).apply(scopes=(QueryScope(vault_ids=(\"first\", \"second\"), content_scopes=(\"wiki\",)),))\n    indexer = VectorIndexer(\n        chunk_store=ChunkStore((chunk(vault_id=\"second\"),)),\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n    )\n\n    result = indexer.apply(scopes=(QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\",)),))\n    manifest = vector_store.export_manifest(QueryScope(vault_ids=(\"first\", \"second\"), content_scopes=(\"wiki\",)))\n\n    assert result.tombstone_count == 0\n    assert sorted(row.vault_id for row in manifest) == [\"first\", \"second\"]"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_vector_indexer.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom datetime import UTC, datetime\nfrom pathlib import PurePosixPath\nfrom typing import Protocol\n\nfrom vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, TextEmbeddings\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, stable_id\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.vector_store import (\n    VectorEmbeddingRecord,\n    VectorManifestRecord,\n    VectorStore,\n    VectorTombstone,\n)\n\n\nclass ChunkListingStore(Protocol):\n    def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]:\n        pass\n\n\n@dataclass(frozen=True)\nclass VectorRevisionPlan:\n    vector_index_revision: str\n    mode: str\n    scopes: tuple[QueryScope, ...]\n    embedding_spec: EmbeddingModelSpec\n    embedding_batch_size: int\n    embedding_parallelism: int | None\n    embedding_lazy_load: bool\n    upsert_chunks: tuple[ChunkSnapshot, ...]\n    tombstones: tuple[VectorTombstone, ...]\n    unchanged_count: int\n    warnings: tuple[str, ...]\n\n    @property\n    def upsert_count(self) -> int:\n        return len(self.upsert_chunks)\n\n    @property\n    def tombstone_count(self) -> int:\n        return len(self.tombstones)\n\n    @property\n    def embedding_count(self) -> int:\n        return len(self.upsert_chunks)"
+          },
+          {
+            "language": "python",
+            "content": "class VectorIndexer:\n    def __init__(\n        self,\n        *,\n        chunk_store: ChunkListingStore,\n        vector_store: VectorStore,\n        text_embeddings: TextEmbeddings,\n        embedding_batch_size: int = 256,\n        embedding_parallelism: int | None = None,\n        embedding_lazy_load: bool = True,\n    ) -> None:\n        self._chunk_store = chunk_store\n        self._vector_store = vector_store\n        self._text_embeddings = text_embeddings\n        self._embedding_batch_size = embedding_batch_size\n        self._embedding_parallelism = embedding_parallelism\n        self._embedding_lazy_load = embedding_lazy_load"
+          }
+        ]
+      },
+      {
+        "heading": "Task 6: Status Store And Service Wiring",
+        "content": "Files:\nCreate: src/vault_graph/storage/local/vector_status_store.py Modify: src/vault_graph/app/catalog_service.py Modify: src/vault_graph/app/index_service.py Create: tests/test_index_service_vector_reconcile.py\n[ ] Step 1: Write failing service tests\nCreate tests/test_index_service_vector_reconcile.py:\n[ ] Step 2: Run service tests and verify failure\nRun:\nExpected: FAIL because IndexService does not accept vector dependencies and LocalVectorStatusStore does not exist.\n[ ] Step 3: Add vector paths to CatalogService\nModify src/vault_graph/app/catalog_service.py:\nBefore vector writes, call:\nThe cache path is allowed outside state_path only if it is also outside registered Vault roots. Do not call assert_write_target_safe(...) for embedding caches, because that helper intentionally requires targets to be under the Vault Graph state path.\n[ ] Step 4: Implement status store\nCreate src/vault_graph/storage/local/vector_status_store.py:\n[ ] Step 5: Wire IndexService\nModify IndexService.init to accept optional vector dependencies:\nKeep the existing plan(...) and apply(...) methods returning MetadataRevisionPlan so Phase 1 CLI callers and tests do not break before CLI wiring changes. Add n...",
+        "items": [
+          "Create: src/vault_graph/storage/local/vector_status_store.py",
+          "Modify: src/vault_graph/app/catalog_service.py",
+          "Modify: src/vault_graph/app/index_service.py",
+          "Create: tests/test_index_service_vector_reconcile.py",
+          "[ ] Step 1: Write failing service tests",
+          "[ ] Step 2: Run service tests and verify failure",
+          "[ ] Step 3: Add vector paths to CatalogService",
+          "[ ] Step 4: Implement status store",
+          "[ ] Step 5: Wire IndexService",
+          "run_plan(...) must call MetadataIndexer.preview(...), wrap",
+          "run_apply(...) must call MetadataIndexer.apply(...) first and",
+          "Existing plan(...) and apply(...) remain metadata-only compatibility",
+          "Both run_plan(...) and run_apply(...) must resolve the requested",
+          "On vector failure, record failure in LocalVectorStatusStore and return exit_code == 1.",
+          "On vector success, record success.",
+          "If vector dependencies are not provided, preserve old metadata-only behavior for focused tests that construct IndexService directly."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings\nfrom tests.fakes.in_memory_vector_store import InMemoryVectorStore\nfrom tests.test_vector_indexer import SPEC\nfrom tests.test_vector_store_contract import make_record\nfrom vault_graph.app.index_service import IndexService\nfrom vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\nfrom vault_graph.storage.local.vector_status_store import (\n    LocalVectorStatusStore,\n    embedding_spec_key,\n    scope_key_for_status,\n)\n\n\ndef write_page(root: Path, path: str, body: str) -> None:\n    file_path = root / path\n    file_path.parent.mkdir(parents=True, exist_ok=True)\n    file_path.write_text(body, encoding=\"utf-8\")\n\n\ndef test_index_service_applies_metadata_then_vector(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nBody\\n\")\n    catalog = VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)],\n        active_vault_id=\"default\",\n    )\n    metadata_store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\", initialize=True)\n    vector_store = InMemoryVectorStore()\n    status_store = LocalVectorStatusStore(tmp_path / \"state\" / \"vector\" / \"status.json\")\n    service = IndexService(\n        catalog=catalog,\n        metadata_store=metadata_store,\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n        vector_status_store=status_store,\n    )\n\n    scope = catalog.default_scope()\n    report = service.run_apply(scope=scope)\n    status = status_store.read(scope_key=scope_key_for_status(scope), embedding_spec_key=embedding_spec_key(SPEC))\n\n    assert report.metadata.index_revision.startswith(\"metadata-\")\n    assert report.vector is not None\n    assert report.vector.failed is False\n    assert vector_store.export_manifest(catalog.default_scope())\n    assert status.last_error is None\n\n\ndef test_index_service_records_vector_failure_after_metadata_success(tmp_path: Path) -> None:\n    class FailingEmbeddings(DeterministicTextEmbeddings):\n        def embed(self, inputs):\n            raise RuntimeError(\"model unavailable\")\n\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nBody\\n\")\n    catalog = VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)],\n        active_vault_id=\"default\",\n    )\n    metadata_store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\", initialize=True)\n    status_store = LocalVectorStatusStore(tmp_path / \"state\" / \"vector\" / \"status.json\")\n    service = IndexService(\n        catalog=catalog,\n        metadata_store=metadata_store,\n        vector_store=InMemoryVectorStore(),\n        text_embeddings=FailingEmbeddings(SPEC),\n        vector_status_store=status_store,\n    )\n\n    scope = catalog.default_scope()\n    report = service.run_apply(scope=scope)\n    status = status_store.read(scope_key=scope_key_for_status(scope), embedding_spec_key=embedding_spec_key(SPEC))\n\n    assert report.metadata.index_revision.startswith(\"metadata-\")\n    assert report.vector is not None\n    assert report.vector.failed is True\n    assert \"model unavailable\" in (status.last_error or \"\")\n\n\ndef test_index_service_successful_retry_clears_vector_error(tmp_path: Path) -> None:\n    class FailingEmbeddings(DeterministicTextEmbeddings):\n        def embed(self, inputs):\n            raise RuntimeError(\"model unavailable\")\n\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nBody\\n\")\n    catalog = VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)],\n        active_vault_id=\"default\",\n    )\n    metadata_store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\", initialize=True)\n    vector_store = InMemoryVectorStore()\n    status_store = LocalVectorStatusStore(tmp_path / \"state\" / \"vector\" / \"status.json\")\n    scope = catalog.default_scope()\n    failing = IndexService(\n        catalog=catalog,\n        metadata_store=metadata_store,\n        vector_store=vector_store,\n        text_embeddings=FailingEmbeddings(SPEC),\n        vector_status_store=status_store,\n    )\n    failing.run_apply(scope=scope)\n    succeeding = IndexService(\n        catalog=catalog,\n        metadata_store=metadata_store,\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n        vector_status_store=status_store,\n    )\n\n    report = succeeding.run_apply(scope=scope)\n    status = status_store.read(scope_key=scope_key_for_status(scope), embedding_spec_key=embedding_spec_key(SPEC))\n\n    assert report.vector is not None\n    assert report.vector.failed is False\n    assert status.last_error is None\n\n\ndef test_index_service_uses_per_vault_actual_scopes_for_vector_reconcile(tmp_path: Path) -> None:\n    first_root = tmp_path / \"first\"\n    second_root = tmp_path / \"second\"\n    write_page(first_root, \"wiki/page.md\", \"# First\\nBody\\n\")\n    write_page(second_root, \"docs/page.md\", \"# Second\\nBody\\n\")\n    catalog = VaultCatalog.from_entries(\n        entries=[\n            VaultCatalogEntry.from_root(vault_id=\"first\", root_path=first_root, content_scopes=(\"wiki\",)),\n            VaultCatalogEntry.from_root(vault_id=\"second\", root_path=second_root, content_scopes=(\"docs\",)),\n        ],\n        active_vault_id=\"first\",\n    )\n    metadata_store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\", initialize=True)\n    vector_store = InMemoryVectorStore()\n    outside_first_scope = make_record(vault_id=\"first\", path=\"docs/old.md\", text=\"old\", content_scope=\"docs\")\n    vector_store.apply_vector_revision(vector_index_revision=\"vector-old\", records=(outside_first_scope,), tombstones=())\n    service = IndexService(\n        catalog=catalog,\n        metadata_store=metadata_store,\n        vector_store=vector_store,\n        text_embeddings=DeterministicTextEmbeddings(SPEC),\n        vector_status_store=LocalVectorStatusStore(tmp_path / \"state\" / \"vector\" / \"status.json\"),\n    )\n\n    service.run_apply(scope=catalog.scope_for_all_enabled())\n    manifest = vector_store.export_manifest(catalog.scope_for_all_enabled())\n\n    assert (\"first\", outside_first_scope.chunk_id) in tuple((row.vault_id, row.chunk_id) for row in manifest)"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_index_service_vector_reconcile.py -q"
+          },
+          {
+            "language": "python",
+            "content": "def __init__(self, *, state_path: Path, embedding_cache_path: Path | None = None) -> None:\n    self.state_path = state_path.expanduser().resolve()\n    self.config_path = self.state_path / \"configs\" / \"vaults.yaml\"\n    self.metadata_path = self.state_path / \"metadata\" / \"metadata.sqlite3\"\n    self.vector_path = self.state_path / \"vector\" / \"chroma\"\n    self.vector_status_path = self.state_path / \"vector\" / \"status.json\"\n    self.embedding_cache_path = (\n        embedding_cache_path.expanduser().resolve()\n        if embedding_cache_path is not None\n        else Path(\"~/.cache/vault-graph/embeddings\").expanduser().resolve()\n    )"
+          },
+          {
+            "language": "python",
+            "content": "config.assert_write_target_safe(target_path=config.vector_path, catalog=catalog)\nconfig.assert_write_target_safe(target_path=config.vector_status_path, catalog=catalog)\nconfig.assert_cache_target_safe(target_path=config.embedding_cache_path, catalog=catalog)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 7: CLI Index And Status",
+        "content": "Files:\nModify: src/vault_graph/cli/main.py Create: tests/test_cli_vector_indexing.py Modify: tests/test_cli_catalog_metadata.py\n[ ] Step 1: Write failing CLI tests\nCreate tests/test_cli_vector_indexing.py:\n[ ] Step 2: Run CLI tests and verify failure\nRun:\nExpected: FAIL because CLI does not wire vector dependencies or status flags.\n[ ] Step 3: Wire production defaults\nModify _service(...) in src/vault_graph/cli/main.py so non-dry-run indexing constructs:\nBefore non-dry-run vector writes, assert:\nFor --dry-run, construct ChromaVectorStore(config.vector_path, initialize=False) and FastEmbedTextEmbeddings(...) but do not call embed(...).\nIn index(...), call:\nDo not call the metadata-only compatibility methods service.plan(...) or service.apply(...) from CLI after Phase 2B wiring.\n[ ] Step 4: Update vg index output\nPrint:\nIf vector apply fails after metadata apply:\nprint metadata fields print vector_failed: True print vector_last_error: model unavailable exit with code 1\n[ ] Step 5: Update vg status scope flags and output\nAdd to status(...):\nUse the same conflict handling as index(...).\nCall service.status(scope=scope) after resolving the same active-vault, --vault-id, or --all-vaults...",
+        "items": [
+          "Modify: src/vault_graph/cli/main.py",
+          "Create: tests/test_cli_vector_indexing.py",
+          "Modify: tests/test_cli_catalog_metadata.py",
+          "[ ] Step 1: Write failing CLI tests",
+          "[ ] Step 2: Run CLI tests and verify failure",
+          "[ ] Step 3: Wire production defaults",
+          "[ ] Step 4: Update vg index output",
+          "print metadata fields",
+          "print vector_failed: True",
+          "print vector_last_error: model unavailable",
+          "exit with code 1",
+          "[ ] Step 5: Update vg status scope flags and output",
+          "[ ] Step 6: Run CLI tests",
+          "[ ] Step 7: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom typer.testing import CliRunner\n\nfrom vault_graph.app.catalog_service import CatalogService\nfrom vault_graph.cli.main import app\nfrom vault_graph.errors import ReadOnlyBoundaryError\n\nrunner = CliRunner()\n\n\ndef write_page(root: Path, path: str, body: str) -> None:\n    file_path = root / path\n    file_path.parent.mkdir(parents=True, exist_ok=True)\n    file_path.write_text(body, encoding=\"utf-8\")\n\n\ndef test_cli_index_dry_run_reports_vector_plan_without_writes(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nBody\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"index\", \"--state\", str(state_path), \"--dry-run\"])\n\n    assert result.exit_code == 0\n    assert \"vector_mode: incremental\" in result.stdout\n    assert \"vector_upserts: 1\" in result.stdout\n    assert \"embedding_batch_size: 256\" in result.stdout\n    assert not (state_path / \"metadata\").exists()\n    assert not (state_path / \"vector\").exists()\n\n\ndef test_cli_status_reports_vector_fields(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"status\", \"--state\", str(state_path)])\n\n    assert result.exit_code == 0\n    assert \"vector_ok:\" in result.stdout\n    assert \"vector_backend: chroma\" in result.stdout\n    assert \"embedding_model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2\" in result.stdout\n    assert \"embedding_dimensions: 384\" in result.stdout\n    assert \"vector_status_scope: default:raw,wiki,docs,scratch/reports\" in result.stdout\n\n\ndef test_cli_status_supports_vault_scope_flags(tmp_path: Path) -> None:\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    first.mkdir()\n    second.mkdir()\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault-id\", \"first\", \"--vault\", str(first), \"--state\", str(state_path)])\n    runner.invoke(app, [\"vault\", \"add\", \"second\", \"--path\", str(second), \"--state\", str(state_path)])\n\n    one = runner.invoke(app, [\"status\", \"--state\", str(state_path), \"--vault-id\", \"second\"])\n    all_vaults = runner.invoke(app, [\"status\", \"--state\", str(state_path), \"--all-vaults\"])\n\n    assert one.exit_code == 0\n    assert \"vector_status_scope: second:\" in one.stdout\n    assert all_vaults.exit_code == 0\n    assert \"vector_status_scope: first,second:\" in all_vaults.stdout"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_vector_indexing.py -q"
+          },
+          {
+            "language": "python",
+            "content": "vector_store = ChromaVectorStore(config.vector_path, initialize=initialize_store)\ntext_embeddings = FastEmbedTextEmbeddings(\n    config=FastEmbedTextEmbeddingsConfig(cache_dir=config.embedding_cache_path)\n)\nvector_status_store = LocalVectorStatusStore(config.vector_status_path)"
+          },
+          {
+            "language": "python",
+            "content": "config.assert_write_target_safe(target_path=config.vector_path, catalog=catalog)\nconfig.assert_write_target_safe(target_path=config.vector_status_path, catalog=catalog)\nconfig.assert_cache_target_safe(target_path=config.embedding_cache_path, catalog=catalog)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 8: Read-Only Boundary And Failure Recovery",
+        "content": "Files:\nModify: src/vault_graph/app/path_guard.py Modify: src/vault_graph/app/catalog_service.py Create: tests/test_vector_indexing_read_only_boundary.py Modify: tests/test_read_only_boundary.py\n[ ] Step 1: Write failing read-only and recovery tests\nCreate tests/test_vector_indexing_read_only_boundary.py:\n[ ] Step 2: Run tests and verify failure if guards are incomplete\nRun:\nExpected: PASS after Task 7 guard wiring. If it fails, fix only the guard path causing the failure.\n[ ] Step 3: Add cache guard\nAdd:\nThen add CatalogService.assert_cache_target_safe(...) that calls it.\n[ ] Step 4: Run read-only tests\nRun:\nExpected: PASS.\n[ ] Step 5: Commit",
+        "items": [
+          "Modify: src/vault_graph/app/path_guard.py",
+          "Modify: src/vault_graph/app/catalog_service.py",
+          "Create: tests/test_vector_indexing_read_only_boundary.py",
+          "Modify: tests/test_read_only_boundary.py",
+          "[ ] Step 1: Write failing read-only and recovery tests",
+          "[ ] Step 2: Run tests and verify failure if guards are incomplete",
+          "[ ] Step 3: Add cache guard",
+          "[ ] Step 4: Run read-only tests",
+          "[ ] Step 5: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom typer.testing import CliRunner\n\nfrom vault_graph.cli.main import app\n\nrunner = CliRunner()\n\n\ndef test_vector_state_path_cannot_be_inside_vault_root(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = vault_root / \".vault-graph\"\n\n    result = runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    assert result.exit_code != 0\n    assert \"state path must not be inside a registered Vault\" in result.stdout\n\n\ndef test_dry_run_does_not_create_vector_or_metadata_state(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    (vault_root / \"wiki\").mkdir(parents=True)\n    (vault_root / \"wiki\" / \"page.md\").write_text(\"# Page\\nBody\\n\", encoding=\"utf-8\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"index\", \"--state\", str(state_path), \"--dry-run\"])\n\n    assert result.exit_code == 0\n    assert not (state_path / \"metadata\").exists()\n    assert not (state_path / \"vector\").exists()\n    assert (vault_root / \"wiki\" / \"page.md\").read_text(encoding=\"utf-8\") == \"# Page\\nBody\\n\"\n\n\ndef test_vector_indexing_slice_does_not_expose_search_command() -> None:\n    result = runner.invoke(app, [\"search\", \"query\"])\n\n    assert result.exit_code != 0\n    assert \"No such command\" in result.output\n\n\ndef test_embedding_cache_path_cannot_be_inside_vault_root(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    config = CatalogService(\n        state_path=tmp_path / \"state\",\n        embedding_cache_path=vault_root / \".cache\" / \"vault-graph\" / \"embeddings\",\n    )\n    catalog = config.create_default_catalog(vault_root=vault_root)\n\n    try:\n        config.assert_cache_target_safe(target_path=config.embedding_cache_path, catalog=catalog)\n    except ReadOnlyBoundaryError as exc:\n        assert \"must not be inside a registered Vault\" in str(exc)\n    else:\n        raise AssertionError(\"cache path inside a Vault root should fail\")"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_vector_indexing_read_only_boundary.py tests/test_read_only_boundary.py -q"
+          },
+          {
+            "language": "python",
+            "content": "def assert_target_outside_vaults(*, target_path: Path, vault_roots: Iterable[Path]) -> None:\n    resolved_target = target_path.expanduser().resolve(strict=False)\n    for vault_root in vault_roots:\n        resolved_vault = vault_root.expanduser().resolve()\n        if resolved_target == resolved_vault or resolved_vault in resolved_target.parents:\n            raise ReadOnlyBoundaryError(\n                f\"Vault Graph target path must not be inside a registered Vault: {resolved_target}\"\n            )"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_vector_indexing_read_only_boundary.py tests/test_read_only_boundary.py -q"
+          }
+        ]
+      },
+      {
+        "heading": "Task 9: End-To-End Verification And Documentation Sync",
+        "content": "Files:\nModify only if needed: docs/PATCH_LOG.md Modify only if needed: docs/DECISIONS.md Modify only if needed: README.md\n[ ] Step 1: Run the full verification suite\nRun:\nExpected:\npytest passes ruff passes mypy passes for src mypy passes for tests git diff --check prints no whitespace errors\n[ ] Step 2: Run a local CLI smoke test\nRun:\nExpected:\ninit prints initialized vault_id: default dry-run prints vector_upserts: 1 status prints vector_backend: chroma no files are created under $tmpdir/vault\n[ ] Step 3: Update patch log only for implementation corrections\nIf implementation uncovered a correction to the Phase 2B plan or specs, append to docs/PATCH_LOG.md:\nDo not add an entry if implementation follows the accepted plan without corrections.\n[ ] Step 4: Add a decision only if a product or policy choice is required\nIf implementation requires changing an accepted product or architecture policy, add a short accepted entry to docs/DECISIONS.md only after user approval. Examples that require user approval:\nreplacing Chroma as the default local VectorStore replacing the accepted default embedding model allowing network-hosted embedding by default allowing vg search in Phase 2B indexing...",
+        "items": [
+          "Modify only if needed: docs/PATCH_LOG.md",
+          "Modify only if needed: docs/DECISIONS.md",
+          "Modify only if needed: README.md",
+          "[ ] Step 1: Run the full verification suite",
+          "pytest passes",
+          "ruff passes",
+          "mypy passes for src",
+          "mypy passes for tests",
+          "git diff --check prints no whitespace errors",
+          "[ ] Step 2: Run a local CLI smoke test",
+          "init prints initialized vault_id: default",
+          "dry-run prints vector_upserts: 1",
+          "status prints vector_backend: chroma",
+          "no files are created under $tmpdir/vault",
+          "[ ] Step 3: Update patch log only for implementation corrections",
+          "[ ] Step 4: Add a decision only if a product or policy choice is required"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src\nuv run --python 3.12 mypy tests\ngit diff --check"
+          },
+          {
+            "language": "bash",
+            "content": "tmpdir=\"$(mktemp -d)\"\nmkdir -p \"$tmpdir/vault/wiki\"\nprintf '# Page\\nBody\\n' > \"$tmpdir/vault/wiki/page.md\"\nuv run --python 3.12 vg init --vault \"$tmpdir/vault\" --state \"$tmpdir/state\"\nuv run --python 3.12 vg index --state \"$tmpdir/state\" --dry-run\nuv run --python 3.12 vg status --state \"$tmpdir/state\""
+          },
+          {
+            "language": "markdown",
+            "content": "## 2026-06-08 - Phase 2B Implementation Plan Correction\n\n**Trigger:** Phase 2B implementation exposed a mismatch between the design plan\nand the existing code or dependency behavior.\n\n**Scope:** Phase 2B local vector indexing implementation plan.\n\n**Correction:** Add concrete bullets describing the exact files, fields, or\nruntime behavior that changed.\n\n**Reason:** Explain why the correction preserves the Phase 2B scope and Vault\nGraph read-only, rebuildable projection model."
+          },
+          {
+            "language": "bash",
+            "content": "git add docs/PATCH_LOG.md docs/DECISIONS.md README.md\ngit commit -m \"docs: sync phase 2b implementation notes\""
+          }
+        ]
+      },
+      {
+        "heading": "Completion Criteria",
+        "content": "Phase 2B is complete when all of these are true:\nchromadb, fastembed, and huggingface-hub are default dependencies. FastEmbedTextEmbeddings is available and uses the accepted multilingual MiniLM model spec. embedding_batch_size, embedding_parallelism, and embedding_lazy_load are visible in index/status diagnostics and do not alter EmbeddingModelSpec. MetadataStore.list_chunks(scope) returns current non-tombstoned chunks with text and freshness fields. VectorStore records and manifests include source chunk hash, chunker version, metadata revision, model spec, backend schema version, backend, and vector revision. Chroma persists vectors locally under the Vault Graph state path and is not used through HTTP. VectorIndexer.plan(...) and VectorIndexer.apply(...) converge selected scopes without touching records outside scope. Old-model rows are visible through manifest export and tombstoned during model-spec reconcile. vg index applies metadata then vector by default. vg index --dry-run reports metadata and vector work without creating metadata state, vector state, Chroma collections, or Vault files. vg status, vg status --vault-id ID, and vg status --all-vaults report vector health and...",
+        "items": [
+          "chromadb, fastembed, and huggingface-hub are default dependencies.",
+          "FastEmbedTextEmbeddings is available and uses the accepted multilingual MiniLM model spec.",
+          "embedding_batch_size, embedding_parallelism, and embedding_lazy_load are visible in index/status diagnostics and do not alter EmbeddingModelSpec.",
+          "MetadataStore.list_chunks(scope) returns current non-tombstoned chunks with text and freshness fields.",
+          "VectorStore records and manifests include source chunk hash, chunker version, metadata revision, model spec, backend schema version, backend, and vector revision.",
+          "Chroma persists vectors locally under the Vault Graph state path and is not used through HTTP.",
+          "VectorIndexer.plan(...) and VectorIndexer.apply(...) converge selected scopes without touching records outside scope.",
+          "Old-model rows are visible through manifest export and tombstoned during model-spec reconcile.",
+          "vg index applies metadata then vector by default.",
+          "vg index --dry-run reports metadata and vector work without creating metadata state, vector state, Chroma collections, or Vault files.",
+          "vg status, vg status --vault-id ID, and vg status --all-vaults report vector health and scope.",
+          "A vector failure after metadata success returns nonzero from vg index, preserves metadata, records vector failure status, and can recover on the next successful index.",
+          "No Vault content is written, renamed, deleted, or rewritten.",
+          "vg search, graph traversal, answers, context packs, MCP, and HTTP remain absent from Phase 2B."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Final Verification Commands",
+        "content": "Run before claiming completion:\nExpected final state:\ntests pass static checks pass no whitespace errors worktree contains only intentional Phase 2B implementation changes",
+        "items": [
+          "tests pass",
+          "static checks pass",
+          "no whitespace errors",
+          "worktree contains only intentional Phase 2B implementation changes"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src\nuv run --python 3.12 mypy tests\ngit diff --check\ngit status --short --branch"
+          }
+        ]
+      }
+    ],
+    "openQuestions": []
+  }
+}

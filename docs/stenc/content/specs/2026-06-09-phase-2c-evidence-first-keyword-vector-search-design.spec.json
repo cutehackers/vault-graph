@@ -1,0 +1,806 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-09-phase-2c-evidence-first-keyword-vector-search-design",
+  "slug": "2026-06-09-phase-2c-evidence-first-keyword-vector-search-design",
+  "status": "draft",
+  "title": "Phase 2C Evidence-First Keyword And Vector Search Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-09\nScope: Phase 2C only",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-09",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [
+      "plan:2026-06-09-phase-2c-evidence-first-keyword-vector-search"
+    ],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-09\nScope: Phase 2C only",
+    "agentSummary": "Read docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 2C adds the first user-facing search command.\nThe deliverable is not answer generation, graph traversal, or context-pack assembly. The deliverable is a read-only search surface that returns ranked, inspectable Vault evidence from keyword and vector signals.\nPhase 2C must preserve Vault Graph's core values:\nVault remains the durable source of truth. Search reads existing projections and does not mutate Vault or Vault Graph index state. Every normal result resolves through MetadataStore before rendering. Keyword and vector stores return candidates, not authority. Multi-vault identity stays explicit. The design is simple now and can accept graph signals later without changing the search...",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-09\nScope: Phase 2C only",
+    "scope": {
+      "in": [
+        "Structured Stenc view of the source spec Markdown.",
+        "Original Markdown remains at docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md."
+      ],
+      "out": [
+        "vg ask",
+        "LLM answer generation",
+        "context packs",
+        "graph extraction",
+        "graph traversal",
+        "decision traces",
+        "MCP serving",
+        "HTTP serving",
+        "Qdrant support",
+        "non-Markdown readers"
+      ]
+    },
+    "architecture": {
+      "summary": "Phase 3 graph candidates join at the candidate merge step. They must produce a new RetrievalSignal(kind=\"graph\"); they must not change evidence identity.",
+      "flow": [
+        "Review the Architecture section in the source Markdown."
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Data Contracts",
+        "detail": "See Data Contracts in the source Markdown document.",
+        "acceptanceCriteria": [
+          "Review the Data Contracts section in the source Markdown."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-09\nScope: Phase 2C only",
+        "interfaces": [
+          "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "See Data Contracts in the source Markdown document."
+    ],
+    "errorHandling": [
+      {
+        "case": "Error And Warning Policy",
+        "behavior": "Fatal errors are command diagnostics, not successful SearchResponse warnings.\nFail search:\nmetadata store is missing metadata schema is incompatible keyword projection is missing or incompatible query is empty scope is invalid requested output format is unsupported\nDegrade with warning:\nvector store is missing vector schema is incompatible vector projection is stale embedding model artifact is unavailable locally query embedding fails vector candidates cannot resolve evidence but keyword result..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Data Contracts",
+        "rules": [
+          "Review the Data Contracts section in the source Markdown."
+        ]
+      },
+      {
+        "name": "Multi-Vault Rules",
+        "rules": [
+          "Default search uses the active Vault only.",
+          "--vault-id ID searches exactly one Vault.",
+          "--all-vaults expands to explicit enabled Vault IDs, then to per-Vault",
+          "Actual scope resolution follows the Phase 2B rule: use the narrower of the",
+          "Candidate merge identity is (vault_id, chunk_id). Resolved evidence identity",
+          "Document grouping is (vault_id, document_id).",
+          "Result IDs must include vault_id or otherwise be derived from",
+          "Identical relative paths or headings across Vaults must not collide."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-09\nScope: Phase 2C only",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 2C adds the first user-facing search command.\nThe deliverable is not answer generation, graph traversal, or context-pack assembly. The deliverable is a read-only search surface that returns ranked, inspectable Vault evidence from keyword and vector signals.\nPhase 2C must preserve Vault Graph's core values:\nVault remains the durable source of truth. Search reads existing projections and does not mutate Vault or Vault Graph index state. Every normal result resolves through MetadataStore before rendering. Keyword and vector stores return candidates, not authority. Multi-vault identity stays explicit. The design is simple now and can accept graph signals later without changing the search result contract.",
+        "items": [
+          "Vault remains the durable source of truth.",
+          "Search reads existing projections and does not mutate Vault or Vault Graph",
+          "Every normal result resolves through MetadataStore before rendering.",
+          "Keyword and vector stores return candidates, not authority.",
+          "Multi-vault identity stays explicit.",
+          "The design is simple now and can accept graph signals later without changing"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Non-Goals",
+        "content": "Phase 2C must not implement:\nvg ask LLM answer generation context packs graph extraction graph traversal decision traces MCP serving HTTP serving Qdrant support non-Markdown readers chunker migration automatic indexing during search embedding model downloads during search writes back to Vault\nThose belong to later phases or future TODOs. Phase 2C should expose only evidence search.",
+        "items": [
+          "vg ask",
+          "LLM answer generation",
+          "context packs",
+          "graph extraction",
+          "graph traversal",
+          "decision traces",
+          "MCP serving",
+          "HTTP serving",
+          "Qdrant support",
+          "non-Markdown readers",
+          "chunker migration",
+          "automatic indexing during search",
+          "embedding model downloads during search",
+          "writes back to Vault"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Accepted Decisions",
+        "content": "Phase 2C follows these accepted decisions.\nEvidence chunk is the canonical search result unit.\nA normal result preserves full resolved evidence identity (vault_id, document_id, chunk_id) through MetadataStore. Document, page, source, and section displays are grouping or rendering views over chunk evidence.\nKeyword lookup is metadata-owned.\nThe local implementation should use SQLite FTS5 or an equivalent rebuildable projection over current chunks and document metadata. RetrievalService must not query SQLite tables directly.\nVector lookup remains semantic-candidate-only.\nVectorStore.search returns VectorHit metadata only. The retrieval layer resolves paths, anchors, chunk text, warnings, and revisions through MetadataStore.\nFusion is rank-based.\nPhase 2C uses reciprocal-rank-style fusion over per-signal ranks. It must not compare keyword scores and vector distances as one global relevance scale.\nSearch degrades visibly.\nMetadata and keyword projection are required. Vector is optional at query time: missing Chroma state, stale vector projection, incompatible vector schema, or unavailable local model artifacts degrade to keyword-only search with top-level warnings.\nvg search is read-o...",
+        "items": [
+          "Evidence chunk is the canonical search result unit.",
+          "Keyword lookup is metadata-owned.",
+          "Vector lookup remains semantic-candidate-only.",
+          "Fusion is rank-based.",
+          "Search degrades visibly.",
+          "vg search is read-only."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Responsibility Map",
+        "content": "| Component | Owns | Must Not Own | | --- | --- | --- | | VaultCatalog | registered Vault IDs, active Vault, enabled Vault expansion | search ranking or derived records | | QueryScope | selected Vault IDs and content scopes | graph traversal policy | | MetadataStore | chunk identity, document identity, evidence resolution, chunk text authority | vector similarity, keyword ranking policy, durable truth | | KeywordIndex | metadata-owned lexical candidate lookup over current chunks | evidence authority, final rendering, graph relationships | | TextEmbeddings | query text embedding under one EmbeddingModelSpec | storage, ranking, evidence resolution | | VectorStore | filtered semantic candidate lookup | snippets, path/title authority, chunk text, fusion policy |\n| RetrievalService or HybridRetriever | query normalization, candidate lookup, merge, dedupe, rank fusion, evidence resolution, warnings, final response | Vault mutation, backend-native table queries |\n| CLI | argument parsing and output rendering | direct SQLite/Chroma access |\nThis keeps Phase 2C as a few deep modules: candidate stores stay simple, and the retrieval service owns the policy that combines them.",
+        "items": [
+          "Review the Responsibility Map section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Architecture",
+        "content": "Phase 3 graph candidates join at the candidate merge step. They must produce a new RetrievalSignal(kind=\"graph\"); they must not change evidence identity.",
+        "items": [
+          "Review the Architecture section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg search \"query\"\n  -> CatalogService loads VaultCatalog and state paths\n  -> CLI resolves requested QueryScope\n  -> RetrievalService.search(SearchRequest)\n      -> expand requested scope into per-Vault actual scopes\n      -> metadata and keyword readiness checks\n      -> normalize query\n      -> KeywordIndex.search(...) per actual scope\n      -> optional no-download TextEmbeddings query vector\n      -> optional VectorStore.search(...) per actual scope\n      -> merge by (vault_id, chunk_id)\n      -> rank-based fusion\n      -> MetadataStore.resolve_chunk_evidence(...)\n      -> MetadataStore.resolve_chunk(...) for display text\n      -> SearchResponse\n  -> CLI renders text or JSON"
+          }
+        ]
+      },
+      {
+        "heading": "Data Contracts",
+        "content": "See Data Contracts in the source Markdown document.",
+        "items": [
+          "Review the Data Contracts section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "6.1 KeywordIndex",
+        "content": "Phase 2C should add a small protocol:\nKeywordIndex may be implemented by SQLiteMetadataStore or by a small adapter over the same SQLite database. The public boundary should stay logical and not return SQLite rows.",
+        "items": [
+          "Review the 6.1 KeywordIndex section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class KeywordIndex(Protocol):\n    def search(self, query: KeywordQuery) -> tuple[KeywordHit, ...]: ...\n\n    def health(self) -> StoreHealth: ..."
+          }
+        ]
+      },
+      {
+        "heading": "6.2 KeywordQuery",
+        "content": "Required fields:\nquery_text scope limit\nRules:\nThe query text is already normalized by the retrieval service. limit is the candidate limit, not the final response limit. The index applies QueryScope.vault_ids and QueryScope.content_scopes before limiting results.",
+        "items": [
+          "query_text",
+          "scope",
+          "limit",
+          "The query text is already normalized by the retrieval service.",
+          "limit is the candidate limit, not the final response limit.",
+          "The index applies QueryScope.vault_ids and QueryScope.content_scopes"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "6.3 KeywordHit",
+        "content": "Required fields:\nvault_id document_id chunk_id rank score backend index_revision matched_fields\nRules:\nrank is 1-based and backend-local. score is diagnostic only. matched_fields may include chunk_text, section, path, title, or projected frontmatter field names. KeywordHit must not be rendered as final evidence without MetadataStore resolution.",
+        "items": [
+          "vault_id",
+          "document_id",
+          "chunk_id",
+          "rank",
+          "score",
+          "backend",
+          "index_revision",
+          "matched_fields",
+          "rank is 1-based and backend-local.",
+          "score is diagnostic only.",
+          "matched_fields may include chunk_text, section, path, title, or",
+          "KeywordHit must not be rendered as final evidence without"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "6.4 SearchRequest",
+        "content": "Required fields:\nquery_text requested_scope actual_scopes limit output_format\nRules:\nEmpty or whitespace-only queries are invalid. limit must be positive. The CLI default is 10. output_format starts with text and json. actual_scopes are per-Vault scopes resolved through VaultCatalog. Candidate stores receive actual scopes, not an all-vault union scope.",
+        "items": [
+          "query_text",
+          "requested_scope",
+          "actual_scopes",
+          "limit",
+          "output_format",
+          "Empty or whitespace-only queries are invalid.",
+          "limit must be positive. The CLI default is 10.",
+          "output_format starts with text and json.",
+          "actual_scopes are per-Vault scopes resolved through VaultCatalog.",
+          "Candidate stores receive actual scopes, not an all-vault union scope."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "6.5 SearchResponse",
+        "content": "Required fields:\nquery_text requested_scope actual_scopes limit result_count candidate_count dropped_candidate_count results warnings degraded store_revisions generated_at\nRules:\nresults contains RetrievalResult records. warnings contains query-wide warning records with structured attribution. degraded=True means the search completed without all configured signals. Store revisions include at least metadata, keyword, and vector when available, keyed by Vault or actual scope when the response spans multiple Vaults. result_id values are search-output identifiers derived from Vault-scoped candidate identity, such as (vault_id, chunk_id) plus response rank or query context. They are not durable Vault IDs. If the existing RetrievalSignal.source_id field is reused, the value must include or derive from Vault-scoped candidate identity. A source ID based on a path, document ID, or chunk ID without vault_id is not acceptable for multi-vault output.\nThe existing RetrievalResult remains the per-result contract. Phase 2C adds a top-level response contract because degraded search is often query-wide, not result-specific.\nWarning records used by search must carry structured attribution:\ncode mes...",
+        "items": [
+          "query_text",
+          "requested_scope",
+          "actual_scopes",
+          "limit",
+          "result_count",
+          "candidate_count",
+          "dropped_candidate_count",
+          "results",
+          "warnings",
+          "degraded",
+          "store_revisions",
+          "generated_at",
+          "results contains RetrievalResult records.",
+          "warnings contains query-wide warning records with structured attribution.",
+          "degraded=True means the search completed without all configured signals.",
+          "Store revisions include at least metadata, keyword, and vector when available,"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Keyword Projection Design",
+        "content": "The local keyword projection should live with the metadata backend because it is derived from current chunks and document metadata.\nPhase 2C fixes the local ownership rule: keyword projection is a metadata subprojection.\nRecommended SQLite implementation:\nAdd an FTS5 table or equivalent projection for current chunks. Store vault_id, document_id, chunk_id, path, section, heading text, and searchable metadata fields. Update or rebuild keyword rows in the same SQLite transaction that writes documents and chunks. Remove keyword rows for tombstoned documents. Keep keyword projection revision aligned with metadata index revision. If keyword projection update fails during indexing, fail the metadata revision instead of publishing inconsistent metadata and keyword state.\nSearch must open this projection read-only. If the table is missing or incompatible, search fails with a clear vg index recovery hint instead of creating schema during search.\nFor Korean and English content, Phase 2C should not introduce a complex language-analysis subsystem. SQLite FTS5 with a Unicode-aware tokenizer is a reasonable MVP. Better tokenization can replace the local keyword adapter later without changing Key...",
+        "items": [
+          "Add an FTS5 table or equivalent projection for current chunks.",
+          "Store vault_id, document_id, chunk_id, path, section, heading text, and",
+          "Update or rebuild keyword rows in the same SQLite transaction that writes",
+          "Remove keyword rows for tombstoned documents.",
+          "Keep keyword projection revision aligned with metadata index revision.",
+          "If keyword projection update fails during indexing, fail the metadata revision"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Vector Query Design",
+        "content": "Vector query uses the Phase 2A and Phase 2B contracts:\nCheck vector backend health and schema compatibility. Check selected-scope vector freshness through a read-only search-readiness boundary. Ensure the configured local embedding model artifact is already available through a no-download embedding availability check. Embed the query text with TextEmbeddings. Call VectorStore.search(VectorQuery(...)).\nPhase 2C must add one of these explicit embedding availability contracts before query embedding is wired into search:\nTextEmbeddings.artifact_status() TextEmbeddings.can_embed_without_download() FastEmbedTextEmbeddingsConfig(local_files_only=True) plus a health check\nThe chosen contract must prove that search can decide whether query embedding is possible without invoking a download or writing model cache files.\nSearch-time embedding must not download model artifacts. If the artifact is not available locally, the response degrades to keyword-only with a warning such as embedding_model_unavailable.\nVector lookup is skipped, with a top-level warning, when:\nVectorStore is not configured Chroma state is missing vector schema is incompatible vector projection is stale for the selected sco...",
+        "items": [
+          "Check vector backend health and schema compatibility.",
+          "Check selected-scope vector freshness through a read-only search-readiness",
+          "Ensure the configured local embedding model artifact is already available",
+          "Embed the query text with TextEmbeddings.",
+          "Call VectorStore.search(VectorQuery(...)).",
+          "TextEmbeddings.artifact_status()",
+          "TextEmbeddings.can_embed_without_download()",
+          "FastEmbedTextEmbeddingsConfig(local_files_only=True) plus a health check",
+          "VectorStore is not configured",
+          "Chroma state is missing",
+          "vector schema is incompatible",
+          "vector projection is stale for the selected scope",
+          "embedding model artifact is unavailable",
+          "query embedding fails"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Candidate Fusion",
+        "content": "Phase 2C should use reciprocal-rank-style fusion:\nDefaults:\nkeyword weight: 1.0 vector weight: 1.0 rank_constant: 60 final limit: 10 candidate pool: at least max(limit * 4, 20) per signal\nRules:\nMerge candidates by (vault_id, chunk_id). Preserve every contributing signal. Raw keyword and vector scores remain signal metadata only. Sort by fused score descending, then best signal rank ascending, then vault_id, path, and chunk_id. Drop candidates that cannot resolve evidence and add a response warning. Attach result-level stale warnings when a vector hit revision differs from the resolved evidence revision.\nThis keeps ranking deterministic and easy to replace later.",
+        "items": [
+          "keyword weight: 1.0",
+          "vector weight: 1.0",
+          "rank_constant: 60",
+          "final limit: 10",
+          "candidate pool: at least max(limit * 4, 20) per signal",
+          "Merge candidates by (vault_id, chunk_id).",
+          "Preserve every contributing signal.",
+          "Raw keyword and vector scores remain signal metadata only.",
+          "Sort by fused score descending, then best signal rank ascending, then",
+          "Drop candidates that cannot resolve evidence and add a response warning.",
+          "Attach result-level stale warnings when a vector hit revision differs from the"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "fused_score = sum(signal_weight / (rank_constant + signal_rank))"
+          }
+        ]
+      },
+      {
+        "heading": "Evidence Rendering",
+        "content": "Normal result assembly uses MetadataStore twice:\nresolve_chunk_evidence(vault_id, document_id, chunk_id) returns authority fields such as path, anchor, hashes, and metadata revision. resolve_chunk(vault_id, chunk_id) returns current chunk text and section data for display snippets or summaries.\nRules:\nRetrievalResult.evidence must contain resolved evidence. RetrievalResult.kind should be evidence_chunk for Phase 2C. Title rendering may use path plus section heading. Summary rendering may use a bounded excerpt from resolved chunk text. Document grouping is a renderer concern. It groups by `(vault_id, document_id)`. Search results must always show vault_id when more than one Vault was selected.\nIf evidence resolution fails, the candidate is not returned as a normal result. Returning a result with unsupported evidence would violate the project value of provenance over fluency.",
+        "items": [
+          "resolve_chunk_evidence(vault_id, document_id, chunk_id) returns authority",
+          "resolve_chunk(vault_id, chunk_id) returns current chunk text and section",
+          "RetrievalResult.evidence must contain resolved evidence.",
+          "RetrievalResult.kind should be evidence_chunk for Phase 2C.",
+          "Title rendering may use path plus section heading.",
+          "Summary rendering may use a bounded excerpt from resolved chunk text.",
+          "Document grouping is a renderer concern. It groups by `(vault_id,",
+          "Search results must always show vault_id when more than one Vault was"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "CLI Surface",
+        "content": "Phase 2C adds:\nRules:\nActive Vault is the default scope. --vault-id and --all-vaults are mutually exclusive. --limit must be positive and defaults to 10. --format supports text and json. Human output prints resolved Vault IDs, warnings, and ranked evidence. JSON output uses SearchResponse fields and does not invent a different contract.\nExit codes:\n0: search completed, including degraded keyword-only search with warnings 1: invalid query, invalid scope, missing required metadata or keyword projection, schema incompatibility, unsupported format, or other search failure\nNo-results is not an error when projections are healthy.",
+        "items": [
+          "Active Vault is the default scope.",
+          "--vault-id and --all-vaults are mutually exclusive.",
+          "--limit must be positive and defaults to 10.",
+          "--format supports text and json.",
+          "Human output prints resolved Vault IDs, warnings, and ranked evidence.",
+          "JSON output uses SearchResponse fields and does not invent a different",
+          "0: search completed, including degraded keyword-only search with warnings",
+          "1: invalid query, invalid scope, missing required metadata or keyword"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg search \"GraphRAG\"\nvg search --vault-id main \"GraphRAG\"\nvg search --all-vaults \"GraphRAG\"\nvg search --limit 20 --format json \"GraphRAG\""
+          }
+        ]
+      },
+      {
+        "heading": "Multi-Vault Rules",
+        "content": "Multi-vault behavior is mandatory.\nRules:\nDefault search uses the active Vault only. --vault-id ID searches exactly one Vault. --all-vaults expands to explicit enabled Vault IDs, then to per-Vault actual scopes before candidate stores run. Actual scope resolution follows the Phase 2B rule: use the narrower of the requested scope and catalog entry scope when one contains the other; skip disjoint scope pairs. Candidate merge identity is (vault_id, chunk_id). Resolved evidence identity is (vault_id, document_id, chunk_id). Document grouping is (vault_id, document_id). Result IDs must include vault_id or otherwise be derived from Vault-scoped identity. Identical relative paths or headings across Vaults must not collide. Warnings include the affected Vault ID when the condition is Vault-scoped. Store revisions include Vault or actual-scope attribution in multi-vault responses. Search grouping must use resolved evidence/result fields. It must not call document-level resolution by document_id alone. include_cross_vault remains inert for graph traversal because Phase 2C has no graph traversal.",
+        "items": [
+          "Default search uses the active Vault only.",
+          "--vault-id ID searches exactly one Vault.",
+          "--all-vaults expands to explicit enabled Vault IDs, then to per-Vault",
+          "Actual scope resolution follows the Phase 2B rule: use the narrower of the",
+          "Candidate merge identity is (vault_id, chunk_id). Resolved evidence identity",
+          "Document grouping is (vault_id, document_id).",
+          "Result IDs must include vault_id or otherwise be derived from",
+          "Identical relative paths or headings across Vaults must not collide.",
+          "Warnings include the affected Vault ID when the condition is Vault-scoped.",
+          "Store revisions include Vault or actual-scope attribution in multi-vault",
+          "Search grouping must use resolved evidence/result fields. It must not call",
+          "include_cross_vault remains inert for graph traversal because Phase 2C has"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-09-phase-2c-evidence-first-keyword-vector-search-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

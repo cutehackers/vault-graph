@@ -1,0 +1,699 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-15-phase-5a-mcp-server-foundation-stdio-design",
+  "slug": "2026-06-15-phase-5a-mcp-server-foundation-stdio-design",
+  "status": "draft",
+  "title": "Phase 5A MCP Server Foundation And Stdio Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5A",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-15",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [
+      "plan:2026-06-15-phase-5a-mcp-server-foundation-stdio"
+    ],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5A",
+    "agentSummary": "Read docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 5A creates the local MCP server boundary and starts it through vg serve --mcp. This slice should prove that agents can connect to Vault Graph without giving the MCP adapter direct ownership of retrieval, graph, indexing, or context-pack behavior.\nPhase 5A is intentionally small. It creates the server package, dependency, configuration, read-only service factory, capability registration, error mapping, and local client configuration examples. Resource contents, production tools, and prompts are added in Phase 5B and Phase 5C.",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5A",
+    "scope": {
+      "in": [
+        "Add MCP Python SDK dependency.",
+        "Add vault_graph.mcp as the MCP adapter package.",
+        "Add vg serve --mcp.",
+        "Use stdio as the only Phase 5A transport.",
+        "Build read-only application service dependencies from the configured state",
+        "Register MCP server metadata and capability skeleton.",
+        "Map Vault Graph domain errors into MCP-safe errors.",
+        "Add Codex-compatible local configuration examples.",
+        "Add tests that prove no Vault writes and no import-time backend work."
+      ],
+      "out": [
+        "Streamable HTTP transport.",
+        "Authentication and remote hosting.",
+        "Resource subscriptions.",
+        "Durable context-pack persistence.",
+        "ask_vault answer synthesis.",
+        "Phase 6 memory projections.",
+        "Indexing from MCP.",
+        "MCP tools that mutate Vault Graph derived state."
+      ]
+    },
+    "architecture": {
+      "summary": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5A",
+      "flow": [
+        "Markdown source -> Stenc JSON -> generated fixed web page"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "In Scope",
+        "detail": "Add MCP Python SDK dependency. Add vault_graph.mcp as the MCP adapter package. Add vg serve --mcp. Use stdio as the only Phase 5A transport. Build read-only application service dependencies from the configured state path. Register MCP server metadata and capability skeleton. Map Vault Graph domain errors into MCP-safe errors. Add Codex-compatible local configuration examples. Add tests that prove no Vault writes and no import-time backend work.",
+        "acceptanceCriteria": [
+          "Add MCP Python SDK dependency.",
+          "Add vault_graph.mcp as the MCP adapter package.",
+          "Add vg serve --mcp.",
+          "Use stdio as the only Phase 5A transport.",
+          "Build read-only application service dependencies from the configured state",
+          "Register MCP server metadata and capability skeleton.",
+          "Map Vault Graph domain errors into MCP-safe errors.",
+          "Add Codex-compatible local configuration examples."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "Out Of Scope",
+        "detail": "Streamable HTTP transport. Authentication and remote hosting. Resource subscriptions. Durable context-pack persistence. ask_vault answer synthesis. Phase 6 memory projections. Indexing from MCP. MCP tools that mutate Vault Graph derived state.",
+        "acceptanceCriteria": [
+          "Streamable HTTP transport.",
+          "Authentication and remote hosting.",
+          "Resource subscriptions.",
+          "Durable context-pack persistence.",
+          "ask_vault answer synthesis.",
+          "Phase 6 memory projections.",
+          "Indexing from MCP.",
+          "MCP tools that mutate Vault Graph derived state."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Scope Input DTO",
+        "detail": "MCP tools need JSON arguments. Phase 5A defines one scope input shape reused by Phase 5B and Phase 5C:\nMapping rules:\nNone maps to catalog.default_scope(). all_vaults=true maps to catalog.scope_for_all_enabled(). vault_ids maps to catalog.scope_for_vault_ids(...). all_vaults and vault_ids are mutually exclusive. Unknown or disabled Vault IDs are invalid arguments. content_scopes may narrow the selected Vault scope but must not widen a Vault beyond its configured enabled content scopes. include_cross_vault is allowed only for explicit graph behavior.",
+        "acceptanceCriteria": [
+          "None maps to catalog.default_scope().",
+          "all_vaults=true maps to catalog.scope_for_all_enabled().",
+          "vault_ids maps to catalog.scope_for_vault_ids(...).",
+          "all_vaults and vault_ids are mutually exclusive.",
+          "Unknown or disabled Vault IDs are invalid arguments.",
+          "content_scopes may narrow the selected Vault scope but must not widen a",
+          "include_cross_vault is allowed only for explicit graph behavior."
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "Security And Read-Only Requirements",
+        "detail": "The stdio server writes only MCP protocol messages to stdout. The server never executes shell commands from MCP arguments. The server accepts only configured state path and structured tool arguments. The server never accepts a raw filesystem root from a tool call. All store reads are scoped through VaultCatalog and QueryScope. Path and URI parsing must reject absolute paths, .., encoded traversal, and unknown URI schemes. MCP startup must not create metadata, vector, graph, projection, model cache, or Vault files.",
+        "acceptanceCriteria": [
+          "The stdio server writes only MCP protocol messages to stdout.",
+          "The server never executes shell commands from MCP arguments.",
+          "The server accepts only configured state path and structured tool arguments.",
+          "The server never accepts a raw filesystem root from a tool call.",
+          "All store reads are scoped through VaultCatalog and QueryScope.",
+          "Path and URI parsing must reject absolute paths, .., encoded traversal, and",
+          "MCP startup must not create metadata, vector, graph, projection, model cache,"
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5A",
+        "interfaces": [
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Original Markdown is converted into Stenc JSON and rendered as a deterministic static page."
+    ],
+    "errorHandling": [
+      {
+        "case": "Error Mapping",
+        "behavior": "Add a small error payload used by tools and resources:\nMapping policy:\nCatalogError, invalid scope, invalid resource URI, and invalid tool arguments map to invalid-parameter errors. Missing resources map to not-found errors. Backend health and schema compatibility failures map to structured execution errors when a tool/resource can still return an MCP result. Unexpected exceptions map to internal errors without exposing local absolute paths unless the path is already an explicit user-provided s..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Security And Read-Only Requirements",
+        "rules": [
+          "The stdio server writes only MCP protocol messages to stdout.",
+          "The server never executes shell commands from MCP arguments.",
+          "The server accepts only configured state path and structured tool arguments.",
+          "The server never accepts a raw filesystem root from a tool call.",
+          "All store reads are scoped through VaultCatalog and QueryScope.",
+          "Path and URI parsing must reject absolute paths, .., encoded traversal, and",
+          "MCP startup must not create metadata, vector, graph, projection, model cache,"
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "src/vault_graph/mcp/",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5A",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 5A creates the local MCP server boundary and starts it through vg serve --mcp. This slice should prove that agents can connect to Vault Graph without giving the MCP adapter direct ownership of retrieval, graph, indexing, or context-pack behavior.\nPhase 5A is intentionally small. It creates the server package, dependency, configuration, read-only service factory, capability registration, error mapping, and local client configuration examples. Resource contents, production tools, and prompts are added in Phase 5B and Phase 5C.",
+        "items": [
+          "Review the Purpose section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "In Scope",
+        "content": "Add MCP Python SDK dependency. Add vault_graph.mcp as the MCP adapter package. Add vg serve --mcp. Use stdio as the only Phase 5A transport. Build read-only application service dependencies from the configured state path. Register MCP server metadata and capability skeleton. Map Vault Graph domain errors into MCP-safe errors. Add Codex-compatible local configuration examples. Add tests that prove no Vault writes and no import-time backend work.",
+        "items": [
+          "Add MCP Python SDK dependency.",
+          "Add vault_graph.mcp as the MCP adapter package.",
+          "Add vg serve --mcp.",
+          "Use stdio as the only Phase 5A transport.",
+          "Build read-only application service dependencies from the configured state",
+          "Register MCP server metadata and capability skeleton.",
+          "Map Vault Graph domain errors into MCP-safe errors.",
+          "Add Codex-compatible local configuration examples.",
+          "Add tests that prove no Vault writes and no import-time backend work."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Out Of Scope",
+        "content": "Streamable HTTP transport. Authentication and remote hosting. Resource subscriptions. Durable context-pack persistence. ask_vault answer synthesis. Phase 6 memory projections. Indexing from MCP. MCP tools that mutate Vault Graph derived state.",
+        "items": [
+          "Streamable HTTP transport.",
+          "Authentication and remote hosting.",
+          "Resource subscriptions.",
+          "Durable context-pack persistence.",
+          "ask_vault answer synthesis.",
+          "Phase 6 memory projections.",
+          "Indexing from MCP.",
+          "MCP tools that mutate Vault Graph derived state."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Proposed Package Boundary",
+        "content": "Phase 5 should add a dedicated MCP adapter package:\nThis keeps the adapter separate from vault_graph.app, which owns application services, and separate from vault_graph.cli, which owns command-line parsing.\nPhase 5A public entry points:\nMcpServer is a local protocol used to keep the design independent from the SDK's concrete server class name. The implementation plan should bind it to the official SDK type available at implementation time.",
+        "items": [
+          "Review the Proposed Package Boundary section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "src/vault_graph/mcp/\n├── __init__.py\n├── mcp_server.py\n├── mcp_service_factory.py\n├── mcp_scope.py\n├── mcp_errors.py\n└── mcp_config_examples.py"
+          },
+          {
+            "language": "python",
+            "content": "from dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import Literal, Protocol\n\nMcpTransport = Literal[\"stdio\"]\n\n@dataclass(frozen=True)\nclass McpServerConfig:\n    state_path: Path\n    transport: McpTransport = \"stdio\"\n    server_name: str = \"vault-graph\"\n    server_version: str = \"0.1.0\"\n\nclass McpServer(Protocol):\n    ...\n\ndef create_mcp_server(config: McpServerConfig) -> McpServer: ...\n\nasync def serve_mcp(config: McpServerConfig) -> None: ..."
+          }
+        ]
+      },
+      {
+        "heading": "CLI Surface",
+        "content": "Phase 5A adds:\nRules:\n--mcp starts stdio transport. The command must not print human-readable startup text to stdout. Human-readable logs and startup diagnostics go to stderr. Configuration errors exit nonzero before the MCP event loop starts. The command uses read-only store construction. It must not initialize missing stores or create derived state.\nIf vg serve --http is already accepted by the CLI parser, it remains a future option and must not start a partially designed HTTP server in Phase 5A.",
+        "items": [
+          "--mcp starts stdio transport.",
+          "The command must not print human-readable startup text to stdout.",
+          "Human-readable logs and startup diagnostics go to stderr.",
+          "Configuration errors exit nonzero before the MCP event loop starts.",
+          "The command uses read-only store construction. It must not initialize missing"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg serve --mcp\nvg serve --mcp --state .vault-graph"
+          }
+        ]
+      },
+      {
+        "heading": "Service Factory",
+        "content": "Add McpServiceFactory as the deep boundary between MCP registration and application services.\nFactory rules:\nLoad VaultCatalog through CatalogService. Open SQLiteMetadataStore read-only. Open ChromaVectorStore read-only. Use search embeddings with local_files_only=True. Open graph services lazily only for graph tools/resources. Do not initialize metadata, vector, graph, cache, or model state. Do not run indexing or dry-run planning. Do not import rustworkx at package import time.\nThe factory may live in the MCP package even though it currently references local adapters, because it is an outer adapter composition point. Domain services and context builders must still depend on interfaces.",
+        "items": [
+          "Load VaultCatalog through CatalogService.",
+          "Open SQLiteMetadataStore read-only.",
+          "Open ChromaVectorStore read-only.",
+          "Use search embeddings with local_files_only=True.",
+          "Open graph services lazily only for graph tools/resources.",
+          "Do not initialize metadata, vector, graph, cache, or model state.",
+          "Do not run indexing or dry-run planning.",
+          "Do not import rustworkx at package import time."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass McpServices:\n    catalog: VaultCatalog\n    metadata_store: MetadataStore\n    retrieval_service: RetrievalService\n    graph_retrieval_service: GraphRetrievalService | None\n    context_pack_builder: ContextPackBuilder\n    context_pack_renderer: ContextPackRenderer\n    status_service: object\n\nclass McpServiceFactory:\n    def __init__(self, *, state_path: Path) -> None: ...\n\n    def open_read_only(self) -> McpServices: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Scope Input DTO",
+        "content": "MCP tools need JSON arguments. Phase 5A defines one scope input shape reused by Phase 5B and Phase 5C:\nMapping rules:\nNone maps to catalog.default_scope(). all_vaults=true maps to catalog.scope_for_all_enabled(). vault_ids maps to catalog.scope_for_vault_ids(...). all_vaults and vault_ids are mutually exclusive. Unknown or disabled Vault IDs are invalid arguments. content_scopes may narrow the selected Vault scope but must not widen a Vault beyond its configured enabled content scopes. include_cross_vault is allowed only for explicit graph behavior.",
+        "items": [
+          "None maps to catalog.default_scope().",
+          "all_vaults=true maps to catalog.scope_for_all_enabled().",
+          "vault_ids maps to catalog.scope_for_vault_ids(...).",
+          "all_vaults and vault_ids are mutually exclusive.",
+          "Unknown or disabled Vault IDs are invalid arguments.",
+          "content_scopes may narrow the selected Vault scope but must not widen a",
+          "include_cross_vault is allowed only for explicit graph behavior."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass McpScopeInput:\n    vault_ids: tuple[str, ...] | None = None\n    all_vaults: bool = False\n    content_scopes: tuple[str, ...] | None = None\n    include_cross_vault: bool = False"
+          }
+        ]
+      },
+      {
+        "heading": "Error Mapping",
+        "content": "Add a small error payload used by tools and resources:\nMapping policy:\nCatalogError, invalid scope, invalid resource URI, and invalid tool arguments map to invalid-parameter errors. Missing resources map to not-found errors. Backend health and schema compatibility failures map to structured execution errors when a tool/resource can still return an MCP result. Unexpected exceptions map to internal errors without exposing local absolute paths unless the path is already an explicit user-provided state path.\nAll errors that can be represented as Vault Graph warnings should preserve the original warning code in structured output.",
+        "items": [
+          "CatalogError, invalid scope, invalid resource URI, and invalid tool",
+          "Missing resources map to not-found errors.",
+          "Backend health and schema compatibility failures map to structured execution",
+          "Unexpected exceptions map to internal errors without exposing local absolute"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass McpErrorPayload:\n    code: str\n    message: str\n    severity: str\n    affected_vault_ids: tuple[str, ...]\n    recovery_hint: str | None = None"
+          }
+        ]
+      },
+      {
+        "heading": "Capability Registration",
+        "content": "Phase 5A registers the server with:\nresources capability present but no broad resource listing tools capability present with at most check_index_status smoke coverage if the implementation plan chooses a minimal tool prompts capability present only after Phase 5C\nIf the SDK requires explicit functions at server creation time, register empty capability skeletons only where the SDK supports them safely. Otherwise, defer capability registration until each slice adds concrete handlers. Do not list tools or prompts that are not actually callable.",
+        "items": [
+          "resources capability present but no broad resource listing",
+          "tools capability present with at most check_index_status smoke coverage if",
+          "prompts capability present only after Phase 5C"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Codex-Compatible Local Config Examples",
+        "content": "Add documentation examples under the Phase 5 docs or root docs, not under Vault:\nRules:\nUse example paths in durable docs. Do not document the user's real home directory. Keep examples local stdio only in Phase 5A. Do not include OAuth, API keys, or remote server examples.",
+        "items": [
+          "Use example paths in durable docs.",
+          "Do not document the user's real home directory.",
+          "Keep examples local stdio only in Phase 5A.",
+          "Do not include OAuth, API keys, or remote server examples."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "json",
+            "content": "{\n  \"mcpServers\": {\n    \"vault-graph\": {\n      \"command\": \"uv\",\n      \"args\": [\n        \"run\",\n        \"--python\",\n        \"3.12\",\n        \"vg\",\n        \"serve\",\n        \"--mcp\",\n        \"--state\",\n        \"/path/to/.vault-graph\"\n      ]\n    }\n  }\n}"
+          }
+        ]
+      },
+      {
+        "heading": "Security And Read-Only Requirements",
+        "content": "The stdio server writes only MCP protocol messages to stdout. The server never executes shell commands from MCP arguments. The server accepts only configured state path and structured tool arguments. The server never accepts a raw filesystem root from a tool call. All store reads are scoped through VaultCatalog and QueryScope. Path and URI parsing must reject absolute paths, .., encoded traversal, and unknown URI schemes. MCP startup must not create metadata, vector, graph, projection, model cache, or Vault files.",
+        "items": [
+          "The stdio server writes only MCP protocol messages to stdout.",
+          "The server never executes shell commands from MCP arguments.",
+          "The server accepts only configured state path and structured tool arguments.",
+          "The server never accepts a raw filesystem root from a tool call.",
+          "All store reads are scoped through VaultCatalog and QueryScope.",
+          "Path and URI parsing must reject absolute paths, .., encoded traversal, and",
+          "MCP startup must not create metadata, vector, graph, projection, model cache,"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Tests Required Before Implementation",
+        "content": "Phase 5A implementation must include tests for:\nvg serve --mcp --help exposes the command without starting the server. invalid --state or missing catalog exits before stdio server startup. server construction loads catalog and opens stores read-only. startup does not create metadata, vector, graph, cache, or Vault files. package import does not import rustworkx, Chroma runtime clients, or open stores eagerly. stdio command path does not write non-protocol startup text to stdout. McpScopeInput rejects ambiguous or unknown Vault scope. error mapping preserves domain warning/error codes. Codex config examples contain example paths, not user-local real paths.",
+        "items": [
+          "vg serve --mcp --help exposes the command without starting the server.",
+          "invalid --state or missing catalog exits before stdio server startup.",
+          "server construction loads catalog and opens stores read-only.",
+          "startup does not create metadata, vector, graph, cache, or Vault files.",
+          "package import does not import rustworkx, Chroma runtime clients, or open",
+          "stdio command path does not write non-protocol startup text to stdout.",
+          "McpScopeInput rejects ambiguous or unknown Vault scope.",
+          "error mapping preserves domain warning/error codes.",
+          "Codex config examples contain example paths, not user-local real paths."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Handoff To Phase 5B",
+        "content": "Phase 5B may add resources only after Phase 5A proves that MCP server startup is local, read-only, and adapter-only. Resource handlers should use the Phase 5A service factory and scope parser rather than opening their own stores.",
+        "items": [
+          "Review the Handoff To Phase 5B section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

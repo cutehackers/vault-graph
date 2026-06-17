@@ -1,0 +1,1121 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-15-phase-5b-mcp-resources-context-pack-resources-design",
+  "slug": "2026-06-15-phase-5b-mcp-resources-context-pack-resources-design",
+  "status": "approved",
+  "title": "Phase 5B MCP Resources And Context Pack Resource SPEC",
+  "description": "Status: Implementation-ready design for planning\nDate: 2026-06-15\nLast updated: 2026-06-17\nScope: Phase 5B",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-15",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Implementation-ready design for planning\nDate: 2026-06-15\nLast updated: 2026-06-17\nScope: Phase 5B",
+    "agentSummary": "Read docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 5B exposes read-only MCP resources over indexed Vault Graph state and generated context packs. Resources let agents request precise evidence by URI instead of scanning an entire Vault or treating search text as durable knowledge.\nThe slice extends the completed Phase 5A stdio foundation. It must reuse McpServiceFactory, McpErrorPayload, and McpScopeInput; it must not create a second MCP runtime, retrieval layer, graph layer, context-pack builder, or Vault reader.\nResources are working context. They do not publish durable knowledge and do not make generated context packs authoritative.",
+    "problem": "src/vault_graph/mcp/mcp_resources.py may keep current context rendering inside the registry module or split it into a small reader. If split, use this shape:\nvault://{vault_id}/context/current is an availability resource, not a memory summary. It may include:\nselected Vault ID and display name enabled content scopes active Vault marker metadata/vector/graph health status available through existing services context-pack cache size and max entries warnings for missing, stale, or unavailable projections\nIt must not summarize project memory, synthesize a current-state narrative, or scan Vault files.\nvault://{vault_id}/timeline/recent remains a template in the URI contract, but Phase 5B returns...",
+    "scope": {
+      "in": [
+        "vg serve --mcp lists MCP resource templates through the official MCP client.",
+        "resource reads are backed by MetadataStore, graph services, status services,",
+        "every Vault-derived resource URI preserves vault_id.",
+        "identical logical paths in different Vaults resolve to distinct resources.",
+        "invalid or unsafe URIs fail closed before any store lookup.",
+        "generated context pack resources are readable only while present in the",
+        "reading resources does not create metadata, vector, graph, cache, model, or",
+        "all resource bodies include a normalized URI, evidence metadata, warnings, and"
+      ],
+      "out": [
+        "resource subscriptions and list-changed notifications",
+        "full listing of every indexed document by default",
+        "durable context-pack persistence",
+        "context-pack building as a resource read side effect",
+        "indexing from MCP",
+        "editing, renaming, deleting, or publishing Vault files",
+        "binary resources",
+        "remote HTTP resources",
+        "LLM answer synthesis",
+        "Phase 6 memory, issue, timeline, or project-memory projections"
+      ]
+    },
+    "architecture": {
+      "summary": "Phase 5B must build on the current Phase 5A files:\nRequired reuse:\ncreate_mcp_server(config) remains the single server construction entry point. RegisteredMcpServer owns runtime objects that must be shared by Phase 5C, including the context-pack resource cache. McpServiceFactory.open_read_only() opens base services without indexing or creating missing stores. McpServiceFactory.open_graph_retrieval_service() remains lazy and imports rustworkx only for graph resources or graph tools. McpErrorPayload is the structured warning/error shape used by resources and tools.",
+      "flow": [
+        "create_mcp_server(config) remains the single server construction entry",
+        "RegisteredMcpServer owns runtime objects that must be shared by Phase 5C,",
+        "McpServiceFactory.open_read_only() opens base services without indexing or",
+        "McpServiceFactory.open_graph_retrieval_service() remains lazy and imports",
+        "McpErrorPayload is the structured warning/error shape used by resources and"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Success Criteria",
+        "detail": "Phase 5B is complete when:\nvg serve --mcp lists MCP resource templates through the official MCP client. resource reads are backed by MetadataStore, graph services, status services, or the in-process context-pack cache, never by direct Vault file reads. every Vault-derived resource URI preserves vault_id. identical logical paths in different Vaults resolve to distinct resources. invalid or unsafe URIs fail closed before any store lookup. generated context pack resources are readable only while present in the bounded in-process cache. reading resources does not create metadata, vector, graph, cache, model, or Vault files. all resource bodies include a normalized URI, evidence metadata, warnin...",
+        "acceptanceCriteria": [
+          "vg serve --mcp lists MCP resource templates through the official MCP client.",
+          "resource reads are backed by MetadataStore, graph services, status services,",
+          "every Vault-derived resource URI preserves vault_id.",
+          "identical logical paths in different Vaults resolve to distinct resources.",
+          "invalid or unsafe URIs fail closed before any store lookup.",
+          "generated context pack resources are readable only while present in the",
+          "reading resources does not create metadata, vector, graph, cache, model, or",
+          "all resource bodies include a normalized URI, evidence metadata, warnings, and"
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "In Scope",
+        "detail": "FastMCP resource-template registration on the Phase 5A server. URI parsing, normalization, encoding helpers, and validation for vault://. Metadata-backed resources for documents, pages, sources, decisions, and issues. Graph-backed resources for graph entities and concept-name lookups when graph state is available. Current-context availability resource backed by existing catalog and status state. Timeline resource template with a clear unavailable response until a timeline service exists. Bounded in-process cache for vault://context/packs/{pack_id}. Resource-specific errors and warnings using McpErrorPayload. Tests for read-only behavior, URI safety, FastMCP compatibility, and multi-Vault id...",
+        "acceptanceCriteria": [
+          "FastMCP resource-template registration on the Phase 5A server.",
+          "URI parsing, normalization, encoding helpers, and validation for vault://.",
+          "Metadata-backed resources for documents, pages, sources, decisions, and",
+          "Graph-backed resources for graph entities and concept-name lookups when graph",
+          "Current-context availability resource backed by existing catalog and status",
+          "Timeline resource template with a clear unavailable response until a timeline",
+          "Bounded in-process cache for vault://context/packs/{pack_id}.",
+          "Resource-specific errors and warnings using McpErrorPayload."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Out Of Scope",
+        "detail": "resource subscriptions and list-changed notifications full listing of every indexed document by default durable context-pack persistence context-pack building as a resource read side effect indexing from MCP editing, renaming, deleting, or publishing Vault files binary resources remote HTTP resources LLM answer synthesis Phase 6 memory, issue, timeline, or project-memory projections",
+        "acceptanceCriteria": [
+          "resource subscriptions and list-changed notifications",
+          "full listing of every indexed document by default",
+          "durable context-pack persistence",
+          "context-pack building as a resource read side effect",
+          "indexing from MCP",
+          "editing, renaming, deleting, or publishing Vault files",
+          "binary resources",
+          "remote HTTP resources"
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "Phase 5A Dependency Contract",
+        "detail": "Phase 5B must build on the current Phase 5A files:\nRequired reuse:\ncreate_mcp_server(config) remains the single server construction entry point. RegisteredMcpServer owns runtime objects that must be shared by Phase 5C, including the context-pack resource cache. McpServiceFactory.open_read_only() opens base services without indexing or creating missing stores. McpServiceFactory.open_graph_retrieval_service() remains lazy and imports rustworkx only for graph resources or graph tools. McpErrorPayload is the structured warning/error shape used by resources and tools.",
+        "acceptanceCriteria": [
+          "create_mcp_server(config) remains the single server construction entry",
+          "RegisteredMcpServer owns runtime objects that must be shared by Phase 5C,",
+          "McpServiceFactory.open_read_only() opens base services without indexing or",
+          "McpServiceFactory.open_graph_retrieval_service() remains lazy and imports",
+          "McpErrorPayload is the structured warning/error shape used by resources and"
+        ]
+      },
+      {
+        "id": "REQ-5",
+        "title": "Resource URI Contract",
+        "detail": "Phase 5B registers these URI templates:\nFastMCP template parameters do not match slash-containing path values. For Phase 5B, {path}, {id}, {name}, and {pack_id} are single URI-template segments. If a logical value contains /, it must be percent-encoded with quote(value, safe=\"\").\nExamples:\nRules:\nvault://{vault_id}/... resources must include a known, enabled Vault ID. vault://context/packs/{pack_id} is generated and is not tied to one Vault in the URI because the pack body records requested and actual scopes. normalized resource URIs always use percent-encoded single-segment values. decoded paths are Vault-relative logical paths, never absolute filesystem paths. the parser rejects unknown s...",
+        "acceptanceCriteria": [
+          "vault://{vault_id}/... resources must include a known, enabled Vault ID.",
+          "vault://context/packs/{pack_id} is generated and is not tied to one Vault in",
+          "normalized resource URIs always use percent-encoded single-segment values.",
+          "decoded paths are Vault-relative logical paths, never absolute filesystem",
+          "the parser rejects unknown schemes, unknown resource kinds, missing Vault IDs,",
+          "the parser must not call stores or touch the filesystem.",
+          "resource output includes both the normalized URI and decoded logical value in"
+        ]
+      },
+      {
+        "id": "REQ-6",
+        "title": "URI Parser Contract",
+        "detail": "src/vault_graph/mcp/mcp_uri.py owns all vault:// parsing. Resource readers must receive a parsed object instead of reparsing strings.\nValidation details:\nuse urllib.parse.urlsplit, quote, and unquote; do not hand-split query strings or decode by replacement. reject non-empty query strings or fragments. reject path values when decoding changes %2e, %2E, %2f, or %2F into a traversal or raw slash that the resource kind does not allow. allow decoded slash only for document and page path resources. require path.endswith(\".md\") for document and page resources because Phase 5B indexes Markdown only. require page paths to stay under wiki/. for path resources, require the decoded path to be inside t...",
+        "acceptanceCriteria": [
+          "use urllib.parse.urlsplit, quote, and unquote; do not hand-split query",
+          "reject non-empty query strings or fragments.",
+          "reject path values when decoding changes %2e, %2E, %2f, or %2F into a",
+          "allow decoded slash only for document and page path resources.",
+          "require path.endswith(\".md\") for document and page resources because",
+          "require page paths to stay under wiki/.",
+          "for path resources, require the decoded path to be inside the selected Vault",
+          "for opaque-ID resources, defer content-scope and classification validation to"
+        ]
+      },
+      {
+        "id": "REQ-7",
+        "title": "Resource Body Contract",
+        "detail": "Phase 5B uses a canonical JSON envelope for every FastMCP resource body.\nFastMCP high-level resources support static template metadata, but they do not provide a stable way to attach dynamic _meta per resource read. A JSON envelope keeps evidence metadata and warnings first-class without depending on SDK private attributes. Future lower-level MCP serving may map the same fields into native MCP _meta without changing reader contracts.\nThe registered FastMCP MIME type for Phase 5B resources is application/json. content_mime_type tells clients whether text should be treated as Markdown or JSON.\nEnvelope fields:\nuri: normalized URI resolved by mcp_uri.py content_mime_type: logical content type...",
+        "acceptanceCriteria": [
+          "uri: normalized URI resolved by mcp_uri.py",
+          "content_mime_type: logical content type for text",
+          "text: Markdown or JSON string produced by the reader",
+          "metadata: structured evidence, revision, scope, and decoded logical values",
+          "warnings: structured McpErrorPayload values"
+        ]
+      },
+      {
+        "id": "REQ-8",
+        "title": "Security And Read-Only Requirements",
+        "detail": "resource reads never execute shell commands. resource reads never accept raw filesystem roots. resource reads never call VaultLoader. resource reads never write registered Vault roots. resource reads never create missing Vault Graph state directories. URI parsing rejects absolute paths and traversal before store calls. decoded logical paths are checked against the selected Vault entry's enabled content scopes. FastMCP stdout remains protocol-only; diagnostics go to stderr. all tests that inspect filesystem side effects compare Vault and state bytes before and after resource reads.",
+        "acceptanceCriteria": [
+          "resource reads never execute shell commands.",
+          "resource reads never accept raw filesystem roots.",
+          "resource reads never call VaultLoader.",
+          "resource reads never write registered Vault roots.",
+          "resource reads never create missing Vault Graph state directories.",
+          "URI parsing rejects absolute paths and traversal before store calls.",
+          "decoded logical paths are checked against the selected Vault entry's enabled",
+          "FastMCP stdout remains protocol-only; diagnostics go to stderr."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Files To Add Or Modify",
+        "responsibility": "Add:\nModify:\nAdd tests:",
+        "interfaces": [
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Phase 5B should add a focused read method instead of making resource readers filter every chunk in a Vault.\nSQLiteMetadataStore.list_document_chunks(...) must:\nuse vault_id and document_id filters. return chunks ordered by indexed document order, preserving heading-section order from heading-section-v1. return an empty tuple for unknown or tombsto...",
+      "src/vault_graph/mcp/metadata_resource_reader.py renders document-like resources from indexed metadata only.\nIdentity rules:\ndocuments/{path} and pages/{path} resolve by decoded logical path through MetadataStore.document_state(vault_id, path). sources/{id}, decisions/{id}, and issues/{id} resolve by document_id; tools may return these links after...",
+      "Server startup:\nDocument read:\nGraph entity read:\nContext pack read:"
+    ],
+    "errorHandling": [
+      {
+        "case": "Error And Warning Policy",
+        "behavior": "Resource error payload codes:\ninvalid_resource_uri unknown_vault_id vault_disabled resource_not_found resource_not_available ambiguous_resource metadata_unavailable graph_unavailable stale_index missing_evidence read_only_boundary_error\nPolicy:\ninvalid URI, unknown Vault, disabled Vault, and unsupported resource kind are invalid-parameter errors. missing documents, missing graph entities, and missing cached packs are not-found errors. missing backends, unhealthy stores, and stale projections ar..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Phase 5A Dependency Contract",
+        "rules": [
+          "create_mcp_server(config) remains the single server construction entry",
+          "RegisteredMcpServer owns runtime objects that must be shared by Phase 5C,",
+          "McpServiceFactory.open_read_only() opens base services without indexing or",
+          "McpServiceFactory.open_graph_retrieval_service() remains lazy and imports",
+          "McpErrorPayload is the structured warning/error shape used by resources and"
+        ]
+      },
+      {
+        "name": "Resource URI Contract",
+        "rules": [
+          "vault://{vault_id}/... resources must include a known, enabled Vault ID.",
+          "vault://context/packs/{pack_id} is generated and is not tied to one Vault in",
+          "normalized resource URIs always use percent-encoded single-segment values.",
+          "decoded paths are Vault-relative logical paths, never absolute filesystem",
+          "the parser rejects unknown schemes, unknown resource kinds, missing Vault IDs,",
+          "the parser must not call stores or touch the filesystem.",
+          "resource output includes both the normalized URI and decoded logical value in"
+        ]
+      },
+      {
+        "name": "URI Parser Contract",
+        "rules": [
+          "use urllib.parse.urlsplit, quote, and unquote; do not hand-split query",
+          "reject non-empty query strings or fragments.",
+          "reject path values when decoding changes %2e, %2E, %2f, or %2F into a",
+          "allow decoded slash only for document and page path resources.",
+          "require path.endswith(\".md\") for document and page resources because",
+          "require page paths to stay under wiki/.",
+          "for path resources, require the decoded path to be inside the selected Vault",
+          "for opaque-ID resources, defer content-scope and classification validation to"
+        ]
+      },
+      {
+        "name": "Resource Body Contract",
+        "rules": [
+          "uri: normalized URI resolved by mcp_uri.py",
+          "content_mime_type: logical content type for text",
+          "text: Markdown or JSON string produced by the reader",
+          "metadata: structured evidence, revision, scope, and decoded logical values",
+          "warnings: structured McpErrorPayload values"
+        ]
+      },
+      {
+        "name": "Security And Read-Only Requirements",
+        "rules": [
+          "resource reads never execute shell commands.",
+          "resource reads never accept raw filesystem roots.",
+          "resource reads never call VaultLoader.",
+          "resource reads never write registered Vault roots.",
+          "resource reads never create missing Vault Graph state directories.",
+          "URI parsing rejects absolute paths and traversal before store calls.",
+          "decoded logical paths are checked against the selected Vault entry's enabled",
+          "FastMCP stdout remains protocol-only; diagnostics go to stderr."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "src/vault_graph/mcp/",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_uri.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_resources.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/mcp/metadata_resource_reader.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/mcp/graph_resource_reader.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/mcp/context_pack_resource_cache.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/app/graph_resource_service.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/mcp/__init__.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_server.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_service_factory.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/storage/interfaces/metadata_store.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "tests/test_mcp_stdio_smoke.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "tests/test_mcp_uri.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "tests/test_mcp_resources.py",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "uv run --python 3.12 pytest -q",
+        "expected": "Command succeeds as described by the source spec."
+      },
+      {
+        "command": "uv run --python 3.12 ruff check src tests",
+        "expected": "Command succeeds as described by the source spec."
+      },
+      {
+        "command": "uv run --python 3.12 mypy src tests",
+        "expected": "Command succeeds as described by the source spec."
+      },
+      {
+        "command": "git diff --check",
+        "expected": "Command succeeds as described by the source spec."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "uv run --python 3.12 pytest -q",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 ruff check src tests",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 mypy src tests",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      },
+      {
+        "command": "git diff --check",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Implementation-ready design for planning\nDate: 2026-06-15\nLast updated: 2026-06-17\nScope: Phase 5B",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 5B exposes read-only MCP resources over indexed Vault Graph state and generated context packs. Resources let agents request precise evidence by URI instead of scanning an entire Vault or treating search text as durable knowledge.\nThe slice extends the completed Phase 5A stdio foundation. It must reuse McpServiceFactory, McpErrorPayload, and McpScopeInput; it must not create a second MCP runtime, retrieval layer, graph layer, context-pack builder, or Vault reader.\nResources are working context. They do not publish durable knowledge and do not make generated context packs authoritative.",
+        "items": [
+          "Review the Purpose section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Success Criteria",
+        "content": "Phase 5B is complete when:\nvg serve --mcp lists MCP resource templates through the official MCP client. resource reads are backed by MetadataStore, graph services, status services, or the in-process context-pack cache, never by direct Vault file reads. every Vault-derived resource URI preserves vault_id. identical logical paths in different Vaults resolve to distinct resources. invalid or unsafe URIs fail closed before any store lookup. generated context pack resources are readable only while present in the bounded in-process cache. reading resources does not create metadata, vector, graph, cache, model, or Vault files. all resource bodies include a normalized URI, evidence metadata, warnings, and recovery hints where relevant.",
+        "items": [
+          "vg serve --mcp lists MCP resource templates through the official MCP client.",
+          "resource reads are backed by MetadataStore, graph services, status services,",
+          "every Vault-derived resource URI preserves vault_id.",
+          "identical logical paths in different Vaults resolve to distinct resources.",
+          "invalid or unsafe URIs fail closed before any store lookup.",
+          "generated context pack resources are readable only while present in the",
+          "reading resources does not create metadata, vector, graph, cache, model, or",
+          "all resource bodies include a normalized URI, evidence metadata, warnings, and"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "In Scope",
+        "content": "FastMCP resource-template registration on the Phase 5A server. URI parsing, normalization, encoding helpers, and validation for vault://. Metadata-backed resources for documents, pages, sources, decisions, and issues. Graph-backed resources for graph entities and concept-name lookups when graph state is available. Current-context availability resource backed by existing catalog and status state. Timeline resource template with a clear unavailable response until a timeline service exists. Bounded in-process cache for vault://context/packs/{pack_id}. Resource-specific errors and warnings using McpErrorPayload. Tests for read-only behavior, URI safety, FastMCP compatibility, and multi-Vault identity.",
+        "items": [
+          "FastMCP resource-template registration on the Phase 5A server.",
+          "URI parsing, normalization, encoding helpers, and validation for vault://.",
+          "Metadata-backed resources for documents, pages, sources, decisions, and",
+          "Graph-backed resources for graph entities and concept-name lookups when graph",
+          "Current-context availability resource backed by existing catalog and status",
+          "Timeline resource template with a clear unavailable response until a timeline",
+          "Bounded in-process cache for vault://context/packs/{pack_id}.",
+          "Resource-specific errors and warnings using McpErrorPayload.",
+          "Tests for read-only behavior, URI safety, FastMCP compatibility, and"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Out Of Scope",
+        "content": "resource subscriptions and list-changed notifications full listing of every indexed document by default durable context-pack persistence context-pack building as a resource read side effect indexing from MCP editing, renaming, deleting, or publishing Vault files binary resources remote HTTP resources LLM answer synthesis Phase 6 memory, issue, timeline, or project-memory projections",
+        "items": [
+          "resource subscriptions and list-changed notifications",
+          "full listing of every indexed document by default",
+          "durable context-pack persistence",
+          "context-pack building as a resource read side effect",
+          "indexing from MCP",
+          "editing, renaming, deleting, or publishing Vault files",
+          "binary resources",
+          "remote HTTP resources",
+          "LLM answer synthesis",
+          "Phase 6 memory, issue, timeline, or project-memory projections"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Phase 5A Dependency Contract",
+        "content": "Phase 5B must build on the current Phase 5A files:\nRequired reuse:\ncreate_mcp_server(config) remains the single server construction entry point. RegisteredMcpServer owns runtime objects that must be shared by Phase 5C, including the context-pack resource cache. McpServiceFactory.open_read_only() opens base services without indexing or creating missing stores. McpServiceFactory.open_graph_retrieval_service() remains lazy and imports rustworkx only for graph resources or graph tools. McpErrorPayload is the structured warning/error shape used by resources and tools.",
+        "items": [
+          "create_mcp_server(config) remains the single server construction entry",
+          "RegisteredMcpServer owns runtime objects that must be shared by Phase 5C,",
+          "McpServiceFactory.open_read_only() opens base services without indexing or",
+          "McpServiceFactory.open_graph_retrieval_service() remains lazy and imports",
+          "McpErrorPayload is the structured warning/error shape used by resources and"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "src/vault_graph/mcp/\n├── mcp_server.py\n├── mcp_service_factory.py\n├── mcp_scope.py\n├── mcp_errors.py\n└── mcp_config_examples.py"
+          }
+        ]
+      },
+      {
+        "heading": "Files To Add Or Modify",
+        "content": "Add:\nModify:\nAdd tests:",
+        "items": [
+          "Review the Files To Add Or Modify section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "src/vault_graph/mcp/mcp_uri.py\nsrc/vault_graph/mcp/mcp_resources.py\nsrc/vault_graph/mcp/metadata_resource_reader.py\nsrc/vault_graph/mcp/graph_resource_reader.py\nsrc/vault_graph/mcp/context_pack_resource_cache.py\nsrc/vault_graph/app/graph_resource_service.py"
+          },
+          {
+            "language": "text",
+            "content": "src/vault_graph/mcp/__init__.py\nsrc/vault_graph/mcp/mcp_server.py\nsrc/vault_graph/mcp/mcp_service_factory.py\nsrc/vault_graph/storage/interfaces/metadata_store.py\nsrc/vault_graph/storage/local/sqlite_metadata_store.py\ntests/test_mcp_stdio_smoke.py"
+          },
+          {
+            "language": "text",
+            "content": "tests/test_mcp_uri.py\ntests/test_mcp_resources.py\ntests/test_metadata_resource_reader.py\ntests/test_graph_resource_reader.py\ntests/test_context_pack_resource_cache.py\ntests/test_mcp_resource_read_only_boundary.py"
+          }
+        ]
+      },
+      {
+        "heading": "Resource URI Contract",
+        "content": "Phase 5B registers these URI templates:\nFastMCP template parameters do not match slash-containing path values. For Phase 5B, {path}, {id}, {name}, and {pack_id} are single URI-template segments. If a logical value contains /, it must be percent-encoded with quote(value, safe=\"\").\nExamples:\nRules:\nvault://{vault_id}/... resources must include a known, enabled Vault ID. vault://context/packs/{pack_id} is generated and is not tied to one Vault in the URI because the pack body records requested and actual scopes. normalized resource URIs always use percent-encoded single-segment values. decoded paths are Vault-relative logical paths, never absolute filesystem paths. the parser rejects unknown schemes, unknown resource kinds, missing Vault IDs, unknown Vault IDs, disabled Vaults, absolute paths, raw slash in a template value, .., ., empty segments, encoded traversal, encoded slash where the resource kind expects an opaque ID, and empty IDs. the parser must not call stores or touch the filesystem. resource output includes both the normalized URI and decoded logical value in metadata.",
+        "items": [
+          "vault://{vault_id}/... resources must include a known, enabled Vault ID.",
+          "vault://context/packs/{pack_id} is generated and is not tied to one Vault in",
+          "normalized resource URIs always use percent-encoded single-segment values.",
+          "decoded paths are Vault-relative logical paths, never absolute filesystem",
+          "the parser rejects unknown schemes, unknown resource kinds, missing Vault IDs,",
+          "the parser must not call stores or touch the filesystem.",
+          "resource output includes both the normalized URI and decoded logical value in"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vault://{vault_id}/documents/{path}\nvault://{vault_id}/pages/{path}\nvault://{vault_id}/sources/{id}\nvault://{vault_id}/concepts/{name}\nvault://{vault_id}/decisions/{id}\nvault://{vault_id}/issues/{id}\nvault://{vault_id}/timeline/recent\nvault://{vault_id}/context/current\nvault://{vault_id}/graph/entities/{id}\nvault://context/packs/{pack_id}"
+          },
+          {
+            "language": "text",
+            "content": "logical path: wiki/spec.md\nresource URI: vault://main/documents/wiki%2Fspec.md\n\nlogical concept name: Graph RAG\nresource URI: vault://main/concepts/Graph%20RAG"
+          }
+        ]
+      },
+      {
+        "heading": "URI Parser Contract",
+        "content": "src/vault_graph/mcp/mcp_uri.py owns all vault:// parsing. Resource readers must receive a parsed object instead of reparsing strings.\nValidation details:\nuse urllib.parse.urlsplit, quote, and unquote; do not hand-split query strings or decode by replacement. reject non-empty query strings or fragments. reject path values when decoding changes %2e, %2E, %2f, or %2F into a traversal or raw slash that the resource kind does not allow. allow decoded slash only for document and page path resources. require path.endswith(\".md\") for document and page resources because Phase 5B indexes Markdown only. require page paths to stay under wiki/. for path resources, require the decoded path to be inside the selected Vault entry's content_scopes by same-or-child matching. for opaque-ID resources, defer content-scope and classification validation to the reader after the indexed document or graph record is resolved. return McpProtocolError(kind=\"invalid_parameter\") with invalid_resource_uri, unknown_vault_id, or vault_disabled payload codes.",
+        "items": [
+          "use urllib.parse.urlsplit, quote, and unquote; do not hand-split query",
+          "reject non-empty query strings or fragments.",
+          "reject path values when decoding changes %2e, %2E, %2f, or %2F into a",
+          "allow decoded slash only for document and page path resources.",
+          "require path.endswith(\".md\") for document and page resources because",
+          "require page paths to stay under wiki/.",
+          "for path resources, require the decoded path to be inside the selected Vault",
+          "for opaque-ID resources, defer content-scope and classification validation to",
+          "return McpProtocolError(kind=\"invalid_parameter\") with"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from dataclasses import dataclass\nfrom typing import Literal\n\nMcpResourceKind = Literal[\n    \"document\",\n    \"page\",\n    \"source\",\n    \"concept\",\n    \"decision\",\n    \"issue\",\n    \"timeline_recent\",\n    \"context_current\",\n    \"graph_entity\",\n    \"context_pack\",\n]\n\n@dataclass(frozen=True)\nclass McpResourceUri:\n    raw_uri: str\n    normalized_uri: str\n    kind: McpResourceKind\n    vault_id: str | None\n    value: str | None\n\ndef encode_resource_segment(value: str) -> str: ...\ndef decode_resource_segment(value: str, *, allow_slash: bool) -> str: ...\ndef parse_mcp_resource_uri(uri: str, *, catalog: VaultCatalog) -> McpResourceUri: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Resource Body Contract",
+        "content": "Phase 5B uses a canonical JSON envelope for every FastMCP resource body.\nFastMCP high-level resources support static template metadata, but they do not provide a stable way to attach dynamic _meta per resource read. A JSON envelope keeps evidence metadata and warnings first-class without depending on SDK private attributes. Future lower-level MCP serving may map the same fields into native MCP _meta without changing reader contracts.\nThe registered FastMCP MIME type for Phase 5B resources is application/json. content_mime_type tells clients whether text should be treated as Markdown or JSON.\nEnvelope fields:\nuri: normalized URI resolved by mcp_uri.py content_mime_type: logical content type for text text: Markdown or JSON string produced by the reader metadata: structured evidence, revision, scope, and decoded logical values warnings: structured McpErrorPayload values\nDocument-like resources put content in text as Markdown. JSON-like resources put a stable JSON string in text. Dynamic facts, evidence, hashes, revisions, and warnings belong in metadata and warnings, not hidden inside Markdown prose.",
+        "items": [
+          "uri: normalized URI resolved by mcp_uri.py",
+          "content_mime_type: logical content type for text",
+          "text: Markdown or JSON string produced by the reader",
+          "metadata: structured evidence, revision, scope, and decoded logical values",
+          "warnings: structured McpErrorPayload values"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from dataclasses import dataclass\nfrom typing import Literal\n\nMcpResourceContentMime = Literal[\"text/markdown\", \"application/json\"]\n\n@dataclass(frozen=True)\nclass McpResourceRequest:\n    uri: str\n\n@dataclass(frozen=True)\nclass McpResourceBody:\n    uri: str\n    content_mime_type: McpResourceContentMime\n    text: str\n    metadata: dict[str, object]\n    warnings: tuple[McpErrorPayload, ...] = ()\n\n    def to_json_dict(self) -> dict[str, object]: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Resource Registry And FastMCP Registration",
+        "content": "src/vault_graph/mcp/mcp_resources.py owns template registration and dispatch.\nRegistration rules:\nregister templates only through the public FastMCP.resource(...) decorator. do not access private SDK attributes. each template handler reconstructs the URI string from template arguments and delegates to McpResourceRegistry.read(...). template handlers return `json.dumps(body.to_json_dict(), sort_keys=True, ensure_ascii=False, indent=2) + \"\\n\"`. the registry catches domain exceptions and converts them through map_exception_to_mcp_error(...) before exposing a protocol error. list_resources() should remain small; Phase 5B relies on list_resource_templates() and direct resource reads instead of listing every document.\nmcp_server.py changes:\ncreate_mcp_server(...) constructs the cache, registers resources, and returns the expanded wrapper. It must keep MCP SDK imports lazy.",
+        "items": [
+          "register templates only through the public FastMCP.resource(...) decorator.",
+          "do not access private SDK attributes.",
+          "each template handler reconstructs the URI string from template arguments and",
+          "template handlers return `json.dumps(body.to_json_dict(), sort_keys=True,",
+          "the registry catches domain exceptions and converts them through",
+          "list_resources() should remain small; Phase 5B relies on"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from collections.abc import Callable\nfrom typing import Protocol\n\nclass McpResourceServer(Protocol):\n    def resource(\n        self,\n        uri: str,\n        *,\n        name: str | None = None,\n        title: str | None = None,\n        description: str | None = None,\n        mime_type: str | None = None,\n        meta: dict[str, object] | None = None,\n    ) -> Callable[[Callable[..., object]], Callable[..., object]]: ...\n\nclass GraphResourceReaderFactory(Protocol):\n    def get(self) -> GraphResourceReader: ...\n\nclass McpResourceRegistry:\n    def __init__(\n        self,\n        *,\n        catalog: VaultCatalog,\n        metadata_reader: MetadataResourceReader,\n        graph_reader_factory: GraphResourceReaderFactory,\n        context_pack_cache: ContextPackResourceCache,\n        current_context_reader: CurrentContextResourceReader,\n    ) -> None: ...\n\n    def read(self, request: McpResourceRequest) -> McpResourceBody: ...\n\ndef register_mcp_resources(\n    server: McpResourceServer,\n    *,\n    services: McpServices,\n    service_factory: McpServiceFactory,\n    context_pack_cache: ContextPackResourceCache,\n) -> McpResourceRegistry: ..."
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass RegisteredMcpServer:\n    server: McpServer\n    services: McpServices\n    service_factory: McpServiceFactory\n    server_version: str\n    context_pack_cache: ContextPackResourceCache\n    resource_registry: McpResourceRegistry"
+          }
+        ]
+      },
+      {
+        "heading": "Metadata Store Extension",
+        "content": "Phase 5B should add a focused read method instead of making resource readers filter every chunk in a Vault.\nSQLiteMetadataStore.list_document_chunks(...) must:\nuse vault_id and document_id filters. return chunks ordered by indexed document order, preserving heading-section order from heading-section-v1. return an empty tuple for unknown or tombstoned documents. perform no writes and no implicit schema initialization.\nThis method is a Phase 5B requirement, not a temporary optimization. It keeps resource rendering behind a small store interface and avoids repeated scope-wide scans as Vaults grow.",
+        "items": [
+          "use vault_id and document_id filters.",
+          "return chunks ordered by indexed document order, preserving heading-section",
+          "return an empty tuple for unknown or tombstoned documents.",
+          "perform no writes and no implicit schema initialization."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class MetadataStore(Protocol):\n    def list_document_chunks(\n        self,\n        *,\n        vault_id: str,\n        document_id: str,\n    ) -> tuple[ChunkSnapshot, ...]: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Metadata Resource Reader",
+        "content": "src/vault_graph/mcp/metadata_resource_reader.py renders document-like resources from indexed metadata only.\nIdentity rules:\ndocuments/{path} and pages/{path} resolve by decoded logical path through MetadataStore.document_state(vault_id, path). sources/{id}, decisions/{id}, and issues/{id} resolve by document_id; tools may return these links after search or context-pack assembly. resolve_document(document_id) results must match the URI vault_id; a mismatch is resource_not_found. source, decision, and issue readers verify the resolved document classification before rendering: source: raw/, docs/, or scratch/reports/ path, or frontmatter type: source decision: wiki/decisions/ path or frontmatter type: decision issue: wiki/issues/ path or frontmatter type: issue a classification mismatch returns resource_not_found; it must not render an unrelated document under a misleading resource kind.\nRendering rules:\nrender chunks in list_document_chunks(...) order. preserve original chunk text; do not re-read the Vault file. add heading separators only when needed to keep adjacent chunks readable. do not inject hidden prompt instructions into resource content. put document metadata in the JSON e...",
+        "items": [
+          "documents/{path} and pages/{path} resolve by decoded logical path through",
+          "sources/{id}, decisions/{id}, and issues/{id} resolve by",
+          "resolve_document(document_id) results must match the URI vault_id; a",
+          "source, decision, and issue readers verify the resolved document classification",
+          "source: raw/, docs/, or scratch/reports/ path, or frontmatter",
+          "decision: wiki/decisions/ path or frontmatter type: decision",
+          "issue: wiki/issues/ path or frontmatter type: issue",
+          "a classification mismatch returns resource_not_found; it must not render an",
+          "render chunks in list_document_chunks(...) order.",
+          "preserve original chunk text; do not re-read the Vault file.",
+          "add heading separators only when needed to keep adjacent chunks readable.",
+          "do not inject hidden prompt instructions into resource content.",
+          "put document metadata in the JSON envelope:",
+          "vault_id",
+          "document_id",
+          "decoded logical path"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass MetadataResourceRead:\n    document: DocumentSnapshot\n    chunks: tuple[ChunkSnapshot, ...]\n    evidence: tuple[EvidenceReference, ...]\n    warnings: tuple[McpErrorPayload, ...]\n\nclass MetadataResourceReader:\n    def __init__(self, *, catalog: VaultCatalog, metadata_store: MetadataStore) -> None: ...\n\n    def read_document(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_page(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_source(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_decision(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_issue(self, uri: McpResourceUri) -> McpResourceBody: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Graph Resource Service And Reader",
+        "content": "Graph resources need graph state, graph readiness, and metadata evidence. Keep that logic behind an application service so future HTTP serving can reuse it.\nAdd src/vault_graph/app/graph_resource_service.py:\nMcpServiceFactory adds:\nGraph rules:\nopening graph resources is lazy; importing vault_graph.mcp and open_read_only() must not import rustworkx. get_entity(...) checks graph readiness for the selected Vault before reading. find_concept(...) searches active graph entities by normalized concept name within the selected Vault only. no graph concept match returns resource_not_found; multiple active exact concept matches return ambiguous_resource so the caller can use a graph entity URI instead. graph entity output includes relationship status labels: stated, inferred, contested, and deprecated. cross-Vault evidence refs preserve evidence_vault_id, owner_vault_id, and relationship source/target Vault IDs. unavailable graph state returns graph_unavailable or resource_not_available instead of silently degrading to metadata text.\nsrc/vault_graph/mcp/graph_resource_reader.py turns service results into McpResourceBody.\nThe reader returns content_mime_type=\"application/json\" and a stable...",
+        "items": [
+          "opening graph resources is lazy; importing vault_graph.mcp and",
+          "get_entity(...) checks graph readiness for the selected Vault before",
+          "find_concept(...) searches active graph entities by normalized concept name",
+          "no graph concept match returns resource_not_found; multiple active exact",
+          "graph entity output includes relationship status labels:",
+          "cross-Vault evidence refs preserve evidence_vault_id, owner_vault_id, and",
+          "unavailable graph state returns graph_unavailable or resource_not_available",
+          "entity identity, type, name, aliases, canonical path, confidence, status, and",
+          "evidence refs and resolved metadata evidence",
+          "relationship summaries grouped by status",
+          "graph extraction spec version and digest",
+          "graph/store/projection revisions when available",
+          "warnings"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass GraphResourceWarning:\n    code: str\n    message: str\n    severity: str\n    affected_vault_ids: tuple[str, ...]\n    recovery_hint: str | None = None\n\n@dataclass(frozen=True)\nclass GraphEntityResource:\n    entity: EntityRecord\n    evidence: tuple[EvidenceReference, ...]\n    related_relationships: tuple[RelationshipRecord, ...]\n    warnings: tuple[GraphResourceWarning, ...]\n    store_revisions: tuple[GraphRetrievalRevision, ...]\n\nclass GraphResourceService:\n    def __init__(\n        self,\n        *,\n        catalog: VaultCatalog,\n        metadata_store: MetadataStore,\n        graph_store: GraphStore,\n        graph_readiness: GraphReadinessChecker,\n    ) -> None: ...\n\n    def get_entity(\n        self,\n        *,\n        vault_id: str,\n        entity_id: str,\n    ) -> GraphEntityResource: ...\n\n    def find_concept(\n        self,\n        *,\n        vault_id: str,\n        name: str,\n    ) -> GraphEntityResource: ..."
+          },
+          {
+            "language": "python",
+            "content": "def open_graph_resource_service(self) -> GraphResourceService: ..."
+          },
+          {
+            "language": "python",
+            "content": "class GraphResourceReader:\n    def __init__(self, *, graph_resource_service: GraphResourceService) -> None: ...\n\n    def read_entity(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_concept(self, uri: McpResourceUri) -> McpResourceBody: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Current Context And Timeline Resources",
+        "content": "src/vault_graph/mcp/mcp_resources.py may keep current context rendering inside the registry module or split it into a small reader. If split, use this shape:\nvault://{vault_id}/context/current is an availability resource, not a memory summary. It may include:\nselected Vault ID and display name enabled content scopes active Vault marker metadata/vector/graph health status available through existing services context-pack cache size and max entries warnings for missing, stale, or unavailable projections\nIt must not summarize project memory, synthesize a current-state narrative, or scan Vault files.\nvault://{vault_id}/timeline/recent remains a template in the URI contract, but Phase 5B returns resource_not_available until a timeline projection service exists. This keeps the resource vocabulary stable without inventing summaries.",
+        "items": [
+          "selected Vault ID and display name",
+          "enabled content scopes",
+          "active Vault marker",
+          "metadata/vector/graph health status available through existing services",
+          "context-pack cache size and max entries",
+          "warnings for missing, stale, or unavailable projections"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class CurrentContextResourceReader:\n    def __init__(\n        self,\n        *,\n        catalog: VaultCatalog,\n        service_factory: McpServiceFactory,\n        context_pack_cache: ContextPackResourceCache,\n    ) -> None: ...\n\n    def read_current_context(self, uri: McpResourceUri) -> McpResourceBody: ...\n    def read_recent_timeline(self, uri: McpResourceUri) -> McpResourceBody: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Context Pack Resource Cache",
+        "content": "Phase 4 intentionally avoided durable pack persistence. Phase 5B keeps that choice.\nsrc/vault_graph/mcp/context_pack_resource_cache.py:\nCache policy:\nin-process only bounded by count, default 32 packs evicts least-recently-used packs writes no files stores rendered canonical JSON only does not change ContextPack JSON schema returns resource_not_found for missing pack IDs with recovery hint: call build_context_pack again\nPhase 5B registers vault://context/packs/{pack_id} and implements reads from this cache. Phase 5C build_context_pack must use the same cache instance from RegisteredMcpServer, return structured pack JSON, and include the resource URI for follow-up reads.",
+        "items": [
+          "in-process only",
+          "bounded by count, default 32 packs",
+          "evicts least-recently-used packs",
+          "writes no files",
+          "stores rendered canonical JSON only",
+          "does not change ContextPack JSON schema",
+          "returns resource_not_found for missing pack IDs with recovery hint:"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from collections.abc import Callable\nfrom dataclasses import dataclass\nfrom datetime import datetime\n\n@dataclass(frozen=True)\nclass CachedContextPack:\n    pack_id: str\n    pack_json: str\n    generated_at: str\n    requested_scope_key: str\n    actual_scope_keys: tuple[str, ...]\n    cached_at: str\n\nclass ContextPackResourceCache:\n    def __init__(\n        self,\n        *,\n        max_entries: int = 32,\n        clock: Callable[[], datetime] | None = None,\n    ) -> None: ...\n\n    @property\n    def max_entries(self) -> int: ...\n\n    def put(self, pack: ContextPack, *, rendered_json: str) -> CachedContextPack: ...\n    def get(self, pack_id: str) -> CachedContextPack | None: ...\n    def __len__(self) -> int: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Error And Warning Policy",
+        "content": "Resource error payload codes:\ninvalid_resource_uri unknown_vault_id vault_disabled resource_not_found resource_not_available ambiguous_resource metadata_unavailable graph_unavailable stale_index missing_evidence read_only_boundary_error\nPolicy:\ninvalid URI, unknown Vault, disabled Vault, and unsupported resource kind are invalid-parameter errors. missing documents, missing graph entities, and missing cached packs are not-found errors. missing backends, unhealthy stores, and stale projections are execution errors or warnings depending on whether a partial resource can still be returned. local absolute paths must be redacted through mcp_errors.py unless the path is the explicit user-provided --state path. warnings are included in the JSON envelope warnings field; they must not be hidden only in Markdown text.",
+        "items": [
+          "invalid_resource_uri",
+          "unknown_vault_id",
+          "vault_disabled",
+          "resource_not_found",
+          "resource_not_available",
+          "ambiguous_resource",
+          "metadata_unavailable",
+          "graph_unavailable",
+          "stale_index",
+          "missing_evidence",
+          "read_only_boundary_error",
+          "invalid URI, unknown Vault, disabled Vault, and unsupported resource kind are",
+          "missing documents, missing graph entities, and missing cached packs are",
+          "missing backends, unhealthy stores, and stale projections are execution errors",
+          "local absolute paths must be redacted through mcp_errors.py unless the path",
+          "warnings are included in the JSON envelope warnings field; they must not be"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Security And Read-Only Requirements",
+        "content": "resource reads never execute shell commands. resource reads never accept raw filesystem roots. resource reads never call VaultLoader. resource reads never write registered Vault roots. resource reads never create missing Vault Graph state directories. URI parsing rejects absolute paths and traversal before store calls. decoded logical paths are checked against the selected Vault entry's enabled content scopes. FastMCP stdout remains protocol-only; diagnostics go to stderr. all tests that inspect filesystem side effects compare Vault and state bytes before and after resource reads.",
+        "items": [
+          "resource reads never execute shell commands.",
+          "resource reads never accept raw filesystem roots.",
+          "resource reads never call VaultLoader.",
+          "resource reads never write registered Vault roots.",
+          "resource reads never create missing Vault Graph state directories.",
+          "URI parsing rejects absolute paths and traversal before store calls.",
+          "decoded logical paths are checked against the selected Vault entry's enabled",
+          "FastMCP stdout remains protocol-only; diagnostics go to stderr.",
+          "all tests that inspect filesystem side effects compare Vault and state bytes"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

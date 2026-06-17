@@ -1,0 +1,612 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design",
+  "slug": "2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design",
+  "status": "draft",
+  "title": "Phase 5C MCP Tools, Prompts, And Agent Workflows Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-15",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+    "agentSummary": "Read docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 5C exposes the existing Vault Graph services as MCP tools and prompt templates. The goal is to let agents retrieve bounded, evidence-linked context without inventing answer synthesis or bypassing the CLI-tested application services.\nTools return structured data. Prompts are lightweight workflow templates that guide an agent toward the right tools and remind it that Vault Graph output is working context, not durable truth.",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+    "scope": {
+      "in": [
+        "Register service-backed tools for search, context packs, related entities,",
+        "Return structured output plus a text mirror for compatibility.",
+        "Preserve all warnings, evidence refs, backend use, store revisions, and",
+        "Return MCP resource links where Phase 5B resources exist.",
+        "Register prompt templates for repeatable agent workflows.",
+        "Add tests for tool schemas, prompt text, read-only behavior, and multi-vault"
+      ],
+      "out": [
+        "ask_vault answer generation.",
+        "LLM clients or hosted model calls.",
+        "Phase 6 project memory, open-question, and recent-change projections.",
+        "Autonomous wiki publication.",
+        "Tools that index or mutate derived state.",
+        "Streaming partial tool output."
+      ]
+    },
+    "architecture": {
+      "summary": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+      "flow": [
+        "Markdown source -> Stenc JSON -> generated fixed web page"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "In Scope",
+        "detail": "Register service-backed tools for search, context packs, related entities, decision traces, and index status. Return structured output plus a text mirror for compatibility. Preserve all warnings, evidence refs, backend use, store revisions, and Vault IDs. Return MCP resource links where Phase 5B resources exist. Register prompt templates for repeatable agent workflows. Add tests for tool schemas, prompt text, read-only behavior, and multi-vault scope handling.",
+        "acceptanceCriteria": [
+          "Register service-backed tools for search, context packs, related entities,",
+          "Return structured output plus a text mirror for compatibility.",
+          "Preserve all warnings, evidence refs, backend use, store revisions, and",
+          "Return MCP resource links where Phase 5B resources exist.",
+          "Register prompt templates for repeatable agent workflows.",
+          "Add tests for tool schemas, prompt text, read-only behavior, and multi-vault"
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "Out Of Scope",
+        "detail": "ask_vault answer generation. LLM clients or hosted model calls. Phase 6 project memory, open-question, and recent-change projections. Autonomous wiki publication. Tools that index or mutate derived state. Streaming partial tool output.",
+        "acceptanceCriteria": [
+          "ask_vault answer generation.",
+          "LLM clients or hosted model calls.",
+          "Phase 6 project memory, open-question, and recent-change projections.",
+          "Autonomous wiki publication.",
+          "Tools that index or mutate derived state.",
+          "Streaming partial tool output."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+        "interfaces": [
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "search_vault:\nbuild_context_pack:\nfind_related:\nget_decision_trace:\ncheck_index_status:"
+    ],
+    "errorHandling": [
+      {
+        "case": "Conversion drift",
+        "behavior": "Treat the original Markdown and docs/SPEC.md as the source of truth if generated Stenc content is ambiguous."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Security And Agent Ergonomics",
+        "rules": [
+          "Tool names should be concrete and unsurprising.",
+          "Tool descriptions must not contain hidden instructions that conflict with the",
+          "Tool descriptions must state read-only behavior and scope defaults.",
+          "Prompts must not ask agents to bypass warnings.",
+          "Prompt and tool outputs must avoid local absolute paths unless they are",
+          "Tool calls must be bounded by limit, max_tokens, and graph depth.",
+          "Expensive graph behavior is opt-in."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 5C exposes the existing Vault Graph services as MCP tools and prompt templates. The goal is to let agents retrieve bounded, evidence-linked context without inventing answer synthesis or bypassing the CLI-tested application services.\nTools return structured data. Prompts are lightweight workflow templates that guide an agent toward the right tools and remind it that Vault Graph output is working context, not durable truth.",
+        "items": [
+          "Review the Purpose section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "In Scope",
+        "content": "Register service-backed tools for search, context packs, related entities, decision traces, and index status. Return structured output plus a text mirror for compatibility. Preserve all warnings, evidence refs, backend use, store revisions, and Vault IDs. Return MCP resource links where Phase 5B resources exist. Register prompt templates for repeatable agent workflows. Add tests for tool schemas, prompt text, read-only behavior, and multi-vault scope handling.",
+        "items": [
+          "Register service-backed tools for search, context packs, related entities,",
+          "Return structured output plus a text mirror for compatibility.",
+          "Preserve all warnings, evidence refs, backend use, store revisions, and",
+          "Return MCP resource links where Phase 5B resources exist.",
+          "Register prompt templates for repeatable agent workflows.",
+          "Add tests for tool schemas, prompt text, read-only behavior, and multi-vault"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Out Of Scope",
+        "content": "ask_vault answer generation. LLM clients or hosted model calls. Phase 6 project memory, open-question, and recent-change projections. Autonomous wiki publication. Tools that index or mutate derived state. Streaming partial tool output.",
+        "items": [
+          "ask_vault answer generation.",
+          "LLM clients or hosted model calls.",
+          "Phase 6 project memory, open-question, and recent-change projections.",
+          "Autonomous wiki publication.",
+          "Tools that index or mutate derived state.",
+          "Streaming partial tool output."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Registered Tools",
+        "content": "Phase 5C registers only tools backed by existing services:\nDeferred tools:\nDeferred tools are not listed in MCP until their backing application services exist. Listing a tool before it can do useful work is worse for agents than omitting it because it teaches the model an unusable path.",
+        "items": [
+          "Review the Registered Tools section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "search_vault(query, scope=None, limit=10, include_graph=False, include_cross_vault=False)\nbuild_context_pack(goal, scope=None, max_tokens=None, limit=10, include_graph=False, include_cross_vault=False)\nfind_related(target, scope=None, depth=1, kinds=None)\nget_decision_trace(decision_or_topic, scope=None)\ncheck_index_status(scope=None)"
+          },
+          {
+            "language": "text",
+            "content": "ask_vault(question, mode=\"evidence-first\", scope=None)\nsummarize_project_memory(scope=None)\nget_open_questions(scope=None)\nget_recent_changes(since=None, scope=None)\nexplain_result(result_id)"
+          }
+        ]
+      },
+      {
+        "heading": "Tool DTOs",
+        "content": "All tools share McpScopeInput from Phase 5A.\nSearch input:\nContext input:\nRelated input:\nDecision trace input:\nStatus input:\nValidation rules:\nRequired strings must be non-empty after trimming. limit must be positive and bounded by the existing service cap. max_tokens must follow Phase 4 context budget rules. depth must be positive and bounded; Phase 5C default is 1. include_cross_vault requires explicit graph behavior and multi-vault scope. Unknown kinds values are invalid arguments.",
+        "items": [
+          "Required strings must be non-empty after trimming.",
+          "limit must be positive and bounded by the existing service cap.",
+          "max_tokens must follow Phase 4 context budget rules.",
+          "depth must be positive and bounded; Phase 5C default is 1.",
+          "include_cross_vault requires explicit graph behavior and multi-vault scope.",
+          "Unknown kinds values are invalid arguments."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass SearchVaultInput:\n    query: str\n    scope: McpScopeInput | None = None\n    limit: int = 10\n    include_graph: bool = False\n    include_cross_vault: bool = False"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass BuildContextPackInput:\n    goal: str\n    scope: McpScopeInput | None = None\n    max_tokens: int | None = None\n    limit: int = 10\n    include_graph: bool = False\n    include_cross_vault: bool = False"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass FindRelatedInput:\n    target: str\n    scope: McpScopeInput | None = None\n    depth: int = 1\n    kinds: tuple[str, ...] | None = None"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass DecisionTraceInput:\n    decision_or_topic: str\n    scope: McpScopeInput | None = None"
+          }
+        ]
+      },
+      {
+        "heading": "Tool Output Policy",
+        "content": "Each tool returns:\nstructuredContent: canonical JSON-compatible response content: a text mirror containing compact JSON or short Markdown isError: true only for tool execution failures, not warning-backed degradation\nStructured output rules:\nUse existing response DTOs where possible. Do not expose backend-native records. Include vault_id on every evidence-bearing item. Include requested_scope and actual_scopes when available. Include store revisions and backend use when available. Preserve top-level and item-level warnings. Include resource links for generated packs and graph entities when available.\nText mirror rules:\nIt may be JSON text for machine consumption or Markdown for readability. It must not omit warnings that exist in structured output. It must not add facts that are absent from structured output.",
+        "items": [
+          "structuredContent: canonical JSON-compatible response",
+          "content: a text mirror containing compact JSON or short Markdown",
+          "isError: true only for tool execution failures, not warning-backed",
+          "Use existing response DTOs where possible.",
+          "Do not expose backend-native records.",
+          "Include vault_id on every evidence-bearing item.",
+          "Include requested_scope and actual_scopes when available.",
+          "Include store revisions and backend use when available.",
+          "Preserve top-level and item-level warnings.",
+          "Include resource links for generated packs and graph entities when available.",
+          "It may be JSON text for machine consumption or Markdown for readability.",
+          "It must not omit warnings that exist in structured output.",
+          "It must not add facts that are absent from structured output."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Tool Flows",
+        "content": "search_vault:\nbuild_context_pack:\nfind_related:\nget_decision_trace:\ncheck_index_status:",
+        "items": [
+          "Review the Tool Flows section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "SearchVaultInput\n  -> McpScopeInput to QueryScope\n  -> RetrievalService.search(...)\n  -> structured SearchResponse\n  -> optional resource links for evidence documents"
+          },
+          {
+            "language": "text",
+            "content": "BuildContextPackInput\n  -> ContextPackRequest\n  -> ContextPackBuilder.build(...)\n  -> ContextPack JSON\n  -> ContextPackResourceCache.put(...)\n  -> return pack JSON plus vault://context/packs/{pack_id}"
+          },
+          {
+            "language": "text",
+            "content": "FindRelatedInput\n  -> graph scope validation\n  -> GraphRetrievalService.related(...)\n  -> evidence resolution through MetadataStore\n  -> structured graph response plus graph entity resource links"
+          },
+          {
+            "language": "text",
+            "content": "DecisionTraceInput\n  -> GraphRetrievalService.decision_trace(...)\n  -> durable decision evidence preferred\n  -> warnings for inferred, stale, missing, contested, or deprecated links"
+          }
+        ]
+      },
+      {
+        "heading": "Prompt Templates",
+        "content": "Phase 5C registers these prompts:\nPrompt rules:\nPrompts are user-controlled templates, not autonomous operations. Prompts must tell the agent to call the appropriate Vault Graph MCP tools instead of reading the whole Vault. Prompts must state that Vault Graph output is working context. Prompts must tell the agent not to edit Vault files through Vault Graph. Prompts must preserve evidence and warnings in the final answer. Prompts that suggest durable follow-up must route it back through Vault's source capture, validation, release gate, and Git workflow.\nExample prompt skeleton:",
+        "items": [
+          "Prompts are user-controlled templates, not autonomous operations.",
+          "Prompts must tell the agent to call the appropriate Vault Graph MCP tools",
+          "Prompts must state that Vault Graph output is working context.",
+          "Prompts must tell the agent not to edit Vault files through Vault Graph.",
+          "Prompts must preserve evidence and warnings in the final answer.",
+          "Prompts that suggest durable follow-up must route it back through Vault's"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "generate_codex_brief(goal, scope=None)\nprepare_implementation_context(goal, scope=None)\nreview_architecture_decision(topic, scope=None)\nsummarize_feature_history(topic, scope=None)\nanalyze_project_risk(topic_or_goal, scope=None)\nprepare_wiki_update_context(topic, scope=None)\ntrace_decision_history(topic, scope=None)"
+          },
+          {
+            "language": "text",
+            "content": "Use Vault Graph as read-only working context for: {goal}\n\n1. Call build_context_pack with the provided scope.\n2. Inspect warnings before using evidence.\n3. Cite evidence refs from the context pack.\n4. If durable knowledge should be added or changed, propose a Vault workflow\n   follow-up. Do not publish through Vault Graph."
+          }
+        ]
+      },
+      {
+        "heading": "Security And Agent Ergonomics",
+        "content": "Tool names should be concrete and unsurprising. Tool descriptions must not contain hidden instructions that conflict with the user's prompt. Tool descriptions must state read-only behavior and scope defaults. Prompts must not ask agents to bypass warnings. Prompt and tool outputs must avoid local absolute paths unless they are already part of explicit configuration output. Tool calls must be bounded by limit, max_tokens, and graph depth. Expensive graph behavior is opt-in.",
+        "items": [
+          "Tool names should be concrete and unsurprising.",
+          "Tool descriptions must not contain hidden instructions that conflict with the",
+          "Tool descriptions must state read-only behavior and scope defaults.",
+          "Prompts must not ask agents to bypass warnings.",
+          "Prompt and tool outputs must avoid local absolute paths unless they are",
+          "Tool calls must be bounded by limit, max_tokens, and graph depth.",
+          "Expensive graph behavior is opt-in."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Tests Required Before Implementation",
+        "content": "Phase 5C implementation must include tests for:\nregistered tool list contains only service-backed tools. deferred tools are not listed. each tool input schema includes required fields, defaults, and bounds. invalid scope, invalid limit, invalid max tokens, and invalid cross-Vault graph combinations fail before opening graph dependencies. search tool delegates to RetrievalService and preserves warnings. context tool delegates to ContextPackBuilder, preserves JSON schema, and returns a context-pack resource link. related and decision-trace tools open graph services only when called. status tool reports metadata/vector/graph freshness without mutating state. all tool calls leave registered Vault file hashes unchanged. structured output and text mirror contain the same warnings. prompt templates include read-only, evidence-first, warning, and durable follow-up language. prompt templates reference only registered Phase 5C tools.",
+        "items": [
+          "registered tool list contains only service-backed tools.",
+          "deferred tools are not listed.",
+          "each tool input schema includes required fields, defaults, and bounds.",
+          "invalid scope, invalid limit, invalid max tokens, and invalid cross-Vault graph",
+          "search tool delegates to RetrievalService and preserves warnings.",
+          "context tool delegates to ContextPackBuilder, preserves JSON schema, and",
+          "related and decision-trace tools open graph services only when called.",
+          "status tool reports metadata/vector/graph freshness without mutating state.",
+          "all tool calls leave registered Vault file hashes unchanged.",
+          "structured output and text mirror contain the same warnings.",
+          "prompt templates include read-only, evidence-first, warning, and durable",
+          "prompt templates reference only registered Phase 5C tools."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Handoff To Phase 6",
+        "content": "Phase 6 may add summarize_project_memory, get_open_questions, get_recent_changes, and richer explain_result only after memory and explorer projection services exist. Phase 5C should leave clean extension points but no listed tools without backing services.",
+        "items": [
+          "Review the Handoff To Phase 6 section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

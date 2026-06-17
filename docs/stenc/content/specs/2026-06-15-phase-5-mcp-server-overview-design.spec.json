@@ -1,0 +1,556 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-15-phase-5-mcp-server-overview-design",
+  "slug": "2026-06-15-phase-5-mcp-server-overview-design",
+  "status": "draft",
+  "title": "Phase 5 MCP Server Overview Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5 cross-slice overview",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-15",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5 cross-slice overview",
+    "agentSummary": "Read docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 5 exposes Vault Graph to agents through MCP. The server should make the existing search, graph, decision-trace, status, and context-pack services easy for Codex, Claude, Cursor, OpenCode, and other agents to consume without asking them to scan an entire Vault.\nThe deliverable is not a new reasoning layer, not an answer-generation service, not memory projections, not remote hosting, and not durable Vault publication. The deliverable is a local, read-only MCP adapter over already-defined Vault Graph application services.\nMCP output remains working context. If a tool response or prompt result suggests durable knowledge, that follow-up must go through Vault's normal source capture, valida...",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5 cross-slice overview",
+    "scope": {
+      "in": [
+        "Structured Stenc view of the source spec Markdown.",
+        "Original Markdown remains at docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md."
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown source.",
+        "Changing Vault Graph runtime behavior."
+      ]
+    },
+    "architecture": {
+      "summary": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5 cross-slice overview",
+      "flow": [
+        "Markdown source -> Stenc JSON -> generated fixed web page"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Overview",
+        "detail": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5 cross-slice overview",
+        "acceptanceCriteria": [
+          "Review the Overview section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "Purpose",
+        "detail": "Phase 5 exposes Vault Graph to agents through MCP. The server should make the existing search, graph, decision-trace, status, and context-pack services easy for Codex, Claude, Cursor, OpenCode, and other agents to consume without asking them to scan an entire Vault.\nThe deliverable is not a new reasoning layer, not an answer-generation service, not memory projections, not remote hosting, and not durable Vault publication. The deliverable is a local, read-only MCP adapter over already-defined Vault Graph application services.\nMCP output remains working context. If a tool response or prompt result suggests durable knowledge, that follow-up must go through Vault's normal source capture, valida...",
+        "acceptanceCriteria": [
+          "Review the Purpose section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Document Map",
+        "detail": "| Document | Role | | --- | --- | | README.md | Phase 5 design folder index and reading order | | 2026-06-15-phase-5-mcp-server-overview-design.md | Cross-slice overview, invariants, and implementation handoff map | | 2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md | Phase 5A local stdio runtime, server construction, configuration, and errors | | 2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md | Phase 5B resources, URI validation, generated context pack resources, and cache policy | | 2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md | Phase 5C service-backed tools, prompts, structured outputs, and workflow contracts |\ndocs/SPEC.md remains the top-...",
+        "acceptanceCriteria": [
+          "Review the Document Map section in the source Markdown."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5 cross-slice overview",
+        "interfaces": [
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Phase 5A foundation:\nPhase 5B resources:\nPhase 5C tools and prompts:"
+    ],
+    "errorHandling": [
+      {
+        "case": "Error And Degradation Policy",
+        "behavior": "Invalid MCP arguments, invalid scope, unknown Vault IDs, unsupported resource URIs, and missing required fields are protocol-level invalid-parameter errors. Missing indexes, unhealthy backends, stale projections, and unavailable graph state become structured tool/resource errors or warnings depending on the underlying service contract. Search and context tools may degrade from vector to keyword when existing retrieval behavior permits it, but the degraded state must be visible. Graph tools fail..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Cross-Slice Invariants",
+        "rules": [
+          "Vault remains the durable source of truth.",
+          "MCP is an adapter over application services. It must not query SQLite, Chroma,",
+          "MCP tools, resources, and prompts must not write, rename, rewrite, delete, or",
+          "Phase 5 read paths use read-only store construction. They must not initialize",
+          "Evidence chunks remain the authority unit for search and context-pack output:",
+          "Tool and resource output must preserve Vault IDs where collision is possible.",
+          "Warnings are first-class structured fields and must not be hidden by text",
+          "Multi-vault scope is explicit. Default MCP calls use the active Vault only."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "README.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "docs/SPEC.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5-mcp-server-overview-design.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5-mcp-server-overview-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5 cross-slice overview",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 5 exposes Vault Graph to agents through MCP. The server should make the existing search, graph, decision-trace, status, and context-pack services easy for Codex, Claude, Cursor, OpenCode, and other agents to consume without asking them to scan an entire Vault.\nThe deliverable is not a new reasoning layer, not an answer-generation service, not memory projections, not remote hosting, and not durable Vault publication. The deliverable is a local, read-only MCP adapter over already-defined Vault Graph application services.\nMCP output remains working context. If a tool response or prompt result suggests durable knowledge, that follow-up must go through Vault's normal source capture, validation, release gate, and Git history workflow.",
+        "items": [
+          "Review the Purpose section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Document Map",
+        "content": "| Document | Role | | --- | --- | | README.md | Phase 5 design folder index and reading order | | 2026-06-15-phase-5-mcp-server-overview-design.md | Cross-slice overview, invariants, and implementation handoff map | | 2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md | Phase 5A local stdio runtime, server construction, configuration, and errors | | 2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md | Phase 5B resources, URI validation, generated context pack resources, and cache policy | | 2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md | Phase 5C service-backed tools, prompts, structured outputs, and workflow contracts |\ndocs/SPEC.md remains the top-level product contract. This folder is the implementation-design layer for Phase 5.",
+        "items": [
+          "Review the Document Map section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Phase Slices",
+        "content": "| Slice | Change | User Value | Explicitly Not Included | | --- | --- | --- | --- |\n| Phase 5A | Add local stdio MCP server foundation, vg serve --mcp, service factory, capability registration, and Codex-compatible config examples | agents can connect to Vault Graph without a custom CLI wrapper | Streamable HTTP, auth, remote hosting, resources beyond capability skeleton, answer synthesis |\n| Phase 5B | Add read-only MCP resources and resource templates over indexed Vault content, graph entities, current context, and generated context packs | agents can request precise evidence resources instead of whole-Vault scans | Vault writes, resource subscriptions, durable pack store, full document listing by default |\n| Phase 5C | Add service-backed MCP tools and prompts over existing retrieval, graph, decision-trace, status, and context-pack services | agents can search, build context packs, inspect graph evidence, and use repeatable workflows | ask_vault, Phase 6 memory tools, LLM clients, autonomous wiki updates |\nThe slices separate transport, resources, and tool/prompt behavior. This keeps the MCP adapter thin and prevents agent-facing integration from becoming a second application la...",
+        "items": [
+          "Review the Phase Slices section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Current Phase 5 Positions",
+        "content": "Default transport is stdio. It is the simplest local agent integration and avoids network-origin and authentication questions. Streamable HTTP is deferred to the optional HTTP serving phase. It needs origin validation, localhost binding policy, authentication, and session hardening before it can be safe. Use the official Python MCP SDK at implementation time, with a preference for its high-level server API where it preserves structured output and explicit resource/tool/prompt registration. MCP responses should return structured JSON as the contract. Text content is a compatibility mirror, not the source of truth. Only service-backed tools are registered. ask_vault, project-memory summaries, open-question tools, recent-change tools, and result-explanation tools remain future tools until their backing application services exist. Prompt templates may mention future workflows, but they must instruct agents to call only currently registered tools and to treat all Vault Graph output as working context. Context pack resources are generated artifacts. Until a durable pack store is designed, vault://context/packs/{pack_id} is backed by a bounded in-process cache and can be regenerated by c...",
+        "items": [
+          "Default transport is stdio. It is the simplest local agent integration and",
+          "Streamable HTTP is deferred to the optional HTTP serving phase. It needs",
+          "Use the official Python MCP SDK at implementation time, with a preference for",
+          "MCP responses should return structured JSON as the contract. Text content is a",
+          "Only service-backed tools are registered. ask_vault, project-memory",
+          "Prompt templates may mention future workflows, but they must instruct agents",
+          "Context pack resources are generated artifacts. Until a durable pack store is"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Cross-Slice Invariants",
+        "content": "Vault remains the durable source of truth. MCP is an adapter over application services. It must not query SQLite, Chroma, rustworkx, or Vault files directly when an application service exists. MCP tools, resources, and prompts must not write, rename, rewrite, delete, or publish Vault content. Phase 5 read paths use read-only store construction. They must not initialize missing indexes, create caches, or run indexing as a side effect. Evidence chunks remain the authority unit for search and context-pack output: (vault_id, document_id, chunk_id). Tool and resource output must preserve Vault IDs where collision is possible. Warnings are first-class structured fields and must not be hidden by text mirrors or prompts. Multi-vault scope is explicit. Default MCP calls use the active Vault only. Graph and cross-Vault graph expansion are opt-in, matching Phase 3 and Phase 4 behavior. The MCP server must write logs to stderr, never stdout, while using stdio. stdout is reserved for MCP protocol messages.",
+        "items": [
+          "Vault remains the durable source of truth.",
+          "MCP is an adapter over application services. It must not query SQLite, Chroma,",
+          "MCP tools, resources, and prompts must not write, rename, rewrite, delete, or",
+          "Phase 5 read paths use read-only store construction. They must not initialize",
+          "Evidence chunks remain the authority unit for search and context-pack output:",
+          "Tool and resource output must preserve Vault IDs where collision is possible.",
+          "Warnings are first-class structured fields and must not be hidden by text",
+          "Multi-vault scope is explicit. Default MCP calls use the active Vault only.",
+          "Graph and cross-Vault graph expansion are opt-in, matching Phase 3 and Phase 4",
+          "The MCP server must write logs to stderr, never stdout, while using stdio."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Responsibility Map",
+        "content": "| Component | Owns | Must Not Own | | --- | --- | --- | | VaultCatalog | active Vault, enabled Vault expansion, Vault IDs | MCP argument parsing, resource rendering | | QueryScope | selected Vault IDs, content scopes, cross-Vault flag | implicit all-Vault widening | | Application services | retrieval, graph retrieval, status, context pack assembly | MCP transport details | | MetadataStore | document/chunk evidence authority | resource URI parsing, prompt text | | ContextPackBuilder | context pack JSON assembly and warnings | MCP resource cache, tool registration | | vault_graph.mcp | MCP server construction, argument DTOs, tool/resource/prompt registration, error mapping | indexing, retrieval ranking, graph algorithms, Vault writes | | CLI | vg serve --mcp startup options | MCP protocol message formatting |",
+        "items": [
+          "Review the Responsibility Map section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Data Flow Summary",
+        "content": "Phase 5A foundation:\nPhase 5B resources:\nPhase 5C tools and prompts:",
+        "items": [
+          "Review the Data Flow Summary section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg serve --mcp --state PATH\n  -> load VaultCatalog\n  -> open read-only application services\n  -> create MCP server\n  -> register capabilities\n  -> run stdio transport"
+          },
+          {
+            "language": "text",
+            "content": "resources/read URI\n  -> parse and validate vault:// URI\n  -> resolve Vault ID through VaultCatalog\n  -> resolve indexed document/chunk/entity evidence through stores/services\n  -> return text or JSON resource content with evidence metadata and warnings"
+          },
+          {
+            "language": "text",
+            "content": "tools/call\n  -> validate JSON arguments\n  -> convert scope input into QueryScope\n  -> call the matching application service\n  -> return structuredContent plus text mirror\n  -> include warnings, revisions, backend use, and recovery hints"
+          }
+        ]
+      },
+      {
+        "heading": "Error And Degradation Policy",
+        "content": "Invalid MCP arguments, invalid scope, unknown Vault IDs, unsupported resource URIs, and missing required fields are protocol-level invalid-parameter errors. Missing indexes, unhealthy backends, stale projections, and unavailable graph state become structured tool/resource errors or warnings depending on the underlying service contract. Search and context tools may degrade from vector to keyword when existing retrieval behavior permits it, but the degraded state must be visible. Graph tools fail or degrade only when graph was explicitly requested. Resource reads for missing generated context packs return a not-found error with guidance to rerun build_context_pack. MCP prompts must never instruct agents to treat generated output as durable truth or to update Vault files directly.",
+        "items": [
+          "Invalid MCP arguments, invalid scope, unknown Vault IDs, unsupported resource",
+          "Missing indexes, unhealthy backends, stale projections, and unavailable graph",
+          "Search and context tools may degrade from vector to keyword when existing",
+          "Graph tools fail or degrade only when graph was explicitly requested.",
+          "Resource reads for missing generated context packs return a not-found error",
+          "MCP prompts must never instruct agents to treat generated output as durable"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Multi-Vault Policy",
+        "content": "scope=None uses the active Vault. scope.vault_ids selects explicit Vault IDs. scope.all_vaults=true expands to all enabled Vault IDs. include_cross_vault=true is valid only when graph behavior is explicit and the selected scope has more than one Vault. Resource URIs always include a Vault ID except generated context pack URIs. Identical paths, titles, chunk IDs, entity labels, or warning codes from different Vaults must not collide in MCP output.",
+        "items": [
+          "scope=None uses the active Vault.",
+          "scope.vault_ids selects explicit Vault IDs.",
+          "scope.all_vaults=true expands to all enabled Vault IDs.",
+          "include_cross_vault=true is valid only when graph behavior is explicit and",
+          "Resource URIs always include a Vault ID except generated context pack URIs.",
+          "Identical paths, titles, chunk IDs, entity labels, or warning codes from"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Handoff",
+        "content": "Phase 5 implementation planning should proceed in this order:\nPhase 5A: dependency choice, vault_graph.mcp package, stdio server, service factory, vg serve --mcp, error mapping, import boundaries, and local config examples. Phase 5B: URI parser, resource templates, metadata-backed resources, graph-entity resource, bounded context-pack cache, and resource tests. Phase 5C: service-backed tools, prompt templates, structured output mirrors, tool/prompt tests, and agent workflow smoke tests.\nEach slice should preserve the rule that Vault Graph writes only derived state and never edits Vault content.",
+        "items": [
+          "Phase 5A: dependency choice, vault_graph.mcp package, stdio server, service",
+          "Phase 5B: URI parser, resource templates, metadata-backed resources,",
+          "Phase 5C: service-backed tools, prompt templates, structured output mirrors,"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "External Protocol Notes",
+        "content": "The Phase 5 design follows the MCP 2025-06-18 specification:\nresources are application-driven context identified by URIs tools are model-invoked operations with JSON schemas and structured output prompts are user-controlled templates stdio servers must emit only MCP JSON-RPC messages on stdout Streamable HTTP requires origin validation, localhost binding care, and authentication before it is suitable for local Vault access",
+        "items": [
+          "resources are application-driven context identified by URIs",
+          "tools are model-invoked operations with JSON schemas and structured output",
+          "prompts are user-controlled templates",
+          "stdio servers must emit only MCP JSON-RPC messages on stdout",
+          "Streamable HTTP requires origin validation, localhost binding care, and"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

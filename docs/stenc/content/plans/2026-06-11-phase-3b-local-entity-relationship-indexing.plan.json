@@ -1,0 +1,1895 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-11-phase-3b-local-entity-relationship-indexing",
+  "slug": "2026-06-11-phase-3b-local-entity-relationship-indexing",
+  "status": "approved",
+  "title": "Phase 3B Local Entity And Relationship Indexing Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-11",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "docs/SPEC.md"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 3B graph indexing slice so vg index can deterministically reconcile local entity, relationship, evidence, tombstone, and graph revision state for selected whole Vault scopes.\nArchitecture: Phase 3B is a deterministic indexing layer over the Phase 3A GraphStore contract. Metadata remains the evidence authority; GraphIndexer consumes a Vault-scoped GraphSourceStore, produces a GraphReconcilePlan, and writes only through GraphStore.apply_reconcile_plan. CLI and...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 3B graph indexing slice so vg index can deterministically reconcile local entity, relationship, evidence, tombstone, and graph revision state for selected whole Vault scopes.\nArchitecture: Phase 3B is a deterministic indexing layer over the Phase 3A GraphStore contract. Metadata remains the evidence authority; GraphIndexer consumes a Vault-scoped GraphSourceStore, produces a GraphReconcilePlan, and writes only through GraphStore.apply_reconcile_plan. CLI and status surfaces extend the existing IndexService path instead of adding a separate graph command.\nT...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "Phase 3B implements:\nextraction occurrence dataclasses and extractor Protocols a Vault-scoped GraphSourceStore read model over metadata and preview state deterministic entity extraction from document identity, headings, tags, and local links deterministic relationship extraction from mentions, local links, and explicit frontmatter fields behavior-named GraphExtractionSpec lineage for real deterministic indexing GraphIndexer.plan and GraphIndexer.apply scope-local graph reconcile against GraphStore.current_manifest graph revision rows using the same aggregate metadata/parser/chunker lineage as readiness projection cache invalidation keys in plans, without projection cache writes app-layer re...",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "extraction occurrence dataclasses and extractor Protocols",
+        "a Vault-scoped GraphSourceStore read model over metadata and preview state",
+        "deterministic entity extraction from document identity, headings, tags, and local links",
+        "deterministic relationship extraction from mentions, local links, and explicit frontmatter fields",
+        "behavior-named GraphExtractionSpec lineage for real deterministic indexing",
+        "GraphIndexer.plan and GraphIndexer.apply",
+        "scope-local graph reconcile against GraphStore.current_manifest",
+        "graph revision rows using the same aggregate metadata/parser/chunker lineage as readiness",
+        "projection cache invalidation keys in plans, without projection cache writes",
+        "app-layer rejection of mixed-width content scopes with unsupported_graph_scope_width"
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "docs/SPEC.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DESIGN.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/FEATURES.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DECISIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/CONVENTIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/README.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/CONTEXT.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/spec/phase-3/",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/graph/graph_contracts.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/graph/graph_identity.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/graph_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/sqlite_graph_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/fakes/in_memory_graph_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/extraction/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/extraction/graph_occurrences.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/extraction/graph_source_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/extraction/entity_extractor.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/extraction/relationship_extractor.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/indexing/graph_indexer.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Task 1: Add Graph Occurrence Contracts",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/extraction/init.py",
+          "src/vault_graph/extraction/graph_occurrences.py",
+          "src/vault_graph/errors.py",
+          "src/vault_graph/graph/graph_contracts.py",
+          "tests/test_graph_occurrences.py",
+          "tests/test_graph_contracts.py",
+          "tests/test_cli_graph_status.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/extraction/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/extraction/graph_occurrences.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/graph/graph_contracts.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_occurrences.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_contracts.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_graph_status.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_occurrences.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_occurrences.py tests/test_graph_contracts.py tests/test_cli_graph_status.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: add graph extraction occurrence contracts\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "Create: src/vault_graph/extraction/init.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/extraction/init.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 2: Add Vault-Scoped Graph Source Stores",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/extraction/graph_source_store.py",
+          "src/vault_graph/indexing/revision_planner.py",
+          "src/vault_graph/indexing/metadata_indexer.py",
+          "tests/test_graph_source_store.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/extraction/graph_source_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/indexing/revision_planner.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/indexing/metadata_indexer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_source_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_source_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_source_store.py tests/test_metadata_indexer.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/indexing/revision_planner.py src/vault_graph/indexing/metadata_indexer.py src/vault_graph/extraction/graph_source_store.py tests/test_graph_source_store.py tests/test_metadata_indexer.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat: add graph source store views\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-5",
+            "title": "Create: src/vault_graph/extraction/graph_source_store.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/extraction/graph_source_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 3: Implement Deterministic Entity Extraction",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/extraction/entity_extractor.py",
+          "tests/test_entity_extractor.py",
+          "docs/decisions/choice.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/extraction/entity_extractor.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_entity_extractor.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/decisions/choice.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_entity_extractor.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/extraction/entity_extractor.py tests/test_entity_extractor.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: add deterministic entity extraction\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Create: src/vault_graph/extraction/entity_extractor.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/extraction/entity_extractor.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 4: Implement Deterministic Relationship Extraction",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/extraction/relationship_extractor.py",
+          "tests/test_relationship_extractor.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/extraction/relationship_extractor.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_relationship_extractor.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_relationship_extractor.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/extraction/relationship_extractor.py tests/test_relationship_extractor.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: add deterministic relationship extraction\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Create: src/vault_graph/extraction/relationship_extractor.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/extraction/relationship_extractor.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 5: Harden Graph Store Apply And Graph Status State",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/local/graph_status_store.py",
+          "src/vault_graph/storage/local/sqlite_graph_store.py",
+          "tests/fakes/in_memory_graph_store.py",
+          "src/vault_graph/app/catalog_service.py",
+          "tests/test_graph_status_store.py",
+          "tests/test_graph_store_contract.py",
+          "tests/test_sqlite_graph_store.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/graph_status_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/in_memory_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/catalog_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_status_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_store_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_sqlite_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_status_store.py tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git commit -m \"feat: harden graph store status behavior\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Create: src/vault_graph/storage/local/graph_status_store.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/local/graph_status_store.py",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Modify: src/vault_graph/storage/local/sqlite_graph_store.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/storage/local/sqlite_graph_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 6: Implement GraphIndexer Planning",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/indexing/graph_indexer.py",
+          "tests/test_graph_indexer.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/indexing/graph_indexer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_indexer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_indexer.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/indexing/graph_indexer.py tests/test_graph_indexer.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: add graph indexer planning\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Create: src/vault_graph/indexing/graph_indexer.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/indexing/graph_indexer.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Task 7: Wire Graph Indexing Into IndexService",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/app/index_service.py",
+          "tests/test_index_service_graph_reconcile.py",
+          "tests/test_multi_vault_graph_indexing.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/index_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_index_service_graph_reconcile.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_multi_vault_graph_indexing.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_index_service_graph_reconcile.py tests/test_multi_vault_graph_indexing.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/app/index_service.py src/vault_graph/storage/local/graph_status_store.py tests/test_index_service_graph_reconcile.py tests/test_multi_vault_graph_indexing.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: wire graph indexing into index service\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "Modify: src/vault_graph/app/index_service.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/app/index_service.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-8",
+        "title": "Task 8: Wire CLI Graph Index Output",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/cli/main.py",
+          "tests/test_cli_graph_indexing.py",
+          "tests/test_cli_graph_status.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_graph_indexing.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_graph_status.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-8-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_graph_indexing.py tests/test_cli_graph_status.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/cli/main.py tests/test_cli_graph_indexing.py tests/test_cli_graph_status.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: expose graph indexing in cli\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-4",
+            "title": "Modify: src/vault_graph/cli/main.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/cli/main.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-9",
+        "title": "Task 9: Add Read-Only, SQLite, And Regression Coverage",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_graph_indexing_read_only_boundary.py",
+          "tests/test_sqlite_graph_store.py",
+          "tests/test_graph_readiness.py",
+          "tests/test_naming_conventions.py",
+          "tests/test_cli_search.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_graph_indexing_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_sqlite_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_readiness.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_naming_conventions.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_search.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-9-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_indexing_read_only_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest \\",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add tests/test_graph_indexing_read_only_boundary.py tests/test_sqlite_graph_store.py tests/test_graph_readiness.py tests/test_cli_search.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"test: cover graph indexing read only behavior\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-5",
+            "title": "Test: tests/test_graph_indexing_read_only_boundary.py",
+            "status": "todo",
+            "instruction": "Test: tests/test_graph_indexing_read_only_boundary.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-10",
+        "title": "Task 10: Final Verification And Documentation Check",
+        "status": "todo",
+        "surfaces": [
+          "docs/PATCH_LOG.md",
+          "docs/DECISIONS.md",
+          "tests/test_naming_conventions.py",
+          "docs/CONVENTIONS.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/PATCH_LOG.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/DECISIONS.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_naming_conventions.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/CONVENTIONS.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-10-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-5",
+            "title": "Modify: docs/PATCH_LOG.md only if implementation review required plan/design cor",
+            "status": "todo",
+            "instruction": "Modify: docs/PATCH_LOG.md only if implementation review required plan/design corrections.",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7",
+      "slice-8",
+      "slice-9",
+      "slice-10"
+    ],
+    "risks": [
+      {
+        "risk": "Error Handling",
+        "mitigation": "Add these errors in src/vault_graph/errors.py:\nError policy:\nmetadata failure aborts vector and graph work vector failure does not prevent graph planning/apply when metadata succeeded graph failure does not roll back successful metadata or vector state graph failure returns a nonzero vg index exit code unsupported graph scope width is reported as unsupported_graph_scope_width unresolved local links become concept mentions and graph plan warnings invalid graph records fail loudly through GraphEx..."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_occurrences.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_occurrences.py tests/test_graph_contracts.py tests/test_cli_graph_status.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat: add graph extraction occurrence contracts\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_source_store.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_source_store.py tests/test_metadata_indexer.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/indexing/revision_planner.py src/vault_graph/indexing/metadata_indexer.py src/vault_graph/extraction/graph_source_store.py tests/test_graph_source_store.py tests/test_metadata_indexer.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat: add graph source store views\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_entity_extractor.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 3B graph indexing slice so vg index can deterministically reconcile local entity, relationship, evidence, tombstone, and graph revision state for selected whole Vault scopes.\nArchitecture: Phase 3B is a deterministic indexing layer over the Phase 3A GraphStore contract. Metadata remains the evidence authority; GraphIndexer consumes a Vault-scoped GraphSourceStore, produces a GraphReconcilePlan, and writes only through GraphStore.apply_reconcile_plan. CLI and status surfaces extend the existing IndexService path instead of adding a separate graph command.\nTech Stack: Python 3.12, dataclasses, Protocol interfaces, SQLite, Typer CLI, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Source Documents",
+        "content": "Read these before implementation:\ndocs/SPEC.md docs/DESIGN.md docs/FEATURES.md docs/DECISIONS.md docs/CONVENTIONS.md docs/superpowers/specs/phase-3/README.md docs/superpowers/specs/phase-3/CONTEXT.md docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md\nThe implementation request mentioned docs/superpowers/spec/phase-3/. The accepted repo path is docs/superpowers/specs/phase-3/.",
+        "items": [
+          "docs/SPEC.md",
+          "docs/DESIGN.md",
+          "docs/FEATURES.md",
+          "docs/DECISIONS.md",
+          "docs/CONVENTIONS.md",
+          "docs/superpowers/specs/phase-3/README.md",
+          "docs/superpowers/specs/phase-3/CONTEXT.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope Guardrails",
+        "content": "Phase 3B implements:\nextraction occurrence dataclasses and extractor Protocols a Vault-scoped GraphSourceStore read model over metadata and preview state deterministic entity extraction from document identity, headings, tags, and local links deterministic relationship extraction from mentions, local links, and explicit frontmatter fields behavior-named GraphExtractionSpec lineage for real deterministic indexing GraphIndexer.plan and GraphIndexer.apply scope-local graph reconcile against GraphStore.current_manifest graph revision rows using the same aggregate metadata/parser/chunker lineage as readiness projection cache invalidation keys in plans, without projection cache writes app-layer rejection of mixed-width content scopes with unsupported_graph_scope_width IndexService graph planning/apply after metadata, independent from vector success persisted local graph failure status for vg status vg index and vg index --dry-run graph fields vg status freshness becoming meaningful after graph indexing unit, integration, multi-vault, read-only, CLI, typing, and lint coverage\nPhase 3B must not implement:\nvg related vg decision-trace vg search --include-graph implicit graph expansion in pl...",
+        "items": [
+          "extraction occurrence dataclasses and extractor Protocols",
+          "a Vault-scoped GraphSourceStore read model over metadata and preview state",
+          "deterministic entity extraction from document identity, headings, tags, and local links",
+          "deterministic relationship extraction from mentions, local links, and explicit frontmatter fields",
+          "behavior-named GraphExtractionSpec lineage for real deterministic indexing",
+          "GraphIndexer.plan and GraphIndexer.apply",
+          "scope-local graph reconcile against GraphStore.current_manifest",
+          "graph revision rows using the same aggregate metadata/parser/chunker lineage as readiness",
+          "projection cache invalidation keys in plans, without projection cache writes",
+          "app-layer rejection of mixed-width content scopes with unsupported_graph_scope_width",
+          "IndexService graph planning/apply after metadata, independent from vector success",
+          "persisted local graph failure status for vg status",
+          "vg index and vg index --dry-run graph fields",
+          "vg status freshness becoming meaningful after graph indexing",
+          "unit, integration, multi-vault, read-only, CLI, typing, and lint coverage",
+          "vg related"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg init --vault /path/to/vault\nvg index\nvg status\nvg status --format json"
+          }
+        ]
+      },
+      {
+        "heading": "Implementation Assumptions",
+        "content": "Phase 3A contracts already exist in: src/vault_graph/graph/graph_contracts.py src/vault_graph/graph/graph_identity.py src/vault_graph/storage/interfaces/graph_store.py src/vault_graph/storage/local/sqlite_graph_store.py tests/fakes/in_memory_graph_store.py GraphIndexer must reuse those contracts. Do not create parallel entity, relationship, evidence, tombstone, manifest, or revision record types. current_graph_extraction_spec() remains the graph compatibility boundary, but Phase 3B must replace the Phase 3A roadmap-label placeholder names with behavior names before writing graph records. Use: spec_version=\"graph-extraction-spec-v2\" entity_extractor_name=\"local-deterministic-entity-extractor\" entity_extractor_version=\"explicit-signals-v1\" relationship_extractor_name=\"local-deterministic-relationship-extractor\" relationship_extractor_version=\"explicit-signals-v1\" Updating names changes the digest, so the version bump is required by the Phase 3A compatibility contract. MetadataStore.resolve_document(document_id) is not Vault-scoped. Phase 3B must add an adapter that calls it and rejects documents whose vault_id does not match the requested vault_id. MetadataIndexer.preview must expos...",
+        "items": [
+          "Phase 3A contracts already exist in:",
+          "src/vault_graph/graph/graph_contracts.py",
+          "src/vault_graph/graph/graph_identity.py",
+          "src/vault_graph/storage/interfaces/graph_store.py",
+          "src/vault_graph/storage/local/sqlite_graph_store.py",
+          "tests/fakes/in_memory_graph_store.py",
+          "GraphIndexer must reuse those contracts. Do not create parallel entity,",
+          "current_graph_extraction_spec() remains the graph compatibility boundary,",
+          "spec_version=\"graph-extraction-spec-v2\"",
+          "entity_extractor_name=\"local-deterministic-entity-extractor\"",
+          "entity_extractor_version=\"explicit-signals-v1\"",
+          "relationship_extractor_name=\"local-deterministic-relationship-extractor\"",
+          "relationship_extractor_version=\"explicit-signals-v1\"",
+          "MetadataStore.resolve_document(document_id) is not Vault-scoped. Phase 3B",
+          "MetadataIndexer.preview must expose the post-apply document view needed by",
+          "Phase 3B supports only whole selected Vault scopes: active Vault, explicit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "File Structure",
+        "content": "Create:\nsrc/vault_graph/extraction/init.py: public extraction package marker. src/vault_graph/extraction/graph_occurrences.py: immutable EntityOccurrence, RelationshipOccurrence, occurrence-key helpers, and extraction warning values. src/vault_graph/extraction/graph_source_store.py: GraphSourceStore, GraphExtractionContext, MetadataGraphSourceStore, and PreviewGraphSourceStore. src/vault_graph/extraction/entity_extractor.py: EntityExtractor Protocol and DeterministicEntityExtractor. src/vault_graph/extraction/relationship_extractor.py: RelationshipExtractor Protocol and DeterministicRelationshipExtractor. src/vault_graph/indexing/graph_indexer.py: GraphIndexPlanReport, GraphIndexApplyResult, and GraphIndexer. src/vault_graph/storage/local/graph_status_store.py: local graph run status JSON for last success and last failure. tests/test_graph_occurrences.py tests/test_graph_source_store.py tests/test_entity_extractor.py tests/test_relationship_extractor.py tests/test_graph_status_store.py tests/test_graph_indexer.py tests/test_index_service_graph_reconcile.py tests/test_cli_graph_indexing.py tests/test_graph_indexing_read_only_boundary.py tests/test_multi_vault_graph_indexing.py\nModi...",
+        "items": [
+          "src/vault_graph/extraction/init.py: public extraction package marker.",
+          "src/vault_graph/extraction/graph_occurrences.py: immutable EntityOccurrence, RelationshipOccurrence, occurrence-key helpers, and extraction warning values.",
+          "src/vault_graph/extraction/graph_source_store.py: GraphSourceStore, GraphExtractionContext, MetadataGraphSourceStore, and PreviewGraphSourceStore.",
+          "src/vault_graph/extraction/entity_extractor.py: EntityExtractor Protocol and DeterministicEntityExtractor.",
+          "src/vault_graph/extraction/relationship_extractor.py: RelationshipExtractor Protocol and DeterministicRelationshipExtractor.",
+          "src/vault_graph/indexing/graph_indexer.py: GraphIndexPlanReport, GraphIndexApplyResult, and GraphIndexer.",
+          "src/vault_graph/storage/local/graph_status_store.py: local graph run status JSON for last success and last failure.",
+          "tests/test_graph_occurrences.py",
+          "tests/test_graph_source_store.py",
+          "tests/test_entity_extractor.py",
+          "tests/test_relationship_extractor.py",
+          "tests/test_graph_status_store.py",
+          "tests/test_graph_indexer.py",
+          "tests/test_index_service_graph_reconcile.py",
+          "tests/test_cli_graph_indexing.py",
+          "tests/test_graph_indexing_read_only_boundary.py"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Runtime Data Flow",
+        "content": "Dry-run flow:\nApply flow:\nStatus flow after graph indexing:",
+        "items": [
+          "Review the Runtime Data Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg index --dry-run\n  -> CatalogService.load_catalog()\n  -> resolve requested QueryScope\n  -> MetadataIndexer.preview(scope, full)\n  -> PreviewGraphSourceStore(chunks_after_apply, documents_after_apply)\n  -> graph_actual_scopes(catalog, scope)\n  -> validate whole selected Vault graph scopes\n  -> graph health/schema gate\n  -> GraphIndexer.plan(requested_scope, actual_scopes)\n       -> GraphSourceStore.list_chunks(actual_scope)\n       -> GraphSourceStore.resolve_document(vault_id, document_id)\n       -> GraphStore.current_manifest(actual_scopes)\n       -> extract occurrences\n       -> dedupe desired graph records\n       -> build GraphReconcilePlan\n  -> render metadata, vector, and planned graph counts"
+          },
+          {
+            "language": "text",
+            "content": "vg index\n  -> MetadataIndexer.apply(scope, full)\n  -> VectorIndexer.apply(...) when vector dependencies are configured\n  -> MetadataGraphSourceStore(metadata_store)\n  -> SQLiteGraphStore.open_writable(graph_path)\n  -> graph health/schema gate\n  -> GraphIndexer.apply(requested_scope, actual_scopes)\n       -> GraphIndexer.plan(...)\n       -> GraphStore.apply_reconcile_plan(plan)\n  -> record independent vector and graph failures\n  -> LocalGraphStatusStore records graph success/failure for status\n  -> exit 1 if any enabled derived-state step failed"
+          },
+          {
+            "language": "text",
+            "content": "vg status --format json\n  -> ReadOnlyGraphReadiness.check(...)\n  -> compare latest graph revisions with current metadata lineage\n  -> resolve graph evidence through MetadataStore\n  -> read LocalGraphStatusStore for last graph failure\n  -> report fresh/stale/missing/incompatible per actual scope"
+          }
+        ]
+      },
+      {
+        "heading": "Error Handling",
+        "content": "Add these errors in src/vault_graph/errors.py:\nError policy:\nmetadata failure aborts vector and graph work vector failure does not prevent graph planning/apply when metadata succeeded graph failure does not roll back successful metadata or vector state graph failure returns a nonzero vg index exit code unsupported graph scope width is reported as unsupported_graph_scope_width unresolved local links become concept mentions and graph plan warnings invalid graph records fail loudly through GraphExtractionError or existing GraphRecordInvalid dry-run must not initialize graph storage status must remain read-only\n---",
+        "items": [
+          "metadata failure aborts vector and graph work",
+          "vector failure does not prevent graph planning/apply when metadata succeeded",
+          "graph failure does not roll back successful metadata or vector state",
+          "graph failure returns a nonzero vg index exit code",
+          "unsupported graph scope width is reported as unsupported_graph_scope_width",
+          "unresolved local links become concept mentions and graph plan warnings",
+          "invalid graph records fail loudly through GraphExtractionError or existing GraphRecordInvalid",
+          "dry-run must not initialize graph storage",
+          "status must remain read-only"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class GraphIndexingError(VaultGraphError):\n    \"\"\"Raised when graph indexing cannot complete.\"\"\"\n\n\nclass GraphExtractionError(GraphIndexingError):\n    \"\"\"Raised when deterministic graph extraction produces invalid data.\"\"\"\n\n\nclass GraphReconcileError(GraphIndexingError):\n    \"\"\"Raised when desired graph state cannot be reconciled with current state.\"\"\"\n\n\nclass UnsupportedGraphScopeWidthError(GraphIndexingError):\n    \"\"\"Raised when graph indexing is requested for content-scope-limited paths.\"\"\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 1: Add Graph Occurrence Contracts",
+        "content": "Files:\nCreate: src/vault_graph/extraction/init.py Create: src/vault_graph/extraction/graph_occurrences.py Modify: src/vault_graph/errors.py Modify: src/vault_graph/graph/graph_contracts.py Test: tests/test_graph_occurrences.py Test: tests/test_graph_contracts.py Test: tests/test_cli_graph_status.py\n[ ] Step 1: Write failing occurrence tests\nCreate tests/test_graph_occurrences.py:\n[ ] Step 2: Verify the tests fail\nRun:\nExpected: FAIL because graph_occurrences.py and graph indexing errors do not exist.\n[ ] Step 3: Add graph indexing errors and behavior-named spec\nModify src/vault_graph/errors.py with the error classes from the Error Handling section. Keep existing GraphStoreError classes unchanged.\nModify src/vault_graph/graph/graph_contracts.py so current_graph_extraction_spec() uses behavior names instead of roadmap labels:\nUpdate existing graph spec/status tests so they assert:\nspec.spec_version == \"graph-extraction-spec-v2\" extractor names contain no phase or roadmap labels current digest remains canonical through GraphExtractionSpec.from_payload the legacy Phase 3A placeholder payload has a different digest and a different spec_version CLI graph status text and JSON use the new...",
+        "items": [
+          "Create: src/vault_graph/extraction/init.py",
+          "Create: src/vault_graph/extraction/graph_occurrences.py",
+          "Modify: src/vault_graph/errors.py",
+          "Modify: src/vault_graph/graph/graph_contracts.py",
+          "Test: tests/test_graph_occurrences.py",
+          "Test: tests/test_graph_contracts.py",
+          "Test: tests/test_cli_graph_status.py",
+          "[ ] Step 1: Write failing occurrence tests",
+          "[ ] Step 2: Verify the tests fail",
+          "[ ] Step 3: Add graph indexing errors and behavior-named spec",
+          "spec.spec_version == \"graph-extraction-spec-v2\"",
+          "extractor names contain no phase or roadmap labels",
+          "current digest remains canonical through GraphExtractionSpec.from_payload",
+          "the legacy Phase 3A placeholder payload has a different digest and a different",
+          "CLI graph status text and JSON use the new version/digest",
+          "[ ] Step 4: Implement occurrence dataclasses"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import pytest\n\nfrom vault_graph.errors import GraphExtractionError\nfrom vault_graph.extraction.graph_occurrences import (\n    EntityOccurrence,\n    RelationshipOccurrence,\n    entity_occurrence_key,\n)\n\n\ndef test_entity_occurrence_key_is_vault_scoped() -> None:\n    first = EntityOccurrence(\n        vault_id=\"first\",\n        entity_type=\"Concept\",\n        name=\"GraphRAG\",\n        normalized_name=\"graphrag\",\n        aliases=(),\n        canonical_path=None,\n        evidence_vault_id=\"first\",\n        document_id=\"doc\",\n        chunk_id=\"chunk\",\n        content_hash=\"hash\",\n        section=\"GraphRAG\",\n        anchor=\"graphrag\",\n        path=\"wiki/page.md\",\n        excerpt=\"GraphRAG\",\n        confidence=0.85,\n        extraction_method=\"heading-concept-v1\",\n    )\n    second = EntityOccurrence(\n        **{**first.__dict__, \"vault_id\": \"second\", \"evidence_vault_id\": \"second\"}\n    )\n\n    assert entity_occurrence_key(first) != entity_occurrence_key(second)\n\n\ndef test_entity_occurrence_rejects_missing_evidence() -> None:\n    with pytest.raises(GraphExtractionError, match=\"chunk_id is required\"):\n        EntityOccurrence(\n            vault_id=\"default\",\n            entity_type=\"Concept\",\n            name=\"GraphRAG\",\n            normalized_name=\"graphrag\",\n            aliases=(),\n            canonical_path=None,\n            evidence_vault_id=\"default\",\n            document_id=\"doc\",\n            chunk_id=\"\",\n            content_hash=\"hash\",\n            section=None,\n            anchor=None,\n            path=\"wiki/page.md\",\n            excerpt=None,\n            confidence=0.8,\n            extraction_method=\"test\",\n        )\n\n\ndef test_relationship_occurrence_status_is_limited() -> None:\n    with pytest.raises(GraphExtractionError, match=\"unsupported relationship status\"):\n        RelationshipOccurrence(\n            relationship_type=\"depends_on\",\n            source_vault_id=\"default\",\n            source_entity_key=(\"default\", \"Document\", \"source\", \"wiki/source.md\"),\n            target_vault_id=\"default\",\n            target_entity_key=(\"default\", \"Document\", \"target\", \"wiki/target.md\"),\n            evidence_vault_id=\"default\",\n            document_id=\"doc\",\n            chunk_id=\"chunk\",\n            content_hash=\"hash\",\n            section=None,\n            anchor=None,\n            path=\"wiki/source.md\",\n            excerpt=None,\n            status=\"confirmed\",\n            confidence=0.9,\n            extraction_method=\"test\",\n        )"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_occurrences.py -q"
+          },
+          {
+            "language": "python",
+            "content": "def current_graph_extraction_spec() -> GraphExtractionSpec:\n    return GraphExtractionSpec.from_payload(\n        {\n            \"spec_version\": \"graph-extraction-spec-v2\",\n            \"entity_schema_version\": \"entity-schema-v1\",\n            \"relationship_schema_version\": \"relationship-schema-v1\",\n            \"entity_extractor_name\": \"local-deterministic-entity-extractor\",\n            \"entity_extractor_version\": \"explicit-signals-v1\",\n            \"relationship_extractor_name\": \"local-deterministic-relationship-extractor\",\n            \"relationship_extractor_version\": \"explicit-signals-v1\",\n            \"relationship_status_rules_version\": \"relationship-status-rules-v1\",\n            \"confidence_rules_version\": \"confidence-rules-v1\",\n        }\n    )"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\n\nfrom vault_graph.errors import GraphExtractionError\n\nEntityOccurrenceKey = tuple[str, str, str, str]\n\n\n@dataclass(frozen=True)\nclass GraphExtractionWarning:\n    code: str\n    message: str\n    vault_id: str\n    path: str\n    chunk_id: str\n\n\ndef _require_non_empty(value: str, field_name: str) -> None:\n    if not value:\n        raise GraphExtractionError(f\"{field_name} is required\")\n\n\n@dataclass(frozen=True)\nclass EntityOccurrence:\n    vault_id: str\n    entity_type: str\n    name: str\n    normalized_name: str\n    aliases: tuple[str, ...]\n    canonical_path: str | None\n    evidence_vault_id: str\n    document_id: str\n    chunk_id: str\n    content_hash: str\n    section: str | None\n    anchor: str | None\n    path: str\n    excerpt: str | None\n    confidence: float\n    extraction_method: str\n\n    def __post_init__(self) -> None:\n        for field_name in (\n            \"vault_id\",\n            \"entity_type\",\n            \"name\",\n            \"normalized_name\",\n            \"evidence_vault_id\",\n            \"document_id\",\n            \"chunk_id\",\n            \"content_hash\",\n            \"path\",\n            \"extraction_method\",\n        ):\n            _require_non_empty(str(getattr(self, field_name)), field_name)\n        if not isinstance(self.aliases, tuple):\n            raise GraphExtractionError(\"aliases must be a tuple\")\n        if not 0 <= self.confidence <= 1:\n            raise GraphExtractionError(\"confidence must be between 0 and 1\")\n\n\n@dataclass(frozen=True)\nclass RelationshipOccurrence:\n    relationship_type: str\n    source_vault_id: str\n    source_entity_key: EntityOccurrenceKey\n    target_vault_id: str\n    target_entity_key: EntityOccurrenceKey\n    evidence_vault_id: str\n    document_id: str\n    chunk_id: str\n    content_hash: str\n    section: str | None\n    anchor: str | None\n    path: str\n    excerpt: str | None\n    status: str\n    confidence: float\n    extraction_method: str\n\n    def __post_init__(self) -> None:\n        for field_name in (\n            \"relationship_type\",\n            \"source_vault_id\",\n            \"target_vault_id\",\n            \"evidence_vault_id\",\n            \"document_id\",\n            \"chunk_id\",\n            \"content_hash\",\n            \"path\",\n            \"extraction_method\",\n        ):\n            _require_non_empty(str(getattr(self, field_name)), field_name)\n        if self.status not in {\"stated\", \"inferred\", \"contested\", \"deprecated\"}:\n            raise GraphExtractionError(f\"unsupported relationship status: {self.status}\")\n        if not 0 <= self.confidence <= 1:\n            raise GraphExtractionError(\"confidence must be between 0 and 1\")\n\n\ndef entity_occurrence_key(occurrence: EntityOccurrence) -> EntityOccurrenceKey:\n    return (\n        occurrence.vault_id,\n        occurrence.entity_type,\n        occurrence.normalized_name,\n        occurrence.canonical_path or \"\",\n    )"
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: Add Vault-Scoped Graph Source Stores",
+        "content": "Files:\nCreate: src/vault_graph/extraction/graph_source_store.py Modify: src/vault_graph/indexing/revision_planner.py Modify: src/vault_graph/indexing/metadata_indexer.py Test: tests/test_graph_source_store.py Existing tests: metadata indexer tests if preview shape changes\n[ ] Step 1: Write failing graph source tests\nCreate tests/test_graph_source_store.py:\n[ ] Step 2: Verify the tests fail\nRun:\nExpected: FAIL because source store module does not exist.\n[ ] Step 3: Extend metadata preview with document snapshots\nModify src/vault_graph/indexing/revision_planner.py:\nModify MetadataIndexer.preview so it returns:\nchanged documents with index_revision=plan.index_revision unchanged documents resolved from current metadata state changed chunks with index_revision=plan.index_revision unchanged chunks from MetadataStore.list_chunks(scope)\nUse deterministic sorting:\nImplementation rule: if an unchanged DocumentState.document_id is None or MetadataStore.resolve_document returns None, skip that document and let graph planning warn or resolve fewer records. Do not write metadata during preview.\n[ ] Step 4: Implement graph source store module\nCreate src/vault_graph/extraction/graph_source_store....",
+        "items": [
+          "Create: src/vault_graph/extraction/graph_source_store.py",
+          "Modify: src/vault_graph/indexing/revision_planner.py",
+          "Modify: src/vault_graph/indexing/metadata_indexer.py",
+          "Test: tests/test_graph_source_store.py",
+          "Existing tests: metadata indexer tests if preview shape changes",
+          "[ ] Step 1: Write failing graph source tests",
+          "[ ] Step 2: Verify the tests fail",
+          "[ ] Step 3: Extend metadata preview with document snapshots",
+          "changed documents with index_revision=plan.index_revision",
+          "unchanged documents resolved from current metadata state",
+          "changed chunks with index_revision=plan.index_revision",
+          "unchanged chunks from MetadataStore.list_chunks(scope)",
+          "[ ] Step 4: Implement graph source store module",
+          "[ ] Step 5: Verify source store and metadata tests pass",
+          "[ ] Step 6: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from vault_graph.extraction.graph_source_store import MetadataGraphSourceStore, PreviewGraphSourceStore\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.metadata_store import DocumentState\n\n\ndef document(vault_id: str, path: str, document_id: str) -> DocumentSnapshot:\n    return DocumentSnapshot(\n        vault_id=vault_id,\n        document_id=document_id,\n        path=path,\n        kind=path.split(\"/\", 1)[0],\n        frontmatter={\"title\": path},\n        frontmatter_hash=\"frontmatter\",\n        content_hash=\"content\",\n        raw_sha256=\"raw\",\n        parser_version=\"markdown-frontmatter-v1\",\n        last_seen_at=\"2026-06-11T00:00:00+00:00\",\n        last_indexed_at=None,\n        vault_revision=None,\n        index_revision=\"metadata-1\",\n    )\n\n\ndef chunk(vault_id: str, document_id: str, path: str) -> ChunkSnapshot:\n    return ChunkSnapshot(\n        vault_id=vault_id,\n        chunk_id=f\"{vault_id}-chunk\",\n        document_id=document_id,\n        path=path,\n        section=\"Title\",\n        anchor=\"title\",\n        text=\"# Title\\nBody\",\n        token_count=3,\n        content_hash=f\"{vault_id}-hash\",\n        chunker_version=\"heading-section-v1\",\n        index_revision=\"metadata-1\",\n    )\n\n\nclass FakeMetadataStore:\n    def __init__(self) -> None:\n        self.documents = {\n            \"shared\": document(\"first\", \"wiki/page.md\", \"shared\"),\n        }\n\n    def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]:\n        return (chunk(\"first\", \"shared\", \"wiki/page.md\"),)\n\n    def resolve_document(self, document_id: str) -> DocumentSnapshot | None:\n        return self.documents.get(document_id)\n\n\ndef test_metadata_graph_source_resolution_is_vault_scoped() -> None:\n    source = MetadataGraphSourceStore(FakeMetadataStore())\n\n    assert source.resolve_document(vault_id=\"first\", document_id=\"shared\") is not None\n    assert source.resolve_document(vault_id=\"second\", document_id=\"shared\") is None\n\n\ndef test_preview_graph_source_lists_chunks_and_documents_without_metadata_store() -> None:\n    doc = document(\"default\", \"wiki/page.md\", \"doc\")\n    source = PreviewGraphSourceStore(chunks=(chunk(\"default\", \"doc\", \"wiki/page.md\"),), documents=(doc,))\n\n    assert source.list_chunks(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n    assert source.resolve_document(vault_id=\"default\", document_id=\"doc\") == doc"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_source_store.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\n\n\n@dataclass(frozen=True)\nclass MetadataIndexPreview:\n    plan: MetadataRevisionPlan\n    chunks_after_apply: tuple[ChunkSnapshot, ...]\n    documents_after_apply: tuple[DocumentSnapshot, ...]"
+          },
+          {
+            "language": "python",
+            "content": "def _document_sort_key(document: DocumentSnapshot) -> tuple[str, str, str]:\n    return (document.vault_id, document.path, document.document_id)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 3: Implement Deterministic Entity Extraction",
+        "content": "Files:\nCreate: src/vault_graph/extraction/entity_extractor.py Test: tests/test_entity_extractor.py\n[ ] Step 1: Write failing entity extractor tests\nCreate tests for these behaviors:\ndocument-level entity from wiki/page.md is WikiPage document-level entity from raw/source.md is Source decision entity from docs/decisions/choice.md or frontmatter type: decision heading concept entity skips generic headings such as Overview frontmatter tags create Concept occurrences with stripped # resolvable [[Target]] creates a target document entity occurrence unresolved [[Missing]] creates a Concept occurrence with extraction method unresolved-local-link-concept-v1 frontmatter relationship fields create target entity occurrences through the real metadata document snapshot path, not by manually supplying target entities in the test\nRun:\nExpected: FAIL because entity_extractor.py does not exist.\n[ ] Step 2: Implement public interface and deterministic extractor\nCreate src/vault_graph/extraction/entity_extractor.py:\nRequired private helpers:\n_document_entity(chunk, document) -> EntityOccurrence _document_entity_type(document) -> str _document_name(document, chunk) -> str _aliases(document) -> tuple[...",
+        "items": [
+          "Create: src/vault_graph/extraction/entity_extractor.py",
+          "Test: tests/test_entity_extractor.py",
+          "[ ] Step 1: Write failing entity extractor tests",
+          "document-level entity from wiki/page.md is WikiPage",
+          "document-level entity from raw/source.md is Source",
+          "decision entity from docs/decisions/choice.md or frontmatter type: decision",
+          "heading concept entity skips generic headings such as Overview",
+          "frontmatter tags create Concept occurrences with stripped #",
+          "resolvable [[Target]] creates a target document entity occurrence",
+          "unresolved [[Missing]] creates a Concept occurrence with extraction method unresolved-local-link-concept-v1",
+          "frontmatter relationship fields create target entity occurrences through the",
+          "[ ] Step 2: Implement public interface and deterministic extractor",
+          "_document_entity(chunk, document) -> EntityOccurrence",
+          "_document_entity_type(document) -> str",
+          "_document_name(document, chunk) -> str",
+          "_aliases(document) -> tuple[str, ...]"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_entity_extractor.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport re\nfrom pathlib import PurePosixPath\nfrom typing import Protocol\n\nfrom vault_graph.graph.graph_contracts import GraphExtractionSpec\nfrom vault_graph.graph.graph_identity import normalize_entity_name\nfrom vault_graph.extraction.graph_occurrences import EntityOccurrence\nfrom vault_graph.extraction.graph_source_store import GraphExtractionContext\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.ingestion.vault_catalog import QueryScope\n\n\nclass EntityExtractor(Protocol):\n    def extract(\n        self,\n        *,\n        chunk: ChunkSnapshot,\n        document: DocumentSnapshot | None,\n        context: GraphExtractionContext,\n        scope: QueryScope,\n        spec: GraphExtractionSpec,\n    ) -> tuple[EntityOccurrence, ...]: ...\n\n\nclass DeterministicEntityExtractor:\n    def extract(\n        self,\n        *,\n        chunk: ChunkSnapshot,\n        document: DocumentSnapshot | None,\n        context: GraphExtractionContext,\n        scope: QueryScope,\n        spec: GraphExtractionSpec,\n    ) -> tuple[EntityOccurrence, ...]:\n        occurrences: list[EntityOccurrence] = []\n        if document is not None:\n            occurrences.append(_document_entity(chunk=chunk, document=document))\n            occurrences.extend(_tag_entities(chunk=chunk, document=document))\n            occurrences.extend(_frontmatter_target_entities(chunk=chunk, document=document, context=context))\n        if chunk.section and not _generic_heading(chunk.section):\n            occurrences.append(_heading_entity(chunk))\n        occurrences.extend(_link_entities(chunk=chunk, context=context))\n        return tuple(_dedupe_occurrences(occurrences))"
+          },
+          {
+            "language": "text",
+            "content": "frontmatter type/kind == decision OR path contains /decisions/ -> Decision\npath starts wiki/ -> WikiPage\npath starts raw/ -> Source\notherwise -> Document"
+          },
+          {
+            "language": "text",
+            "content": "frontmatter title\nfirst H1 in chunk text\nbasename without .md\nVault-relative path"
+          }
+        ]
+      },
+      {
+        "heading": "Task 4: Implement Deterministic Relationship Extraction",
+        "content": "Files:\nCreate: src/vault_graph/extraction/relationship_extractor.py Test: tests/test_relationship_extractor.py\n[ ] Step 1: Write failing relationship extractor tests\nCreate tests for:\nheading concept produces mentions frontmatter tag concept produces mentions unresolved local link concept produces mentions resolvable local Markdown/wiki link produces links_to frontmatter depends_on, blocks, implements, supersedes, related, and revisit_when produce the expected relationship type when target entity exists frontmatter relationship fields pass through the actual entity extractor output from document snapshots so GraphIndexer can persist the relationship duplicate relationships for the same source, target, type, and evidence chunk are removed\nRun:\nExpected: FAIL because relationship_extractor.py does not exist.\n[ ] Step 2: Implement public interface and deterministic extractor\nCreate src/vault_graph/extraction/relationship_extractor.py:\nRelationship rules:\n| Entity occurrence method/type | Relationship | | --- | --- | | heading-concept-v1 | mentions | | frontmatter-tag-concept-v1 | mentions | | unresolved-local-link-concept-v1 | mentions | | local-link-target-document-v1 | links_to | |...",
+        "items": [
+          "Create: src/vault_graph/extraction/relationship_extractor.py",
+          "Test: tests/test_relationship_extractor.py",
+          "[ ] Step 1: Write failing relationship extractor tests",
+          "heading concept produces mentions",
+          "frontmatter tag concept produces mentions",
+          "unresolved local link concept produces mentions",
+          "resolvable local Markdown/wiki link produces links_to",
+          "frontmatter depends_on, blocks, implements, supersedes, related, and revisit_when produce the expected relationship type when target entity exists",
+          "frontmatter relationship fields pass through the actual entity extractor",
+          "duplicate relationships for the same source, target, type, and evidence chunk are removed",
+          "[ ] Step 2: Implement public interface and deterministic extractor",
+          "[ ] Step 3: Verify relationship extractor tests pass",
+          "[ ] Step 4: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_relationship_extractor.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom typing import Protocol\n\nfrom vault_graph.graph.graph_contracts import GraphExtractionSpec\nfrom vault_graph.extraction.graph_occurrences import EntityOccurrence, RelationshipOccurrence, entity_occurrence_key\nfrom vault_graph.extraction.graph_source_store import GraphExtractionContext\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.ingestion.vault_catalog import QueryScope\n\n\nclass RelationshipExtractor(Protocol):\n    def extract(\n        self,\n        *,\n        chunk: ChunkSnapshot,\n        document: DocumentSnapshot | None,\n        entities: tuple[EntityOccurrence, ...],\n        context: GraphExtractionContext,\n        scope: QueryScope,\n        spec: GraphExtractionSpec,\n    ) -> tuple[RelationshipOccurrence, ...]: ...\n\n\nclass DeterministicRelationshipExtractor:\n    def extract(\n        self,\n        *,\n        chunk: ChunkSnapshot,\n        document: DocumentSnapshot | None,\n        entities: tuple[EntityOccurrence, ...],\n        context: GraphExtractionContext,\n        scope: QueryScope,\n        spec: GraphExtractionSpec,\n    ) -> tuple[RelationshipOccurrence, ...]:\n        if document is None:\n            return ()\n        document_entity = _document_entity(entities)\n        if document_entity is None:\n            return ()\n        relationships = []\n        relationships.extend(_mention_relationships(chunk=chunk, source=document_entity, entities=entities))\n        relationships.extend(_link_relationships(chunk=chunk, source=document_entity, entities=entities))\n        relationships.extend(_frontmatter_relationships(chunk=chunk, document=document, source=document_entity, entities=entities))\n        return tuple(_dedupe_relationships(relationships))"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_relationship_extractor.py -q"
+          },
+          {
+            "language": "bash",
+            "content": "git add src/vault_graph/extraction/relationship_extractor.py tests/test_relationship_extractor.py\ngit commit -m \"feat: add deterministic relationship extraction\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 5: Harden Graph Store Apply And Graph Status State",
+        "content": "Files:\nCreate: src/vault_graph/storage/local/graph_status_store.py Modify: src/vault_graph/storage/local/sqlite_graph_store.py Modify: tests/fakes/in_memory_graph_store.py Modify: src/vault_graph/app/catalog_service.py Test: tests/test_graph_status_store.py Test: tests/test_graph_store_contract.py Test: tests/test_sqlite_graph_store.py\n[ ] Step 1: Write failing status and tombstone repair tests\nCover:\nLocalGraphStatusStore.record_failure preserves the previous successful graph revision LocalGraphStatusStore.record_success clears the last graph error active entity upsert clears the matching scoped entity tombstone active relationship upsert clears the matching scoped relationship tombstone SQLiteGraphStore.current_manifest converts read-time SQLite failures into GraphStoreUnavailable\nRun:\nExpected: FAIL because graph status storage and tombstone repair are not implemented.\n[ ] Step 2: Add local graph status store\nCreate src/vault_graph/storage/local/graph_status_store.py using the same small JSON pattern as LocalVectorStatusStore:\nAdd helpers:\nOnly record_* creates the file. read must not create parent directories or files, preserving status/dry-run read-only behavior.\n[ ] Step 3:...",
+        "items": [
+          "Create: src/vault_graph/storage/local/graph_status_store.py",
+          "Modify: src/vault_graph/storage/local/sqlite_graph_store.py",
+          "Modify: tests/fakes/in_memory_graph_store.py",
+          "Modify: src/vault_graph/app/catalog_service.py",
+          "Test: tests/test_graph_status_store.py",
+          "Test: tests/test_graph_store_contract.py",
+          "Test: tests/test_sqlite_graph_store.py",
+          "[ ] Step 1: Write failing status and tombstone repair tests",
+          "LocalGraphStatusStore.record_failure preserves the previous successful graph revision",
+          "LocalGraphStatusStore.record_success clears the last graph error",
+          "active entity upsert clears the matching scoped entity tombstone",
+          "active relationship upsert clears the matching scoped relationship tombstone",
+          "SQLiteGraphStore.current_manifest converts read-time SQLite failures into GraphStoreUnavailable",
+          "[ ] Step 2: Add local graph status store",
+          "[ ] Step 3: Add graph status path",
+          "[ ] Step 4: Clear scoped tombstones on active upsert"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_status_store.py tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py -q"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass GraphRunStatus:\n    scope_key: str\n    graph_spec_key: str\n    last_success_revision: str | None = None\n    last_success_at: str | None = None\n    last_error: str | None = None\n    last_error_at: str | None = None\n\n\nclass LocalGraphStatusStore:\n    def read(self, *, scope_key: str, graph_spec_key: str) -> GraphRunStatus: ...\n    def record_success(self, *, scope_key: str, graph_spec_key: str, graph_index_revision: str) -> None: ...\n    def record_failure(self, *, scope_key: str, graph_spec_key: str, error: str) -> None: ..."
+          },
+          {
+            "language": "python",
+            "content": "def graph_spec_key(spec: GraphExtractionSpec) -> str:\n    return f\"{spec.spec_version}|{spec.spec_digest}\"\n\n\ndef graph_scope_status_key(scope: QueryScope) -> str:\n    return f\"{','.join(scope.vault_ids)}:{','.join(scope.content_scopes)}:{'cross' if scope.include_cross_vault else 'local'}\""
+          },
+          {
+            "language": "python",
+            "content": "self.graph_status_path = self.state_path / \"graph\" / \"status.json\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 6: Implement GraphIndexer Planning",
+        "content": "Files:\nCreate: src/vault_graph/indexing/graph_indexer.py Test: tests/test_graph_indexer.py\n[ ] Step 1: Write failing graph indexer planning tests\nCover these behaviors with PreviewGraphSourceStore and InMemoryGraphStore:\nplan creates a GraphReconcilePlan without applying it desired document, heading, tag, and link records become entity upserts desired relationships become relationship upserts evidence refs are deduped and owner-scoped a second identical plan after applying the first plan has no entity or relationship upserts a changed chunk content hash makes the affected graph record stale missing current records create tombstones scoped to the selected actual scope all-vault planning returns one revision row per actual Vault scope same heading/path in two Vaults produces different entity IDs include_cross_vault=False does not create cross-Vault relationships unresolved links create both concept mentions and unresolved_local_link graph warnings frontmatter relationship fields flow from real DocumentSnapshot.frontmatter through entity extraction, relationship extraction, and persisted RelationshipRecord rows metadata index revision, parser version, chunker version, graph store sch...",
+        "items": [
+          "Create: src/vault_graph/indexing/graph_indexer.py",
+          "Test: tests/test_graph_indexer.py",
+          "[ ] Step 1: Write failing graph indexer planning tests",
+          "plan creates a GraphReconcilePlan without applying it",
+          "desired document, heading, tag, and link records become entity upserts",
+          "desired relationships become relationship upserts",
+          "evidence refs are deduped and owner-scoped",
+          "a second identical plan after applying the first plan has no entity or relationship upserts",
+          "a changed chunk content hash makes the affected graph record stale",
+          "missing current records create tombstones scoped to the selected actual scope",
+          "all-vault planning returns one revision row per actual Vault scope",
+          "same heading/path in two Vaults produces different entity IDs",
+          "include_cross_vault=False does not create cross-Vault relationships",
+          "unresolved links create both concept mentions and unresolved_local_link graph warnings",
+          "frontmatter relationship fields flow from real DocumentSnapshot.frontmatter",
+          "metadata index revision, parser version, chunker version, graph store schema"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_indexer.py -q"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass GraphIndexPlanReport:\n    reconcile_plan: GraphReconcilePlan\n    mode: str\n    stale_count: int\n    warnings: tuple[str, ...]\n\n\n@dataclass(frozen=True)\nclass GraphIndexApplyResult:\n    reconcile_plan: GraphReconcilePlan | None\n    apply_result: GraphApplyResult | None\n    mode: str\n    stale_count: int\n    warnings: tuple[str, ...]\n    failed: bool\n    error: str | None"
+          },
+          {
+            "language": "python",
+            "content": "class GraphIndexer:\n    def __init__(\n        self,\n        *,\n        source_store: GraphSourceStore,\n        graph_store: GraphStore,\n        entity_extractor: EntityExtractor,\n        relationship_extractor: RelationshipExtractor,\n        graph_extraction_spec: GraphExtractionSpec,\n        metadata_schema_version: str,\n        now: Callable[[], str] | None = None,\n        graph_run_id_factory: Callable[[], str] | None = None,\n        graph_revision_factory: Callable[[], str] | None = None,\n    ) -> None: ..."
+          },
+          {
+            "language": "text",
+            "content": "graph_run_id: graph-run-YYYYmmddHHMMSSffffff\ngraph_index_revision: graph-YYYYmmddHHMMSSffffff"
+          }
+        ]
+      },
+      {
+        "heading": "Task 7: Wire Graph Indexing Into IndexService",
+        "content": "Files:\nModify: src/vault_graph/app/index_service.py Test: tests/test_index_service_graph_reconcile.py Test: tests/test_multi_vault_graph_indexing.py\n[ ] Step 1: Write failing service tests\nCover:\nrun_plan returns graph planned counts and does not apply to graph store run_apply writes graph records after metadata vector failure still allows graph apply when metadata succeeded graph failure returns IndexRunReport.exit_code == 1 metadata failure prevents graph indexing unsupported content-scope graph width returns graph failure with unsupported_graph_scope_width unsupported content-scope graph width does not call GraphIndexer.plan, GraphStore.current_manifest, GraphStore.apply_reconcile_plan, or create graph tombstones all-vault apply creates graph revisions per Vault actual scope all-vault graph scopes normalize each Vault to that entry's configured content_scopes order, so later single-vault status/indexing uses the same graph_scope_key graph failure is recorded in LocalGraphStatusStore and visible through status\nRun:\nExpected: FAIL because IndexService has no graph plan/apply result.\n[ ] Step 2: Extend IndexRunReport\nModify src/vault_graph/app/index_service.py:\n[ ] Step 3: Add gra...",
+        "items": [
+          "Modify: src/vault_graph/app/index_service.py",
+          "Test: tests/test_index_service_graph_reconcile.py",
+          "Test: tests/test_multi_vault_graph_indexing.py",
+          "[ ] Step 1: Write failing service tests",
+          "run_plan returns graph planned counts and does not apply to graph store",
+          "run_apply writes graph records after metadata",
+          "vector failure still allows graph apply when metadata succeeded",
+          "graph failure returns IndexRunReport.exit_code == 1",
+          "metadata failure prevents graph indexing",
+          "unsupported content-scope graph width returns graph failure with unsupported_graph_scope_width",
+          "unsupported content-scope graph width does not call GraphIndexer.plan,",
+          "all-vault apply creates graph revisions per Vault actual scope",
+          "all-vault graph scopes normalize each Vault to that entry's configured",
+          "graph failure is recorded in LocalGraphStatusStore and visible through status",
+          "[ ] Step 2: Extend IndexRunReport",
+          "[ ] Step 3: Add graph dependencies to IndexService.init"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_index_service_graph_reconcile.py tests/test_multi_vault_graph_indexing.py -q"
+          },
+          {
+            "language": "python",
+            "content": "@dataclass(frozen=True)\nclass IndexRunReport:\n    metadata: MetadataRevisionPlan\n    vector: VectorRevisionPlan | VectorApplyResult | None\n    graph: GraphIndexPlanReport | GraphIndexApplyResult | None\n\n    @property\n    def exit_code(self) -> int:\n        return 1 if getattr(self.vector, \"failed\", False) or getattr(self.graph, \"failed\", False) else 0"
+          },
+          {
+            "language": "python",
+            "content": "graph_store: GraphStore | None = None\ngraph_extraction_spec: GraphExtractionSpec | None = None\ngraph_status_store: LocalGraphStatusStore | None = None"
+          },
+          {
+            "language": "python",
+            "content": "def _graph_plan(\n    self,\n    *,\n    source_store: GraphSourceStore,\n    scope: QueryScope,\n    full: bool,\n) -> GraphIndexPlanReport | GraphIndexApplyResult | None: ...\n\ndef _graph_apply(\n    self,\n    *,\n    source_store: GraphSourceStore,\n    scope: QueryScope,\n    full: bool,\n) -> GraphIndexApplyResult | None: ...\n\ndef _graph_indexer(self, *, source_store: GraphSourceStore) -> GraphIndexer: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Task 8: Wire CLI Graph Index Output",
+        "content": "Files:\nModify: src/vault_graph/cli/main.py Test: tests/test_cli_graph_indexing.py Existing test: tests/test_cli_graph_status.py\n[ ] Step 1: Write failing CLI tests\nCover:\nvg index --dry-run prints graph planned fields and does not create graph DB vg index prints graph apply fields and creates graph DB under state path vg index returns nonzero when graph apply fails, while metadata state remains vg status --format json reports graph.freshness == \"fresh\" after graph indexing vg status text and JSON report graph_last_error after a graph apply failure vg index with vector failure prints both vector_failed: True and graph success fields\nRun:\nExpected: FAIL because CLI does not render graph index output.\n[ ] Step 2: Open writable graph store only for apply\nModify _service in src/vault_graph/cli/main.py:\nPass graph_store=graph_store and graph_extraction_spec=current_graph_extraction_spec() into IndexService. Pass graph_status_store=LocalGraphStatusStore(config.graph_status_path).\nDry-run and status must keep initialize_store=False, so they must not create graph storage.\n[ ] Step 3: Render graph fields in index\nAfter vector output, add:\nImplement _graph_revision_text and _graph_tombstone_...",
+        "items": [
+          "Modify: src/vault_graph/cli/main.py",
+          "Test: tests/test_cli_graph_indexing.py",
+          "Existing test: tests/test_cli_graph_status.py",
+          "[ ] Step 1: Write failing CLI tests",
+          "vg index --dry-run prints graph planned fields and does not create graph DB",
+          "vg index prints graph apply fields and creates graph DB under state path",
+          "vg index returns nonzero when graph apply fails, while metadata state remains",
+          "vg status --format json reports graph.freshness == \"fresh\" after graph indexing",
+          "vg status text and JSON report graph_last_error after a graph apply failure",
+          "vg index with vector failure prints both vector_failed: True and graph success fields",
+          "[ ] Step 2: Open writable graph store only for apply",
+          "[ ] Step 3: Render graph fields in index",
+          "[ ] Step 4: Update domain error handling",
+          "[ ] Step 5: Exit after rendering all enabled failures",
+          "[ ] Step 6: Verify CLI tests pass",
+          "[ ] Step 7: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_graph_indexing.py tests/test_cli_graph_status.py -q"
+          },
+          {
+            "language": "python",
+            "content": "graph_store = (\n    SQLiteGraphStore.open_writable(config.graph_path)\n    if initialize_store\n    else SQLiteGraphStore.open_read_only(config.graph_path)\n)"
+          },
+          {
+            "language": "python",
+            "content": "if report.graph is not None:\n    graph = report.graph\n    plan = graph.reconcile_plan\n    typer.echo(f\"graph_mode: {graph.mode}\")\n    typer.echo(f\"graph_run_id: {plan.graph_run_id if plan is not None else None}\")\n    typer.echo(f\"graph_revision: {_graph_revision_text(graph)}\")\n    typer.echo(f\"graph_entities_upserted: {len(plan.entity_upserts) if plan is not None else 0}\")\n    typer.echo(f\"graph_relationships_upserted: {len(plan.relationship_upserts) if plan is not None else 0}\")\n    typer.echo(f\"graph_evidence_refs_upserted: {len(plan.evidence_ref_upserts) if plan is not None else 0}\")\n    typer.echo(f\"graph_tombstones: {_graph_tombstone_count(plan)}\")\n    typer.echo(f\"graph_stale: {graph.stale_count}\")\n    typer.echo(f\"graph_extraction_spec_version: {current_graph_extraction_spec().spec_version}\")\n    typer.echo(f\"graph_extraction_spec_digest: {current_graph_extraction_spec().spec_digest}\")\n    typer.echo(f\"graph_failed: {getattr(graph, 'failed', False)}\")\n    typer.echo(f\"graph_last_error: {getattr(graph, 'error', None)}\")\n    for warning in graph.warnings:\n        typer.echo(f\"graph_warning: {warning}\")"
+          },
+          {
+            "language": "python",
+            "content": "typer.echo(f\"graph_status_scope: {report.graph_status_scope}\")\ntyper.echo(f\"graph_last_error: {report.graph_last_error}\")"
+          }
+        ]
+      },
+      {
+        "heading": "Task 9: Add Read-Only, SQLite, And Regression Coverage",
+        "content": "Files:\nTest: tests/test_graph_indexing_read_only_boundary.py Existing tests: tests/test_sqlite_graph_store.py, tests/test_graph_readiness.py, tests/test_naming_conventions.py, tests/test_cli_search.py\n[ ] Step 1: Add read-only boundary tests\nCover:\nvg index --dry-run does not create state/graph vg index --dry-run does not create metadata DB files vg index --dry-run does not create vector DB files vg index --dry-run does not create vector status files vg index --dry-run does not write embedding model cache files vg index --dry-run does not modify Vault files graph extraction does not open Vault files directly after metadata preview/apply graph apply writes only under configured Vault Graph state vg status remains read-only before and after graph indexing graph projection cache directory is not created by Phase 3B unsupported graph content-scope width does not call graph planning, manifest reads, apply, or tombstone creation\nRun:\nExpected: FAIL before tests are implemented, then PASS after CLI/service wiring is complete.\n[ ] Step 2: Add SQLite-backed integration assertions\nExtend existing SQLite graph/readiness tests or add focused tests to prove:\nSQLiteGraphStore.open_writable rece...",
+        "items": [
+          "Test: tests/test_graph_indexing_read_only_boundary.py",
+          "Existing tests: tests/test_sqlite_graph_store.py, tests/test_graph_readiness.py, tests/test_naming_conventions.py, tests/test_cli_search.py",
+          "[ ] Step 1: Add read-only boundary tests",
+          "vg index --dry-run does not create state/graph",
+          "vg index --dry-run does not create metadata DB files",
+          "vg index --dry-run does not create vector DB files",
+          "vg index --dry-run does not create vector status files",
+          "vg index --dry-run does not write embedding model cache files",
+          "vg index --dry-run does not modify Vault files",
+          "graph extraction does not open Vault files directly after metadata preview/apply",
+          "graph apply writes only under configured Vault Graph state",
+          "vg status remains read-only before and after graph indexing",
+          "graph projection cache directory is not created by Phase 3B",
+          "unsupported graph content-scope width does not call graph planning, manifest",
+          "[ ] Step 2: Add SQLite-backed integration assertions",
+          "SQLiteGraphStore.open_writable receives GraphReconcilePlan from GraphIndexer.apply"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_indexing_read_only_boundary.py -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest \\\n  tests/test_graph_occurrences.py \\\n  tests/test_graph_source_store.py \\\n  tests/test_entity_extractor.py \\\n  tests/test_relationship_extractor.py \\\n  tests/test_graph_status_store.py \\\n  tests/test_graph_contracts.py \\\n  tests/test_graph_indexer.py \\\n  tests/test_index_service_graph_reconcile.py \\\n  tests/test_multi_vault_graph_indexing.py \\\n  tests/test_cli_graph_indexing.py \\\n  tests/test_graph_indexing_read_only_boundary.py \\\n  tests/test_graph_store_contract.py \\\n  tests/test_graph_readiness.py \\\n  tests/test_sqlite_graph_store.py \\\n  tests/test_cli_graph_status.py \\\n  tests/test_cli_search.py \\\n  -q"
+          },
+          {
+            "language": "bash",
+            "content": "git add tests/test_graph_indexing_read_only_boundary.py tests/test_sqlite_graph_store.py tests/test_graph_readiness.py tests/test_cli_search.py\ngit commit -m \"test: cover graph indexing read only behavior\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 10: Final Verification And Documentation Check",
+        "content": "Files:\nModify: docs/PATCH_LOG.md only if implementation review required plan/design corrections. Modify: docs/DECISIONS.md only if a new user-approved policy decision was made.\n[ ] Step 1: Search for forbidden or stale terminology\nRun:\nExpected: no output for source-file phase labels. The forbidden naming rule is covered by tests/test_naming_conventions.py; do not write the forbidden term into new docs or code outside docs/CONVENTIONS.md.\n[ ] Step 2: Run full test suite\nRun:\nExpected: all tests pass.\n[ ] Step 3: Run lint\nRun:\nExpected: All checks passed!\n[ ] Step 4: Run type checks\nRun:\nExpected: both commands report success.\n[ ] Step 5: Check whitespace\nRun:\nExpected: no output.\n[ ] Step 6: Final commit\nDo not push unless the user explicitly asks.",
+        "items": [
+          "Modify: docs/PATCH_LOG.md only if implementation review required plan/design corrections.",
+          "Modify: docs/DECISIONS.md only if a new user-approved policy decision was made.",
+          "[ ] Step 1: Search for forbidden or stale terminology",
+          "[ ] Step 2: Run full test suite",
+          "[ ] Step 3: Run lint",
+          "[ ] Step 4: Run type checks",
+          "[ ] Step 5: Check whitespace",
+          "[ ] Step 6: Final commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "rg -n \"phase2b|phase2c\" src tests docs --glob '!docs/CONVENTIONS.md'"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 ruff check src tests"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 mypy src\nuv run --python 3.12 mypy tests"
+          }
+        ]
+      },
+      {
+        "heading": "Completion Checklist",
+        "content": "[ ] GraphIndexer writes only through GraphStore.apply_reconcile_plan. [ ] Graph dry-run does not create graph, projection cache, metadata, vector, or Vault files. [ ] Graph apply writes only under the configured Vault Graph state path. [ ] Plain vg search \"query\" behavior is unchanged. [ ] vg index reports graph counts and independent vector/graph failures. [ ] vg status --format json reports fresh graph readiness after indexing. [ ] Multi-vault graph identities and revisions remain per Vault/actual scope. [ ] Unsupported content-scope graph indexing returns unsupported_graph_scope_width. [ ] No Phase 3C graph traversal, ranking, projection, or graph search behavior is introduced. [ ] Full verification commands pass.",
+        "items": [
+          "[ ] GraphIndexer writes only through GraphStore.apply_reconcile_plan.",
+          "[ ] Graph dry-run does not create graph, projection cache, metadata, vector, or Vault files.",
+          "[ ] Graph apply writes only under the configured Vault Graph state path.",
+          "[ ] Plain vg search \"query\" behavior is unchanged.",
+          "[ ] vg index reports graph counts and independent vector/graph failures.",
+          "[ ] vg status --format json reports fresh graph readiness after indexing.",
+          "[ ] Multi-vault graph identities and revisions remain per Vault/actual scope.",
+          "[ ] Unsupported content-scope graph indexing returns unsupported_graph_scope_width.",
+          "[ ] No Phase 3C graph traversal, ranking, projection, or graph search behavior is introduced.",
+          "[ ] Full verification commands pass."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3b-local-entity-relationship-indexing.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

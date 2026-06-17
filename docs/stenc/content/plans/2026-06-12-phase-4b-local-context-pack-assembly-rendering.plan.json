@@ -1,0 +1,1348 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-12-phase-4b-local-context-pack-assembly-rendering",
+  "slug": "2026-06-12-phase-4b-local-context-pack-assembly-rendering",
+  "status": "canonical",
+  "title": "Phase 4B Local Context Pack Assembly And Rendering Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-12",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "spec:2026-06-12-phase-4b-local-context-pack-assembly-rendering-design"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Add vg context GOAL so local users can render a bounded evidence-linked context pack as canonical JSON or Markdown without mutating Vault.\nArchitecture: Keep Phase 4B as a thin CLI adapter over the Phase 4A vault_graph.context deep module. The CLI resolves scope and output format, constructs ContextPackRequest, calls SearchContextPackBuilder, and delegates all JSON/Markdown formatting to DefaultContextPackRenderer.\nTech Stack: Python 3.12, Typer CLI, frozen dataclass DTOs,...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Add vg context GOAL so local users can render a bounded evidence-linked context pack as canonical JSON or Markdown without mutating Vault.\nArchitecture: Keep Phase 4B as a thin CLI adapter over the Phase 4A vault_graph.context deep module. The CLI resolves scope and output format, constructs ContextPackRequest, calls SearchContextPackBuilder, and delegates all JSON/Markdown formatting to DefaultContextPackRenderer.\nTech Stack: Python 3.12, Typer CLI, frozen dataclass DTOs, existing RetrievalService, existing local read-only SQLite/Chroma adapters, pytest, ruff, mypy.\n---",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "Phase 4B implements:\nvg context GOAL --state, --vault-id, --all-vaults, --format json|markdown, --max-tokens, --limit, --include-graph, --include-cross-vault CLI wiring to existing read-only retrieval and metadata evidence resolution JSON output from canonical ContextPack Markdown output from DefaultContextPackRenderer Phase 4B renderer sections and evidence/warning visibility deterministic classification and packing refinements required by the 4B design read-only, missing metadata, graph opt-in, and multi-vault CLI tests\nPhase 4B does not implement:\nvg ask MCP serving HTTP serving context pack persistence or cache automatic Vault publication LLM-generated summaries, answers, or classifiers",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "vg context GOAL",
+        "--state, --vault-id, --all-vaults, --format json|markdown, --max-tokens, --limit, --include-graph, --include-cross-vault",
+        "CLI wiring to existing read-only retrieval and metadata evidence resolution",
+        "JSON output from canonical ContextPack",
+        "Markdown output from DefaultContextPackRenderer",
+        "Phase 4B renderer sections and evidence/warning visibility",
+        "deterministic classification and packing refinements required by the 4B design",
+        "read-only, missing metadata, graph opt-in, and multi-vault CLI tests",
+        "vg ask",
+        "MCP serving"
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_cli_context.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_context_pack_renderer.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/cli/main.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/context/context_pack_builder.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/context/context_pack_renderer.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_cli_surface_boundary.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_context_pack_builder.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_context_pack_serialization.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DECISIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/context/",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/policy.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_context_pack_evidence_budget.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_cli_search.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_context_pack_import_boundaries.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_retrieval_import_boundaries.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Task 1: Strengthen Markdown Renderer For Phase 4B",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_context_pack_renderer.py",
+          "src/vault_graph/context/context_pack_renderer.py",
+          "tests/test_context_pack_serialization.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_context_pack_renderer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/context/context_pack_renderer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_context_pack_serialization.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_context_pack_renderer.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_context_pack_renderer.py tests/test_context_pack_serialization.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/context/context_pack_renderer.py tests/test_context_pack_renderer.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(context): render phase 4b markdown context packs\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-5",
+            "title": "Create: tests/test_context_pack_renderer.py",
+            "status": "todo",
+            "instruction": "Create: tests/test_context_pack_renderer.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 2: Refine Builder Classification And Packing",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/context/context_pack_builder.py",
+          "tests/test_context_pack_builder.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/context/context_pack_builder.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_context_pack_builder.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_context_pack_builder.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_context_pack_builder.py tests/test_context_pack_evidence_budget.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/context/context_pack_builder.py tests/test_context_pack_builder.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(context): refine context pack section classification\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-5",
+            "title": "Modify: src/vault_graph/context/context_pack_builder.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/context/context_pack_builder.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 3: Add CLI Context Tests",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_cli_context.py",
+          "tests/test_cli_surface_boundary.py",
+          "tests/test_context_pack_serialization.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_cli_context.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_surface_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_context_pack_serialization.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_context.py tests/test_cli_surface_boundary.py tests/test_context_pack_serialization.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Create: tests/test_cli_context.py",
+            "status": "todo",
+            "instruction": "Create: tests/test_cli_context.py",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Modify: tests/test_cli_surface_boundary.py",
+            "status": "todo",
+            "instruction": "Modify: tests/test_cli_surface_boundary.py",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Modify: tests/test_context_pack_serialization.py",
+            "status": "todo",
+            "instruction": "Modify: tests/test_context_pack_serialization.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 4: Implement vg context",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/cli/main.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_context.py tests/test_cli_search.py tests/test_cli_surface_boundary.py tests/test_context_pack_serialization.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/cli/main.py tests/test_cli_context.py tests/test_cli_surface_boundary.py tests/test_context_pack_serialization.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(cli): add local context pack command\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Modify: src/vault_graph/cli/main.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/cli/main.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 5: Add Boundary And Integration Coverage",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_context_pack_import_boundaries.py",
+          "tests/test_cli_context.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_context_pack_import_boundaries.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_context.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_context.py tests/test_context_pack_import_boundaries.py tests/test_retrieval_import_boundaries.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add tests/test_cli_context.py tests/test_context_pack_import_boundaries.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"test(context): cover cli context read-only boundaries\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Modify: tests/test_context_pack_import_boundaries.py",
+            "status": "todo",
+            "instruction": "Modify: tests/test_context_pack_import_boundaries.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 6: Full Verification",
+        "status": "todo",
+        "surfaces": [
+          "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git diff --check",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-5",
+            "title": "No required file changes.",
+            "status": "todo",
+            "instruction": "No required file changes.",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6"
+    ],
+    "risks": [
+      {
+        "risk": "Error Handling And Edge Cases",
+        "mitigation": "Empty goal: CLI prints empty_goal, exits 1, opens no stores. Unsupported format: CLI prints unsupported_format, exits 1, opens no stores. --max-tokens 999: CLI prints context_budget_too_small, exits 1, opens no stores. --limit 0: CLI prints context_limit_must_be_positive, exits 1, opens no stores. --vault-id with --all-vaults: CLI prints Use either --vault-id or --all-vaults, not both., exits 1. Unknown Vault ID: CatalogError is converted by _exit_on_domain_error, exits 1, and does not call _co..."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_context_pack_renderer.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_context_pack_renderer.py tests/test_context_pack_serialization.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/context/context_pack_renderer.py tests/test_context_pack_renderer.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(context): render phase 4b markdown context packs\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_context_pack_builder.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_context_pack_builder.py tests/test_context_pack_evidence_budget.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/context/context_pack_builder.py tests/test_context_pack_builder.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(context): refine context pack section classification\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Add vg context GOAL so local users can render a bounded evidence-linked context pack as canonical JSON or Markdown without mutating Vault.\nArchitecture: Keep Phase 4B as a thin CLI adapter over the Phase 4A vault_graph.context deep module. The CLI resolves scope and output format, constructs ContextPackRequest, calls SearchContextPackBuilder, and delegates all JSON/Markdown formatting to DefaultContextPackRenderer.\nTech Stack: Python 3.12, Typer CLI, frozen dataclass DTOs, existing RetrievalService, existing local read-only SQLite/Chroma adapters, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope",
+        "content": "Phase 4B implements:\nvg context GOAL --state, --vault-id, --all-vaults, --format json|markdown, --max-tokens, --limit, --include-graph, --include-cross-vault CLI wiring to existing read-only retrieval and metadata evidence resolution JSON output from canonical ContextPack Markdown output from DefaultContextPackRenderer Phase 4B renderer sections and evidence/warning visibility deterministic classification and packing refinements required by the 4B design read-only, missing metadata, graph opt-in, and multi-vault CLI tests\nPhase 4B does not implement:\nvg ask MCP serving HTTP serving context pack persistence or cache automatic Vault publication LLM-generated summaries, answers, or classifiers",
+        "items": [
+          "vg context GOAL",
+          "--state, --vault-id, --all-vaults, --format json|markdown, --max-tokens, --limit, --include-graph, --include-cross-vault",
+          "CLI wiring to existing read-only retrieval and metadata evidence resolution",
+          "JSON output from canonical ContextPack",
+          "Markdown output from DefaultContextPackRenderer",
+          "Phase 4B renderer sections and evidence/warning visibility",
+          "deterministic classification and packing refinements required by the 4B design",
+          "read-only, missing metadata, graph opt-in, and multi-vault CLI tests",
+          "vg ask",
+          "MCP serving",
+          "HTTP serving",
+          "context pack persistence or cache",
+          "automatic Vault publication",
+          "LLM-generated summaries, answers, or classifiers"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Directory And File Structure",
+        "content": "Create:\ntests/test_cli_context.py tests/test_context_pack_renderer.py\nModify:\nsrc/vault_graph/cli/main.py src/vault_graph/context/context_pack_builder.py src/vault_graph/context/context_pack_renderer.py tests/test_cli_surface_boundary.py tests/test_context_pack_builder.py tests/test_context_pack_serialization.py\nDo not modify:\nVault files under registered Vault roots src/vault_graph/storage/local/* except through existing read-only constructors src/vault_graph/retrieval/* unless a test proves an existing retrieval contract defect docs/DECISIONS.md unless a user-approved decision is introduced\nNo open product or architecture decisions are required for this slice.",
+        "items": [
+          "tests/test_cli_context.py",
+          "tests/test_context_pack_renderer.py",
+          "src/vault_graph/cli/main.py",
+          "src/vault_graph/context/context_pack_builder.py",
+          "src/vault_graph/context/context_pack_renderer.py",
+          "tests/test_cli_surface_boundary.py",
+          "tests/test_context_pack_builder.py",
+          "tests/test_context_pack_serialization.py",
+          "Vault files under registered Vault roots",
+          "src/vault_graph/storage/local/* except through existing read-only constructors",
+          "src/vault_graph/retrieval/* unless a test proves an existing retrieval contract defect",
+          "docs/DECISIONS.md unless a user-approved decision is introduced"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Component And Interface Spec",
+        "content": "See Component And Interface Spec in the source Markdown document.",
+        "items": [
+          "Review the Component And Interface Spec section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "CLI Command",
+        "content": "Add the context Typer command to src/vault_graph/cli/main.py. The public command name is context; the Python function name is context; its parameters are goal, state, vault_id, all_vaults, output_format, max_tokens, limit, include_graph, and include_cross_vault. The complete code body is defined in Task 4 Step 4.\nValidation order:\ngoal.strip() must be non-empty, otherwise print empty_goal and exit 1. --vault-id and --all-vaults are mutually exclusive, otherwise print Use either --vault-id or --all-vaults, not both. and exit 1. --format must be json or markdown, otherwise print unsupported_format and exit 1. --max-tokens must be at least 1000, otherwise print context_budget_too_small and exit 1. --limit must be positive, otherwise print context_limit_must_be_positive and exit 1. --include-cross-vault requires --all-vaults --include-graph, otherwise print include_cross_vault_requires_multi_vault_graph_scope and exit 1.",
+        "items": [
+          "goal.strip() must be non-empty, otherwise print empty_goal and exit 1.",
+          "--vault-id and --all-vaults are mutually exclusive, otherwise print Use either --vault-id or --all-vaults, not both. and exit 1.",
+          "--format must be json or markdown, otherwise print unsupported_format and exit 1.",
+          "--max-tokens must be at least 1000, otherwise print context_budget_too_small and exit 1.",
+          "--limit must be positive, otherwise print context_limit_must_be_positive and exit 1.",
+          "--include-cross-vault requires --all-vaults --include-graph, otherwise print include_cross_vault_requires_multi_vault_graph_scope and exit 1."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "CLI Factory Boundary",
+        "content": "Add private factories that reuse the existing search dependency pattern while exposing the read-only metadata store to the context evidence resolver. The context command must load the catalog and resolve scope before calling _context_builder_service; invalid --vault-id must not open metadata, vector, graph, or embedding dependencies.\nThen add a wrapper for the existing search command:\nThen change _search_service to call this helper and return the existing 3-tuple:\nAdd the context-specific factory:\nsrc/vault_graph/cli/main.py may import concrete local stores because CLI is the adapter boundary. src/vault_graph/context/* must continue to avoid local backend imports.",
+        "items": [
+          "Review the CLI Factory Boundary section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def _read_only_search_components(\n    state: Path,\n    *,\n    config: CatalogService,\n    catalog: VaultCatalog,\n    include_graph: bool = False,\n) -> tuple[SQLiteMetadataStore, RetrievalService]:\n    metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=False)\n    keyword_index = SQLiteKeywordIndex(config.metadata_path)\n    vector_store = ChromaVectorStore(config.vector_path, initialize=False, read_only=True)\n    text_embeddings = _search_text_embeddings(config)\n    graph_candidate_provider = None\n    if include_graph:\n        _, _, graph_service = _graph_retrieval_service(state)\n        graph_candidate_provider = GraphSearchCandidateProvider(graph_retrieval_service=graph_service)\n    return (\n        metadata_store,\n        RetrievalService(\n            catalog=catalog,\n            metadata_store=metadata_store,\n            keyword_index=keyword_index,\n            vector_store=vector_store,\n            text_embeddings=text_embeddings,\n            readiness=ReadOnlySearchReadiness(\n                metadata_store=metadata_store,\n                keyword_index=keyword_index,\n                vector_store=vector_store,\n                text_embeddings=text_embeddings,\n            ),\n            graph_candidate_provider=graph_candidate_provider,\n        ),\n    )"
+          },
+          {
+            "language": "python",
+            "content": "def _search_service_with_metadata(\n    state: Path,\n    *,\n    include_graph: bool = False,\n) -> tuple[CatalogService, VaultCatalog, SQLiteMetadataStore, RetrievalService]:\n    config, catalog = _catalog(state)\n    metadata_store, service = _read_only_search_components(\n        state,\n        config=config,\n        catalog=catalog,\n        include_graph=include_graph,\n    )\n    return config, catalog, metadata_store, service"
+          },
+          {
+            "language": "python",
+            "content": "def _search_service(\n    state: Path,\n    *,\n    include_graph: bool = False,\n) -> tuple[CatalogService, VaultCatalog, RetrievalService]:\n    config, catalog, _, service = _search_service_with_metadata(state, include_graph=include_graph)\n    return config, catalog, service"
+          },
+          {
+            "language": "python",
+            "content": "def _context_builder_service(\n    state: Path,\n    *,\n    config: CatalogService,\n    catalog: VaultCatalog,\n    include_graph: bool = False,\n) -> tuple[SearchContextPackBuilder, ContextPackRenderer]:\n    metadata_store, retrieval_service = _read_only_search_components(\n        state,\n        config=config,\n        catalog=catalog,\n        include_graph=include_graph,\n    )\n    return (\n        SearchContextPackBuilder(\n            catalog=catalog,\n            retrieval_service=retrieval_service,\n            evidence_resolver=MetadataContextEvidenceResolver(metadata_store=metadata_store),\n        ),\n        DefaultContextPackRenderer(),\n    )"
+          }
+        ]
+      },
+      {
+        "heading": "Scope Helper",
+        "content": "Add a helper used by vg context:\nDo not reuse this helper in existing commands during Phase 4B unless a failing test requires it. Keeping the edit local reduces risk.",
+        "items": [
+          "Review the Scope Helper section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def _context_scope_for_flags(\n    catalog: VaultCatalog,\n    *,\n    vault_id: str | None,\n    all_vaults: bool,\n    include_cross_vault: bool,\n) -> QueryScope:\n    if all_vaults:\n        scope = catalog.scope_for_all_enabled()\n    elif vault_id is not None:\n        scope = catalog.scope_for_vault_ids([vault_id])\n    else:\n        scope = catalog.default_scope()\n    if include_cross_vault:\n        return QueryScope(\n            vault_ids=scope.vault_ids,\n            content_scopes=scope.content_scopes,\n            include_cross_vault=True,\n        )\n    return scope"
+          }
+        ]
+      },
+      {
+        "heading": "Context Request Construction",
+        "content": "Construct ContextPackRequest directly in the command body and wrap the builder.build(...) call in _exit_on_domain_error(...). Do not add a separate pass-through build helper; the builder remains the deep module that owns pack assembly.\nAdd ContextPackError to _exit_on_domain_error(...).",
+        "items": [
+          "Review the Context Request Construction section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "request = ContextPackRequest(\n    goal=goal,\n    requested_scope=scope,\n    budget=ContextPackBudget(max_tokens=max_tokens),\n    retrieval_limit=limit,\n    include_graph=include_graph,\n    include_cross_vault=include_cross_vault,\n)\npack = _exit_on_domain_error(lambda: builder.build(request))"
+          }
+        ]
+      },
+      {
+        "heading": "Renderer Contract",
+        "content": "DefaultContextPackRenderer.render_markdown(...) must render these headings in this order:\nRules:\nAlways render ## Warnings. Warning lines include severity, code, affected Vault IDs, message, and recovery hint when present. Evidence lines include [vault_id] path#anchor when anchor exists. Evidence lines include [truncated] when ContextEvidence.truncated is true. Markdown uses only values from ContextPack; it must not reconstruct or add facts. Existing collision-safe code fences and inline escaping remain.",
+        "items": [
+          "Always render ## Warnings.",
+          "Warning lines include severity, code, affected Vault IDs, message, and recovery hint when present.",
+          "Evidence lines include [vault_id] path#anchor when anchor exists.",
+          "Evidence lines include [truncated] when ContextEvidence.truncated is true.",
+          "Markdown uses only values from ContextPack; it must not reconstruct or add facts.",
+          "Existing collision-safe code fences and inline escaping remain."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "markdown",
+            "content": "# Context Pack\n## Goal\n## Scope\n## Warnings\n## Decisions\n## Constraints\n## Open Questions\n## Current State\n## Relevant Pages\n## Relevant Sources\n## Evidence\n## Revisions\n## Budget\n## Backend"
+          }
+        ]
+      },
+      {
+        "heading": "Builder Classification And Packing Refinement",
+        "content": "Update _item_type(...), _planned_item_sort_key(...), and _items_by_type(...) in src/vault_graph/context/context_pack_builder.py.\nClassification rules:\nPacking sort key:\n_items_by_type(...) must include:\nand SearchContextPackBuilder.build(...) must set:",
+        "items": [
+          "Review the Builder Classification And Packing Refinement section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "_CONSTRAINT_TERMS = (\"constraint\", \"principle\", \"invariant\", \"policy\", \"convention\")\n_OPEN_QUESTION_TERMS = (\"question\", \"todo\", \"follow-up\", \"issue\", \"revisit\")\n_CURRENT_STATE_TERMS = (\"current-state\", \"current_state\")\n_CURRENT_STATE_PATH_SUFFIXES = (\"/status.md\", \"/current-state.md\", \"/current_state.md\")\n\n\ndef _item_type(result: RetrievalResult) -> ContextPackItemType:\n    first_evidence = result.evidence[0]\n    path = first_evidence.path.lower()\n    section = (first_evidence.section or \"\").lower()\n    title = result.title.lower()\n    kind = result.kind.lower()\n    text = \" \".join((kind, path, section, title))\n    path_with_slashes = f\"/{path}\"\n    if kind == \"decision\" or \"/decisions/\" in path_with_slashes:\n        return \"decision\"\n    if kind == \"constraint\" or any(term in text for term in _CONSTRAINT_TERMS):\n        return \"constraint\"\n    if kind == \"open_question\" or any(term in text for term in _OPEN_QUESTION_TERMS):\n        return \"open_question\"\n    if (\n        kind == \"current_state\"\n        or any(term in text for term in _CURRENT_STATE_TERMS)\n        or any(path_with_slashes.endswith(suffix) for suffix in _CURRENT_STATE_PATH_SUFFIXES)\n    ):\n        return \"current_state\"\n    if path.startswith(\"raw/\"):\n        return \"source\"\n    return \"page\""
+          },
+          {
+            "language": "python",
+            "content": "def _planned_item_sort_key(item: _PlannedItem) -> tuple[int, int, int, int, str, str, str]:\n    first_evidence = item.result.evidence[0]\n    priority = {\n        \"decision\": 0,\n        \"constraint\": 1,\n        \"open_question\": 2,\n        \"current_state\": 3,\n        \"page\": 4,\n        \"source\": 5,\n    }[item.item_type]\n    signal_kind_count = len({signal.kind for signal in item.result.signals})\n    raw_source_penalty = 1 if first_evidence.path.startswith(\"raw/\") else 0\n    return (\n        priority,\n        item.result.rank,\n        -signal_kind_count,\n        raw_source_penalty,\n        item.result.vault_id,\n        first_evidence.path,\n        first_evidence.chunk_id,\n    )"
+          },
+          {
+            "language": "python",
+            "content": "\"current_state\": tuple(item for item in items if item.item_type == \"current_state\")"
+          },
+          {
+            "language": "python",
+            "content": "current_state=items_by_type[\"current_state\"],"
+          }
+        ]
+      },
+      {
+        "heading": "Data Flow",
+        "content": "No Phase 4B state transition writes to Vault or Vault Graph state. Existing read-only store constructors may inspect state files but must not create missing projections.\n--max-tokens follows the Phase 4A public contract: it is an estimated budget for excerpt-bearing evidence content. JSON metadata, Markdown headings, warning text, and item summaries remain visible even when excerpts are omitted or truncated, so rendered Markdown can contain overhead beyond budget.used_tokens. The renderer must not hide warnings or revisions to force the final text under the evidence excerpt budget.\nRetrieval work remains bounded by the existing RetrievalService contract: candidate_limit = max(limit * 4, 20) is applied per actual scope, then the final SearchResponse is limited and the SearchContextPackBuilder caps the requested retrieval limit to max(max_evidence_items * 4, 10). Phase 4B does not add a global all-Vault candidate allocator. Tests must avoid claiming that all store work is globally bounded by --limit; the user-facing pack size is bounded by the builder and context budget.",
+        "items": [
+          "Review the Data Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg context GOAL\n  -> validate options before opening stores\n  -> load VaultCatalog from --state\n  -> resolve QueryScope from active Vault, --vault-id, or --all-vaults\n  -> if --include-cross-vault, set QueryScope.include_cross_vault=True\n  -> create read-only RetrievalService and MetadataContextEvidenceResolver\n  -> create ContextPackRequest\n  -> SearchContextPackBuilder.build(request)\n      -> RetrievalService.search(query_text=goal, requested_scope=scope, limit=limit, output_format=\"json\", include_graph=flag, include_cross_vault=flag)\n      -> section classification\n      -> evidence resolution through MetadataStore interface\n      -> deterministic packing/truncation/warnings\n      -> canonical ContextPack with pack_id\n  -> DefaultContextPackRenderer.render_json or render_markdown\n  -> write only stdout"
+          }
+        ]
+      },
+      {
+        "heading": "Error Handling And Edge Cases",
+        "content": "Empty goal: CLI prints empty_goal, exits 1, opens no stores. Unsupported format: CLI prints unsupported_format, exits 1, opens no stores. --max-tokens 999: CLI prints context_budget_too_small, exits 1, opens no stores. --limit 0: CLI prints context_limit_must_be_positive, exits 1, opens no stores. --vault-id with --all-vaults: CLI prints Use either --vault-id or --all-vaults, not both., exits 1. Unknown Vault ID: CatalogError is converted by _exit_on_domain_error, exits 1, and does not call _context_builder_service or _graph_retrieval_service. Missing metadata or keyword projection: existing SearchError message includes metadata_unavailable or keyword_index_unavailable, exits 1, creates no projection files. Vector unavailable or stale with keyword fallback: pack exits 0 and includes search_degraded or stale_projection warnings. Graph requested but unavailable with keyword/vector fallback: pack exits 0 and includes graph_unavailable. Plain vg context must not call _graph_retrieval_service(...). --include-cross-vault without --all-vaults --include-graph: exits 1 before opening stores. Same document path or chunk ID across Vaults: JSON evidence refs and warning refs retain vault_id.",
+        "items": [
+          "Empty goal: CLI prints empty_goal, exits 1, opens no stores.",
+          "Unsupported format: CLI prints unsupported_format, exits 1, opens no stores.",
+          "--max-tokens 999: CLI prints context_budget_too_small, exits 1, opens no stores.",
+          "--limit 0: CLI prints context_limit_must_be_positive, exits 1, opens no stores.",
+          "--vault-id with --all-vaults: CLI prints Use either --vault-id or --all-vaults, not both., exits 1.",
+          "Unknown Vault ID: CatalogError is converted by _exit_on_domain_error, exits 1, and does not call",
+          "Missing metadata or keyword projection: existing SearchError message includes metadata_unavailable or keyword_index_unavailable, exits 1, creates no projection files.",
+          "Vector unavailable or stale with keyword fallback: pack exits 0 and includes search_degraded or stale_projection warnings.",
+          "Graph requested but unavailable with keyword/vector fallback: pack exits 0 and includes graph_unavailable.",
+          "Plain vg context must not call _graph_retrieval_service(...).",
+          "--include-cross-vault without --all-vaults --include-graph: exits 1 before opening stores.",
+          "Same document path or chunk ID across Vaults: JSON evidence refs and warning refs retain vault_id."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Task 1: Strengthen Markdown Renderer For Phase 4B",
+        "content": "Files:\nCreate: tests/test_context_pack_renderer.py Modify: src/vault_graph/context/context_pack_renderer.py\n[ ] Step 1: Write failing renderer tests\nCreate tests/test_context_pack_renderer.py:\n[ ] Step 2: Run renderer tests to confirm failure\nRun:\nExpected: fails because the current renderer lacks ## Goal, ## Scope, combined ## Revisions, affected Vault IDs, recovery hints, and [truncated] evidence markers.\n[ ] Step 3: Update Markdown renderer\nReplace DefaultContextPackRenderer.render_markdown(...) in src/vault_graph/context/context_pack_renderer.py with an implementation that uses helper functions:\nAdd helper functions in the same module:\nImport ContextEvidence, ContextEvidenceRef, ContextPackActualScope, ContextPackItem, and ContextPackWarning at the top of the renderer module. Replace the existing _render_item(...) with the version above so top-level, item-level, and evidence-level warnings all use the same warning-line helper.\n[ ] Step 4: Run renderer tests\nRun:\nExpected: all selected tests pass. tests/test_context_pack_serialization.py still contains the Phase 4A CLI boundary assertion at this point.\n[ ] Step 5: Commit renderer work",
+        "items": [
+          "Create: tests/test_context_pack_renderer.py",
+          "Modify: src/vault_graph/context/context_pack_renderer.py",
+          "[ ] Step 1: Write failing renderer tests",
+          "[ ] Step 2: Run renderer tests to confirm failure",
+          "[ ] Step 3: Update Markdown renderer",
+          "[ ] Step 4: Run renderer tests",
+          "[ ] Step 5: Commit renderer work"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import replace\n\nfrom tests.test_context_pack_contract import make_pack\nfrom vault_graph.context import (\n    ContextEvidence,\n    ContextEvidenceRef,\n    ContextPackWarning,\n    DefaultContextPackRenderer,\n)\n\n\ndef test_markdown_renderer_uses_phase_4b_section_order() -> None:\n    markdown = DefaultContextPackRenderer().render_markdown(make_pack())\n\n    expected_order = [\n        \"# Context Pack\",\n        \"## Goal\",\n        \"## Scope\",\n        \"## Warnings\",\n        \"## Decisions\",\n        \"## Constraints\",\n        \"## Open Questions\",\n        \"## Current State\",\n        \"## Relevant Pages\",\n        \"## Relevant Sources\",\n        \"## Evidence\",\n        \"## Revisions\",\n        \"## Budget\",\n        \"## Backend\",\n    ]\n    positions = [markdown.index(heading) for heading in expected_order]\n    assert positions == sorted(positions)\n\n\ndef test_markdown_warnings_show_scope_and_recovery_hint() -> None:\n    pack = replace(\n        make_pack(),\n        warnings=(\n            ContextPackWarning(\n                code=\"metadata_unavailable\",\n                severity=\"warning\",\n                message=\"Metadata missing\",\n                affected_vault_ids=(\"main\",),\n                source_code=\"metadata_unavailable\",\n                source_kind=\"builder\",\n                recovery_hint=\"Run `vg index`.\",\n            ),\n        ),\n    )\n\n    markdown = DefaultContextPackRenderer().render_markdown(pack)\n\n    assert \"[warning] `metadata_unavailable` [main]: Metadata missing\" in markdown\n    assert \"Recovery: Run \\\\`vg index\\\\`.\" in markdown\n\n\ndef test_markdown_evidence_lines_include_vault_anchor_and_truncated_marker() -> None:\n    ref = ContextEvidenceRef(\"main\", \"doc-1\", \"chunk-1\")\n    evidence = ContextEvidence(\n        ref=ref,\n        path=\"wiki/page.md\",\n        section=\"Section\",\n        anchor=\"section\",\n        content_hash=\"hash\",\n        raw_sha256=\"raw\",\n        metadata_index_revision=\"metadata-1\",\n        vault_revision=\"git-1\",\n        excerpt=\"one two three\",\n        excerpt_token_count=3,\n        truncated=True,\n        retrieval_reasons=(\"keyword matched\",),\n        warnings=(\n            ContextPackWarning(\n                code=\"excerpt_truncated\",\n                severity=\"warning\",\n                message=\"Evidence excerpt truncated.\",\n                affected_vault_ids=(\"main\",),\n                evidence_refs=(ref,),\n                source_code=\"excerpt_truncated\",\n                source_kind=\"budget\",\n            ),\n        ),\n    )\n    pack = replace(make_pack(), evidence=(evidence,))\n\n    markdown = DefaultContextPackRenderer().render_markdown(pack)\n\n    assert \"[main] wiki/page.md#section [truncated]\" in markdown\n    assert \"excerpt_truncated\" in markdown\n\n\ndef test_markdown_renderer_escapes_vault_derived_item_and_evidence_text() -> None:\n    pack = replace(\n        make_pack(),\n        warnings=(\n            ContextPackWarning(\n                code=\"search_degraded\",\n                severity=\"warning\",\n                message=\"# injected\\n```\",\n                affected_vault_ids=(\"main\",),\n                source_code=\"search_degraded\",\n                source_kind=\"retrieval\",\n            ),\n        ),\n    )\n\n    markdown = DefaultContextPackRenderer().render_markdown(pack)\n\n    assert \"\\n# injected\" not in markdown\n    assert \"\\\\# injected\" in markdown\n    assert markdown.count(\"```\") % 2 == 0"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_context_pack_renderer.py -q"
+          },
+          {
+            "language": "python",
+            "content": "def render_markdown(self, pack: ContextPack) -> str:\n    lines = [\n        \"# Context Pack\",\n        \"\",\n        \"## Goal\",\n        _markdown_text(pack.goal),\n        \"\",\n        \"## Scope\",\n        f\"- Pack ID: {_markdown_code_span(pack.pack_id)}\",\n        f\"- Schema: {_markdown_code_span(pack.context_pack_schema_version)}\",\n        f\"- Generated: {_markdown_code_span(pack.generated_at)}\",\n        f\"- Requested Vaults: {_markdown_code_span(_joined(pack.scope.requested.vault_ids))}\",\n        f\"- Requested Content Scopes: {_markdown_code_span(_joined(pack.scope.requested.content_scopes))}\",\n        f\"- Include Cross Vault: {_markdown_code_span(str(pack.scope.requested.include_cross_vault))}\",\n    ]\n    if pack.scope.actual_scopes:\n        lines.append(\"- Actual Scopes:\")\n        lines.extend(\n            f\"  - {_markdown_code_span(_actual_scope_label(scope))} \"\n            f\"cross_vault={_markdown_code_span(str(scope.include_cross_vault))} \"\n            f\"scope_key={_markdown_code_span(scope.scope_key)}\"\n            for scope in pack.scope.actual_scopes\n        )\n    else:\n        lines.append(\"- Actual Scopes: None\")\n    lines.extend([\"\", \"## Warnings\"])\n    if pack.warnings:\n        lines.extend(_render_warning(warning) for warning in pack.warnings)\n    else:\n        lines.append(\"- None\")\n    sections = (\n        (\"Decisions\", pack.decisions),\n        (\"Constraints\", pack.constraints),\n        (\"Open Questions\", pack.open_questions),\n        (\"Current State\", pack.current_state),\n        (\"Relevant Pages\", pack.relevant_pages),\n        (\"Relevant Sources\", pack.relevant_sources),\n    )\n    for title, items in sections:\n        lines.extend([\"\", f\"## {title}\"])\n        if not items:\n            lines.append(\"- None\")\n            continue\n        for item in items:\n            lines.extend(_render_item(item))\n    lines.extend([\"\", \"## Evidence\"])\n    if not pack.evidence:\n        lines.append(\"- None\")\n    for evidence in pack.evidence:\n        lines.extend(_render_evidence(evidence))\n    lines.extend([\"\", \"## Revisions\", \"### Vault Revisions\"])\n    if pack.vault_revisions:\n        lines.extend(\n            f\"- {_markdown_code_span(revision.vault_id)}: \"\n            f\"{_markdown_code_span(revision.revision or 'unknown')} \"\n            f\"({_markdown_code_span(revision.revision_kind)})\"\n            for revision in pack.vault_revisions\n        )\n    else:\n        lines.append(\"- None\")\n    lines.extend([\"\", \"### Store Revisions\"])\n    if pack.store_revisions:\n        lines.extend(\n            f\"- {_markdown_code_span(revision.kind)}: {_markdown_code_span(revision.revision or 'unknown')}, \"\n            f\"vault={_markdown_code_span(revision.vault_id or 'global')}, \"\n            f\"scope={_markdown_code_span(revision.scope_key)}\"\n            for revision in pack.store_revisions\n        )\n    else:\n        lines.append(\"- None\")\n    lines.extend(\n        [\n            \"\",\n            \"## Budget\",\n            f\"- max_tokens: `{pack.budget.max_tokens}`\",\n            f\"- max_evidence_items: `{pack.budget.max_evidence_items}`\",\n            f\"- max_excerpt_tokens: `{pack.budget.max_excerpt_tokens}`\",\n            f\"- used_tokens: `{pack.budget.used_tokens}`\",\n            f\"- omitted_items: `{pack.budget.omitted_items}`\",\n            \"\",\n            \"## Backend\",\n            _render_backend_use(\"metadata_store\", pack.backend.metadata_store.name, pack.backend.metadata_store.used),\n            _render_backend_use(\"keyword_index\", pack.backend.keyword_index.name, pack.backend.keyword_index.used),\n            _render_backend_use(\"vector_store\", pack.backend.vector_store.name, pack.backend.vector_store.used),\n            _render_backend_use(\"graph_store\", pack.backend.graph_store.name, pack.backend.graph_store.used),\n            _render_backend_use(\n                \"graph_projection\",\n                pack.backend.graph_projection.name,\n                pack.backend.graph_projection.used,\n            ),\n        ]\n    )\n    return \"\\n\".join(lines) + \"\\n\""
+          },
+          {
+            "language": "python",
+            "content": "def _render_warning(warning: ContextPackWarning) -> str:\n    vaults = \",\".join(warning.affected_vault_ids) if warning.affected_vault_ids else \"unknown\"\n    rendered = (\n        f\"- [{warning.severity}] {_markdown_code_span(warning.code)} \"\n        f\"[{_markdown_text(vaults)}]: {_markdown_text(warning.message)}\"\n    )\n    if warning.recovery_hint:\n        rendered += f\" Recovery: {_markdown_text(warning.recovery_hint)}\"\n    return rendered\n\n\ndef _render_evidence(evidence: ContextEvidence) -> list[str]:\n    ref = evidence.ref\n    location = _evidence_location(evidence)\n    truncated = \" [truncated]\" if evidence.truncated else \"\"\n    lines = [\n        f\"- {_markdown_code_span(_evidence_ref_label(ref))} {location}{truncated} \"\n        f\"({evidence.excerpt_token_count} tokens)\"\n    ]\n    if evidence.warnings:\n        for warning in evidence.warnings:\n            lines.append(f\"  - {_render_warning(warning).removeprefix('- ')}\")\n    if evidence.excerpt:\n        fence = _markdown_fence(evidence.excerpt)\n        lines.append(\"\")\n        lines.append(f\"  {fence}text\")\n        lines.extend(f\"  {line}\" for line in evidence.excerpt.splitlines())\n        lines.append(f\"  {fence}\")\n    return lines\n\n\ndef _evidence_location(evidence: ContextEvidence) -> str:\n    suffix = evidence.anchor or evidence.section\n    rendered = f\"[{_markdown_text(evidence.ref.vault_id)}] {_markdown_text(evidence.path)}\"\n    if suffix:\n        rendered += f\"#{_markdown_text(suffix)}\"\n    return rendered\n\n\ndef _actual_scope_label(scope: ContextPackActualScope) -> str:\n    return f\"{','.join(scope.vault_ids)}:{','.join(scope.content_scopes)}\"\n\n\ndef _render_item(item: ContextPackItem) -> list[str]:\n    lines = [\n        f\"- **{_markdown_text(item.title)}**\",\n        f\"  - Summary: {_markdown_text(item.summary)}\",\n        \"  - Evidence: \"\n        + \", \".join(_markdown_code_span(_evidence_ref_label(ref)) for ref in item.evidence_refs),\n    ]\n    if item.warnings:\n        lines.append(\"  - Warnings:\")\n        lines.extend(f\"    - {_render_warning(warning).removeprefix('- ')}\" for warning in item.warnings)\n    return lines\n\n\ndef _render_backend_use(name: str, backend_name: str | None, used: bool) -> str:\n    return (\n        f\"- {name}: {_markdown_code_span(backend_name or 'none')}, \"\n        f\"used={_markdown_code_span(str(used))}\"\n    )\n\n\ndef _evidence_ref_label(ref: ContextEvidenceRef) -> str:\n    return f\"{ref.vault_id}:{ref.document_id}:{ref.chunk_id}\"\n\n\ndef _joined(values: tuple[str, ...]) -> str:\n    return \", \".join(values)\n\n\ndef _markdown_code_span(value: str) -> str:\n    safe = value.replace(\"\\n\", \" \")\n    longest = 0\n    current = 0\n    for character in safe:\n        if character == \"`\":\n            current += 1\n            longest = max(longest, current)\n        else:\n            current = 0\n    fence = \"`\" * max(1, longest + 1)\n    return f\"{fence}{safe}{fence}\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: Refine Builder Classification And Packing",
+        "content": "Files:\nModify: src/vault_graph/context/context_pack_builder.py Modify: tests/test_context_pack_builder.py\n[ ] Step 1: Add failing builder tests\nAppend these tests to tests/test_context_pack_builder.py:\n[ ] Step 2: Run builder tests to confirm failure\nRun:\nExpected: fails because current_state is never filled and current classification/sort rules are Phase 4A minimal rules.\n[ ] Step 3: Implement classification and sort refinements\nIn src/vault_graph/context/context_pack_builder.py, add constants near _planned_item_sort_key(...):\nReplace _planned_item_sort_key, _item_type, and _items_by_type with the exact code blocks named Classification rules and Packing sort key in this document. Change current_state=() in SearchContextPackBuilder.build(...) to current_state=items_by_type[\"current_state\"].\n[ ] Step 4: Run builder tests\nRun:\nExpected: all selected tests pass.\n[ ] Step 5: Commit builder work",
+        "items": [
+          "Modify: src/vault_graph/context/context_pack_builder.py",
+          "Modify: tests/test_context_pack_builder.py",
+          "[ ] Step 1: Add failing builder tests",
+          "[ ] Step 2: Run builder tests to confirm failure",
+          "[ ] Step 3: Implement classification and sort refinements",
+          "[ ] Step 4: Run builder tests",
+          "[ ] Step 5: Commit builder work"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def test_builder_classifies_decisions_constraints_questions_current_state_and_sources(tmp_path: Path) -> None:\n    decision_ref = ContextEvidenceRef(\"main\", \"doc-decision\", \"chunk-decision\")\n    constraint_ref = ContextEvidenceRef(\"main\", \"doc-constraint\", \"chunk-constraint\")\n    question_ref = ContextEvidenceRef(\"main\", \"doc-question\", \"chunk-question\")\n    state_ref = ContextEvidenceRef(\"main\", \"doc-state\", \"chunk-state\")\n    source_ref = ContextEvidenceRef(\"main\", \"doc-source\", \"chunk-source\")\n    results = (\n        make_result(rank=1, document_id=\"doc-decision\", chunk_id=\"chunk-decision\", path=\"wiki/decisions/choice.md\"),\n        make_result(rank=2, document_id=\"doc-constraint\", chunk_id=\"chunk-constraint\", path=\"docs/policy.md\"),\n        make_result(rank=3, document_id=\"doc-question\", chunk_id=\"chunk-question\", path=\"wiki/follow-up.md\"),\n        make_result(\n            rank=4,\n            document_id=\"doc-state\",\n            chunk_id=\"chunk-state\",\n            kind=\"current_state\",\n            path=\"wiki/status.md\",\n        ),\n        make_result(rank=5, document_id=\"doc-source\", chunk_id=\"chunk-source\", path=\"raw/source.md\"),\n    )\n    resolver = StaticResolver(\n        {\n            decision_ref: make_resolved(decision_ref, path=\"wiki/decisions/choice.md\"),\n            constraint_ref: make_resolved(constraint_ref, path=\"docs/policy.md\"),\n            question_ref: make_resolved(question_ref, path=\"wiki/follow-up.md\"),\n            state_ref: make_resolved(state_ref, path=\"wiki/status.md\"),\n            source_ref: make_resolved(source_ref, path=\"raw/source.md\"),\n        }\n    )\n    pack = make_builder(\n        tmp_path=tmp_path,\n        response=make_search_response(results=results),\n        resolver=resolver,\n    ).build(ContextPackRequest(goal=\"Build context\", requested_scope=QueryScope(vault_ids=(\"main\",))))\n\n    assert [item.item_type for item in pack.decisions] == [\"decision\"]\n    assert [item.item_type for item in pack.constraints] == [\"constraint\"]\n    assert [item.item_type for item in pack.open_questions] == [\"open_question\"]\n    assert [item.item_type for item in pack.current_state] == [\"current_state\"]\n    assert [item.item_type for item in pack.relevant_sources] == [\"source\"]\n\n\ndef test_builder_tie_breaks_by_signal_count_then_path(tmp_path: Path) -> None:\n    first_ref = ContextEvidenceRef(\"main\", \"doc-first\", \"chunk-first\")\n    second_ref = ContextEvidenceRef(\"main\", \"doc-second\", \"chunk-second\")\n    first = make_result(\n        rank=1,\n        document_id=\"doc-first\",\n        chunk_id=\"chunk-first\",\n        path=\"wiki/b.md\",\n        signals=(\n            RetrievalSignal(\n                kind=\"keyword\",\n                source_id=\"keyword:first\",\n                rank=1,\n                score=1.0,\n                backend=\"sqlite-fts5\",\n                index_revision=\"keyword-1\",\n                explanation=\"keyword matched\",\n            ),\n        ),\n    )\n    second = make_result(\n        rank=1,\n        document_id=\"doc-second\",\n        chunk_id=\"chunk-second\",\n        path=\"wiki/a.md\",\n        signals=(\n            RetrievalSignal(\n                kind=\"keyword\",\n                source_id=\"keyword:second\",\n                rank=1,\n                score=1.0,\n                backend=\"sqlite-fts5\",\n                index_revision=\"keyword-1\",\n                explanation=\"keyword matched\",\n            ),\n            RetrievalSignal(\n                kind=\"vector\",\n                source_id=\"vector:second\",\n                rank=2,\n                score=0.9,\n                backend=\"chroma\",\n                index_revision=\"vector-1\",\n                explanation=\"vector matched\",\n            ),\n        ),\n    )\n    pack = make_builder(\n        tmp_path=tmp_path,\n        response=make_search_response(results=(first, second)),\n        resolver=StaticResolver(\n            {\n                first_ref: make_resolved(first_ref, path=\"wiki/b.md\"),\n                second_ref: make_resolved(second_ref, path=\"wiki/a.md\"),\n            }\n        ),\n    ).build(ContextPackRequest(goal=\"Build context\", requested_scope=QueryScope(vault_ids=(\"main\",))))\n\n    assert [item.evidence_refs[0].chunk_id for item in pack.relevant_pages] == [\"chunk-second\", \"chunk-first\"]\n\n\ndef test_builder_caps_large_retrieval_limit_by_evidence_budget(tmp_path: Path) -> None:\n    ref = ContextEvidenceRef(\"main\", \"doc-1\", \"chunk-1\")\n    retrieval = RecordingRetrievalService(make_search_response())\n    builder = SearchContextPackBuilder(\n        catalog=make_catalog(tmp_path),\n        retrieval_service=cast(ContextRetrievalService, retrieval),\n        evidence_resolver=StaticResolver({ref: make_resolved(ref)}),\n        clock=fixed_clock,\n    )\n\n    builder.build(\n        ContextPackRequest(\n            goal=\"Build context\",\n            requested_scope=QueryScope(vault_ids=(\"main\",)),\n            retrieval_limit=10_000,\n            budget=ContextPackBudget(max_evidence_items=24),\n        )\n    )\n\n    assert retrieval.calls[0][\"limit\"] == 96\n\n\ndef test_builder_keeps_durable_page_before_raw_source_and_lexical_tie_break(tmp_path: Path) -> None:\n    page_ref = ContextEvidenceRef(\"main\", \"doc-page\", \"chunk-page\")\n    raw_ref = ContextEvidenceRef(\"main\", \"doc-raw\", \"chunk-raw\")\n    alpha_ref = ContextEvidenceRef(\"main\", \"doc-alpha\", \"chunk-alpha\")\n    beta_ref = ContextEvidenceRef(\"main\", \"doc-beta\", \"chunk-beta\")\n    page = make_result(rank=1, document_id=\"doc-page\", chunk_id=\"chunk-page\", path=\"wiki/page.md\")\n    raw = make_result(rank=1, document_id=\"doc-raw\", chunk_id=\"chunk-raw\", path=\"raw/source.md\")\n    alpha = make_result(rank=1, document_id=\"doc-alpha\", chunk_id=\"chunk-alpha\", path=\"wiki/a.md\")\n    beta = make_result(rank=1, document_id=\"doc-beta\", chunk_id=\"chunk-beta\", path=\"wiki/b.md\")\n\n    pack = make_builder(\n        tmp_path=tmp_path,\n        response=make_search_response(results=(raw, beta, page, alpha)),\n        resolver=StaticResolver(\n            {\n                page_ref: make_resolved(page_ref, path=\"wiki/page.md\"),\n                raw_ref: make_resolved(raw_ref, path=\"raw/source.md\"),\n                alpha_ref: make_resolved(alpha_ref, path=\"wiki/a.md\"),\n                beta_ref: make_resolved(beta_ref, path=\"wiki/b.md\"),\n            }\n        ),\n    ).build(ContextPackRequest(goal=\"Build context\", requested_scope=QueryScope(vault_ids=(\"main\",))))\n\n    assert [evidence.path for evidence in pack.evidence] == [\n        \"wiki/a.md\",\n        \"wiki/b.md\",\n        \"wiki/page.md\",\n        \"raw/source.md\",\n    ]"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_context_pack_builder.py -q"
+          },
+          {
+            "language": "python",
+            "content": "_CONSTRAINT_TERMS = (\"constraint\", \"principle\", \"invariant\", \"policy\", \"convention\")\n_OPEN_QUESTION_TERMS = (\"question\", \"todo\", \"follow-up\", \"issue\", \"revisit\")\n_CURRENT_STATE_TERMS = (\"current-state\", \"current_state\")\n_CURRENT_STATE_PATH_SUFFIXES = (\"/status.md\", \"/current-state.md\", \"/current_state.md\")"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_context_pack_builder.py tests/test_context_pack_evidence_budget.py -q"
+          }
+        ]
+      },
+      {
+        "heading": "Task 3: Add CLI Context Tests",
+        "content": "Files:\nCreate: tests/test_cli_context.py Modify: tests/test_cli_surface_boundary.py Modify: tests/test_context_pack_serialization.py\n[ ] Step 1: Update CLI surface test\nReplace test_cli_surface_exposes_search_but_not_answer_or_context_commands in tests/test_cli_surface_boundary.py with:\n[ ] Step 2: Create CLI context tests\nCreate tests/test_cli_context.py:\n[ ] Step 3: Remove the Phase 4A-only CLI context boundary test\nDelete test_cli_does_not_format_context_pack_sections_in_phase_4a from tests/test_context_pack_serialization.py. Phase 4B intentionally imports the context renderer in the CLI adapter, and renderer delegation is now proven by test_cli_context_uses_injected_renderer_for_markdown_and_preserves_warnings and test_cli_context_uses_injected_renderer_for_json.\n[ ] Step 4: Run CLI context tests to confirm failure\nRun:\nExpected: fails because vg context and _context_builder_service do not exist.\n[ ] Step 5: Keep red tests unstaged until Task 4 is green\nDo not create a commit after this step. Stage and commit tests/test_cli_context.py tests/test_cli_surface_boundary.py, and tests/test_context_pack_serialization.py in Task 4 Step 7 after the command implementation passes.",
+        "items": [
+          "Create: tests/test_cli_context.py",
+          "Modify: tests/test_cli_surface_boundary.py",
+          "Modify: tests/test_context_pack_serialization.py",
+          "[ ] Step 1: Update CLI surface test",
+          "[ ] Step 2: Create CLI context tests",
+          "[ ] Step 3: Remove the Phase 4A-only CLI context boundary test",
+          "[ ] Step 4: Run CLI context tests to confirm failure",
+          "[ ] Step 5: Keep red tests unstaged until Task 4 is green"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def test_cli_surface_exposes_context_but_not_answer_command() -> None:\n    result = runner.invoke(app, [\"--help\"])\n\n    assert result.exit_code == 0\n    assert \"search\" in result.output\n    assert \"related\" in result.output\n    assert \"decision-trace\" in result.output\n    assert \"context\" in result.output\n    assert \"ask\" not in result.output"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport json\nfrom dataclasses import replace\nfrom pathlib import Path\n\nfrom pytest import MonkeyPatch\nfrom typer.testing import CliRunner\n\nfrom tests.test_cli_search import _deterministic_text_embeddings, write_page\nfrom tests.test_context_pack_contract import make_pack, make_pack_with_warning\nfrom tests.test_read_only_boundary import file_bytes\nfrom vault_graph.cli.main import app\nfrom vault_graph.context import (\n    ContextEvidence,\n    ContextEvidenceRef,\n    ContextPack,\n    ContextPackActualScope,\n    ContextPackRequest,\n    ContextPackRequestedScope,\n    ContextPackRenderer,\n    ContextPackScope,\n    ContextPackStoreRevision,\n    ContextPackVault,\n    ContextPackVaultRevision,\n    ContextPackWarning,\n    DefaultContextPackRenderer,\n)\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry\n\nrunner = CliRunner()\n\n\nclass _RecordingContextPackBuilder:\n    def __init__(self, pack: ContextPack) -> None:\n        self.pack = pack\n        self.calls: list[ContextPackRequest] = []\n        self.include_graph_from_factory: bool | None = None\n\n    def build(self, request: ContextPackRequest) -> ContextPack:\n        self.calls.append(request)\n        return self.pack\n\n\ndef _catalog(tmp_path: Path, vault_ids: tuple[str, ...] = (\"default\", \"second\")) -> VaultCatalog:\n    entries = []\n    for vault_id in vault_ids:\n        root = tmp_path / vault_id\n        root.mkdir(exist_ok=True)\n        entries.append(VaultCatalogEntry.from_root(vault_id=vault_id, root_path=root, content_scopes=(\"wiki\", \"docs\")))\n    return VaultCatalog.from_entries(entries=entries, active_vault_id=vault_ids[0])\n\n\ndef state_tree(path: Path) -> tuple[str, ...]:\n    if not path.exists():\n        return ()\n    return tuple(sorted(str(child.relative_to(path)) for child in path.rglob(\"*\")))\n\n\ndef make_multi_vault_pack() -> ContextPack:\n    first_ref = ContextEvidenceRef(\"default\", \"doc-shared\", \"chunk-shared\")\n    second_ref = ContextEvidenceRef(\"second\", \"doc-shared\", \"chunk-shared\")\n    first_evidence = ContextEvidence(\n        ref=first_ref,\n        path=\"wiki/shared.md\",\n        section=\"Shared\",\n        anchor=\"shared\",\n        content_hash=\"hash-default\",\n        raw_sha256=\"raw-default\",\n        metadata_index_revision=\"metadata-default\",\n        vault_revision=\"git-default\",\n        excerpt=\"default evidence\",\n        excerpt_token_count=2,\n        truncated=False,\n        retrieval_reasons=(\"keyword matched\",),\n        warnings=(),\n    )\n    second_evidence = ContextEvidence(\n        ref=second_ref,\n        path=\"wiki/shared.md\",\n        section=\"Shared\",\n        anchor=\"shared\",\n        content_hash=\"hash-second\",\n        raw_sha256=\"raw-second\",\n        metadata_index_revision=\"metadata-second\",\n        vault_revision=\"git-second\",\n        excerpt=\"second evidence\",\n        excerpt_token_count=2,\n        truncated=False,\n        retrieval_reasons=(\"vector matched\",),\n        warnings=(),\n    )\n    return replace(\n        make_pack(),\n        scope=ContextPackScope(\n            requested=ContextPackRequestedScope(\n                vault_ids=(\"default\", \"second\"),\n                content_scopes=(\"wiki\", \"docs\"),\n                include_cross_vault=False,\n            ),\n            actual_scopes=(\n                ContextPackActualScope(\n                    vault_ids=(\"default\",),\n                    content_scopes=(\"wiki\", \"docs\"),\n                    include_cross_vault=False,\n                    scope_key=\"default:wiki,docs:local\",\n                ),\n                ContextPackActualScope(\n                    vault_ids=(\"second\",),\n                    content_scopes=(\"wiki\", \"docs\"),\n                    include_cross_vault=False,\n                    scope_key=\"second:wiki,docs:local\",\n                ),\n            ),\n        ),\n        vaults=(\n            ContextPackVault(vault_id=\"default\", display_name=\"default\"),\n            ContextPackVault(vault_id=\"second\", display_name=\"second\"),\n        ),\n        vault_revisions=(\n            ContextPackVaultRevision(vault_id=\"default\", revision=\"git-default\", revision_kind=\"git\"),\n            ContextPackVaultRevision(vault_id=\"second\", revision=\"git-second\", revision_kind=\"git\"),\n        ),\n        store_revisions=(\n            ContextPackStoreRevision(\n                kind=\"metadata\",\n                revision=\"metadata-default\",\n                vault_id=\"default\",\n                scope_key=\"default:wiki,docs:local\",\n            ),\n            ContextPackStoreRevision(\n                kind=\"metadata\",\n                revision=\"metadata-second\",\n                vault_id=\"second\",\n                scope_key=\"second:wiki,docs:local\",\n            ),\n        ),\n        warnings=(\n            ContextPackWarning(\n                code=\"stale_projection\",\n                severity=\"warning\",\n                message=\"Second Vault vector projection is stale.\",\n                affected_vault_ids=(\"second\",),\n                evidence_refs=(second_ref,),\n                scope_key=\"second:wiki,docs:local\",\n                source_code=\"vector_stale\",\n                source_kind=\"retrieval\",\n            ),\n        ),\n        evidence=(first_evidence, second_evidence),\n    )\n\n\nclass _SentinelRenderer:\n    def __init__(self) -> None:\n        self.json_pack: ContextPack | None = None\n        self.markdown_pack: ContextPack | None = None\n\n    def render_json(self, pack: ContextPack) -> str:\n        self.json_pack = pack\n        return \"{\\\"sentinel\\\":\\\"json\\\"}\\n\"\n\n    def render_markdown(self, pack: ContextPack) -> str:\n        self.markdown_pack = pack\n        return \"SENTINEL MARKDOWN\\n\"\n\n\ndef _install_fake_context(\n    *,\n    monkeypatch: MonkeyPatch,\n    tmp_path: Path,\n    builder: _RecordingContextPackBuilder,\n    renderer: ContextPackRenderer | None = None,\n) -> VaultCatalog:\n    catalog = _catalog(tmp_path)\n\n    def fake_catalog(_: Path) -> tuple[object, VaultCatalog]:\n        return object(), catalog\n\n    def fake_context_builder_service(\n        _: Path,\n        *,\n        config: object,\n        catalog: VaultCatalog,\n        include_graph: bool = False,\n    ) -> tuple[_RecordingContextPackBuilder, ContextPackRenderer]:\n        builder.include_graph_from_factory = include_graph\n        return builder, renderer or DefaultContextPackRenderer()\n\n    monkeypatch.setattr(\"vault_graph.cli.main._catalog\", fake_catalog)\n    monkeypatch.setattr(\"vault_graph.cli.main._context_builder_service\", fake_context_builder_service)\n    return catalog\n\n\ndef test_cli_context_json_uses_context_pack_contract(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    builder = _RecordingContextPackBuilder(make_pack_with_warning())\n    _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder)\n\n    result = runner.invoke(app, [\"context\", \"--state\", str(tmp_path / \"state\"), \"--format\", \"json\", \"Build context\"])\n\n    assert result.exit_code == 0\n    payload = json.loads(result.stdout)\n    assert payload[\"context_pack_schema_version\"] == \"context-pack-v1\"\n    assert payload[\"warnings\"][0][\"code\"] == \"graph_unavailable\"\n    assert builder.calls[0].goal == \"Build context\"\n    assert builder.calls[0].budget.max_tokens == 8000\n    assert builder.calls[0].retrieval_limit == 10\n    assert builder.calls[0].include_graph is False\n\n\ndef test_cli_context_uses_injected_renderer_for_markdown_and_preserves_warnings(\n    tmp_path: Path,\n    monkeypatch: MonkeyPatch,\n) -> None:\n    builder = _RecordingContextPackBuilder(make_pack_with_warning(code=\"search_degraded\", message=\"Vector unavailable\"))\n    renderer = _SentinelRenderer()\n    _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder, renderer=renderer)\n\n    result = runner.invoke(app, [\"context\", \"--state\", str(tmp_path / \"state\"), \"Build context\"])\n\n    assert result.exit_code == 0\n    assert result.stdout == \"SENTINEL MARKDOWN\\n\"\n    assert renderer.markdown_pack is builder.pack\n    assert renderer.markdown_pack.warnings[0].code == \"search_degraded\"\n\n\ndef test_cli_context_uses_injected_renderer_for_json(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    builder = _RecordingContextPackBuilder(make_pack())\n    renderer = _SentinelRenderer()\n    _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder, renderer=renderer)\n\n    result = runner.invoke(app, [\"context\", \"--state\", str(tmp_path / \"state\"), \"--format\", \"json\", \"Build context\"])\n\n    assert result.exit_code == 0\n    assert result.stdout == \"{\\\"sentinel\\\":\\\"json\\\"}\\n\"\n    assert renderer.json_pack is builder.pack\n\n\ndef test_cli_context_passes_limit_budget_and_graph_flags(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    builder = _RecordingContextPackBuilder(make_pack())\n    _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder)\n\n    result = runner.invoke(\n        app,\n        [\n            \"context\",\n            \"--state\",\n            str(tmp_path / \"state\"),\n            \"--all-vaults\",\n            \"--include-graph\",\n            \"--include-cross-vault\",\n            \"--max-tokens\",\n            \"1200\",\n            \"--limit\",\n            \"7\",\n            \"Build context\",\n        ],\n    )\n\n    assert result.exit_code == 0\n    request = builder.calls[0]\n    assert builder.include_graph_from_factory is True\n    assert request.budget.max_tokens == 1200\n    assert request.retrieval_limit == 7\n    assert request.include_graph is True\n    assert request.include_cross_vault is True\n    assert request.requested_scope.vault_ids == (\"default\", \"second\")\n    assert request.requested_scope.include_cross_vault is True\n\n\ndef test_cli_context_validates_options_before_opening_stores(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    def fail_factory(*_: object, **__: object) -> object:\n        raise AssertionError(\"invalid options must not open context stores\")\n\n    monkeypatch.setattr(\"vault_graph.cli.main._context_builder_service\", fail_factory)\n\n    invalid_format = runner.invoke(\n        app,\n        [\"context\", \"--state\", str(tmp_path / \"state\"), \"--format\", \"xml\", \"Build\"],\n    )\n    assert invalid_format.exit_code == 1\n    assert \"unsupported_format\" in invalid_format.stdout\n    assert \"empty_goal\" in runner.invoke(app, [\"context\", \"--state\", str(tmp_path / \"state\"), \"   \"]).stdout\n    assert \"context_budget_too_small\" in runner.invoke(\n        app, [\"context\", \"--state\", str(tmp_path / \"state\"), \"--max-tokens\", \"999\", \"Build\"]\n    ).stdout\n    assert \"context_limit_must_be_positive\" in runner.invoke(\n        app, [\"context\", \"--state\", str(tmp_path / \"state\"), \"--limit\", \"0\", \"Build\"]\n    ).stdout\n\n\ndef test_cli_context_rejects_invalid_scope_flag_combinations(tmp_path: Path) -> None:\n    both_scope_flags = runner.invoke(\n        app,\n        [\"context\", \"--state\", str(tmp_path / \"state\"), \"--vault-id\", \"default\", \"--all-vaults\", \"Build\"],\n    )\n    cross_without_graph = runner.invoke(\n        app,\n        [\"context\", \"--state\", str(tmp_path / \"state\"), \"--all-vaults\", \"--include-cross-vault\", \"Build\"],\n    )\n    cross_without_all_vaults = runner.invoke(\n        app,\n        [\"context\", \"--state\", str(tmp_path / \"state\"), \"--include-graph\", \"--include-cross-vault\", \"Build\"],\n    )\n\n    assert both_scope_flags.exit_code == 1\n    assert \"Use either --vault-id or --all-vaults\" in both_scope_flags.stdout\n    assert cross_without_graph.exit_code == 1\n    assert \"include_cross_vault_requires_multi_vault_graph_scope\" in cross_without_graph.stdout\n    assert cross_without_all_vaults.exit_code == 1\n    assert \"include_cross_vault_requires_multi_vault_graph_scope\" in cross_without_all_vaults.stdout\n\n\ndef test_cli_context_unknown_vault_does_not_open_builder_or_graph(\n    tmp_path: Path,\n    monkeypatch: MonkeyPatch,\n) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    def fail_context_builder(*_: object, **__: object) -> object:\n        raise AssertionError(\"unknown vault must not open context builder dependencies\")\n\n    def fail_graph_open(_: object) -> object:\n        raise AssertionError(\"unknown vault must not open graph retrieval state\")\n\n    monkeypatch.setattr(\"vault_graph.cli.main._context_builder_service\", fail_context_builder)\n    monkeypatch.setattr(\"vault_graph.cli.main._graph_retrieval_service\", fail_graph_open)\n\n    result = runner.invoke(\n        app,\n        [\"context\", \"--state\", str(state_path), \"--vault-id\", \"missing\", \"--include-graph\", \"Build\"],\n    )\n\n    assert result.exit_code == 1\n    assert \"unknown vault_id: missing\" in result.stdout\n\n\ndef test_cli_context_without_include_graph_does_not_open_graph_state(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    monkeypatch.setattr(\"vault_graph.cli.main._text_embeddings\", _deterministic_text_embeddings)\n    monkeypatch.setattr(\"vault_graph.cli.main._search_text_embeddings\", _deterministic_text_embeddings)\n\n    def fail_graph_open(_: object) -> None:\n        raise AssertionError(\"plain context must not open graph retrieval state\")\n\n    monkeypatch.setattr(\"vault_graph.cli.main._graph_retrieval_service\", fail_graph_open)\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nGraphRAG evidence\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n    runner.invoke(app, [\"index\", \"--state\", str(state_path)])\n    before = file_bytes(vault_root)\n\n    result = runner.invoke(app, [\"context\", \"--state\", str(state_path), \"GraphRAG\"])\n\n    assert result.exit_code == 0\n    assert \"wiki/page.md\" in result.stdout\n    assert file_bytes(vault_root) == before\n\n\ndef test_cli_context_missing_metadata_exits_nonzero_without_creating_projection_files(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nGraphRAG evidence\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n    before_state = state_tree(state_path)\n\n    result = runner.invoke(app, [\"context\", \"--state\", str(state_path), \"GraphRAG\"])\n\n    assert result.exit_code == 1\n    assert \"metadata_unavailable\" in result.stdout or \"keyword_index_unavailable\" in result.stdout\n    assert state_tree(state_path) == before_state\n    assert not (state_path / \"metadata\" / \"metadata.sqlite3\").exists()\n    assert not (state_path / \"vector\").exists()\n    assert not (state_path / \"graph\").exists()\n    assert not (state_path / \"projection_cache\").exists()\n    assert not (state_path / \"data\" / \"projection_cache\").exists()\n\n\ndef test_cli_context_all_vaults_preserves_requested_vault_ids(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    builder = _RecordingContextPackBuilder(make_pack())\n    _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder)\n\n    result = runner.invoke(\n        app,\n        [\"context\", \"--state\", str(tmp_path / \"state\"), \"--all-vaults\", \"--format\", \"json\", \"Build\"],\n    )\n\n    assert result.exit_code == 0\n    assert builder.calls[0].requested_scope.vault_ids == (\"default\", \"second\")\n\n\ndef test_cli_context_all_vaults_preserves_evidence_warning_and_revision_vault_ids(\n    tmp_path: Path,\n    monkeypatch: MonkeyPatch,\n) -> None:\n    builder = _RecordingContextPackBuilder(make_multi_vault_pack())\n    _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder)\n\n    result = runner.invoke(\n        app,\n        [\"context\", \"--state\", str(tmp_path / \"state\"), \"--all-vaults\", \"--format\", \"json\", \"Build\"],\n    )\n\n    assert result.exit_code == 0\n    payload = json.loads(result.stdout)\n    assert [item[\"vault_id\"] for item in payload[\"vaults\"]] == [\"default\", \"second\"]\n    assert [item[\"ref\"][\"vault_id\"] for item in payload[\"evidence\"]] == [\"default\", \"second\"]\n    assert payload[\"warnings\"][0][\"affected_vault_ids\"] == [\"second\"]\n    assert payload[\"warnings\"][0][\"evidence_refs\"][0][\"vault_id\"] == \"second\"\n    assert [item[\"vault_id\"] for item in payload[\"vault_revisions\"]] == [\"default\", \"second\"]\n    assert [item[\"vault_id\"] for item in payload[\"store_revisions\"]] == [\"default\", \"second\"]\n    markdown = DefaultContextPackRenderer().render_markdown(builder.pack)\n    assert \"[second] wiki/shared.md#shared\" in markdown\n    assert \"second:wiki,docs:local\" in markdown\n    assert \"stale_projection\" in markdown"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_context.py tests/test_cli_surface_boundary.py tests/test_context_pack_serialization.py -q"
+          }
+        ]
+      },
+      {
+        "heading": "Task 4: Implement vg context",
+        "content": "Files:\nModify: src/vault_graph/cli/main.py\n[ ] Step 1: Add imports\nAdd imports to src/vault_graph/cli/main.py:\nAdd ContextPackError to the vault_graph.errors import list.\n[ ] Step 2: Refactor search factories\nAdd _read_only_search_components and _search_service_with_metadata exactly as specified in the Component And Interface Spec. Replace the body of _search_service with the wrapper body specified there.\n[ ] Step 3: Add context factory and helpers\nAdd _context_builder_service and _context_scope_for_flags exactly as specified in the Component And Interface Spec.\n[ ] Step 4: Add command implementation\nAdd the context(...) command below search(...) or immediately before it:\n[ ] Step 5: Update domain error conversion\nAdd ContextPackError to _exit_on_domain_error(...):\n[ ] Step 6: Run CLI context tests\nRun:\nExpected: all selected tests pass.\n[ ] Step 7: Commit CLI work",
+        "items": [
+          "Modify: src/vault_graph/cli/main.py",
+          "[ ] Step 1: Add imports",
+          "[ ] Step 2: Refactor search factories",
+          "[ ] Step 3: Add context factory and helpers",
+          "[ ] Step 4: Add command implementation",
+          "[ ] Step 5: Update domain error conversion",
+          "[ ] Step 6: Run CLI context tests",
+          "[ ] Step 7: Commit CLI work"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from vault_graph.context import (\n    DEFAULT_CONTEXT_MAX_TOKENS,\n    DEFAULT_CONTEXT_RETRIEVAL_LIMIT,\n    ContextPackBudget,\n    ContextPackRenderer,\n    ContextPackRequest,\n    DefaultContextPackRenderer,\n    MetadataContextEvidenceResolver,\n    SearchContextPackBuilder,\n)"
+          },
+          {
+            "language": "python",
+            "content": "@app.command(\"context\")\ndef context(\n    goal: str = typer.Argument(..., help=\"Concrete task or goal.\"),\n    state: Path = typer.Option(Path(\".vault-graph\"), \"--state\", help=\"Vault Graph state path.\"),\n    vault_id: str | None = typer.Option(None, \"--vault-id\", help=\"Build context for one registered Vault ID.\"),\n    all_vaults: bool = typer.Option(False, \"--all-vaults\", help=\"Build context for all enabled registered Vaults.\"),\n    output_format: str = typer.Option(\"markdown\", \"--format\", help=\"Output format: json or markdown.\"),\n    max_tokens: int = typer.Option(DEFAULT_CONTEXT_MAX_TOKENS, \"--max-tokens\", help=\"Estimated context token budget.\"),\n    limit: int = typer.Option(DEFAULT_CONTEXT_RETRIEVAL_LIMIT, \"--limit\", help=\"Retrieval results before packing.\"),\n    include_graph: bool = typer.Option(False, \"--include-graph\", help=\"Include explicit graph retrieval signals.\"),\n    include_cross_vault: bool = typer.Option(\n        False,\n        \"--include-cross-vault\",\n        help=\"Include explicit cross-Vault graph relationships.\",\n    ),\n) -> None:\n    if not goal.strip():\n        typer.echo(\"empty_goal\")\n        raise typer.Exit(1)\n    if all_vaults and vault_id:\n        typer.echo(\"Use either --vault-id or --all-vaults, not both.\")\n        raise typer.Exit(1)\n    if output_format not in {\"json\", \"markdown\"}:\n        typer.echo(\"unsupported_format\")\n        raise typer.Exit(1)\n    if max_tokens < 1000:\n        typer.echo(\"context_budget_too_small\")\n        raise typer.Exit(1)\n    if limit <= 0:\n        typer.echo(\"context_limit_must_be_positive\")\n        raise typer.Exit(1)\n    if include_cross_vault and not (include_graph and all_vaults):\n        typer.echo(\"include_cross_vault_requires_multi_vault_graph_scope\")\n        raise typer.Exit(1)\n    config, catalog = _exit_on_domain_error(lambda: _catalog(state))\n    scope = _exit_on_domain_error(\n        lambda: _context_scope_for_flags(\n            catalog,\n            vault_id=vault_id,\n            all_vaults=all_vaults,\n            include_cross_vault=include_cross_vault,\n        )\n    )\n    builder, renderer = _exit_on_domain_error(\n        lambda: _context_builder_service(\n            state,\n            config=config,\n            catalog=catalog,\n            include_graph=include_graph,\n        )\n    )\n    request = ContextPackRequest(\n        goal=goal,\n        requested_scope=scope,\n        budget=ContextPackBudget(max_tokens=max_tokens),\n        retrieval_limit=limit,\n        include_graph=include_graph,\n        include_cross_vault=include_cross_vault,\n    )\n    pack = _exit_on_domain_error(lambda: builder.build(request))\n    if output_format == \"json\":\n        typer.echo(renderer.render_json(pack), nl=False)\n    else:\n        typer.echo(renderer.render_markdown(pack), nl=False)"
+          },
+          {
+            "language": "python",
+            "content": "    except (\n        CatalogError,\n        ContextPackError,\n        GraphIndexingError,\n        GraphStoreError,\n        KeywordIndexError,\n        ReadOnlyBoundaryError,\n        SearchError,\n        TextEmbeddingsError,\n        VectorStoreError,\n    ) as exc:"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_context.py tests/test_cli_search.py tests/test_cli_surface_boundary.py tests/test_context_pack_serialization.py -q"
+          }
+        ]
+      },
+      {
+        "heading": "Task 5: Add Boundary And Integration Coverage",
+        "content": "Files:\nModify: tests/test_context_pack_import_boundaries.py Modify: tests/test_cli_context.py\n[ ] Step 1: Add import-boundary assertion for CLI context\nAppend to tests/test_context_pack_import_boundaries.py:\n[ ] Step 2: Add graph requested warning integration test\nAppend to tests/test_cli_context.py:\n[ ] Step 3: Run boundary and integration tests\nRun:\nExpected: all selected tests pass and CLI import still does not load rustworkx.\n[ ] Step 4: Commit boundary coverage",
+        "items": [
+          "Modify: tests/test_context_pack_import_boundaries.py",
+          "Modify: tests/test_cli_context.py",
+          "[ ] Step 1: Add import-boundary assertion for CLI context",
+          "[ ] Step 2: Add graph requested warning integration test",
+          "[ ] Step 3: Run boundary and integration tests",
+          "[ ] Step 4: Commit boundary coverage"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def test_cli_import_with_context_command_does_not_load_rustworkx_projection_adapter() -> None:\n    code = \"\"\"\nimport sys\nimport vault_graph.cli.main\nfor name in (\n    'vault_graph.projection.rustworkx_projection',\n    'rustworkx',\n):\n    if name in sys.modules:\n        raise SystemExit(name)\n\"\"\"\n    completed = subprocess.run([sys.executable, \"-c\", code], check=False, capture_output=True, text=True)\n\n    assert completed.returncode == 0, completed.stderr or completed.stdout"
+          },
+          {
+            "language": "python",
+            "content": "def test_cli_context_include_graph_preserves_graph_unavailable_warning(\n    tmp_path: Path,\n    monkeypatch: MonkeyPatch,\n) -> None:\n    monkeypatch.setattr(\"vault_graph.cli.main._text_embeddings\", _deterministic_text_embeddings)\n    monkeypatch.setattr(\"vault_graph.cli.main._search_text_embeddings\", _deterministic_text_embeddings)\n\n    class _UnavailableGraphSearchSource:\n        def graph_candidates_for_search(self, **_: object) -> object:\n            from vault_graph.errors import SearchError\n\n            raise SearchError(\"graph_missing\")\n\n    def graph_factory(_: Path) -> tuple[object, VaultCatalog, _UnavailableGraphSearchSource]:\n        catalog = VaultCatalog.from_entries(\n            entries=(VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root),),\n            active_vault_id=\"default\",\n        )\n        return object(), catalog, _UnavailableGraphSearchSource()\n\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nGraphRAG evidence\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n    runner.invoke(app, [\"index\", \"--state\", str(state_path)])\n    before_vault = file_bytes(vault_root)\n    before_state = state_tree(state_path)\n    monkeypatch.setattr(\"vault_graph.cli.main._graph_retrieval_service\", graph_factory)\n\n    result = runner.invoke(\n        app,\n        [\"context\", \"--state\", str(state_path), \"--include-graph\", \"--format\", \"json\", \"GraphRAG\"],\n    )\n\n    assert result.exit_code == 0\n    payload = json.loads(result.stdout)\n    assert any(warning[\"code\"] == \"graph_unavailable\" for warning in payload[\"warnings\"])\n    assert payload[\"backend\"][\"graph_store\"][\"used\"] is False\n    assert file_bytes(vault_root) == before_vault\n    assert state_tree(state_path) == before_state\n\n\ndef test_cli_context_all_vaults_does_not_modify_registered_vault_files(\n    tmp_path: Path,\n    monkeypatch: MonkeyPatch,\n) -> None:\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    write_page(first, \"wiki/page.md\", \"# First\\nGraphRAG evidence\\n\")\n    write_page(second, \"wiki/page.md\", \"# Second\\nGraphRAG evidence\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(first), \"--state\", str(state_path)])\n    runner.invoke(app, [\"vault\", \"add\", \"second\", \"--path\", str(second), \"--state\", str(state_path)])\n    before_first = file_bytes(first)\n    before_second = file_bytes(second)\n    builder = _RecordingContextPackBuilder(make_multi_vault_pack())\n\n    def fake_context_builder_service(\n        _: Path,\n        *,\n        config: object,\n        catalog: VaultCatalog,\n        include_graph: bool = False,\n    ) -> tuple[_RecordingContextPackBuilder, ContextPackRenderer]:\n        return builder, DefaultContextPackRenderer()\n\n    monkeypatch.setattr(\"vault_graph.cli.main._context_builder_service\", fake_context_builder_service)\n\n    result = runner.invoke(app, [\"context\", \"--state\", str(state_path), \"--all-vaults\", \"GraphRAG\"])\n\n    assert result.exit_code == 0\n    assert builder.calls[0].requested_scope.vault_ids == (\"default\", \"second\")\n    assert file_bytes(first) == before_first\n    assert file_bytes(second) == before_second"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_context.py tests/test_context_pack_import_boundaries.py tests/test_retrieval_import_boundaries.py -q"
+          },
+          {
+            "language": "bash",
+            "content": "git add tests/test_cli_context.py tests/test_context_pack_import_boundaries.py\ngit commit -m \"test(context): cover cli context read-only boundaries\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 6: Full Verification",
+        "content": "Files:\nNo required file changes.\n[ ] Step 1: Run focused Phase 4B tests\nExpected: all selected tests pass.\n[ ] Step 2: Run full test suite\nExpected: all tests pass.\n[ ] Step 3: Run lint\nExpected: All checks passed!\n[ ] Step 4: Run static typing\nExpected: Success: no issues found.\n[ ] Step 5: Run whitespace check\nExpected: no output and exit code 0.\n[ ] Step 6: Confirm no uncommitted implementation changes remain\nRun:\nExpected: no output.",
+        "items": [
+          "No required file changes.",
+          "[ ] Step 1: Run focused Phase 4B tests",
+          "[ ] Step 2: Run full test suite",
+          "[ ] Step 3: Run lint",
+          "[ ] Step 4: Run static typing",
+          "[ ] Step 5: Run whitespace check",
+          "[ ] Step 6: Confirm no uncommitted implementation changes remain"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_context.py tests/test_cli_search.py tests/test_cli_surface_boundary.py tests/test_context_pack_renderer.py tests/test_context_pack_builder.py tests/test_context_pack_serialization.py tests/test_context_pack_import_boundaries.py -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 ruff check src tests"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 mypy src tests"
+          }
+        ]
+      }
+    ],
+    "openQuestions": []
+  }
+}

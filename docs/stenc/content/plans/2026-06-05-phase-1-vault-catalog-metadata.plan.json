@@ -1,0 +1,1554 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-05-phase-1-vault-catalog-metadata",
+  "slug": "2026-06-05-phase-1-vault-catalog-metadata",
+  "status": "approved",
+  "title": "Phase 1 Vault Catalog And MetadataStore Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-05",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "docs/SPEC.md"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the first working Vault Graph slice: Python package scaffold, VaultCatalog, read-only Vault document loading, SQLite MetadataStore, scoped metadata indexing, and CLI commands for init, vault registration, index dry-run, index apply, and status.\nArchitecture: Keep the phase intentionally narrow. CLI calls application services; application services call indexing; indexing reads through ingestion and writes only derived state through MetadataStore. VaultCatalog is the on...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the first working Vault Graph slice: Python package scaffold, VaultCatalog, read-only Vault document loading, SQLite MetadataStore, scoped metadata indexing, and CLI commands for init, vault registration, index dry-run, index apply, and status.\nArchitecture: Keep the phase intentionally narrow. CLI calls application services; application services call indexing; indexing reads through ingestion and writes only derived state through MetadataStore. VaultCatalog is the only authority for vault_id -> root_path, while MetadataStore remains a rebuildable projection keyed b...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "Files:\nCreate: configs/vaults.yaml Create: src/vault_graph/ingestion/vault_catalog.py Test: tests/test_vault_catalog.py\n[ ] Step 1: Write catalog behavior tests\nCreate tests/test_vault_catalog.py:\n[ ] Step 2: Run tests to verify they fail\nRun:\nExpected: FAIL because vault_graph.ingestion.vault_catalog does not exist.\n[ ] Step 3: Implement catalog records and scope expansion\nCreate configs/vaults.yaml:\nCreate src/vault_graph/ingestion/vault_catalog.py with this public API:\n[ ] Step 4: Run catalog tests\nRun:\nExpected: tests pass; ruff passes; mypy passes.\n[ ] Step 5: Commit catalog\nRun:",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "Create: configs/vaults.yaml",
+        "Create: src/vault_graph/ingestion/vault_catalog.py",
+        "Test: tests/test_vault_catalog.py",
+        "[ ] Step 1: Write catalog behavior tests",
+        "[ ] Step 2: Run tests to verify they fail",
+        "[ ] Step 3: Implement catalog records and scope expansion",
+        "[ ] Step 4: Run catalog tests",
+        "[ ] Step 5: Commit catalog"
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "docs/SPEC.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DESIGN.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/FEATURES.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "pyproject.toml",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "configs/vaults.yaml",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/errors.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/ingestion/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/ingestion/vault_catalog.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/ingestion/vault_frontmatter_reader.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/ingestion/markdown_parser.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/ingestion/document_normalizer.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/ingestion/vault_loader.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/store_health.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/metadata_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/indexing/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/indexing/revision_planner.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/indexing/metadata_indexer.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Task 1: Package Scaffold",
+        "status": "todo",
+        "surfaces": [
+          "pyproject.toml",
+          "src/vault_graph/init.py",
+          "src/vault_graph/errors.py",
+          "tests/test_package_import.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "pyproject.toml",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_package_import.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_package_import.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check .",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add pyproject.toml src/vault_graph tests/test_package_import.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-5",
+            "title": "Create: pyproject.toml",
+            "status": "todo",
+            "instruction": "Create: pyproject.toml",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 2: VaultCatalog And QueryScope",
+        "status": "todo",
+        "surfaces": [
+          "configs/vaults.yaml",
+          "src/vault_graph/ingestion/vault_catalog.py",
+          "tests/test_vault_catalog.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "configs/vaults.yaml",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/ingestion/vault_catalog.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_vault_catalog.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_vault_catalog.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add configs/vaults.yaml src/vault_graph/ingestion/vault_catalog.py tests/test_vault_catalog.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-5",
+            "title": "Create: configs/vaults.yaml",
+            "status": "todo",
+            "instruction": "Create: configs/vaults.yaml",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 3: Read-Only Vault Loading",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/ingestion/vault_frontmatter_reader.py",
+          "src/vault_graph/ingestion/vault_loader.py",
+          "tests/test_vault_loader.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/ingestion/vault_frontmatter_reader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/ingestion/vault_loader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_vault_loader.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_vault_loader.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add src/vault_graph/ingestion/vault_frontmatter_reader.py src/vault_graph/ingestion/vault_loader.py tests/test_vault_loader.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-5",
+            "title": "Create: src/vault_graph/ingestion/vault_frontmatter_reader.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/ingestion/vault_frontmatter_reader.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 4: Document Normalization And Chunking",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/ingestion/markdown_parser.py",
+          "src/vault_graph/ingestion/document_normalizer.py",
+          "tests/test_document_normalizer.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/ingestion/markdown_parser.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/ingestion/document_normalizer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_document_normalizer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_document_normalizer.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add src/vault_graph/ingestion/markdown_parser.py src/vault_graph/ingestion/document_normalizer.py tests/test_document_normalizer.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-5",
+            "title": "Create: src/vault_graph/ingestion/markdown_parser.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/ingestion/markdown_parser.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 5: SQLite MetadataStore",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/interfaces/store_health.py",
+          "src/vault_graph/storage/interfaces/metadata_store.py",
+          "src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "tests/test_sqlite_metadata_store.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/store_health.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_sqlite_metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_sqlite_metadata_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add src/vault_graph/storage tests/test_sqlite_metadata_store.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-5",
+            "title": "Create: src/vault_graph/storage/interfaces/store_health.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/interfaces/store_health.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 6: Metadata Index Planning And Apply",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/indexing/revision_planner.py",
+          "src/vault_graph/indexing/metadata_indexer.py",
+          "tests/test_metadata_indexer.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/indexing/revision_planner.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/indexing/metadata_indexer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_metadata_indexer.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_metadata_indexer.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add src/vault_graph/indexing tests/test_metadata_indexer.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-5",
+            "title": "Create: src/vault_graph/indexing/revision_planner.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/indexing/revision_planner.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Task 7: App Services And CLI",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/app/catalog_service.py",
+          "src/vault_graph/app/index_service.py",
+          "src/vault_graph/cli/main.py",
+          "tests/test_cli_catalog_metadata.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/catalog_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/index_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_catalog_metadata.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_catalog_metadata.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add src/vault_graph/app src/vault_graph/cli tests/test_cli_catalog_metadata.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-5",
+            "title": "Create: src/vault_graph/app/catalog_service.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/app/catalog_service.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-8",
+        "title": "Task 8: Read-Only And Multi-Vault Integration Gates",
+        "status": "todo",
+        "surfaces": [
+          "tests/conftest.py",
+          "tests/test_read_only_boundary.py",
+          "tests/test_multi_vault_identity.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/conftest.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_multi_vault_identity.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-8-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "ruff passes",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "mypy passes",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git diff --check exits 0",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-5",
+            "title": "Create: tests/conftest.py",
+            "status": "todo",
+            "instruction": "Create: tests/conftest.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-9",
+        "title": "Phase 1 Completion Criteria",
+        "status": "todo",
+        "surfaces": [
+          "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-9-step-1",
+            "title": "vg init --vault /path/to/vault --state /tmp/state creates a default active",
+            "status": "todo",
+            "instruction": "vg init --vault /path/to/vault --state /tmp/state creates a default active",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-2",
+            "title": "vg init --vault-id first --vault /path/to/vault --state /tmp/state creates",
+            "status": "todo",
+            "instruction": "vg init --vault-id first --vault /path/to/vault --state /tmp/state creates",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-3",
+            "title": "vg vault add ID --path /path/to/vault --state /tmp/state registers an",
+            "status": "todo",
+            "instruction": "vg vault add ID --path /path/to/vault --state /tmp/state registers an",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-4",
+            "title": "vg vault list --state /tmp/state shows all registered Vault IDs and paths",
+            "status": "todo",
+            "instruction": "vg vault list --state /tmp/state shows all registered Vault IDs and paths",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7",
+      "slice-8",
+      "slice-9"
+    ],
+    "risks": [
+      {
+        "risk": "Generated Stenc view drifts from Markdown source.",
+        "mitigation": "Treat the original Markdown as source of truth and regenerate Stenc JSON/pages after updates."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-05-phase-1-vault-catalog-metadata.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "ruff passes",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "mypy passes",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git diff --check exits 0",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_package_import.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 ruff check .",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 mypy src",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add pyproject.toml src/vault_graph tests/test_package_import.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"chore: scaffold vault graph package\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the first working Vault Graph slice: Python package scaffold, VaultCatalog, read-only Vault document loading, SQLite MetadataStore, scoped metadata indexing, and CLI commands for init, vault registration, index dry-run, index apply, and status.\nArchitecture: Keep the phase intentionally narrow. CLI calls application services; application services call indexing; indexing reads through ingestion and writes only derived state through MetadataStore. VaultCatalog is the only authority for vault_id -> root_path, while MetadataStore remains a rebuildable projection keyed by vault_id.\nTech Stack: Python 3.12, Typer CLI, PyYAML, SQLite from the standard library, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Decision: No Extra Detailed Spec",
+        "content": "Do not add another detailed specification before implementation. docs/SPEC.md, docs/DESIGN.md, and docs/FEATURES.md already define the product contract, architecture, user surfaces, and multi-vault invariants. Another spec document would duplicate those contracts and increase drift risk.\nUse this plan as the implementation bridge. Its scope is Phase 1 only:\nin scope: project scaffold, catalog, document ingestion, metadata projection, indexing plan/apply, CLI init/vault/index/status, read-only and multi-vault tests out of scope: vector search, graph extraction, hybrid retrieval, context pack generation, MCP server, HTTP server, UI",
+        "items": [
+          "in scope: project scaffold, catalog, document ingestion, metadata projection,",
+          "out of scope: vector search, graph extraction, hybrid retrieval, context pack"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "File Structure",
+        "content": "Create these files:\npyproject.toml: package metadata, dependencies, CLI entrypoint, ruff and mypy settings configs/vaults.yaml: default catalog file shape src/vault_graph/init.py: package version src/vault_graph/errors.py: domain exceptions exposed across package boundaries src/vault_graph/ingestion/init.py: ingestion exports src/vault_graph/ingestion/vault_catalog.py: VaultCatalogEntry, QueryScope, VaultCatalog src/vault_graph/ingestion/vault_frontmatter_reader.py: YAML frontmatter projection and hash src/vault_graph/ingestion/markdown_parser.py: heading, anchor, and section parsing src/vault_graph/ingestion/document_normalizer.py: document and chunk snapshots src/vault_graph/ingestion/vault_loader.py: read-only scan of allowed Vault paths src/vault_graph/storage/init.py: storage package marker src/vault_graph/storage/interfaces/init.py: interface exports src/vault_graph/storage/interfaces/store_health.py: backend health records src/vault_graph/storage/interfaces/metadata_store.py: metadata store protocol and records src/vault_graph/storage/local/init.py: local backend exports src/vault_graph/storage/local/sqlite_metadata_store.py: SQLite metadata projection src/vault_graph/index...",
+        "items": [
+          "pyproject.toml: package metadata, dependencies, CLI entrypoint, ruff and mypy settings",
+          "configs/vaults.yaml: default catalog file shape",
+          "src/vault_graph/init.py: package version",
+          "src/vault_graph/errors.py: domain exceptions exposed across package boundaries",
+          "src/vault_graph/ingestion/init.py: ingestion exports",
+          "src/vault_graph/ingestion/vault_catalog.py: VaultCatalogEntry, QueryScope, VaultCatalog",
+          "src/vault_graph/ingestion/vault_frontmatter_reader.py: YAML frontmatter projection and hash",
+          "src/vault_graph/ingestion/markdown_parser.py: heading, anchor, and section parsing",
+          "src/vault_graph/ingestion/document_normalizer.py: document and chunk snapshots",
+          "src/vault_graph/ingestion/vault_loader.py: read-only scan of allowed Vault paths",
+          "src/vault_graph/storage/init.py: storage package marker",
+          "src/vault_graph/storage/interfaces/init.py: interface exports",
+          "src/vault_graph/storage/interfaces/store_health.py: backend health records",
+          "src/vault_graph/storage/interfaces/metadata_store.py: metadata store protocol and records",
+          "src/vault_graph/storage/local/init.py: local backend exports",
+          "src/vault_graph/storage/local/sqlite_metadata_store.py: SQLite metadata projection"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Task 1: Package Scaffold",
+        "content": "Files:\nCreate: pyproject.toml Create: src/vault_graph/init.py Create: src/vault_graph/errors.py Create: package init.py files listed in File Structure Test: tests/test_package_import.py\n[ ] Step 1: Write the failing import test\nCreate tests/test_package_import.py:\n[ ] Step 2: Run test to verify it fails\nRun:\nExpected: FAIL with ModuleNotFoundError: No module named 'vault_graph'.\n[ ] Step 3: Add package metadata\nCreate pyproject.toml:\nCreate src/vault_graph/init.py:\nCreate src/vault_graph/errors.py:\nCreate empty init.py files for the package directories in this phase.\n[ ] Step 4: Run scaffold checks\nRun:\nExpected: import test passes; ruff passes; mypy passes.\n[ ] Step 5: Commit scaffold\nRun:",
+        "items": [
+          "Create: pyproject.toml",
+          "Create: src/vault_graph/init.py",
+          "Create: src/vault_graph/errors.py",
+          "Create: package init.py files listed in File Structure",
+          "Test: tests/test_package_import.py",
+          "[ ] Step 1: Write the failing import test",
+          "[ ] Step 2: Run test to verify it fails",
+          "[ ] Step 3: Add package metadata",
+          "[ ] Step 4: Run scaffold checks",
+          "[ ] Step 5: Commit scaffold"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from vault_graph import __version__\n\n\ndef test_package_exposes_version() -> None:\n    assert __version__ == \"0.1.0\""
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_package_import.py -q"
+          },
+          {
+            "language": "toml",
+            "content": "[build-system]\nrequires = [\"hatchling>=1.25\"]\nbuild-backend = \"hatchling.build\"\n\n[project]\nname = \"vault-graph\"\nversion = \"0.1.0\"\ndescription = \"Read-only, rebuildable knowledge access layer over Vault.\"\nrequires-python = \">=3.12\"\ndependencies = [\n  \"PyYAML>=6.0.2\",\n  \"typer>=0.12.5\",\n]\n\n[project.optional-dependencies]\ndev = [\n  \"mypy>=1.11\",\n  \"pytest>=8.3\",\n  \"ruff>=0.6\",\n]\n\n[project.scripts]\nvg = \"vault_graph.cli.main:app\"\n\n[tool.hatch.build.targets.wheel]\npackages = [\"src/vault_graph\"]\n\n[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\npythonpath = [\"src\"]\n\n[tool.ruff]\nline-length = 120\ntarget-version = \"py312\"\n\n[tool.ruff.lint]\nselect = [\"E\", \"F\", \"I\", \"UP\", \"B\"]\n\n[tool.mypy]\npython_version = \"3.12\"\nstrict = true\nmypy_path = \"src\""
+          },
+          {
+            "language": "python",
+            "content": "__version__ = \"0.1.0\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: VaultCatalog And QueryScope",
+        "content": "Files:\nCreate: configs/vaults.yaml Create: src/vault_graph/ingestion/vault_catalog.py Test: tests/test_vault_catalog.py\n[ ] Step 1: Write catalog behavior tests\nCreate tests/test_vault_catalog.py:\n[ ] Step 2: Run tests to verify they fail\nRun:\nExpected: FAIL because vault_graph.ingestion.vault_catalog does not exist.\n[ ] Step 3: Implement catalog records and scope expansion\nCreate configs/vaults.yaml:\nCreate src/vault_graph/ingestion/vault_catalog.py with this public API:\n[ ] Step 4: Run catalog tests\nRun:\nExpected: tests pass; ruff passes; mypy passes.\n[ ] Step 5: Commit catalog\nRun:",
+        "items": [
+          "Create: configs/vaults.yaml",
+          "Create: src/vault_graph/ingestion/vault_catalog.py",
+          "Test: tests/test_vault_catalog.py",
+          "[ ] Step 1: Write catalog behavior tests",
+          "[ ] Step 2: Run tests to verify they fail",
+          "[ ] Step 3: Implement catalog records and scope expansion",
+          "[ ] Step 4: Run catalog tests",
+          "[ ] Step 5: Commit catalog"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nimport pytest\n\nfrom vault_graph.errors import CatalogError\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry\n\n\ndef test_catalog_uses_default_active_vault(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n\n    catalog = VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)],\n        active_vault_id=\"default\",\n    )\n\n    scope = catalog.default_scope()\n\n    assert scope == QueryScope(vault_ids=(\"default\",), content_scopes=(\"raw\", \"wiki\", \"docs\", \"scratch/reports\"))\n    assert catalog.resolve(\"default\").root_path == vault_root.resolve()\n\n\ndef test_duplicate_vault_ids_are_rejected(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    entry = VaultCatalogEntry.from_root(vault_id=\"main\", root_path=vault_root)\n\n    with pytest.raises(CatalogError, match=\"duplicate vault_id\"):\n        VaultCatalog.from_entries(entries=[entry, entry], active_vault_id=\"main\")\n\n\ndef test_all_vaults_expands_only_enabled_entries(tmp_path: Path) -> None:\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    third = tmp_path / \"third\"\n    first.mkdir()\n    second.mkdir()\n    third.mkdir()\n\n    catalog = VaultCatalog.from_entries(\n        entries=[\n            VaultCatalogEntry.from_root(vault_id=\"first\", root_path=first),\n            VaultCatalogEntry.from_root(vault_id=\"second\", root_path=second),\n            VaultCatalogEntry.from_root(vault_id=\"third\", root_path=third, enabled=False),\n        ],\n        active_vault_id=\"first\",\n    )\n\n    assert catalog.scope_for_all_enabled().vault_ids == (\"first\", \"second\")\n\n\ndef test_explicit_scope_rejects_unknown_vault_id(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    catalog = VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)],\n        active_vault_id=\"default\",\n    )\n\n    with pytest.raises(CatalogError, match=\"unknown vault_id\"):\n        catalog.scope_for_vault_ids([\"missing\"])"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_vault_catalog.py -q"
+          },
+          {
+            "language": "yaml",
+            "content": "active_vault_id: default\nvaults:\n  - vault_id: default\n    root_path: /absolute/path/to/vault\n    display_name: Default Vault\n    enabled: true\n    content_scopes:\n      - raw\n      - wiki\n      - docs\n      - scratch/reports\n    state_namespace: default\n    git_revision_policy: head"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import Any, Iterable\n\nimport yaml\n\nfrom vault_graph.errors import CatalogError\n\nDEFAULT_CONTENT_SCOPES = (\"raw\", \"wiki\", \"docs\", \"scratch/reports\")\n\n\n@dataclass(frozen=True)\nclass QueryScope:\n    vault_ids: tuple[str, ...]\n    content_scopes: tuple[str, ...] = DEFAULT_CONTENT_SCOPES\n    include_cross_vault: bool = False\n\n\n@dataclass(frozen=True)\nclass VaultCatalogEntry:\n    vault_id: str\n    root_path: Path\n    display_name: str\n    enabled: bool\n    content_scopes: tuple[str, ...]\n    state_namespace: str\n    git_revision_policy: str\n\n    @classmethod\n    def from_root(\n        cls,\n        *,\n        vault_id: str,\n        root_path: Path,\n        display_name: str | None = None,\n        enabled: bool = True,\n        content_scopes: Iterable[str] = DEFAULT_CONTENT_SCOPES,\n        state_namespace: str | None = None,\n        git_revision_policy: str = \"head\",\n    ) -> \"VaultCatalogEntry\":\n        if not vault_id:\n            raise CatalogError(\"vault_id is required\")\n        resolved_root = root_path.expanduser().resolve()\n        if not resolved_root.exists() or not resolved_root.is_dir():\n            raise CatalogError(f\"vault root does not exist: {resolved_root}\")\n        return cls(\n            vault_id=vault_id,\n            root_path=resolved_root,\n            display_name=display_name or vault_id,\n            enabled=enabled,\n            content_scopes=tuple(content_scopes),\n            state_namespace=state_namespace or vault_id,\n            git_revision_policy=git_revision_policy,\n        )\n\n\nclass VaultCatalog:\n    def __init__(self, *, entries: tuple[VaultCatalogEntry, ...], active_vault_id: str) -> None:\n        self._entries = entries\n        self._active_vault_id = active_vault_id\n        self._by_id = {entry.vault_id: entry for entry in entries}\n        if len(self._by_id) != len(entries):\n            raise CatalogError(\"duplicate vault_id in VaultCatalog\")\n        if active_vault_id not in self._by_id:\n            raise CatalogError(f\"active vault_id is not registered: {active_vault_id}\")\n\n    @classmethod\n    def from_entries(cls, *, entries: Iterable[VaultCatalogEntry], active_vault_id: str) -> \"VaultCatalog\":\n        return cls(entries=tuple(entries), active_vault_id=active_vault_id)\n\n    @classmethod\n    def load(cls, path: Path) -> \"VaultCatalog\":\n        data = yaml.safe_load(path.read_text(encoding=\"utf-8\")) or {}\n        entries = [\n            VaultCatalogEntry.from_root(\n                vault_id=item[\"vault_id\"],\n                root_path=Path(item[\"root_path\"]),\n                display_name=item.get(\"display_name\"),\n                enabled=bool(item.get(\"enabled\", True)),\n                content_scopes=item.get(\"content_scopes\", DEFAULT_CONTENT_SCOPES),\n                state_namespace=item.get(\"state_namespace\"),\n                git_revision_policy=item.get(\"git_revision_policy\", \"head\"),\n            )\n            for item in data.get(\"vaults\", [])\n        ]\n        return cls.from_entries(entries=entries, active_vault_id=data.get(\"active_vault_id\", \"default\"))\n\n    def save(self, path: Path) -> None:\n        path.parent.mkdir(parents=True, exist_ok=True)\n        payload: dict[str, Any] = {\n            \"active_vault_id\": self._active_vault_id,\n            \"vaults\": [\n                {\n                    \"vault_id\": entry.vault_id,\n                    \"root_path\": str(entry.root_path),\n                    \"display_name\": entry.display_name,\n                    \"enabled\": entry.enabled,\n                    \"content_scopes\": list(entry.content_scopes),\n                    \"state_namespace\": entry.state_namespace,\n                    \"git_revision_policy\": entry.git_revision_policy,\n                }\n                for entry in self._entries\n            ],\n        }\n        path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding=\"utf-8\")\n\n    @property\n    def active_vault_id(self) -> str:\n        return self._active_vault_id\n\n    def entries(self) -> tuple[VaultCatalogEntry, ...]:\n        return self._entries\n\n    def resolve(self, vault_id: str) -> VaultCatalogEntry:\n        try:\n            return self._by_id[vault_id]\n        except KeyError as exc:\n            raise CatalogError(f\"unknown vault_id: {vault_id}\") from exc\n\n    def default_scope(self) -> QueryScope:\n        entry = self.resolve(self._active_vault_id)\n        return QueryScope(vault_ids=(entry.vault_id,), content_scopes=entry.content_scopes)\n\n    def scope_for_vault_ids(self, vault_ids: Iterable[str]) -> QueryScope:\n        entries = tuple(self.resolve(vault_id) for vault_id in vault_ids)\n        content_scopes = tuple(dict.fromkeys(scope for entry in entries for scope in entry.content_scopes))\n        return QueryScope(vault_ids=tuple(entry.vault_id for entry in entries), content_scopes=content_scopes)\n\n    def scope_for_all_enabled(self) -> QueryScope:\n        enabled = tuple(entry for entry in self._entries if entry.enabled)\n        if not enabled:\n            raise CatalogError(\"no enabled VaultCatalog entries\")\n        return QueryScope(vault_ids=tuple(entry.vault_id for entry in enabled), content_scopes=DEFAULT_CONTENT_SCOPES)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 3: Read-Only Vault Loading",
+        "content": "Files:\nCreate: src/vault_graph/ingestion/vault_frontmatter_reader.py Create: src/vault_graph/ingestion/vault_loader.py Test: tests/test_vault_loader.py\n[ ] Step 1: Write loader tests\nCreate tests/test_vault_loader.py:\n[ ] Step 2: Run tests to verify they fail\nRun:\nExpected: FAIL because VaultLoader does not exist.\n[ ] Step 3: Implement frontmatter projection\nCreate src/vault_graph/ingestion/vault_frontmatter_reader.py:\n[ ] Step 4: Implement read-only Vault loader\nCreate src/vault_graph/ingestion/vault_loader.py:\n[ ] Step 5: Run loader tests\nRun:\nExpected: tests pass; ruff passes; mypy passes.\n[ ] Step 6: Commit loader\nRun:",
+        "items": [
+          "Create: src/vault_graph/ingestion/vault_frontmatter_reader.py",
+          "Create: src/vault_graph/ingestion/vault_loader.py",
+          "Test: tests/test_vault_loader.py",
+          "[ ] Step 1: Write loader tests",
+          "[ ] Step 2: Run tests to verify they fail",
+          "[ ] Step 3: Implement frontmatter projection",
+          "[ ] Step 4: Implement read-only Vault loader",
+          "[ ] Step 5: Run loader tests",
+          "[ ] Step 6: Commit loader"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalogEntry\nfrom vault_graph.ingestion.vault_loader import VaultLoader\n\n\ndef test_loader_reads_allowed_markdown_paths(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    (vault_root / \"wiki\").mkdir(parents=True)\n    (vault_root / \"data\").mkdir()\n    (vault_root / \"wiki\" / \"systems.md\").write_text(\"---\\ntitle: Systems\\n---\\n# Systems\\nBody\\n\", encoding=\"utf-8\")\n    (vault_root / \"data\" / \"derived.md\").write_text(\"# Derived\\n\", encoding=\"utf-8\")\n\n    entry = VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)\n    loader = VaultLoader()\n\n    documents = loader.load_documents(entry=entry, scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    assert [document.path for document in documents] == (\"wiki/systems.md\",)\n    assert documents[0].vault_id == \"default\"\n    assert documents[0].frontmatter.data == {\"title\": \"Systems\"}\n\n\ndef test_loader_does_not_modify_vault_files(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    (vault_root / \"raw\").mkdir(parents=True)\n    note = vault_root / \"raw\" / \"note.md\"\n    note.write_text(\"# Note\\n\", encoding=\"utf-8\")\n    before = note.read_bytes()\n\n    entry = VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)\n    loader = VaultLoader()\n    loader.load_documents(entry=entry, scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"raw\",)))\n\n    assert note.read_bytes() == before"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_vault_loader.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport hashlib\nfrom dataclasses import dataclass\n\nimport yaml\n\n\n@dataclass(frozen=True)\nclass FrontmatterProjection:\n    data: dict[str, object]\n    body: str\n    frontmatter_hash: str\n\n\ndef read_frontmatter(text: str) -> FrontmatterProjection:\n    if not text.startswith(\"---\\n\"):\n        return FrontmatterProjection(data={}, body=text, frontmatter_hash=hashlib.sha256(b\"\").hexdigest())\n\n    closing = text.find(\"\\n---\\n\", 4)\n    if closing == -1:\n        return FrontmatterProjection(data={}, body=text, frontmatter_hash=hashlib.sha256(b\"\").hexdigest())\n\n    raw_frontmatter = text[4:closing]\n    parsed = yaml.safe_load(raw_frontmatter) or {}\n    data = parsed if isinstance(parsed, dict) else {}\n    body = text[closing + len(\"\\n---\\n\") :]\n    digest = hashlib.sha256(raw_frontmatter.encode(\"utf-8\")).hexdigest()\n    return FrontmatterProjection(data=data, body=body, frontmatter_hash=digest)"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport hashlib\nfrom dataclasses import dataclass\nfrom pathlib import Path\n\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalogEntry\nfrom vault_graph.ingestion.vault_frontmatter_reader import FrontmatterProjection, read_frontmatter\n\n\n@dataclass(frozen=True)\nclass LoadedVaultDocument:\n    vault_id: str\n    root_path: Path\n    path: str\n    text: str\n    raw_sha256: str\n    content_hash: str\n    frontmatter: FrontmatterProjection\n\n\nclass VaultLoader:\n    def load_documents(self, *, entry: VaultCatalogEntry, scope: QueryScope) -> tuple[LoadedVaultDocument, ...]:\n        documents: list[LoadedVaultDocument] = []\n        for content_scope in scope.content_scopes:\n            scope_root = entry.root_path / content_scope\n            if not scope_root.exists():\n                continue\n            for markdown_path in sorted(scope_root.rglob(\"*.md\")):\n                if not markdown_path.is_file():\n                    continue\n                relative_path = markdown_path.relative_to(entry.root_path).as_posix()\n                text = markdown_path.read_text(encoding=\"utf-8\")\n                raw_sha256 = hashlib.sha256(text.encode(\"utf-8\")).hexdigest()\n                frontmatter = read_frontmatter(text)\n                content_hash = hashlib.sha256(frontmatter.body.encode(\"utf-8\")).hexdigest()\n                documents.append(\n                    LoadedVaultDocument(\n                        vault_id=entry.vault_id,\n                        root_path=entry.root_path,\n                        path=relative_path,\n                        text=text,\n                        raw_sha256=raw_sha256,\n                        content_hash=content_hash,\n                        frontmatter=frontmatter,\n                    )\n                )\n        return tuple(documents)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 4: Document Normalization And Chunking",
+        "content": "Files:\nCreate: src/vault_graph/ingestion/markdown_parser.py Create: src/vault_graph/ingestion/document_normalizer.py Test: tests/test_document_normalizer.py\n[ ] Step 1: Write normalization tests\nCreate tests/test_document_normalizer.py:\n[ ] Step 2: Run tests to verify they fail\nRun:\nExpected: FAIL because DocumentNormalizer does not exist.\n[ ] Step 3: Implement markdown section parsing\nCreate src/vault_graph/ingestion/markdown_parser.py:\n[ ] Step 4: Implement normalized document and chunk records\nCreate src/vault_graph/ingestion/document_normalizer.py:\n[ ] Step 5: Run normalization tests\nRun:\nExpected: tests pass; ruff passes; mypy passes.\n[ ] Step 6: Commit normalizer\nRun:",
+        "items": [
+          "Create: src/vault_graph/ingestion/markdown_parser.py",
+          "Create: src/vault_graph/ingestion/document_normalizer.py",
+          "Test: tests/test_document_normalizer.py",
+          "[ ] Step 1: Write normalization tests",
+          "[ ] Step 2: Run tests to verify they fail",
+          "[ ] Step 3: Implement markdown section parsing",
+          "[ ] Step 4: Implement normalized document and chunk records",
+          "[ ] Step 5: Run normalization tests",
+          "[ ] Step 6: Commit normalizer"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom vault_graph.ingestion.document_normalizer import DocumentNormalizer\nfrom vault_graph.ingestion.vault_frontmatter_reader import read_frontmatter\nfrom vault_graph.ingestion.vault_loader import LoadedVaultDocument\n\n\ndef test_document_and_chunk_ids_are_vault_scoped(tmp_path: Path) -> None:\n    text = \"---\\ntitle: Same\\n---\\n# Same Title\\nBody\\n\"\n    frontmatter = read_frontmatter(text)\n    first = LoadedVaultDocument(\n        vault_id=\"first\",\n        root_path=tmp_path / \"first\",\n        path=\"wiki/same.md\",\n        text=text,\n        raw_sha256=\"raw-first\",\n        content_hash=\"content\",\n        frontmatter=frontmatter,\n    )\n    second = LoadedVaultDocument(\n        vault_id=\"second\",\n        root_path=tmp_path / \"second\",\n        path=\"wiki/same.md\",\n        text=text,\n        raw_sha256=\"raw-second\",\n        content_hash=\"content\",\n        frontmatter=frontmatter,\n    )\n\n    normalizer = DocumentNormalizer()\n    first_snapshot = normalizer.normalize(first)\n    second_snapshot = normalizer.normalize(second)\n\n    assert first_snapshot.document.document_id != second_snapshot.document.document_id\n    assert first_snapshot.chunks[0].chunk_id != second_snapshot.chunks[0].chunk_id\n    assert first_snapshot.chunks[0].anchor == \"same-title\"\n\n\ndef test_document_normalizer_preserves_vault_id_and_path(tmp_path: Path) -> None:\n    text = \"# Decision\\nWe chose local-first indexing.\\n\"\n    loaded = LoadedVaultDocument(\n        vault_id=\"default\",\n        root_path=tmp_path,\n        path=\"wiki/decisions/local-first.md\",\n        text=text,\n        raw_sha256=\"raw\",\n        content_hash=\"content\",\n        frontmatter=read_frontmatter(text),\n    )\n\n    snapshot = DocumentNormalizer().normalize(loaded)\n\n    assert snapshot.document.vault_id == \"default\"\n    assert snapshot.document.path == \"wiki/decisions/local-first.md\"\n    assert snapshot.chunks[0].text == \"We chose local-first indexing.\""
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_document_normalizer.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport re\nfrom dataclasses import dataclass\n\nHEADING_PATTERN = re.compile(r\"^(#{1,6})\\s+(.+)$\", re.MULTILINE)\n\n\n@dataclass(frozen=True)\nclass MarkdownSection:\n    heading: str | None\n    anchor: str | None\n    text: str\n\n\ndef make_anchor(heading: str) -> str:\n    lowered = heading.strip().lower()\n    slug = re.sub(r\"[^a-z0-9가-힣]+\", \"-\", lowered).strip(\"-\")\n    return slug or \"section\"\n\n\ndef parse_sections(markdown_body: str) -> tuple[MarkdownSection, ...]:\n    matches = list(HEADING_PATTERN.finditer(markdown_body))\n    if not matches:\n        stripped = markdown_body.strip()\n        return (MarkdownSection(heading=None, anchor=None, text=stripped),) if stripped else ()\n\n    sections: list[MarkdownSection] = []\n    for index, match in enumerate(matches):\n        heading = match.group(2).strip()\n        start = match.end()\n        end = matches[index + 1].start() if index + 1 < len(matches) else len(markdown_body)\n        section_text = markdown_body[start:end].strip()\n        if section_text:\n            sections.append(MarkdownSection(heading=heading, anchor=make_anchor(heading), text=section_text))\n    return tuple(sections)"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport hashlib\nfrom dataclasses import dataclass\nfrom datetime import UTC, datetime\nfrom typing import Any\n\nfrom vault_graph.ingestion.markdown_parser import parse_sections\nfrom vault_graph.ingestion.vault_loader import LoadedVaultDocument\n\nPARSER_VERSION = \"markdown-frontmatter-v1\"\nCHUNKER_VERSION = \"heading-section-v1\"\n\n\n@dataclass(frozen=True)\nclass DocumentSnapshot:\n    vault_id: str\n    document_id: str\n    path: str\n    kind: str\n    frontmatter: dict[str, Any]\n    frontmatter_hash: str\n    content_hash: str\n    raw_sha256: str\n    parser_version: str\n    last_seen_at: str\n    last_indexed_at: str | None\n    vault_revision: str | None\n    index_revision: str | None\n\n\n@dataclass(frozen=True)\nclass ChunkSnapshot:\n    vault_id: str\n    chunk_id: str\n    document_id: str\n    path: str\n    section: str | None\n    anchor: str | None\n    text: str\n    token_count: int\n    content_hash: str\n    chunker_version: str\n    index_revision: str | None\n\n\n@dataclass(frozen=True)\nclass NormalizedDocument:\n    document: DocumentSnapshot\n    chunks: tuple[ChunkSnapshot, ...]\n\n\ndef stable_id(*parts: str) -> str:\n    return hashlib.sha256(\":\".join(parts).encode(\"utf-8\")).hexdigest()\n\n\nclass DocumentNormalizer:\n    def normalize(self, loaded: LoadedVaultDocument) -> NormalizedDocument:\n        now = datetime.now(UTC).isoformat()\n        document_id = stable_id(\"document\", loaded.vault_id, loaded.path)\n        document = DocumentSnapshot(\n            vault_id=loaded.vault_id,\n            document_id=document_id,\n            path=loaded.path,\n            kind=loaded.path.split(\"/\", 1)[0],\n            frontmatter=dict(loaded.frontmatter.data),\n            frontmatter_hash=loaded.frontmatter.frontmatter_hash,\n            content_hash=loaded.content_hash,\n            raw_sha256=loaded.raw_sha256,\n            parser_version=PARSER_VERSION,\n            last_seen_at=now,\n            last_indexed_at=None,\n            vault_revision=None,\n            index_revision=None,\n        )\n        chunks = tuple(\n            ChunkSnapshot(\n                vault_id=loaded.vault_id,\n                chunk_id=stable_id(\"chunk\", loaded.vault_id, loaded.path, section.anchor or str(index)),\n                document_id=document_id,\n                path=loaded.path,\n                section=section.heading,\n                anchor=section.anchor,\n                text=section.text,\n                token_count=len(section.text.split()),\n                content_hash=stable_id(\"chunk-content\", section.text),\n                chunker_version=CHUNKER_VERSION,\n                index_revision=None,\n            )\n            for index, section in enumerate(parse_sections(loaded.frontmatter.body))\n        )\n        return NormalizedDocument(document=document, chunks=chunks)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 5: SQLite MetadataStore",
+        "content": "Files:\nCreate: src/vault_graph/storage/interfaces/store_health.py Create: src/vault_graph/storage/interfaces/metadata_store.py Create: src/vault_graph/storage/local/sqlite_metadata_store.py Test: tests/test_sqlite_metadata_store.py\n[ ] Step 1: Write metadata store contract tests\nCreate tests/test_sqlite_metadata_store.py:\n[ ] Step 2: Run tests to verify they fail\nRun:\nExpected: FAIL because SQLiteMetadataStore does not exist.\n[ ] Step 3: Define store health and metadata interface\nCreate src/vault_graph/storage/interfaces/store_health.py:\nCreate src/vault_graph/storage/interfaces/metadata_store.py:\n[ ] Step 4: Implement SQLite metadata projection\nCreate src/vault_graph/storage/local/sqlite_metadata_store.py with these tables:\nThe class must expose:\nImplementation requirements:\ncreate parent directory for the SQLite database path create schema in init serialize frontmatter with json.dumps(..., sort_keys=True) set is_tombstoned=0 when upserting a document set is_tombstoned=1 only for the exact (vault_id, path) tombstone pair never store or infer Vault root paths never write outside the SQLite database path\n[ ] Step 5: Run metadata store tests\nRun:\nExpected: tests pass; ruff passes; m...",
+        "items": [
+          "Create: src/vault_graph/storage/interfaces/store_health.py",
+          "Create: src/vault_graph/storage/interfaces/metadata_store.py",
+          "Create: src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "Test: tests/test_sqlite_metadata_store.py",
+          "[ ] Step 1: Write metadata store contract tests",
+          "[ ] Step 2: Run tests to verify they fail",
+          "[ ] Step 3: Define store health and metadata interface",
+          "[ ] Step 4: Implement SQLite metadata projection",
+          "create parent directory for the SQLite database path",
+          "create schema in init",
+          "serialize frontmatter with json.dumps(..., sort_keys=True)",
+          "set is_tombstoned=0 when upserting a document",
+          "set is_tombstoned=1 only for the exact (vault_id, path) tombstone pair",
+          "never store or infer Vault root paths",
+          "never write outside the SQLite database path",
+          "[ ] Step 5: Run metadata store tests"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\ndef make_document(vault_id: str, path: str, content_hash: str) -> DocumentSnapshot:\n    return DocumentSnapshot(\n        vault_id=vault_id,\n        document_id=f\"{vault_id}:{path}\",\n        path=path,\n        kind=path.split(\"/\", 1)[0],\n        frontmatter={},\n        frontmatter_hash=\"frontmatter\",\n        content_hash=content_hash,\n        raw_sha256=f\"raw:{content_hash}\",\n        parser_version=\"parser\",\n        last_seen_at=\"2026-06-05T00:00:00+00:00\",\n        last_indexed_at=None,\n        vault_revision=None,\n        index_revision=None,\n    )\n\n\ndef make_chunk(vault_id: str, document_id: str, path: str) -> ChunkSnapshot:\n    return ChunkSnapshot(\n        vault_id=vault_id,\n        chunk_id=f\"{vault_id}:{path}:chunk\",\n        document_id=document_id,\n        path=path,\n        section=\"Section\",\n        anchor=\"section\",\n        text=\"Body\",\n        token_count=1,\n        content_hash=\"chunk\",\n        chunker_version=\"chunker\",\n        index_revision=None,\n    )\n\n\ndef test_store_upserts_and_resolves_document(tmp_path: Path) -> None:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\")\n    document = make_document(\"default\", \"wiki/page.md\", \"hash-1\")\n    chunk = make_chunk(\"default\", document.document_id, document.path)\n\n    store.apply_metadata_revision(index_revision=\"rev-1\", documents=[document], chunks=[chunk], tombstones=[])\n\n    resolved = store.resolve_document(document_id=document.document_id)\n    assert resolved is not None\n    assert resolved.vault_id == \"default\"\n    assert resolved.path == \"wiki/page.md\"\n    assert store.health().ok is True\n\n\ndef test_store_keeps_same_relative_path_separate_by_vault_id(tmp_path: Path) -> None:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\")\n    first = make_document(\"first\", \"wiki/same.md\", \"hash-first\")\n    second = make_document(\"second\", \"wiki/same.md\", \"hash-second\")\n\n    store.apply_metadata_revision(index_revision=\"rev-1\", documents=[first, second], chunks=[], tombstones=[])\n\n    assert store.resolve_document(document_id=first.document_id).content_hash == \"hash-first\"\n    assert store.resolve_document(document_id=second.document_id).content_hash == \"hash-second\"\n\n\ndef test_store_tombstones_only_named_vault_and_path(tmp_path: Path) -> None:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\")\n    first = make_document(\"first\", \"wiki/same.md\", \"hash-first\")\n    second = make_document(\"second\", \"wiki/same.md\", \"hash-second\")\n    store.apply_metadata_revision(index_revision=\"rev-1\", documents=[first, second], chunks=[], tombstones=[])\n\n    store.apply_metadata_revision(index_revision=\"rev-2\", documents=[], chunks=[], tombstones=[(\"first\", \"wiki/same.md\")])\n\n    assert store.document_state(\"first\", \"wiki/same.md\").is_tombstoned is True\n    assert store.document_state(\"second\", \"wiki/same.md\").is_tombstoned is False"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_sqlite_metadata_store.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from dataclasses import dataclass\n\n\n@dataclass(frozen=True)\nclass StoreHealth:\n    ok: bool\n    backend: str\n    schema_version: str\n    message: str"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Protocol\n\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\n\n\n@dataclass(frozen=True)\nclass DocumentState:\n    vault_id: str\n    path: str\n    document_id: str | None\n    content_hash: str | None\n    raw_sha256: str | None\n    parser_version: str | None\n    is_tombstoned: bool\n\n\nclass MetadataStore(Protocol):\n    def apply_metadata_revision(\n        self,\n        *,\n        index_revision: str,\n        documents: list[DocumentSnapshot],\n        chunks: list[ChunkSnapshot],\n        tombstones: list[tuple[str, str]],\n    ) -> None: ...\n\n    def document_state(self, vault_id: str, path: str) -> DocumentState: ...\n\n    def list_document_states(self, vault_ids: tuple[str, ...]) -> tuple[DocumentState, ...]: ...\n\n    def resolve_document(self, document_id: str) -> DocumentSnapshot | None: ...\n\n    def health(self) -> StoreHealth: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Task 6: Metadata Index Planning And Apply",
+        "content": "Files:\nCreate: src/vault_graph/indexing/revision_planner.py Create: src/vault_graph/indexing/metadata_indexer.py Test: tests/test_metadata_indexer.py\n[ ] Step 1: Write indexer tests\nCreate tests/test_metadata_indexer.py:\n[ ] Step 2: Run tests to verify they fail\nRun:\nExpected: FAIL because MetadataIndexer does not exist.\n[ ] Step 3: Implement revision plan records\nCreate src/vault_graph/indexing/revision_planner.py:\n[ ] Step 4: Implement metadata indexer\nCreate src/vault_graph/indexing/metadata_indexer.py with this public API:\n[ ] Step 5: Run indexer tests\nRun:\nExpected: tests pass; ruff passes; mypy passes.\n[ ] Step 6: Commit indexer\nRun:",
+        "items": [
+          "Create: src/vault_graph/indexing/revision_planner.py",
+          "Create: src/vault_graph/indexing/metadata_indexer.py",
+          "Test: tests/test_metadata_indexer.py",
+          "[ ] Step 1: Write indexer tests",
+          "[ ] Step 2: Run tests to verify they fail",
+          "[ ] Step 3: Implement revision plan records",
+          "[ ] Step 4: Implement metadata indexer",
+          "[ ] Step 5: Run indexer tests",
+          "[ ] Step 6: Commit indexer"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom vault_graph.indexing.metadata_indexer import MetadataIndexer\nfrom vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\ndef make_vault(root: Path, body: str = \"# Page\\nBody\\n\") -> None:\n    (root / \"wiki\").mkdir(parents=True)\n    (root / \"wiki\" / \"page.md\").write_text(body, encoding=\"utf-8\")\n\n\ndef test_dry_run_reports_changes_without_writing_store(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    make_vault(vault_root)\n    catalog = VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)],\n        active_vault_id=\"default\",\n    )\n    store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\")\n\n    plan = MetadataIndexer(catalog=catalog, metadata_store=store).plan(scope=catalog.default_scope())\n\n    assert plan.changed_paths == ((\"default\", \"wiki/page.md\"),)\n    assert store.list_document_states((\"default\",)) == ()\n\n\ndef test_apply_writes_metadata_projection(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    make_vault(vault_root)\n    catalog = VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=\"default\", root_path=vault_root)],\n        active_vault_id=\"default\",\n    )\n    store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\")\n\n    result = MetadataIndexer(catalog=catalog, metadata_store=store).apply(scope=catalog.default_scope())\n\n    assert result.index_revision.startswith(\"metadata-\")\n    assert store.document_state(\"default\", \"wiki/page.md\").is_tombstoned is False\n\n\ndef test_scoped_apply_does_not_tombstone_other_vaults(tmp_path: Path) -> None:\n    first_root = tmp_path / \"first\"\n    second_root = tmp_path / \"second\"\n    make_vault(first_root, \"# First\\nBody\\n\")\n    make_vault(second_root, \"# Second\\nBody\\n\")\n    catalog = VaultCatalog.from_entries(\n        entries=[\n            VaultCatalogEntry.from_root(vault_id=\"first\", root_path=first_root),\n            VaultCatalogEntry.from_root(vault_id=\"second\", root_path=second_root),\n        ],\n        active_vault_id=\"first\",\n    )\n    store = SQLiteMetadataStore(tmp_path / \"state\" / \"metadata.sqlite3\")\n    indexer = MetadataIndexer(catalog=catalog, metadata_store=store)\n    indexer.apply(scope=catalog.scope_for_all_enabled())\n\n    (first_root / \"wiki\" / \"page.md\").unlink()\n    indexer.apply(scope=catalog.scope_for_vault_ids([\"first\"]))\n\n    assert store.document_state(\"first\", \"wiki/page.md\").is_tombstoned is True\n    assert store.document_state(\"second\", \"wiki/page.md\").is_tombstoned is False"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_metadata_indexer.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\n\n\n@dataclass(frozen=True)\nclass MetadataRevisionPlan:\n    index_revision: str\n    vault_ids: tuple[str, ...]\n    changed_paths: tuple[tuple[str, str], ...]\n    unchanged_paths: tuple[tuple[str, str], ...]\n    deleted_paths: tuple[tuple[str, str], ...]\n    warnings: tuple[str, ...]"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom datetime import UTC, datetime\n\nfrom vault_graph.indexing.revision_planner import MetadataRevisionPlan\nfrom vault_graph.ingestion.document_normalizer import DocumentNormalizer, NormalizedDocument\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog\nfrom vault_graph.ingestion.vault_loader import VaultLoader\nfrom vault_graph.storage.interfaces.metadata_store import MetadataStore\n\n\nclass MetadataIndexer:\n    def __init__(self, *, catalog: VaultCatalog, metadata_store: MetadataStore) -> None:\n        self._catalog = catalog\n        self._metadata_store = metadata_store\n        self._loader = VaultLoader()\n        self._normalizer = DocumentNormalizer()\n\n    def plan(self, *, scope: QueryScope) -> MetadataRevisionPlan:\n        index_revision = f\"metadata-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}\"\n        normalized = self._load_normalized(scope)\n        current_by_key = {(state.vault_id, state.path): state for state in self._metadata_store.list_document_states(scope.vault_ids)}\n        loaded_by_key = {(item.document.vault_id, item.document.path): item for item in normalized}\n        changed: list[tuple[str, str]] = []\n        unchanged: list[tuple[str, str]] = []\n        for key, item in loaded_by_key.items():\n            current = current_by_key.get(key)\n            if current is None or current.content_hash != item.document.content_hash or current.is_tombstoned:\n                changed.append(key)\n            else:\n                unchanged.append(key)\n        deleted = [key for key in current_by_key if key not in loaded_by_key]\n        return MetadataRevisionPlan(\n            index_revision=index_revision,\n            vault_ids=scope.vault_ids,\n            changed_paths=tuple(sorted(changed)),\n            unchanged_paths=tuple(sorted(unchanged)),\n            deleted_paths=tuple(sorted(deleted)),\n            warnings=(),\n        )\n\n    def apply(self, *, scope: QueryScope) -> MetadataRevisionPlan:\n        plan = self.plan(scope=scope)\n        normalized = self._load_normalized(scope)\n        changed_keys = set(plan.changed_paths)\n        changed_documents = [item.document for item in normalized if (item.document.vault_id, item.document.path) in changed_keys]\n        changed_chunks = [\n            chunk\n            for item in normalized\n            if (item.document.vault_id, item.document.path) in changed_keys\n            for chunk in item.chunks\n        ]\n        self._metadata_store.apply_metadata_revision(\n            index_revision=plan.index_revision,\n            documents=changed_documents,\n            chunks=changed_chunks,\n            tombstones=list(plan.deleted_paths),\n        )\n        return plan\n\n    def _load_normalized(self, scope: QueryScope) -> tuple[NormalizedDocument, ...]:\n        normalized: list[NormalizedDocument] = []\n        for vault_id in scope.vault_ids:\n            entry = self._catalog.resolve(vault_id)\n            for loaded in self._loader.load_documents(entry=entry, scope=scope):\n                normalized.append(self._normalizer.normalize(loaded))\n        return tuple(normalized)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 7: App Services And CLI",
+        "content": "Files:\nCreate: src/vault_graph/app/catalog_service.py Create: src/vault_graph/app/index_service.py Create: src/vault_graph/cli/main.py Test: tests/test_cli_catalog_metadata.py\n[ ] Step 1: Write CLI tests\nCreate tests/test_cli_catalog_metadata.py:\n[ ] Step 2: Run CLI tests to verify they fail\nRun:\nExpected: FAIL because vault_graph.cli.main does not exist.\n[ ] Step 3: Implement config service\nCreate src/vault_graph/app/catalog_service.py with this public API:\n[ ] Step 4: Implement index service\nCreate src/vault_graph/app/index_service.py:\n[ ] Step 5: Implement Typer CLI\nCreate src/vault_graph/cli/main.py with commands:\n[ ] Step 6: Run CLI tests\nRun:\nExpected: tests pass; ruff passes; mypy passes.\n[ ] Step 7: Commit CLI\nRun:",
+        "items": [
+          "Create: src/vault_graph/app/catalog_service.py",
+          "Create: src/vault_graph/app/index_service.py",
+          "Create: src/vault_graph/cli/main.py",
+          "Test: tests/test_cli_catalog_metadata.py",
+          "[ ] Step 1: Write CLI tests",
+          "[ ] Step 2: Run CLI tests to verify they fail",
+          "[ ] Step 3: Implement config service",
+          "[ ] Step 4: Implement index service",
+          "[ ] Step 5: Implement Typer CLI",
+          "[ ] Step 6: Run CLI tests",
+          "[ ] Step 7: Commit CLI"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom typer.testing import CliRunner\n\nfrom vault_graph.cli.main import app\n\nrunner = CliRunner()\n\n\ndef test_cli_init_creates_default_catalog(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = tmp_path / \"state\"\n\n    result = runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    assert result.exit_code == 0\n    assert \"default\" in result.stdout\n    assert (state_path / \"configs\" / \"vaults.yaml\").exists()\n\n\ndef test_cli_index_dry_run_reports_scope(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    (vault_root / \"wiki\").mkdir(parents=True)\n    (vault_root / \"wiki\" / \"page.md\").write_text(\"# Page\\nBody\\n\", encoding=\"utf-8\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"index\", \"--state\", str(state_path), \"--dry-run\"])\n\n    assert result.exit_code == 0\n    assert \"vault_ids: default\" in result.stdout\n    assert \"changed: 1\" in result.stdout\n\n\ndef test_cli_vault_add_and_list(tmp_path: Path) -> None:\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    first.mkdir()\n    second.mkdir()\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(first), \"--state\", str(state_path)])\n\n    add_result = runner.invoke(app, [\"vault\", \"add\", \"work\", \"--path\", str(second), \"--state\", str(state_path)])\n    list_result = runner.invoke(app, [\"vault\", \"list\", \"--state\", str(state_path)])\n\n    assert add_result.exit_code == 0\n    assert list_result.exit_code == 0\n    assert \"default\" in list_result.stdout\n    assert \"work\" in list_result.stdout"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_catalog_metadata.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom pathlib import Path\n\nfrom vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry\n\n\nclass CatalogService:\n    def __init__(self, *, state_path: Path) -> None:\n        self.state_path = state_path.expanduser().resolve()\n        self.config_path = self.state_path / \"configs\" / \"vaults.yaml\"\n        self.metadata_path = self.state_path / \"metadata\" / \"metadata.sqlite3\"\n\n    def create_default_catalog(self, *, vault_root: Path, vault_id: str = \"default\") -> VaultCatalog:\n        catalog = VaultCatalog.from_entries(\n            entries=[VaultCatalogEntry.from_root(vault_id=vault_id, root_path=vault_root)],\n            active_vault_id=vault_id,\n        )\n        catalog.save(self.config_path)\n        return catalog\n\n    def load_catalog(self) -> VaultCatalog:\n        return VaultCatalog.load(self.config_path)\n\n    def save_catalog(self, catalog: VaultCatalog) -> None:\n        catalog.save(self.config_path)"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\n\nfrom vault_graph.indexing.metadata_indexer import MetadataIndexer\nfrom vault_graph.indexing.revision_planner import MetadataRevisionPlan\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\n@dataclass(frozen=True)\nclass StatusReport:\n    active_vault_id: str\n    vault_ids: tuple[str, ...]\n    metadata_ok: bool\n    metadata_message: str\n\n\nclass IndexService:\n    def __init__(self, *, catalog: VaultCatalog, metadata_store: SQLiteMetadataStore) -> None:\n        self._catalog = catalog\n        self._metadata_store = metadata_store\n\n    def plan(self, *, scope: QueryScope) -> MetadataRevisionPlan:\n        return MetadataIndexer(catalog=self._catalog, metadata_store=self._metadata_store).plan(scope=scope)\n\n    def apply(self, *, scope: QueryScope) -> MetadataRevisionPlan:\n        return MetadataIndexer(catalog=self._catalog, metadata_store=self._metadata_store).apply(scope=scope)\n\n    def status(self) -> StatusReport:\n        health = self._metadata_store.health()\n        return StatusReport(\n            active_vault_id=self._catalog.active_vault_id,\n            vault_ids=tuple(entry.vault_id for entry in self._catalog.entries()),\n            metadata_ok=health.ok,\n            metadata_message=health.message,\n        )"
+          }
+        ]
+      },
+      {
+        "heading": "Task 8: Read-Only And Multi-Vault Integration Gates",
+        "content": "Files:\nCreate: tests/conftest.py Create: tests/test_read_only_boundary.py Create: tests/test_multi_vault_identity.py\n[ ] Step 1: Add shared test fixture helpers\nCreate tests/conftest.py:\n[ ] Step 2: Write read-only boundary test\nCreate tests/test_read_only_boundary.py:\n[ ] Step 3: Write multi-vault identity integration test\nCreate tests/test_multi_vault_identity.py:\n[ ] Step 4: Run full Phase 1 gate\nRun:\nExpected:\nall pytest tests pass ruff passes mypy passes git diff --check exits 0\n[ ] Step 5: Commit integration gates\nRun:",
+        "items": [
+          "Create: tests/conftest.py",
+          "Create: tests/test_read_only_boundary.py",
+          "Create: tests/test_multi_vault_identity.py",
+          "[ ] Step 1: Add shared test fixture helpers",
+          "[ ] Step 2: Write read-only boundary test",
+          "[ ] Step 3: Write multi-vault identity integration test",
+          "[ ] Step 4: Run full Phase 1 gate",
+          "all pytest tests pass",
+          "ruff passes",
+          "mypy passes",
+          "git diff --check exits 0",
+          "[ ] Step 5: Commit integration gates"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nimport pytest\n\n\n@pytest.fixture\ndef vault_with_page(tmp_path: Path) -> Path:\n    vault_root = tmp_path / \"vault\"\n    (vault_root / \"wiki\").mkdir(parents=True)\n    (vault_root / \"wiki\" / \"page.md\").write_text(\"# Page\\nBody\\n\", encoding=\"utf-8\")\n    return vault_root"
+          },
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom typer.testing import CliRunner\n\nfrom vault_graph.cli.main import app\n\n\ndef file_bytes(root: Path) -> dict[str, bytes]:\n    return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob(\"*\")) if path.is_file()}\n\n\ndef test_index_commands_do_not_modify_vault_files(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    (vault_root / \"wiki\").mkdir(parents=True)\n    (vault_root / \"wiki\" / \"page.md\").write_text(\"---\\ntitle: Page\\n---\\n# Page\\nBody\\n\", encoding=\"utf-8\")\n    state_path = tmp_path / \"state\"\n    runner = CliRunner()\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n    before = file_bytes(vault_root)\n\n    dry_run = runner.invoke(app, [\"index\", \"--state\", str(state_path), \"--dry-run\"])\n    apply = runner.invoke(app, [\"index\", \"--state\", str(state_path)])\n\n    assert dry_run.exit_code == 0\n    assert apply.exit_code == 0\n    assert file_bytes(vault_root) == before"
+          },
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom typer.testing import CliRunner\n\nfrom vault_graph.cli.main import app\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\ndef test_two_vaults_with_same_relative_path_do_not_collide(tmp_path: Path) -> None:\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    (first / \"wiki\").mkdir(parents=True)\n    (second / \"wiki\").mkdir(parents=True)\n    (first / \"wiki\" / \"same.md\").write_text(\"# Same\\nFirst body\\n\", encoding=\"utf-8\")\n    (second / \"wiki\" / \"same.md\").write_text(\"# Same\\nSecond body\\n\", encoding=\"utf-8\")\n    state_path = tmp_path / \"state\"\n    runner = CliRunner()\n\n    assert runner.invoke(app, [\"init\", \"--vault-id\", \"first\", \"--vault\", str(first), \"--state\", str(state_path)]).exit_code == 0\n    assert runner.invoke(app, [\"vault\", \"add\", \"second\", \"--path\", str(second), \"--state\", str(state_path)]).exit_code == 0\n    assert runner.invoke(app, [\"index\", \"--all-vaults\", \"--state\", str(state_path)]).exit_code == 0\n\n    store = SQLiteMetadataStore(state_path / \"metadata\" / \"metadata.sqlite3\")\n    first_state = store.document_state(\"first\", \"wiki/same.md\")\n    second_state = store.document_state(\"second\", \"wiki/same.md\")\n\n    assert first_state.document_id is not None\n    assert second_state.document_id is not None\n    assert first_state.document_id != second_state.document_id\n    assert first_state.content_hash != second_state.content_hash"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src\ngit diff --check"
+          }
+        ]
+      },
+      {
+        "heading": "Phase 1 Completion Criteria",
+        "content": "Phase 1 is complete only when all of these are true:\nvg init --vault /path/to/vault --state /tmp/state creates a default active Vault catalog entry with vault_id: default vg init --vault-id first --vault /path/to/vault --state /tmp/state creates a non-default active Vault catalog entry vg vault add ID --path /path/to/vault --state /tmp/state registers an additional Vault without touching any Vault files vg vault list --state /tmp/state shows all registered Vault IDs and paths vg index --dry-run --state /tmp/state reports planned metadata changes and does not write metadata rows vg index --state /tmp/state writes SQLite metadata projection rows vg index --vault-id ID --state /tmp/state indexes only that Vault and does not tombstone records from other Vaults vg index --all-vaults --state /tmp/state expands to all enabled Vault IDs vg status --state /tmp/state reports active Vault ID, registered Vault IDs, and metadata backend health Vault content bytes are identical before and after Phase 1 CLI commands two Vaults with wiki/same.md produce separate document IDs and metadata rows",
+        "items": [
+          "vg init --vault /path/to/vault --state /tmp/state creates a default active",
+          "vg init --vault-id first --vault /path/to/vault --state /tmp/state creates",
+          "vg vault add ID --path /path/to/vault --state /tmp/state registers an",
+          "vg vault list --state /tmp/state shows all registered Vault IDs and paths",
+          "vg index --dry-run --state /tmp/state reports planned metadata changes and",
+          "vg index --state /tmp/state writes SQLite metadata projection rows",
+          "vg index --vault-id ID --state /tmp/state indexes only that Vault and does",
+          "vg index --all-vaults --state /tmp/state expands to all enabled Vault IDs",
+          "vg status --state /tmp/state reports active Vault ID, registered Vault IDs,",
+          "Vault content bytes are identical before and after Phase 1 CLI commands",
+          "two Vaults with wiki/same.md produce separate document IDs and metadata rows"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Final Verification Command",
+        "content": "Run this before considering Phase 1 ready for Phase 2:\nExpected final state:\ntests pass ruff passes mypy passes whitespace check passes branch shows only intentional changes, or a clean worktree after commits",
+        "items": [
+          "tests pass",
+          "ruff passes",
+          "mypy passes",
+          "whitespace check passes",
+          "branch shows only intentional changes, or a clean worktree after commits"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src\ngit diff --check\ngit status --short --branch"
+          }
+        ]
+      },
+      {
+        "heading": "Self-Review",
+        "content": "Spec coverage: This plan covers docs/SPEC.md Phase 1 and the Phase 1 implementation order in docs/DESIGN.md. Multi-vault consistency: VaultCatalog is the only authority for root paths; all metadata identities use vault_id; same relative paths are tested. Read-only boundary: loader and CLI tests compare Vault file bytes before and after indexing. Scope control: vector, graph, retrieval, context packs, MCP, HTTP, and UI are not part of this phase. Placeholder scan: no unresolved placeholder terms are intentionally present.",
+        "items": [
+          "Spec coverage: This plan covers docs/SPEC.md Phase 1 and the Phase 1",
+          "Multi-vault consistency: VaultCatalog is the only authority for root paths;",
+          "Read-only boundary: loader and CLI tests compare Vault file bytes before and",
+          "Scope control: vector, graph, retrieval, context packs, MCP, HTTP, and UI are",
+          "Placeholder scan: no unresolved placeholder terms are intentionally present."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-05-phase-1-vault-catalog-metadata.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

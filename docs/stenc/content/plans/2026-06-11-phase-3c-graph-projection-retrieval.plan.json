@@ -1,0 +1,1875 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-11-phase-3c-graph-projection-retrieval",
+  "slug": "2026-06-11-phase-3c-graph-projection-retrieval",
+  "status": "approved",
+  "title": "Phase 3C Graph Projection And Retrieval Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-11",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "docs/SPEC.md"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build Phase 3C so users can run evidence-linked graph retrieval through vg related, vg decision-trace, and explicit vg search --include-graph without mutating Vault or turning graph state into a source of truth.\nArchitecture: Phase 3C is a read-only retrieval layer over Phase 3B graph state. GraphStore owns persisted derived graph rows, GraphProjection owns bounded in-memory traversal/ranking, GraphRetrievalService owns orchestration and evidence resolution, and RetrievalSe...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build Phase 3C so users can run evidence-linked graph retrieval through vg related, vg decision-trace, and explicit vg search --include-graph without mutating Vault or turning graph state into a source of truth.\nArchitecture: Phase 3C is a read-only retrieval layer over Phase 3B graph state. GraphStore owns persisted derived graph rows, GraphProjection owns bounded in-memory traversal/ranking, GraphRetrievalService owns orchestration and evidence resolution, and RetrievalService remains the final owner of keyword/vector/graph candidate fusion for search.\nTech Stack: Pytho...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "Phase 3C implements only:\nread-only graph target resolution direct graph neighborhood lookup through GraphStore bounded in-memory GraphProjection local RustworkxGraphProjection graph evidence resolution through MetadataStore.resolve_chunk_evidence(...) GraphRetrievalService.related(...) GraphRetrievalService.decision_trace(...) vg related TARGET vg decision-trace TOPIC vg search --include-graph structured graph warnings, graph revisions, and JSON/text output read-only, evidence, multi-vault, stale-state, ambiguity, and opt-in search tests\nPhase 3C must not implement:\nvg ask answer generation LLM synthesis context-pack generation MCP serving HTTP serving Neo4j graph node embeddings or relati...",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md.",
+    "targetState": "No state is written. Missing, empty, or stale graph scopes return empty graph results plus warnings. Incompatible or unavailable graph store is fatal for graph-specific commands.",
+    "scope": {
+      "in": [
+        "read-only graph target resolution",
+        "direct graph neighborhood lookup through GraphStore",
+        "bounded in-memory GraphProjection",
+        "local RustworkxGraphProjection",
+        "graph evidence resolution through MetadataStore.resolve_chunk_evidence(...)",
+        "GraphRetrievalService.related(...)",
+        "GraphRetrievalService.decision_trace(...)",
+        "vg related TARGET",
+        "vg decision-trace TOPIC",
+        "vg search --include-graph"
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "AGENTS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/SPEC.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DESIGN.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/FEATURES.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DECISIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/CONVENTIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/README.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/CONTEXT.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/graph/graph_query.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/projection/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/projection/graph_projection.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/projection/rustworkx_projection.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/retrieval_candidate.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/graph_retrieval.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/graph_candidates.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/graph_retrieval_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_graph_query_contract.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_graph_projection.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_graph_retrieval_contract.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Task 1: Add Rustworkx Dependency And Graph Query Contracts",
+        "status": "todo",
+        "surfaces": [
+          "pyproject.toml",
+          "uv.lock",
+          "src/vault_graph/graph/graph_query.py",
+          "src/vault_graph/storage/interfaces/graph_store.py",
+          "src/vault_graph/storage/interfaces/init.py",
+          "tests/test_graph_query_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "pyproject.toml",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "uv.lock",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/graph/graph_query.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_query_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_query_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv add \"rustworkx>=0.17,<1.0\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add pyproject.toml uv.lock src/vault_graph/graph/graph_query.py src/vault_graph/storage/interfaces/graph_store.py src/vault_graph/storage/interfaces/init.py tests/test_graph_query_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(graph): add graph query contracts\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-5",
+            "title": "Modify: pyproject.toml",
+            "status": "todo",
+            "instruction": "Modify: pyproject.toml",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 2: Implement GraphStore Query Methods",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_graph_store_contract.py",
+          "tests/test_sqlite_graph_store.py",
+          "tests/fakes/in_memory_graph_store.py",
+          "src/vault_graph/storage/local/sqlite_graph_store.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_graph_store_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_sqlite_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/in_memory_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py tests/fakes/in_memory_graph_store.py src/vault_graph/storage/local/sqlite_graph_store.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(graph): add read-only graph lookup methods\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Modify: tests/test_graph_store_contract.py",
+            "status": "todo",
+            "instruction": "Modify: tests/test_graph_store_contract.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 3: Add Graph Projection Contract",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/projection/init.py",
+          "src/vault_graph/projection/graph_projection.py",
+          "tests/test_graph_projection.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/projection/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/projection/graph_projection.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_projection.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_projection.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/projection/init.py src/vault_graph/projection/graph_projection.py tests/test_graph_projection.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(projection): add graph projection contract\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Create: src/vault_graph/projection/init.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/projection/init.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 4: Implement Rustworkx Graph Projection",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/projection/rustworkx_projection.py",
+          "src/vault_graph/projection/init.py",
+          "tests/test_graph_projection.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/projection/rustworkx_projection.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/projection/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_projection.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_projection.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/projection/init.py src/vault_graph/projection/rustworkx_projection.py tests/test_graph_projection.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(projection): add rustworkx graph projection\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Create: src/vault_graph/projection/rustworkx_projection.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/projection/rustworkx_projection.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 5: Add Graph Retrieval Response Contracts",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/retrieval/graph_retrieval.py",
+          "src/vault_graph/retrieval/init.py",
+          "tests/test_graph_retrieval_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/graph_retrieval.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_retrieval_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_retrieval_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/retrieval/graph_retrieval.py src/vault_graph/retrieval/init.py tests/test_graph_retrieval_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(retrieval): add graph retrieval response contracts\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Create: src/vault_graph/retrieval/graph_retrieval.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/retrieval/graph_retrieval.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 6: Implement GraphRetrievalService.related",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/app/graph_retrieval_service.py",
+          "tests/test_graph_retrieval_service.py",
+          "tests/test_graph_retrieval_read_only_boundary.py",
+          "tests/test_multi_vault_graph_retrieval.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/graph_retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_retrieval_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_multi_vault_graph_retrieval.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_retrieval_service.py tests/test_graph_retrieval_read_only_boundary.py tests/test_multi_vault_graph_retrieval.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/app/graph_retrieval_service.py tests/test_graph_retrieval_service.py tests/test_graph_retrieval_read_only_boundary.py tests/test_multi_vault_graph_retrieval.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(app): add evidence-first graph retrieval service\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Create: src/vault_graph/app/graph_retrieval_service.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/app/graph_retrieval_service.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Task 7: Add vg related",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/cli/main.py",
+          "tests/test_cli_related.py",
+          "tests/test_cli_surface_boundary.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_related.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_surface_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_related.py tests/test_cli_surface_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/cli/main.py tests/test_cli_related.py tests/test_cli_surface_boundary.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(cli): add related graph command\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "Modify: src/vault_graph/cli/main.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/cli/main.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-8",
+        "title": "Task 8: Implement Decision Trace Service And CLI",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/app/graph_retrieval_service.py",
+          "src/vault_graph/cli/main.py",
+          "tests/test_graph_retrieval_service.py",
+          "tests/test_cli_decision_trace.py",
+          "tests/test_cli_surface_boundary.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/graph_retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_decision_trace.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_surface_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-8-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_decision_trace.py -q.",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_retrieval_service.py tests/test_cli_decision_trace.py tests/test_cli_surface_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/app/graph_retrieval_service.py src/vault_graph/cli/main.py tests/test_graph_retrieval_service.py tests/test_cli_decision_trace.py tests/test_cli_surface_boundary.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(cli): add decision trace graph command\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-5",
+            "title": "Modify: src/vault_graph/app/graph_retrieval_service.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/app/graph_retrieval_service.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-9",
+        "title": "Task 9: Refactor RetrievalService To Public Candidate Seam",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/retrieval/retrieval_candidate.py",
+          "src/vault_graph/retrieval/graph_candidates.py",
+          "src/vault_graph/retrieval/retrieval_service.py",
+          "src/vault_graph/retrieval/search_response.py",
+          "src/vault_graph/retrieval/init.py",
+          "tests/test_retrieval_service_search.py",
+          "tests/test_search_response_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/retrieval_candidate.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/graph_candidates.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/search_response.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_retrieval_service_search.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_search_response_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-9-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_retrieval_service_search.py tests/test_search_response_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git commit -m \"feat(retrieval): expose shared retrieval candidate seam\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-3",
+            "title": "Create: src/vault_graph/retrieval/retrieval_candidate.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/retrieval/retrieval_candidate.py",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-4",
+            "title": "Create: src/vault_graph/retrieval/graph_candidates.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/retrieval/graph_candidates.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-10",
+        "title": "Task 10: Add Graph Candidate Provider And Search Flags",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/retrieval/graph_candidates.py",
+          "src/vault_graph/app/graph_retrieval_service.py",
+          "src/vault_graph/cli/main.py",
+          "src/vault_graph/retrieval/retrieval_service.py",
+          "src/vault_graph/retrieval/init.py",
+          "tests/test_search_include_graph.py",
+          "tests/test_cli_search.py",
+          "tests/te"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/graph_candidates.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/graph_retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_search_include_graph.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_search.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/te",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-10-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_search_include_graph.py tests/test_cli_search.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git commit -m \"feat(search): add opt-in graph retrieval signals\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-3",
+            "title": "Modify: src/vault_graph/retrieval/graph_candidates.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/retrieval/graph_candidates.py",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-4",
+            "title": "Modify: src/vault_graph/app/graph_retrieval_service.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/app/graph_retrieval_service.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-11",
+        "title": "Task 11: Harden Read-Only, Multi-Vault, And Import Boundaries",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_graph_retrieval_read_only_boundary.py",
+          "tests/test_multi_vault_graph_retrieval.py",
+          "tests/test_retrieval_import_boundaries.py",
+          "tests/test_package_import.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_graph_retrieval_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_multi_vault_graph_retrieval.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_retrieval_import_boundaries.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_package_import.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-11-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_retrieval_read_only_boundary.py tests/test_multi_vault_graph_retrieval.py tests/test_retrieval_import_boundaries.py tests/test_package_import.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-11-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add tests/test_graph_retrieval_read_only_boundary.py tests/test_multi_vault_graph_retrieval.py tests/test_retrieval_import_boundaries.py tests/test_package_import.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-11-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"test(graph): harden graph retrieval boundaries\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-11-step-4",
+            "title": "Modify: tests/test_graph_retrieval_read_only_boundary.py",
+            "status": "todo",
+            "instruction": "Modify: tests/test_graph_retrieval_read_only_boundary.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-12",
+        "title": "Task 12: Final Verification",
+        "status": "todo",
+        "surfaces": [
+          "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-12-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest \\",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-12-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-12-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-12-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-12-step-5",
+            "title": "No new production files expected unless previous tasks reveal a defect.",
+            "status": "todo",
+            "instruction": "No new production files expected unless previous tasks reveal a defect.",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7",
+      "slice-8",
+      "slice-9",
+      "slice-10",
+      "slice-11",
+      "slice-12"
+    ],
+    "risks": [
+      {
+        "risk": "Error Handling And Edge Cases",
+        "mitigation": "Fatal for graph commands:\ninvalid Vault scope graph store schema incompatible graph store unavailable metadata store unavailable depth <= 0 or depth > 2 limit <= 0 unsupported direction unsupported output format --include-cross-vault without --all-vaults\nNon-fatal graph command warnings:\ntarget_not_found: no exact or suggestion target exists ambiguous_graph_target: multiple equal-best target matches topic_not_durable_decision: decision-trace used a non-Decision target graph_stale: selected grap..."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-11-phase-3c-graph-projection-retrieval.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_cli_decision_trace.py -q.",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_query_contract.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv add \"rustworkx>=0.17,<1.0\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add pyproject.toml uv.lock src/vault_graph/graph/graph_query.py src/vault_graph/storage/interfaces/graph_store.py src/vault_graph/storage/interfaces/init.py tests/test_graph_query_contract.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(graph): add graph query contracts\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py tests/fakes/in_memory_graph_store.py src/vault_graph/storage/local/sqlite_graph_store.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(graph): add read-only graph lookup methods\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build Phase 3C so users can run evidence-linked graph retrieval through vg related, vg decision-trace, and explicit vg search --include-graph without mutating Vault or turning graph state into a source of truth.\nArchitecture: Phase 3C is a read-only retrieval layer over Phase 3B graph state. GraphStore owns persisted derived graph rows, GraphProjection owns bounded in-memory traversal/ranking, GraphRetrievalService owns orchestration and evidence resolution, and RetrievalService remains the final owner of keyword/vector/graph candidate fusion for search.\nTech Stack: Python 3.12, dataclasses, Protocol interfaces, Typer CLI, SQLite read-only mode, rustworkx PyDiGraph, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Source Documents",
+        "content": "Read these before implementation:\nAGENTS.md docs/SPEC.md docs/DESIGN.md docs/FEATURES.md docs/DECISIONS.md docs/CONVENTIONS.md docs/superpowers/specs/phase-3/README.md docs/superpowers/specs/phase-3/CONTEXT.md docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md",
+        "items": [
+          "AGENTS.md",
+          "docs/SPEC.md",
+          "docs/DESIGN.md",
+          "docs/FEATURES.md",
+          "docs/DECISIONS.md",
+          "docs/CONVENTIONS.md",
+          "docs/superpowers/specs/phase-3/README.md",
+          "docs/superpowers/specs/phase-3/CONTEXT.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3c-graph-projection-retrieval-design.md"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope Guardrails",
+        "content": "Phase 3C implements only:\nread-only graph target resolution direct graph neighborhood lookup through GraphStore bounded in-memory GraphProjection local RustworkxGraphProjection graph evidence resolution through MetadataStore.resolve_chunk_evidence(...) GraphRetrievalService.related(...) GraphRetrievalService.decision_trace(...) vg related TARGET vg decision-trace TOPIC vg search --include-graph structured graph warnings, graph revisions, and JSON/text output read-only, evidence, multi-vault, stale-state, ambiguity, and opt-in search tests\nPhase 3C must not implement:\nvg ask answer generation LLM synthesis context-pack generation MCP serving HTTP serving Neo4j graph node embeddings or relationship embeddings LLM-assisted extraction cross-Vault entity merging projection-cache writes from graph commands or graph search automatic indexing from graph commands or graph search Vault file mutation\nRelease-ready Phase 3C means a user can run:\nand get deterministic evidence-linked graph results or clear recovery warnings, while plain vg search \"GraphRAG\" remains unchanged keyword/vector search.",
+        "items": [
+          "read-only graph target resolution",
+          "direct graph neighborhood lookup through GraphStore",
+          "bounded in-memory GraphProjection",
+          "local RustworkxGraphProjection",
+          "graph evidence resolution through MetadataStore.resolve_chunk_evidence(...)",
+          "GraphRetrievalService.related(...)",
+          "GraphRetrievalService.decision_trace(...)",
+          "vg related TARGET",
+          "vg decision-trace TOPIC",
+          "vg search --include-graph",
+          "structured graph warnings, graph revisions, and JSON/text output",
+          "read-only, evidence, multi-vault, stale-state, ambiguity, and opt-in search tests",
+          "vg ask",
+          "answer generation",
+          "LLM synthesis",
+          "context-pack generation"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg init --vault /path/to/vault\nvg index\nvg related GraphRAG\nvg decision-trace GraphRAG\nvg search \"GraphRAG\"\nvg search \"GraphRAG\" --include-graph"
+          }
+        ]
+      },
+      {
+        "heading": "Directory And File Structure",
+        "content": "Create:\nsrc/vault_graph/graph/graph_query.py: graph entity and relationship read query contracts used by GraphStore. src/vault_graph/projection/init.py: public projection package exports. src/vault_graph/projection/graph_projection.py: GraphProjection Protocol, projection DTOs, scoring constants, and validation. src/vault_graph/projection/rustworkx_projection.py: local rustworkx.PyDiGraph projection adapter. src/vault_graph/retrieval/retrieval_candidate.py: public candidate seam shared by keyword, vector, and graph retrieval. src/vault_graph/retrieval/graph_retrieval.py: related and decision-trace request/response/warning DTOs. src/vault_graph/retrieval/graph_candidates.py: graph candidate result DTO, GraphCandidateProvider Protocol, and GraphSearchCandidateProvider. src/vault_graph/app/graph_retrieval_service.py: deep app service for graph target resolution, traversal orchestration, readiness handling, and evidence resolution. tests/test_graph_query_contract.py tests/test_graph_projection.py tests/test_graph_retrieval_contract.py tests/test_graph_retrieval_service.py tests/test_cli_related.py tests/test_cli_decision_trace.py tests/test_search_include_graph.py tests/test_graph_ret...",
+        "items": [
+          "src/vault_graph/graph/graph_query.py: graph entity and relationship read query contracts used by GraphStore.",
+          "src/vault_graph/projection/init.py: public projection package exports.",
+          "src/vault_graph/projection/graph_projection.py: GraphProjection Protocol, projection DTOs, scoring constants, and validation.",
+          "src/vault_graph/projection/rustworkx_projection.py: local rustworkx.PyDiGraph projection adapter.",
+          "src/vault_graph/retrieval/retrieval_candidate.py: public candidate seam shared by keyword, vector, and graph retrieval.",
+          "src/vault_graph/retrieval/graph_retrieval.py: related and decision-trace request/response/warning DTOs.",
+          "src/vault_graph/retrieval/graph_candidates.py: graph candidate result DTO, GraphCandidateProvider Protocol, and GraphSearchCandidateProvider.",
+          "src/vault_graph/app/graph_retrieval_service.py: deep app service for graph target resolution, traversal orchestration, readiness handling, and evidence resolution.",
+          "tests/test_graph_query_contract.py",
+          "tests/test_graph_projection.py",
+          "tests/test_graph_retrieval_contract.py",
+          "tests/test_graph_retrieval_service.py",
+          "tests/test_cli_related.py",
+          "tests/test_cli_decision_trace.py",
+          "tests/test_search_include_graph.py",
+          "tests/test_graph_retrieval_read_only_boundary.py"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Component And Interface Spec",
+        "content": "See Component And Interface Spec in the source Markdown document.",
+        "items": [
+          "Review the Component And Interface Spec section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Graph Query Contracts",
+        "content": "Create src/vault_graph/graph/graph_query.py:\nMove the existing GraphEntityIdentity and GraphRelationshipIdentity dataclasses out of src/vault_graph/storage/interfaces/graph_store.py and into graph_query.py. Then re-export them from graph_store.py by importing them from graph_query.py. This preserves existing imports while avoiding a circular dependency between graph_query.py and graph_store.py.\nThen add to src/vault_graph/storage/interfaces/graph_store.py:",
+        "items": [
+          "Review the Graph Query Contracts section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Literal\n\nfrom vault_graph.errors import GraphStoreError\nfrom vault_graph.graph.graph_contracts import EntityRecord, RelationshipRecord\nfrom vault_graph.ingestion.vault_catalog import QueryScope\n\nGraphEntityMatchKind = Literal[\"entity_id\", \"canonical_path\", \"normalized_name\", \"alias\", \"contains\"]\nGraphRelationshipDirection = Literal[\"out\", \"in\", \"both\"]\nMAX_GRAPH_TARGET_CANDIDATE_LIMIT = 50\nDEFAULT_GRAPH_ENTITY_SCAN_LIMIT = 5000\nMAX_GRAPH_ENTITY_SCAN_LIMIT = 5000\nDEFAULT_GRAPH_RELATIONSHIP_READ_LIMIT = 200\nMAX_GRAPH_RELATIONSHIP_READ_LIMIT = 200\n\n\n@dataclass(frozen=True)\nclass GraphEntityIdentity:\n    vault_id: str\n    entity_id: str\n\n\n@dataclass(frozen=True)\nclass GraphRelationshipIdentity:\n    source_vault_id: str\n    relationship_id: str\n\n\n@dataclass(frozen=True)\nclass GraphEntityQuery:\n    text: str\n    actual_scopes: tuple[QueryScope, ...]\n    types: tuple[str, ...] = ()\n    limit: int = 20\n    scan_limit: int = DEFAULT_GRAPH_ENTITY_SCAN_LIMIT\n\n    def __post_init__(self) -> None:\n        if not self.text.strip():\n            raise GraphStoreError(\"graph entity query text is required\")\n        _require_actual_scopes(self.actual_scopes)\n        if self.limit <= 0:\n            raise GraphStoreError(\"graph entity query limit must be positive\")\n        if self.limit > MAX_GRAPH_TARGET_CANDIDATE_LIMIT:\n            raise GraphStoreError(\"graph entity query limit is out of range\")\n        if self.scan_limit <= 0 or self.scan_limit > MAX_GRAPH_ENTITY_SCAN_LIMIT:\n            raise GraphStoreError(\"graph entity query scan_limit is out of range\")\n\n\n@dataclass(frozen=True)\nclass GraphEntityMatch:\n    entity: EntityRecord\n    match_kind: GraphEntityMatchKind\n    match_rank: int\n    matched_value: str\n\n    def __post_init__(self) -> None:\n        if self.match_rank <= 0:\n            raise GraphStoreError(\"graph entity match_rank must be positive\")\n        if not self.matched_value:\n            raise GraphStoreError(\"graph entity matched_value is required\")\n\n\n@dataclass(frozen=True)\nclass GraphEntityQueryResult:\n    matches: tuple[GraphEntityMatch, ...]\n    truncated: bool\n    affected_vault_ids: tuple[str, ...]\n\n\n@dataclass(frozen=True)\nclass GraphRelationshipQuery:\n    seeds: tuple[GraphEntityIdentity, ...]\n    actual_scopes: tuple[QueryScope, ...]\n    direction: GraphRelationshipDirection = \"both\"\n    relationship_types: tuple[str, ...] = ()\n    statuses: tuple[str, ...] = (\"stated\", \"inferred\", \"contested\")\n    include_cross_vault: bool = False\n    limit: int = DEFAULT_GRAPH_RELATIONSHIP_READ_LIMIT\n\n    def __post_init__(self) -> None:\n        if not self.seeds:\n            raise GraphStoreError(\"graph relationship query seeds are required\")\n        _require_actual_scopes(self.actual_scopes)\n        if self.direction not in (\"out\", \"in\", \"both\"):\n            raise GraphStoreError(\"unsupported graph relationship direction\")\n        if self.limit <= 0:\n            raise GraphStoreError(\"graph relationship query limit must be positive\")\n        if self.limit > MAX_GRAPH_RELATIONSHIP_READ_LIMIT:\n            raise GraphStoreError(\"graph relationship query limit is out of range\")\n\n\n@dataclass(frozen=True)\nclass GraphRelationshipQueryResult:\n    relationships: tuple[RelationshipRecord, ...]\n    truncated: bool\n    omitted_cross_vault_count: int\n    affected_vault_ids: tuple[str, ...]\n\n    def __post_init__(self) -> None:\n        if self.omitted_cross_vault_count < 0:\n            raise GraphStoreError(\"omitted_cross_vault_count must not be negative\")\n        if not isinstance(self.relationships, tuple):\n            raise GraphStoreError(\"relationships must be an immutable tuple\")\n\n\ndef _require_actual_scopes(actual_scopes: tuple[QueryScope, ...]) -> None:\n    if not actual_scopes:\n        raise GraphStoreError(\"actual_scopes are required\")\n    for scope in actual_scopes:\n        if len(scope.vault_ids) != 1:\n            raise GraphStoreError(\"GraphStore operations require per-Vault actual scopes\")"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.graph.graph_query import (\n    GraphEntityIdentity,\n    GraphEntityMatch,\n    GraphEntityQuery,\n    GraphEntityQueryResult,\n    GraphRelationshipIdentity,\n    GraphRelationshipQuery,\n    GraphRelationshipQueryResult,\n)\n\n\nclass GraphStore(Protocol):\n    ...\n    def find_entities(self, query: GraphEntityQuery) -> GraphEntityQueryResult:\n        raise NotImplementedError\n\n    def relationships_for_entities(self, query: GraphRelationshipQuery) -> GraphRelationshipQueryResult:\n        raise NotImplementedError"
+          }
+        ]
+      },
+      {
+        "heading": "Projection Contracts",
+        "content": "Create src/vault_graph/projection/graph_projection.py:\nScoring policy:\nStatus weights: stated=1.0, inferred=0.75, contested=0.45, deprecated=0.0. Depth weights: depth=1 -> 1.0, depth=2 -> 0.6. For one-edge paths: score = edge.confidence * status_weight(edge.status) * depth_weight. For two-edge paths: score = min(edge.confidence * status_weight(edge.status) for edge in path.edges) * depth_weight. Tie-breakers: higher score, lower depth, relationship type priority, target Vault ID, target normalized name, relationship ID.",
+        "items": [
+          "Status weights: stated=1.0, inferred=0.75, contested=0.45, deprecated=0.0.",
+          "Depth weights: depth=1 -> 1.0, depth=2 -> 0.6.",
+          "For one-edge paths: score = edge.confidence * status_weight(edge.status) * depth_weight.",
+          "For two-edge paths: score = min(edge.confidence * status_weight(edge.status) for edge in path.edges) * depth_weight.",
+          "Tie-breakers: higher score, lower depth, relationship type priority, target Vault ID, target normalized name, relationship ID."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Literal, Protocol\n\nfrom vault_graph.errors import GraphStoreError\n\nGRAPH_PROJECTION_VERSION = \"graph-projection-v1\"\nMAX_GRAPH_PROJECTION_DEPTH = 2\nDEFAULT_GRAPH_RELATED_DEPTH = 1\nDEFAULT_GRAPH_RESULT_LIMIT = 10\nMAX_GRAPH_RESULT_LIMIT = 50\nDEFAULT_GRAPH_TARGET_LIMIT = 20\nDEFAULT_GRAPH_RELATIONSHIP_READ_LIMIT = 200\nDEFAULT_GRAPH_PROJECTION_EDGE_LIMIT = 500\nMAX_GRAPH_PROJECTION_EDGE_LIMIT = 500\n\nGraphProjectionDirection = Literal[\"out\", \"in\", \"both\"]\n\n\n@dataclass(frozen=True)\nclass GraphProjectionNode:\n    vault_id: str\n    entity_id: str\n    type: str\n    name: str\n    normalized_name: str\n\n\n@dataclass(frozen=True)\nclass GraphProjectionEdge:\n    source_vault_id: str\n    source_entity_id: str\n    target_vault_id: str\n    target_entity_id: str\n    relationship_id: str\n    relationship_type: str\n    status: str\n    confidence: float\n    evidence_ref_ids: tuple[str, ...]\n    graph_index_revision: str\n\n\n@dataclass(frozen=True)\nclass GraphPath:\n    seed: GraphProjectionNode\n    target: GraphProjectionNode\n    edges: tuple[GraphProjectionEdge, ...]\n    depth: int\n    score: float\n    explanation: str\n\n\n@dataclass(frozen=True)\nclass GraphProjectionInput:\n    seeds: tuple[GraphProjectionNode, ...]\n    nodes: tuple[GraphProjectionNode, ...]\n    relationships: tuple[GraphProjectionEdge, ...]\n    actual_scope_keys: tuple[str, ...]\n    source_graph_revisions: tuple[str, ...]\n    max_depth: int\n    direction: GraphProjectionDirection\n    relationship_types: tuple[str, ...]\n    statuses: tuple[str, ...]\n    include_cross_vault: bool\n    limit: int\n    edge_limit: int\n\n    def __post_init__(self) -> None:\n        if not self.seeds:\n            raise GraphStoreError(\"graph projection seeds are required\")\n        if not self.nodes:\n            raise GraphStoreError(\"graph projection nodes are required\")\n        seed_keys = {(seed.vault_id, seed.entity_id) for seed in self.seeds}\n        node_keys = {(node.vault_id, node.entity_id) for node in self.nodes}\n        if not seed_keys <= node_keys:\n            raise GraphStoreError(\"graph projection seeds must be present in nodes\")\n        if self.max_depth <= 0 or self.max_depth > MAX_GRAPH_PROJECTION_DEPTH:\n            raise GraphStoreError(\"unsupported graph projection depth\")\n        if self.limit <= 0:\n            raise GraphStoreError(\"graph projection limit must be positive\")\n        if self.limit > MAX_GRAPH_RESULT_LIMIT:\n            raise GraphStoreError(\"graph projection limit is out of range\")\n        if self.edge_limit <= 0:\n            raise GraphStoreError(\"graph projection edge_limit must be positive\")\n        if self.edge_limit > MAX_GRAPH_PROJECTION_EDGE_LIMIT:\n            raise GraphStoreError(\"graph projection edge_limit is out of range\")\n\n\n@dataclass(frozen=True)\nclass GraphProjectionResult:\n    projection_build_id: str\n    graph_projection_version: str\n    source_graph_revisions: tuple[str, ...]\n    node_count: int\n    edge_count: int\n    truncated: bool\n    paths: tuple[GraphPath, ...]\n\n\nclass GraphProjection(Protocol):\n    def project(self, request: GraphProjectionInput) -> GraphProjectionResult: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Graph Retrieval Response Contracts",
+        "content": "Create src/vault_graph/retrieval/graph_retrieval.py:\nResponse validation rules:\nRelatedItem.relationship_path must be non-empty. RelatedItem.evidence must be non-empty and must come from relationship evidence refs. The initial decision trace step may have an empty relationship_path, but it must have resolved target entity evidence. Non-initial decision trace steps must have non-empty relationship evidence. result_count must equal len(items). graph_projection_version must be GRAPH_PROJECTION_VERSION even when projection_build_id is None.",
+        "items": [
+          "RelatedItem.relationship_path must be non-empty.",
+          "RelatedItem.evidence must be non-empty and must come from relationship evidence refs.",
+          "The initial decision trace step may have an empty relationship_path, but it must have resolved target entity evidence.",
+          "Non-initial decision trace steps must have non-empty relationship evidence.",
+          "result_count must equal len(items).",
+          "graph_projection_version must be GRAPH_PROJECTION_VERSION even when projection_build_id is None."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Literal\n\nfrom vault_graph.errors import SearchError\nfrom vault_graph.graph.graph_contracts import EntityRecord, RelationshipRecord\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION\nfrom vault_graph.storage.interfaces.metadata_store import EvidenceReference\n\nGraphOutputFormat = Literal[\"text\", \"json\"]\nGraphWarningSeverity = Literal[\"info\", \"warning\", \"error\"]\n\n\n@dataclass(frozen=True)\nclass GraphRetrievalWarning:\n    code: str\n    message: str\n    severity: GraphWarningSeverity\n    affected_vault_ids: tuple[str, ...]\n    scope_key: str | None = None\n    entity_id: str | None = None\n    relationship_id: str | None = None\n    evidence_ref_id: str | None = None\n\n    def __post_init__(self) -> None:\n        if not self.code:\n            raise SearchError(\"graph warning code is required\")\n        if not self.message:\n            raise SearchError(\"graph warning message is required\")\n        if not self.affected_vault_ids:\n            raise SearchError(\"graph warning affected_vault_ids is required\")\n\n\n@dataclass(frozen=True)\nclass GraphRetrievalRevision:\n    kind: Literal[\"metadata\", \"graph\", \"projection\"]\n    revision: str\n    scope_key: str\n    vault_id: str | None = None\n\n\n@dataclass(frozen=True)\nclass RelatedRequest:\n    target: str\n    requested_scope: QueryScope\n    actual_scopes: tuple[QueryScope, ...]\n    depth: int = 1\n    direction: Literal[\"out\", \"in\", \"both\"] = \"both\"\n    relationship_types: tuple[str, ...] = ()\n    include_cross_vault: bool = False\n    limit: int = 10\n    output_format: GraphOutputFormat = \"text\"\n\n\n@dataclass(frozen=True)\nclass RelatedItem:\n    rank: int\n    entity: EntityRecord\n    relationship_path: tuple[RelationshipRecord, ...]\n    evidence: tuple[EvidenceReference, ...]\n    score: float\n    explanation: str\n\n\n@dataclass(frozen=True)\nclass RelatedResponse:\n    target: str\n    resolved_target: EntityRecord | None\n    target_candidates: tuple[EntityRecord, ...]\n    requested_scope: QueryScope\n    actual_scopes: tuple[QueryScope, ...]\n    projection_build_id: str | None\n    graph_projection_version: str\n    result_count: int\n    items: tuple[RelatedItem, ...]\n    warnings: tuple[GraphRetrievalWarning, ...]\n    store_revisions: tuple[GraphRetrievalRevision, ...]\n    generated_at: str\n\n\n@dataclass(frozen=True)\nclass DecisionTraceStep:\n    rank: int\n    role: str\n    entity: EntityRecord\n    relationship_path: tuple[RelationshipRecord, ...]\n    evidence: tuple[EvidenceReference, ...]\n    relationship_status: str\n    explanation: str\n\n\n@dataclass(frozen=True)\nclass DecisionTraceResponse:\n    topic: str\n    trace_kind: Literal[\"decision\", \"topic\"]\n    resolved_target: EntityRecord | None\n    target_candidates: tuple[EntityRecord, ...]\n    requested_scope: QueryScope\n    actual_scopes: tuple[QueryScope, ...]\n    projection_build_id: str | None\n    graph_projection_version: str\n    steps: tuple[DecisionTraceStep, ...]\n    warnings: tuple[GraphRetrievalWarning, ...]\n    store_revisions: tuple[GraphRetrievalRevision, ...]\n    generated_at: str"
+          }
+        ]
+      },
+      {
+        "heading": "Graph Retrieval Service",
+        "content": "Create src/vault_graph/app/graph_retrieval_service.py:\nThe service must be the only new code path that combines:\nactual_query_scopes(...) ReadOnlyGraphReadiness.check(...) GraphStore.find_entities(...) GraphStore.relationships_for_entities(...) GraphProjection.project(...) MetadataStore.resolve_chunk_evidence(...)\nUse this helper shape in graph retrieval service tests instead of constructing a partial GraphReadiness:\nImport GraphReadiness, GraphScopeReadiness, graph_scope_key, and current_graph_extraction_spec in the test file that owns this helper.",
+        "items": [
+          "actual_query_scopes(...)",
+          "ReadOnlyGraphReadiness.check(...)",
+          "GraphStore.find_entities(...)",
+          "GraphStore.relationships_for_entities(...)",
+          "GraphProjection.project(...)",
+          "MetadataStore.resolve_chunk_evidence(...)"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom vault_graph.graph.graph_contracts import EntityRecord\nfrom vault_graph.graph.graph_readiness import GraphReadiness\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog\nfrom vault_graph.projection.graph_projection import GraphProjection\nfrom vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness\nfrom vault_graph.retrieval.graph_retrieval import (\n    DecisionTraceResponse,\n    GraphOutputFormat,\n    RelatedResponse,\n)\nfrom vault_graph.retrieval.graph_candidates import GraphCandidateResult\nfrom vault_graph.storage.interfaces.graph_store import GraphStore\nfrom vault_graph.storage.interfaces.metadata_store import MetadataStore\n\n\nclass GraphRetrievalService:\n    def __init__(\n        self,\n        *,\n        catalog: VaultCatalog,\n        metadata_store: MetadataStore,\n        graph_store: GraphStore,\n        graph_readiness: ReadOnlyGraphReadiness,\n        projection: GraphProjection,\n    ) -> None: ...\n\n    def related(\n        self,\n        *,\n        target: str,\n        requested_scope: QueryScope,\n        depth: int = 1,\n        direction: str = \"both\",\n        relationship_types: tuple[str, ...] = (),\n        include_cross_vault: bool = False,\n        limit: int = 10,\n        output_format: GraphOutputFormat = \"text\",\n    ) -> RelatedResponse: ...\n\n    def decision_trace(\n        self,\n        *,\n        topic: str,\n        requested_scope: QueryScope,\n        depth: int = 2,\n        include_cross_vault: bool = False,\n        limit: int = 10,\n        output_format: GraphOutputFormat = \"text\",\n    ) -> DecisionTraceResponse: ...\n\n    def graph_candidates_for_search(\n        self,\n        *,\n        query_text: str,\n        requested_scope: QueryScope,\n        actual_scopes: tuple[QueryScope, ...],\n        limit: int,\n        include_cross_vault: bool,\n    ) -> GraphCandidateResult: ..."
+          },
+          {
+            "language": "python",
+            "content": "def make_graph_readiness(\n    *,\n    actual_scopes: tuple[QueryScope, ...],\n    freshness: str = \"fresh\",\n    stale_count: int = 0,\n    warnings: tuple[str, ...] = (),\n) -> GraphReadiness:\n    scope_rows = tuple(\n        GraphScopeReadiness(\n            vault_id=scope.vault_ids[0],\n            actual_scope=graph_scope_key(scope),\n            freshness=freshness,\n            stale_count=stale_count,\n            tombstone_count=0,\n            last_graph_revision=\"graph-1\" if freshness == \"fresh\" else None,\n            warnings=warnings,\n        )\n        for scope in actual_scopes\n    )\n    return GraphReadiness(\n        backend_name=\"memory-graph\",\n        backend_available=backend_available_for_freshness(freshness),\n        schema_version=\"memory-graph-v1\",\n        schema_compatible=freshness != \"incompatible\",\n        graph_extraction_spec_version=current_graph_extraction_spec().spec_version,\n        graph_extraction_spec_digest=current_graph_extraction_spec().spec_digest,\n        graph_extraction_spec_compatible=freshness != \"incompatible\",\n        freshness=freshness,\n        stale_count=stale_count,\n        tombstone_count=0,\n        last_graph_revision=\"graph-1\" if freshness == \"fresh\" else None,\n        affected_vault_ids=tuple(vault_id for scope in actual_scopes for vault_id in scope.vault_ids),\n        scope_readiness=scope_rows,\n        warnings=warnings,\n        recovery_hint=\"ok\" if freshness == \"fresh\" else \"run `vg index`\",\n    )\n\n\ndef backend_available_for_freshness(freshness: str) -> bool:\n    return freshness not in {\"missing\", \"unavailable\"}"
+          }
+        ]
+      },
+      {
+        "heading": "Retrieval Candidate Seam",
+        "content": "Create src/vault_graph/retrieval/retrieval_candidate.py:\nCreate src/vault_graph/retrieval/graph_candidates.py:\nRetrievalService.init becomes:\nRetrievalService.search(...) becomes:\nSIGNAL_WEIGHTS becomes:",
+        "items": [
+          "Review the Retrieval Candidate Seam section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\n\nfrom vault_graph.errors import RetrievalContractError\nfrom vault_graph.retrieval.retrieval_result import RetrievalSignal\n\n\n@dataclass(frozen=True)\nclass RetrievalCandidate:\n    vault_id: str\n    document_id: str\n    chunk_id: str\n    signals: tuple[RetrievalSignal, ...]\n\n    def __post_init__(self) -> None:\n        if not self.vault_id:\n            raise RetrievalContractError(\"retrieval candidate vault_id is required\")\n        if not self.document_id:\n            raise RetrievalContractError(\"retrieval candidate document_id is required\")\n        if not self.chunk_id:\n            raise RetrievalContractError(\"retrieval candidate chunk_id is required\")\n        if not self.signals:\n            raise RetrievalContractError(\"retrieval candidate signals are required\")"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Protocol\n\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.retrieval.retrieval_candidate import RetrievalCandidate\nfrom vault_graph.retrieval.search_response import SearchStoreRevision, SearchWarning\n\n\n@dataclass(frozen=True)\nclass GraphCandidateResult:\n    candidates: tuple[RetrievalCandidate, ...]\n    warnings: tuple[SearchWarning, ...]\n    store_revisions: tuple[SearchStoreRevision, ...]\n\n\nclass GraphCandidateProvider(Protocol):\n    def candidates(\n        self,\n        *,\n        query_text: str,\n        requested_scope: QueryScope,\n        actual_scopes: tuple[QueryScope, ...],\n        limit: int,\n        include_cross_vault: bool,\n    ) -> GraphCandidateResult: ...\n\n\nclass GraphSearchSource(Protocol):\n    def graph_candidates_for_search(\n        self,\n        *,\n        query_text: str,\n        requested_scope: QueryScope,\n        actual_scopes: tuple[QueryScope, ...],\n        limit: int,\n        include_cross_vault: bool,\n    ) -> GraphCandidateResult: ..."
+          },
+          {
+            "language": "python",
+            "content": "class RetrievalService:\n    def __init__(\n        self,\n        *,\n        catalog: VaultCatalog,\n        metadata_store: MetadataStore,\n        keyword_index: KeywordIndex,\n        readiness: SearchReadiness,\n        vector_store: VectorStore | None = None,\n        text_embeddings: TextEmbeddings | None = None,\n        graph_candidate_provider: GraphCandidateProvider | None = None,\n    ) -> None: ..."
+          },
+          {
+            "language": "python",
+            "content": "def search(\n    self,\n    *,\n    query_text: str,\n    requested_scope: QueryScope,\n    limit: int = 10,\n    output_format: SearchOutputFormat = \"text\",\n    include_graph: bool = False,\n    include_cross_vault: bool = False,\n) -> SearchResponse: ..."
+          }
+        ]
+      },
+      {
+        "heading": "State Management And Data Flow",
+        "content": "See State Management And Data Flow in the source Markdown document.",
+        "items": [
+          "Review the State Management And Data Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "vg related TARGET",
+        "content": "No state is written. Missing, empty, or stale graph scopes return empty graph results plus warnings. Incompatible or unavailable graph store is fatal for graph-specific commands.",
+        "items": [
+          "Review the vg related TARGET section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "CLI\n  -> resolve requested QueryScope from --vault-id, --all-vaults, or default\n  -> validate --include-cross-vault only with --all-vaults\n  -> GraphRetrievalService.related(...)\n       -> actual_query_scopes(catalog, requested_scope)\n       -> GraphReadinessService.check(requested_scope, actual_scopes)\n       -> choose fresh actual scopes only\n       -> GraphStore.find_entities(GraphEntityQuery(...))\n       -> resolve unique target or return warnings/candidates\n       -> for each depth frontier up to depth 2:\n            GraphStore.relationships_for_entities(GraphRelationshipQuery(...))\n       -> resolve relationship evidence through MetadataStore\n       -> drop evidence-invalid edges before projection\n       -> GraphProjection.project(...)\n       -> resolve path entities and supplemental entity evidence\n       -> return RelatedResponse\n  -> CLI renders text or JSON"
+          }
+        ]
+      },
+      {
+        "heading": "vg decision-trace TOPIC",
+        "content": "Decision trace is not an answer. It must never synthesize a recommendation.",
+        "items": [
+          "Review the vg decision-trace TOPIC section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "CLI\n  -> resolve requested QueryScope\n  -> GraphRetrievalService.decision_trace(...)\n       -> target resolution with type priority Decision, WikiPage, Document, Concept, other\n       -> if exact non-Decision target wins, mark trace_kind=\"topic\"\n       -> add topic_not_durable_decision warning\n       -> bounded relationship expansion, default depth 2\n       -> evidence gate relationship paths\n       -> rank steps by relationship priority and projection score\n       -> add initial decision/topic identity step only when entity evidence resolves\n       -> return DecisionTraceResponse"
+          }
+        ]
+      },
+      {
+        "heading": "vg search \"query\" --include-graph",
+        "content": "Plain vg search \"query\" must not open or read graph state. This must be enforced by a test using a graph provider or graph store fake that fails on access.",
+        "items": [
+          "Review the vg search \"query\" --include-graph section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "CLI\n  -> validate --include-cross-vault requires --include-graph and --all-vaults\n  -> RetrievalService.search(include_graph=True, include_cross_vault=...)\n       -> normal search readiness\n       -> keyword candidates\n       -> vector candidates when ready\n       -> GraphCandidateProvider.candidates(...) only when include_graph=True\n       -> fuse keyword/vector/graph RetrievalCandidate rows\n       -> resolve final evidence through MetadataStore\n       -> return SearchResponse with graph warnings and graph revisions"
+          }
+        ]
+      },
+      {
+        "heading": "Error Handling And Edge Cases",
+        "content": "Fatal for graph commands:\ninvalid Vault scope graph store schema incompatible graph store unavailable metadata store unavailable depth <= 0 or depth > 2 limit <= 0 unsupported direction unsupported output format --include-cross-vault without --all-vaults\nNon-fatal graph command warnings:\ntarget_not_found: no exact or suggestion target exists ambiguous_graph_target: multiple equal-best target matches topic_not_durable_decision: decision-trace used a non-Decision target graph_stale: selected graph scope is stale and omitted graph_empty: selected graph scope has no graph revision or graph rows graph_target_scan_truncated: target fallback scan hit its hard row cap graph_relationship_read_truncated: direct neighborhood read hit its hard relationship cap graph_projection_truncated: projection edge/read/result limits truncated output cross_vault_relationship_omitted: cross-Vault relationship was filtered or points outside selected scope graph_evidence_missing: relationship or required target evidence did not resolve through metadata deprecated_relationship_omitted: deprecated relationship was omitted\nOpt-in graph search behavior:\nmissing keyword index remains fatal because search cannot...",
+        "items": [
+          "invalid Vault scope",
+          "graph store schema incompatible",
+          "graph store unavailable",
+          "metadata store unavailable",
+          "depth <= 0 or depth > 2",
+          "limit <= 0",
+          "unsupported direction",
+          "unsupported output format",
+          "--include-cross-vault without --all-vaults",
+          "target_not_found: no exact or suggestion target exists",
+          "ambiguous_graph_target: multiple equal-best target matches",
+          "topic_not_durable_decision: decision-trace used a non-Decision target",
+          "graph_stale: selected graph scope is stale and omitted",
+          "graph_empty: selected graph scope has no graph revision or graph rows",
+          "graph_target_scan_truncated: target fallback scan hit its hard row cap",
+          "graph_relationship_read_truncated: direct neighborhood read hit its hard relationship cap"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Task 1: Add Rustworkx Dependency And Graph Query Contracts",
+        "content": "Files:\nModify: pyproject.toml Modify: uv.lock Create: src/vault_graph/graph/graph_query.py Modify: src/vault_graph/storage/interfaces/graph_store.py Modify: src/vault_graph/storage/interfaces/init.py Test: tests/test_graph_query_contract.py\n[ ] Step 1: Write failing graph query contract tests\nCreate tests/test_graph_query_contract.py:\n[ ] Step 2: Run test and verify failure\nRun:\nExpected: FAIL because vault_graph.graph.graph_query does not exist.\n[ ] Step 3: Add dependency\nRun:\nExpected: pyproject.toml gains the runtime dependency and uv.lock is updated. Do not manually edit uv.lock.\n[ ] Step 4: Add graph query dataclasses\nImplement src/vault_graph/graph/graph_query.py exactly as specified in \"Graph Query Contracts\".\n[ ] Step 5: Extend GraphStore Protocol\nModify src/vault_graph/storage/interfaces/graph_store.py to import and expose:\n[ ] Step 6: Export contracts\nIf src/vault_graph/storage/interfaces/init.py exports graph interfaces, add:\n[ ] Step 7: Verify contract tests pass\nRun:\nExpected: PASS.\n[ ] Step 8: Commit",
+        "items": [
+          "Modify: pyproject.toml",
+          "Modify: uv.lock",
+          "Create: src/vault_graph/graph/graph_query.py",
+          "Modify: src/vault_graph/storage/interfaces/graph_store.py",
+          "Modify: src/vault_graph/storage/interfaces/init.py",
+          "Test: tests/test_graph_query_contract.py",
+          "[ ] Step 1: Write failing graph query contract tests",
+          "[ ] Step 2: Run test and verify failure",
+          "[ ] Step 3: Add dependency",
+          "[ ] Step 4: Add graph query dataclasses",
+          "[ ] Step 5: Extend GraphStore Protocol",
+          "[ ] Step 6: Export contracts",
+          "[ ] Step 7: Verify contract tests pass",
+          "[ ] Step 8: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import pytest\n\nfrom vault_graph.errors import GraphStoreError\nfrom vault_graph.graph.graph_query import GraphEntityIdentity, GraphEntityMatch, GraphEntityQuery, GraphRelationshipQuery\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom tests.test_graph_store_contract import make_entity\n\n\ndef test_graph_entity_query_requires_text() -> None:\n    with pytest.raises(GraphStoreError, match=\"graph entity query text is required\"):\n        GraphEntityQuery(text=\" \", actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n\n\ndef test_graph_entity_query_requires_actual_scopes() -> None:\n    with pytest.raises(GraphStoreError, match=\"per-Vault actual scopes\"):\n        GraphEntityQuery(text=\"GraphRAG\", actual_scopes=(QueryScope(vault_ids=(\"a\", \"b\"), content_scopes=(\"wiki\",)),))\n\n\ndef test_graph_relationship_query_requires_seed() -> None:\n    with pytest.raises(GraphStoreError, match=\"seeds are required\"):\n        GraphRelationshipQuery(\n            seeds=(),\n            actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),),\n        )\n\n\ndef test_graph_entity_match_keeps_match_metadata() -> None:\n    entity = make_entity(\"default\", name=\"GraphRAG\")\n    match = GraphEntityMatch(entity=entity, match_kind=\"normalized_name\", match_rank=1, matched_value=\"graphrag\")\n\n    assert match.entity == entity\n    assert match.match_kind == \"normalized_name\"\n    assert match.match_rank == 1\n\n\ndef test_graph_relationship_query_accepts_cross_vault_flag() -> None:\n    query = GraphRelationshipQuery(\n        seeds=(GraphEntityIdentity(\"default\", \"entity-1\"),),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",), include_cross_vault=True),),\n        include_cross_vault=True,\n    )\n\n    assert query.direction == \"both\"\n    assert query.statuses == (\"stated\", \"inferred\", \"contested\")\n\n\ndef test_graph_entity_query_rejects_unbounded_scan_limit() -> None:\n    with pytest.raises(GraphStoreError, match=\"scan_limit is out of range\"):\n        GraphEntityQuery(\n            text=\"GraphRAG\",\n            actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),),\n            scan_limit=5001,\n        )\n\n\ndef test_graph_relationship_query_rejects_unbounded_read_limit() -> None:\n    with pytest.raises(GraphStoreError, match=\"limit is out of range\"):\n        GraphRelationshipQuery(\n            seeds=(GraphEntityIdentity(\"default\", \"entity-1\"),),\n            actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),),\n            limit=201,\n        )"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_query_contract.py -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv add \"rustworkx>=0.17,<1.0\""
+          },
+          {
+            "language": "python",
+            "content": "def find_entities(self, query: GraphEntityQuery) -> GraphEntityQueryResult:\n    raise NotImplementedError\n\ndef relationships_for_entities(self, query: GraphRelationshipQuery) -> GraphRelationshipQueryResult:\n    raise NotImplementedError"
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: Implement GraphStore Query Methods",
+        "content": "Files:\nModify: tests/test_graph_store_contract.py Modify: tests/test_sqlite_graph_store.py Modify: tests/fakes/in_memory_graph_store.py Modify: src/vault_graph/storage/local/sqlite_graph_store.py\n[ ] Step 1: Add reusable GraphStore query contract tests\nAppend to tests/test_graph_store_contract.py:\nAdd imports:\nIf not already imported in the file, also add:\nAlso add a cross-Vault omission contract:\nAdd these reusable contract assertions in the same file:\nGraphEntityQuery(types=(\"Concept\",)) excludes WikiPage and Document entities. GraphEntityQuery(...) excludes entities whose status == \"tombstoned\". GraphRelationshipQuery(statuses=(\"stated\",)) excludes inferred, contested, and deprecated relationships. GraphRelationshipQuery(statuses=(\"inferred\",)) returns only inferred relationships when present. GraphRelationshipQuery(statuses=(\"stated\", \"inferred\", \"contested\")) omits deprecated relationships by default. GraphRelationshipQuery(direction=\"out\") omits incoming-only relationships. GraphRelationshipQuery(direction=\"in\") omits outgoing-only relationships. GraphRelationshipQuery(limit=1) sets truncated=True when two or more relationships match before the limit is applied. GraphEntityQ...",
+        "items": [
+          "Modify: tests/test_graph_store_contract.py",
+          "Modify: tests/test_sqlite_graph_store.py",
+          "Modify: tests/fakes/in_memory_graph_store.py",
+          "Modify: src/vault_graph/storage/local/sqlite_graph_store.py",
+          "[ ] Step 1: Add reusable GraphStore query contract tests",
+          "GraphEntityQuery(types=(\"Concept\",)) excludes WikiPage and Document",
+          "GraphEntityQuery(...) excludes entities whose status == \"tombstoned\".",
+          "GraphRelationshipQuery(statuses=(\"stated\",)) excludes inferred,",
+          "GraphRelationshipQuery(statuses=(\"inferred\",)) returns only inferred",
+          "GraphRelationshipQuery(statuses=(\"stated\", \"inferred\", \"contested\"))",
+          "GraphRelationshipQuery(direction=\"out\") omits incoming-only relationships.",
+          "GraphRelationshipQuery(direction=\"in\") omits outgoing-only relationships.",
+          "GraphRelationshipQuery(limit=1) sets truncated=True when two or more",
+          "GraphEntityQuery(scan_limit=1) can set GraphEntityQueryResult.truncated",
+          "[ ] Step 2: Wire contract tests to fake and SQLite",
+          "[ ] Step 3: Run tests and verify failure"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from vault_graph.graph.graph_query import GraphEntityIdentity, GraphEntityQuery, GraphRelationshipQuery"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.graph.graph_contracts import GraphReconcilePlan, current_graph_extraction_spec"
+          },
+          {
+            "language": "python",
+            "content": "def graph_store_query_contract(factory: Callable[[], GraphStore]) -> None:\n    store = factory()\n    source = make_entity(\"default\", name=\"GraphRAG\", path=\"wiki/graphrag.md\")\n    target = make_entity(\"default\", name=\"Evidence Search\", path=\"wiki/search.md\")\n    relationship = make_relationship(source, target)\n    store.apply_reconcile_plan(make_plan(entities=(source, target), relationships=(relationship,)))\n    scope = QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",))\n\n    result = store.find_entities(GraphEntityQuery(text=\"GraphRAG\", actual_scopes=(scope,)))\n    matches = result.matches\n    assert tuple(match.match_kind for match in matches[:1]) == (\"normalized_name\",)\n    assert matches[0].entity.entity_id == source.entity_id\n    assert result.truncated is False\n\n    alias_matches = store.find_entities(GraphEntityQuery(text=\"Graph RAG\", actual_scopes=(scope,))).matches\n    assert any(match.match_kind == \"alias\" and match.entity.entity_id == source.entity_id for match in alias_matches)\n\n    path_matches = store.find_entities(GraphEntityQuery(text=\"wiki/graphrag.md\", actual_scopes=(scope,))).matches\n    assert path_matches[0].match_kind == \"canonical_path\"\n\n    suggestion_matches = store.find_entities(GraphEntityQuery(text=\"Graph\", actual_scopes=(scope,))).matches\n    assert all(match.match_kind in {\"contains\", \"normalized_name\", \"alias\", \"canonical_path\"} for match in suggestion_matches)\n\n    relationship_result = store.relationships_for_entities(\n        GraphRelationshipQuery(seeds=(GraphEntityIdentity(\"default\", source.entity_id),), actual_scopes=(scope,))\n    )\n    assert relationship_result.relationships == (relationship,)\n    assert relationship_result.truncated is False\n\n    in_result = store.relationships_for_entities(\n        GraphRelationshipQuery(\n            seeds=(GraphEntityIdentity(\"default\", target.entity_id),),\n            actual_scopes=(scope,),\n            direction=\"in\",\n        )\n    )\n    assert in_result.relationships == (relationship,)\n\n    out_result = store.relationships_for_entities(\n        GraphRelationshipQuery(\n            seeds=(GraphEntityIdentity(\"default\", source.entity_id),),\n            actual_scopes=(scope,),\n            direction=\"out\",\n        )\n    )\n    assert out_result.relationships == (relationship,)\n\n    type_filtered = store.relationships_for_entities(\n        GraphRelationshipQuery(\n            seeds=(GraphEntityIdentity(\"default\", source.entity_id),),\n            actual_scopes=(scope,),\n            relationship_types=(\"depends_on\",),\n        )\n    )\n    assert type_filtered.relationships == (relationship,)\n\n    type_miss = store.relationships_for_entities(\n        GraphRelationshipQuery(\n            seeds=(GraphEntityIdentity(\"default\", source.entity_id),),\n            actual_scopes=(scope,),\n            relationship_types=(\"blocks\",),\n        )\n    )\n    assert type_miss.relationships == ()\n\n    truncated = store.relationships_for_entities(\n        GraphRelationshipQuery(\n            seeds=(GraphEntityIdentity(\"default\", source.entity_id),),\n            actual_scopes=(scope,),\n            limit=1,\n        )\n    )\n    assert truncated.relationships == (relationship,)\n    assert truncated.truncated is False"
+          },
+          {
+            "language": "python",
+            "content": "def graph_store_cross_vault_query_contract(factory: Callable[[], GraphStore]) -> None:\n    store = factory()\n    first_scope = QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\",))\n    second_scope = QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\",))\n    source = make_entity(\"first\", name=\"GraphRAG\")\n    target = make_entity(\"second\", name=\"Search\")\n    relationship = make_relationship(source, target)\n    evidence_refs = source.evidence_refs + target.evidence_refs + relationship.evidence_refs\n    plan = GraphReconcilePlan(\n        requested_scope=QueryScope(vault_ids=(\"first\", \"second\"), content_scopes=(\"wiki\",)),\n        actual_scopes=(first_scope, second_scope),\n        graph_run_id=\"graph-run-1\",\n        entity_upserts=(source, target),\n        relationship_upserts=(relationship,),\n        evidence_ref_upserts=evidence_refs,\n        entity_tombstones=(),\n        relationship_tombstones=(),\n        graph_revision_rows=(\n            make_revision(first_scope, entity_count=1, relationship_count=1),\n            make_revision(second_scope, entity_count=1, relationship_count=0),\n        ),\n        graph_extraction_spec=current_graph_extraction_spec(),\n        projection_cache_invalidations=(),\n    )\n    store.apply_reconcile_plan(plan)\n\n    local_result = store.relationships_for_entities(\n        GraphRelationshipQuery(seeds=(GraphEntityIdentity(\"first\", source.entity_id),), actual_scopes=(first_scope,))\n    )\n    assert local_result.relationships == ()\n    assert local_result.omitted_cross_vault_count == 1\n\n    cross_result = store.relationships_for_entities(\n        GraphRelationshipQuery(\n            seeds=(GraphEntityIdentity(\"first\", source.entity_id),),\n            actual_scopes=(\n                QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\",), include_cross_vault=True),\n                QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\",), include_cross_vault=True),\n            ),\n            include_cross_vault=True,\n        )\n    )\n    assert cross_result.relationships == (relationship,)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 3: Add Graph Projection Contract",
+        "content": "Files:\nCreate: src/vault_graph/projection/init.py Create: src/vault_graph/projection/graph_projection.py Test: tests/test_graph_projection.py\n[ ] Step 1: Write failing projection contract tests\nCreate tests/test_graph_projection.py with validation tests:\n[ ] Step 2: Run tests and verify failure\nRun:\nExpected: FAIL because vault_graph.projection does not exist.\n[ ] Step 3: Implement projection contract module\nImplement src/vault_graph/projection/graph_projection.py exactly as specified in \"Projection Contracts\".\nCreate src/vault_graph/projection/init.py:\n[ ] Step 4: Verify projection contract tests pass\nRun:\nExpected: PASS.\n[ ] Step 5: Commit",
+        "items": [
+          "Create: src/vault_graph/projection/init.py",
+          "Create: src/vault_graph/projection/graph_projection.py",
+          "Test: tests/test_graph_projection.py",
+          "[ ] Step 1: Write failing projection contract tests",
+          "[ ] Step 2: Run tests and verify failure",
+          "[ ] Step 3: Implement projection contract module",
+          "[ ] Step 4: Verify projection contract tests pass",
+          "[ ] Step 5: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-11-phase-3c-graph-projection-retrieval.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import pytest\n\nfrom vault_graph.errors import GraphStoreError\nfrom vault_graph.projection.graph_projection import (\n    DEFAULT_GRAPH_PROJECTION_EDGE_LIMIT,\n    DEFAULT_GRAPH_RESULT_LIMIT,\n    GRAPH_PROJECTION_VERSION,\n    GraphProjectionEdge,\n    GraphProjectionInput,\n    GraphProjectionNode,\n)\n\n\ndef node(vault_id: str, entity_id: str, name: str) -> GraphProjectionNode:\n    return GraphProjectionNode(\n        vault_id=vault_id,\n        entity_id=entity_id,\n        type=\"Concept\",\n        name=name,\n        normalized_name=name.casefold(),\n    )\n\n\ndef edge(source: GraphProjectionNode, target: GraphProjectionNode, relationship_id: str = \"rel-1\") -> GraphProjectionEdge:\n    return GraphProjectionEdge(\n        source_vault_id=source.vault_id,\n        source_entity_id=source.entity_id,\n        target_vault_id=target.vault_id,\n        target_entity_id=target.entity_id,\n        relationship_id=relationship_id,\n        relationship_type=\"related_to\",\n        status=\"stated\",\n        confidence=0.9,\n        evidence_ref_ids=(\"evidence-1\",),\n        graph_index_revision=\"graph-1\",\n    )\n\n\ndef test_projection_input_rejects_depth_above_phase_limit() -> None:\n    source = node(\"default\", \"source\", \"GraphRAG\")\n    target = node(\"default\", \"target\", \"Search\")\n    with pytest.raises(GraphStoreError, match=\"unsupported graph projection depth\"):\n        GraphProjectionInput(\n            seeds=(source,),\n            nodes=(source, target),\n            relationships=(edge(source, target),),\n            actual_scope_keys=(\"default:wiki\",),\n            source_graph_revisions=(\"graph-1\",),\n            max_depth=3,\n            direction=\"both\",\n            relationship_types=(),\n            statuses=(\"stated\",),\n            include_cross_vault=False,\n            limit=DEFAULT_GRAPH_RESULT_LIMIT,\n            edge_limit=DEFAULT_GRAPH_PROJECTION_EDGE_LIMIT,\n        )\n\n\ndef test_projection_version_is_stable() -> None:\n    assert GRAPH_PROJECTION_VERSION == \"graph-projection-v1\""
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_projection.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.projection.graph_projection import (\n    DEFAULT_GRAPH_PROJECTION_EDGE_LIMIT,\n    DEFAULT_GRAPH_RELATED_DEPTH,\n    DEFAULT_GRAPH_RELATIONSHIP_READ_LIMIT,\n    DEFAULT_GRAPH_RESULT_LIMIT,\n    DEFAULT_GRAPH_TARGET_LIMIT,\n    GRAPH_PROJECTION_VERSION,\n    MAX_GRAPH_PROJECTION_DEPTH,\n    MAX_GRAPH_PROJECTION_EDGE_LIMIT,\n    MAX_GRAPH_RESULT_LIMIT,\n    GraphPath,\n    GraphProjection,\n    GraphProjectionEdge,\n    GraphProjectionInput,\n    GraphProjectionNode,\n    GraphProjectionResult,\n)\n\n__all__ = [\n    \"DEFAULT_GRAPH_PROJECTION_EDGE_LIMIT\",\n    \"DEFAULT_GRAPH_RELATED_DEPTH\",\n    \"DEFAULT_GRAPH_RELATIONSHIP_READ_LIMIT\",\n    \"DEFAULT_GRAPH_RESULT_LIMIT\",\n    \"DEFAULT_GRAPH_TARGET_LIMIT\",\n    \"GRAPH_PROJECTION_VERSION\",\n    \"MAX_GRAPH_PROJECTION_DEPTH\",\n    \"MAX_GRAPH_PROJECTION_EDGE_LIMIT\",\n    \"MAX_GRAPH_RESULT_LIMIT\",\n    \"GraphPath\",\n    \"GraphProjection\",\n    \"GraphProjectionEdge\",\n    \"GraphProjectionInput\",\n    \"GraphProjectionNode\",\n    \"GraphProjectionResult\",\n]"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_projection.py -q"
+          }
+        ]
+      }
+    ],
+    "openQuestions": []
+  }
+}

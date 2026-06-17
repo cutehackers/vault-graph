@@ -1,0 +1,526 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-10-phase-3-overview-design",
+  "slug": "2026-06-10-phase-3-overview-design",
+  "status": "draft",
+  "title": "Phase 3 Entity And Relationship Graph Overview Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-10\nScope: Phase 3 cross-slice overview",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-10",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-10\nScope: Phase 3 cross-slice overview",
+    "agentSummary": "Read docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 3 turns Phase 2 evidence chunks into a rebuildable entity and relationship graph projection.\nThe deliverable is not answer generation, context-pack assembly, MCP serving, HTTP serving, or durable knowledge publication. The deliverable is an evidence-first graph layer that supports related-item exploration, decision trace prototypes, and optional graph retrieval signals while preserving Vault as the source of truth.\nThis overview owns cross-slice invariants and dependencies. Each Phase 3 slice owns its own detailed design document under docs/superpowers/specs/phase-3/.",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-10\nScope: Phase 3 cross-slice overview",
+    "scope": {
+      "in": [
+        "Structured Stenc view of the source spec Markdown.",
+        "Original Markdown remains at docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md."
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown source.",
+        "Changing Vault Graph runtime behavior."
+      ]
+    },
+    "architecture": {
+      "summary": "Status: Draft for implementation planning\nDate: 2026-06-10\nScope: Phase 3 cross-slice overview",
+      "flow": [
+        "Markdown source -> Stenc JSON -> generated fixed web page"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Overview",
+        "detail": "Status: Draft for implementation planning\nDate: 2026-06-10\nScope: Phase 3 cross-slice overview",
+        "acceptanceCriteria": [
+          "Review the Overview section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "Purpose",
+        "detail": "Phase 3 turns Phase 2 evidence chunks into a rebuildable entity and relationship graph projection.\nThe deliverable is not answer generation, context-pack assembly, MCP serving, HTTP serving, or durable knowledge publication. The deliverable is an evidence-first graph layer that supports related-item exploration, decision trace prototypes, and optional graph retrieval signals while preserving Vault as the source of truth.\nThis overview owns cross-slice invariants and dependencies. Each Phase 3 slice owns its own detailed design document under docs/superpowers/specs/phase-3/.",
+        "acceptanceCriteria": [
+          "Review the Purpose section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Document Map",
+        "detail": "| Document | Role | | --- | --- | | README.md | Phase 3 design folder index and reading order | | 2026-06-10-phase-3-overview-design.md | Cross-slice roadmap, invariants, and handoff map | | 2026-06-10-phase-3a-graphstore-contract-readiness-design.md | Phase 3A graph contracts, GraphStore, and readiness design | | 2026-06-10-phase-3b-local-entity-relationship-indexing-design.md | Phase 3B deterministic local indexing and scope-local reconcile design | | 2026-06-10-phase-3c-graph-projection-retrieval-design.md | Phase 3C bounded graph projection and retrieval design |\ndocs/SPEC.md remains the top-level product contract. This folder is the implementation-design layer for Phase 3.",
+        "acceptanceCriteria": [
+          "Review the Document Map section in the source Markdown."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-10\nScope: Phase 3 cross-slice overview",
+        "interfaces": [
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Phase 3A readiness:\nPhase 3B indexing:\nPhase 3C retrieval:\nPlain vg search \"query\" remains keyword/vector retrieval. Graph expansion requires an explicit graph command or flag."
+    ],
+    "errorHandling": [
+      {
+        "case": "Error And Degradation Policy",
+        "behavior": "Missing or stale graph state is not fatal to plain Phase 2C search. Graph-specific commands fail or degrade with recovery guidance when graph state is missing, stale, incompatible, or partially failed. Invalid Vault scope, ambiguous target entity, incompatible schema, and unresolved graph evidence must be reported as structured domain errors or attributed warnings. Read-only graph commands must not create metadata, vector, graph, model-cache, projection-cache, or Vault files."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Cross-Slice Invariants",
+        "rules": [
+          "Vault remains the durable source of truth.",
+          "Graph state is derived, local-first, and rebuildable.",
+          "The canonical graph evidence unit is the MetadataStore evidence chunk:",
+          "Graph output must resolve user-visible evidence through MetadataStore.",
+          "Stored graph excerpts are rendering hints, not evidence authority.",
+          "Multi-vault identity is explicit. Entity, relationship, evidence, warning,",
+          "Cross-Vault traversal is opt-in and preserves source, target, and evidence",
+          "Phase 3 must not merge entities across Vaults by name."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "docs/superpowers/specs/phase-3/",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "README.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "docs/SPEC.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-10-phase-3-overview-design.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-10-phase-3-overview-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-10\nScope: Phase 3 cross-slice overview",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 3 turns Phase 2 evidence chunks into a rebuildable entity and relationship graph projection.\nThe deliverable is not answer generation, context-pack assembly, MCP serving, HTTP serving, or durable knowledge publication. The deliverable is an evidence-first graph layer that supports related-item exploration, decision trace prototypes, and optional graph retrieval signals while preserving Vault as the source of truth.\nThis overview owns cross-slice invariants and dependencies. Each Phase 3 slice owns its own detailed design document under docs/superpowers/specs/phase-3/.",
+        "items": [
+          "Review the Purpose section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Document Map",
+        "content": "| Document | Role | | --- | --- | | README.md | Phase 3 design folder index and reading order | | 2026-06-10-phase-3-overview-design.md | Cross-slice roadmap, invariants, and handoff map | | 2026-06-10-phase-3a-graphstore-contract-readiness-design.md | Phase 3A graph contracts, GraphStore, and readiness design | | 2026-06-10-phase-3b-local-entity-relationship-indexing-design.md | Phase 3B deterministic local indexing and scope-local reconcile design | | 2026-06-10-phase-3c-graph-projection-retrieval-design.md | Phase 3C bounded graph projection and retrieval design |\ndocs/SPEC.md remains the top-level product contract. This folder is the implementation-design layer for Phase 3.",
+        "items": [
+          "Review the Document Map section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Phase Slices",
+        "content": "| Slice | Change | User Value | Explicitly Not Included | | --- | --- | --- | --- |\n| Phase 3A | Define graph record contracts, GraphExtractionSpec, GraphStore, scoped graph manifests, and graph readiness/status contracts | Vault Graph can represent graph state safely without changing search behavior | extraction execution, traversal, rustworkx ranking, decision traces |\n| Phase 3B | Add deterministic local entity and relationship indexing with scope-local reconcile | vg index can build and repair derived graph state from current metadata | LLM-required extraction, cross-Vault entity merging, context packs |\n| Phase 3C | Add bounded GraphProjection, opt-in graph retrieval signals, vg related, and decision trace prototype | users can inspect related entities and decision paths with evidence and warnings | vg ask, MCP serving, HTTP serving, Neo4j |\nThe slices separate persistence, indexing, and user-facing graph retrieval. This keeps each step testable and prevents graph traversal from depending on an unstable storage contract.",
+        "items": [
+          "Review the Phase Slices section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Cross-Slice Invariants",
+        "content": "Vault remains the durable source of truth. Graph state is derived, local-first, and rebuildable. The canonical graph evidence unit is the MetadataStore evidence chunk: (vault_id, document_id, chunk_id). Graph output must resolve user-visible evidence through MetadataStore. Stored graph excerpts are rendering hints, not evidence authority. Multi-vault identity is explicit. Entity, relationship, evidence, warning, and revision records carry Vault IDs where collision is possible. Cross-Vault traversal is opt-in and preserves source, target, and evidence Vault IDs. Phase 3 must not merge entities across Vaults by name. Graph search is opt-in. Plain vg search \"query\" remains Phase 2C keyword/vector search until a graph mode is explicitly requested. Graph projections and caches are disposable runtime aids. They are not durable graph authority.",
+        "items": [
+          "Vault remains the durable source of truth.",
+          "Graph state is derived, local-first, and rebuildable.",
+          "The canonical graph evidence unit is the MetadataStore evidence chunk:",
+          "Graph output must resolve user-visible evidence through MetadataStore.",
+          "Stored graph excerpts are rendering hints, not evidence authority.",
+          "Multi-vault identity is explicit. Entity, relationship, evidence, warning,",
+          "Cross-Vault traversal is opt-in and preserves source, target, and evidence",
+          "Phase 3 must not merge entities across Vaults by name.",
+          "Graph search is opt-in. Plain vg search \"query\" remains Phase 2C",
+          "Graph projections and caches are disposable runtime aids. They are not durable"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Responsibility Map",
+        "content": "| Component | Owns | Must Not Own | | --- | --- | --- | | VaultCatalog | registered Vault IDs, active Vault, enabled Vault expansion | graph identity, extraction, ranking | | QueryScope | selected Vault IDs and content scopes | implicit cross-Vault traversal | | MetadataStore | document identity, chunk identity, chunk text authority, evidence resolution | graph relationship authority, graph ranking | | GraphStore | persisted derived graph records, scoped manifests, graph readiness | reconcile planning, chunk text authority, runtime graph IDs | | GraphIndexer | scope-local reconcile, upserts, tombstones, graph revision records | final answer rendering, graph algorithms | | GraphProjection | bounded runtime graph algorithms and disposable caches | persisted source of truth | | Retrieval layer | opt-in graph signal merge, warnings, evidence resolution | extraction, schema creation, direct SQLite access | | CLI | argument parsing and rendering | direct storage or rustworkx access |",
+        "items": [
+          "Review the Responsibility Map section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Slice Dependencies",
+        "content": "No Phase 3B implementation should bypass GraphStore to write graph state. No Phase 3C implementation should bypass GraphStore or MetadataStore to render graph evidence.",
+        "items": [
+          "Review the Slice Dependencies section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "Phase 3A\n  Graph contracts\n  GraphStore\n  Graph readiness\n        |\n        v\nPhase 3B\n  deterministic extractors\n  GraphIndexer\n  scope-local graph reconcile\n        |\n        v\nPhase 3C\n  GraphProjection\n  vg related\n  vg decision-trace\n  optional vg search --include-graph"
+          }
+        ]
+      },
+      {
+        "heading": "Data Flow Summary",
+        "content": "Phase 3A readiness:\nPhase 3B indexing:\nPhase 3C retrieval:\nPlain vg search \"query\" remains keyword/vector retrieval. Graph expansion requires an explicit graph command or flag.",
+        "items": [
+          "Review the Data Flow Summary section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg status\n  -> resolve selected Vault scope\n  -> open GraphStore read-only\n  -> report backend, schema, extraction spec, freshness, stale counts"
+          },
+          {
+            "language": "text",
+            "content": "vg index\n  -> metadata indexing and keyword projection\n  -> vector reconcile\n  -> resolve QueryScope into per-Vault actual scopes\n  -> MetadataStore.list_chunks(actual_scope)\n  -> EntityExtractor and RelationshipExtractor\n  -> GraphIndexer computes desired graph records\n  -> GraphStore applies upserts, tombstones, and graph revisions\n  -> GraphProjection cache invalidation"
+          },
+          {
+            "language": "text",
+            "content": "vg related TARGET\n  -> resolve selected Vault scope\n  -> GraphStore readiness check\n  -> GraphStore entity and relationship lookup\n  -> optional GraphProjection bounded ranking\n  -> MetadataStore evidence resolution\n  -> render relationships, warnings, and evidence"
+          }
+        ]
+      },
+      {
+        "heading": "Error And Degradation Policy",
+        "content": "Missing or stale graph state is not fatal to plain Phase 2C search. Graph-specific commands fail or degrade with recovery guidance when graph state is missing, stale, incompatible, or partially failed. Invalid Vault scope, ambiguous target entity, incompatible schema, and unresolved graph evidence must be reported as structured domain errors or attributed warnings. Read-only graph commands must not create metadata, vector, graph, model-cache, projection-cache, or Vault files.",
+        "items": [
+          "Missing or stale graph state is not fatal to plain Phase 2C search.",
+          "Graph-specific commands fail or degrade with recovery guidance when graph",
+          "Invalid Vault scope, ambiguous target entity, incompatible schema, and",
+          "Read-only graph commands must not create metadata, vector, graph,"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Multi-Vault Policy",
+        "content": "Default graph behavior uses the active Vault only. --vault-id ID uses exactly one registered Vault. --all-vaults expands to explicit enabled Vault IDs, then to per-Vault actual scopes before store reads. Identical paths, chunk IDs, entity names, aliases, headings, or relationship labels from different Vaults must not collide. Cross-Vault relationships explain source, target, and evidence Vault IDs. Cross-Vault relationships do not merge entities.",
+        "items": [
+          "Default graph behavior uses the active Vault only.",
+          "--vault-id ID uses exactly one registered Vault.",
+          "--all-vaults expands to explicit enabled Vault IDs, then to per-Vault",
+          "Identical paths, chunk IDs, entity names, aliases, headings, or relationship",
+          "Cross-Vault relationships explain source, target, and evidence Vault IDs.",
+          "Cross-Vault relationships do not merge entities."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Handoff",
+        "content": "Phase 3 implementation planning should proceed in this order:\nPhase 3A: graph contracts, records, SQLite GraphStore, readiness, and contract tests. Phase 3B: deterministic extractors, GraphIndexer, scope-local reconcile, dry-run, status, and graph indexing tests. Phase 3C: bounded rustworkx GraphProjection, opt-in graph signal integration, vg related, vg decision-trace, graph warnings, and CLI/read-only tests.\nEach slice should preserve the rule that Vault Graph writes only derived state and never edits Vault content.",
+        "items": [
+          "Phase 3A: graph contracts, records, SQLite GraphStore, readiness, and",
+          "Phase 3B: deterministic extractors, GraphIndexer, scope-local reconcile,",
+          "Phase 3C: bounded rustworkx GraphProjection, opt-in graph signal"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

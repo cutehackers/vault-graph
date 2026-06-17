@@ -1,0 +1,854 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-08-phase-2b-local-vector-indexing-design",
+  "slug": "2026-06-08-phase-2b-local-vector-indexing-design",
+  "status": "draft",
+  "title": "Phase 2B Local Vector Indexing Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-08\nScope: Phase 2B only",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-08",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [
+      "plan:2026-06-08-phase-2b-local-vector-indexing"
+    ],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-08\nScope: Phase 2B only",
+    "agentSummary": "Read docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 2B turns the Phase 2A contracts into a real local vector projection.\nThe deliverable is not user search. The deliverable is a sustainable local vector index that vg index can build, vg status can inspect, and future Phase 2C search can trust as a rebuildable candidate source.\nPhase 2B must preserve Vault Graph's core values:\nVault remains the durable source of truth. Vector state is derived, read-only with respect to Vault, and rebuildable. Local-first operation works in the default install. Multi-vault identity and content-scope filtering stay explicit. Vector indexing prepares for scale-up without changing the product model.",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-08\nScope: Phase 2B only",
+    "scope": {
+      "in": [
+        "wiki/page.md -> wiki",
+        "wiki/systems/runtime.md -> wiki/systems",
+        "docs/SPEC.md -> docs",
+        "scratch/reports/phase-2/note.md -> scratch/reports/phase-2",
+        "a query scope of wiki includes wiki/systems",
+        "a query scope of wiki/systems does not include unrelated wiki/decisions",
+        "a query scope of docs includes docs/SPEC.md"
+      ],
+      "out": [
+        "vg search",
+        "vg ask",
+        "hybrid ranking",
+        "keyword search",
+        "graph extraction",
+        "graph traversal",
+        "decision traces",
+        "context packs",
+        "MCP serving",
+        "HTTP serving"
+      ]
+    },
+    "architecture": {
+      "summary": "See Data Contracts in the source Markdown document.",
+      "flow": [
+        "Review the Data Contracts section in the source Markdown."
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Data Contracts",
+        "detail": "See Data Contracts in the source Markdown document.",
+        "acceptanceCriteria": [
+          "Review the Data Contracts section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "7.2 Content Scope Derivation",
+        "detail": "VectorEmbeddingRecord.content_scope is filter metadata, not evidence.\nFor a document path, derive content scope from the normalized parent directory:\nwiki/page.md -> wiki wiki/systems/runtime.md -> wiki/systems docs/SPEC.md -> docs scratch/reports/phase-2/note.md -> scratch/reports/phase-2\nThis keeps same-or-child filtering useful:\na query scope of wiki includes wiki/systems a query scope of wiki/systems does not include unrelated wiki/decisions a query scope of docs includes docs/SPEC.md",
+        "acceptanceCriteria": [
+          "wiki/page.md -> wiki",
+          "wiki/systems/runtime.md -> wiki/systems",
+          "docs/SPEC.md -> docs",
+          "scratch/reports/phase-2/note.md -> scratch/reports/phase-2",
+          "a query scope of wiki includes wiki/systems",
+          "a query scope of wiki/systems does not include unrelated wiki/decisions",
+          "a query scope of docs includes docs/SPEC.md"
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Status Contract",
+        "detail": "Phase 2B extends vg status with vector fields.\nMinimum human-readable fields:\nvector_ok vector_backend vector_schema_compatible vector_message embedding_model embedding_model_version embedding_dimensions embedding_spec_version vector_revision vector_stale_count vector_last_error\nStatus must distinguish:\nno vector index has been built yet vector backend is unavailable vector backend schema is incompatible vector records are stale against metadata vector records are stale because the model spec changed vector state is fresh for the selected scope status scope used for freshness counts\nvg status uses the active Vault by default. Phase 2B should add the same selection flags as vg index: --vault...",
+        "acceptanceCriteria": [
+          "vector_ok",
+          "vector_backend",
+          "vector_schema_compatible",
+          "vector_message",
+          "embedding_model",
+          "embedding_model_version",
+          "embedding_dimensions",
+          "embedding_spec_version"
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "Acceptance Criteria",
+        "detail": "Phase 2B is complete when:\nChroma is installed as a default local dependency. FastEmbed is installed as a default local dependency. FastEmbedTextEmbeddings is the default production local embedding implementation. FastEmbedTextEmbeddings supports explicit CPU embedding_batch_size, embedding_parallelism, and embedding_lazy_load tuning. Chroma implements the existing VectorStore contract. MetadataStore.list_chunks(scope) exists and is covered by tests. VectorIndexer can plan and apply scope-local reconcile. vector manifests include staleness comparison keys and lineage/status fields required for sustainable reindexing. vg index applies metadata plus vector projection updates by default. vg in...",
+        "acceptanceCriteria": [
+          "Chroma is installed as a default local dependency.",
+          "FastEmbed is installed as a default local dependency.",
+          "FastEmbedTextEmbeddings is the default production local embedding",
+          "FastEmbedTextEmbeddings supports explicit CPU embedding_batch_size,",
+          "Chroma implements the existing VectorStore contract.",
+          "MetadataStore.list_chunks(scope) exists and is covered by tests.",
+          "VectorIndexer can plan and apply scope-local reconcile.",
+          "vector manifests include staleness comparison keys and lineage/status fields"
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-08\nScope: Phase 2B only",
+        "interfaces": [
+          "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "See Runtime Flow in the source Markdown document.",
+      "See Data Contracts in the source Markdown document.",
+      "Phase 2B adds one MetadataStore boundary:\nRules:\nReturn only current, non-tombstoned chunks. Filter by QueryScope.vault_ids. Filter by QueryScope.content_scopes with the same same-or-child semantics used by metadata indexing. Receive an actual per-Vault QueryScope from application services. The store must not infer catalog entry scope from a globa...",
+      "Verify:\nlist_chunks(scope) returns only current non-tombstoned chunks. Vault ID filtering works. content-scope filtering uses same-or-child semantics. duplicate relative paths across Vaults do not collide."
+    ],
+    "errorHandling": [
+      {
+        "case": "Error Handling",
+        "behavior": "Contract errors should fail loudly:\nembedding dimensions do not match EmbeddingModelSpec Chroma collection metadata does not match EmbeddingModelSpec vector backend schema is incompatible duplicate embedding input IDs appear in one batch VectorStore returns records outside QueryScope a manifest row is missing vault_id, chunk_id, content_scope, or model metadata\nRecoverable degraded state should be visible through status:\nmetadata succeeded but vector indexing failed Chroma state path is missing..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Data Contracts",
+        "rules": [
+          "Review the Data Contracts section in the source Markdown."
+        ]
+      },
+      {
+        "name": "Status Contract",
+        "rules": [
+          "vector_ok",
+          "vector_backend",
+          "vector_schema_compatible",
+          "vector_message",
+          "embedding_model",
+          "embedding_model_version",
+          "embedding_dimensions",
+          "embedding_spec_version"
+        ]
+      },
+      {
+        "name": "Multi-Vault Rules",
+        "rules": [
+          "Every vector record includes vault_id.",
+          "Every manifest row includes vault_id.",
+          "Every Chroma payload includes vault_id.",
+          "Search filters in Phase 2C must use explicit QueryScope.vault_ids.",
+          "Reconcile plans use Vault-scoped keys.",
+          "Identical relative paths or chunk IDs from different Vaults must not collide.",
+          "--all-vaults expands to explicit Vault IDs before services run.",
+          "include_cross_vault does not grant any graph traversal behavior in Phase 2B."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "docs/SPEC.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "~/.cache/vault-graph/embeddings",
+        "expected": "Command succeeds as described by the source spec."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-08-phase-2b-local-vector-indexing-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "~/.cache/vault-graph/embeddings",
+        "purpose": "Preserved validation command from the original spec Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/2026-06-08-phase-2b-local-vector-indexing.md",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-08\nScope: Phase 2B only",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 2B turns the Phase 2A contracts into a real local vector projection.\nThe deliverable is not user search. The deliverable is a sustainable local vector index that vg index can build, vg status can inspect, and future Phase 2C search can trust as a rebuildable candidate source.\nPhase 2B must preserve Vault Graph's core values:\nVault remains the durable source of truth. Vector state is derived, read-only with respect to Vault, and rebuildable. Local-first operation works in the default install. Multi-vault identity and content-scope filtering stay explicit. Vector indexing prepares for scale-up without changing the product model.",
+        "items": [
+          "Vault remains the durable source of truth.",
+          "Vector state is derived, read-only with respect to Vault, and rebuildable.",
+          "Local-first operation works in the default install.",
+          "Multi-vault identity and content-scope filtering stay explicit.",
+          "Vector indexing prepares for scale-up without changing the product model."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Non-Goals",
+        "content": "Phase 2B must not implement:\nvg search vg ask hybrid ranking keyword search graph extraction graph traversal decision traces context packs MCP serving HTTP serving Qdrant support hosted embedding APIs durable writes back to Vault\nThose belong to later phases. Phase 2B should expose only vector indexing and vector status.",
+        "items": [
+          "vg search",
+          "vg ask",
+          "hybrid ranking",
+          "keyword search",
+          "graph extraction",
+          "graph traversal",
+          "decision traces",
+          "context packs",
+          "MCP serving",
+          "HTTP serving",
+          "Qdrant support",
+          "hosted embedding APIs",
+          "durable writes back to Vault"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Accepted Decisions",
+        "content": "Phase 2B follows these accepted decisions.\nChroma is the default local VectorStore.\nChroma is installed as a core dependency because vector indexing is part of the basic local workflow. It is not a hosted service requirement.\nEmbeddings are local-first.\nTextEmbeddings remains the only embedding boundary. The default production implementation is FastEmbedTextEmbeddings using sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2. Hosted implementations can be added later behind the same interface without changing vector indexing.\nvg index updates metadata and vector projections by default.\nThe command first applies metadata indexing, then reconciles vector state for the selected scope. --dry-run plans both stores and writes neither.\nChroma collections are keyed by EmbeddingModelSpec.\nCollections are not split per Vault for the MVP. Records carry vault_id, document_id, chunk_id, and content_scope as filter metadata.\nEmbeddingModelSpec is the compatibility boundary.\nA model name, version, dimension, or spec-version change makes affected vector state stale. Vault Graph must not silently search mixed model specs together.",
+        "items": [
+          "Chroma is the default local VectorStore.",
+          "Embeddings are local-first.",
+          "vg index updates metadata and vector projections by default.",
+          "Chroma collections are keyed by EmbeddingModelSpec.",
+          "EmbeddingModelSpec is the compatibility boundary."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "3.1 Default Embedding Policy",
+        "content": "The default Phase 2B embedding policy is fixed:\nimplementation: FastEmbedTextEmbeddings model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 model version: faf4aa4225822f3bc6376869cb1164e8e3feedd0 source model revision: e8f8c211226b894fcb81acc59f3b34ba3efd5f42 artifact repo: qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q dimensions: 384 spec version: fastembed-multilingual-minilm-l12-v2-cosine-v1 runtime: local CPU cache path: outside registered Vault roots, for example ~/.cache/vault-graph/embeddings embedding_batch_size: 256 embedding_parallelism: null, meaning main-process embedding embedding_lazy_load: true first use: download the configured model artifact if it is missing and network access is available offline: fail with clear model-unavailable status when the artifact is not cached fallback: never silently fall back to another model\nThe default model is multilingual because Vault content may mix Korean and English. Keeping the model at 384 dimensions also keeps Chroma storage small and compatible with the existing EmbeddingModelSpec boundary.",
+        "items": [
+          "implementation: FastEmbedTextEmbeddings",
+          "model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+          "model version: faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+          "source model revision: e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+          "artifact repo: qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+          "dimensions: 384",
+          "spec version: fastembed-multilingual-minilm-l12-v2-cosine-v1",
+          "runtime: local CPU",
+          "cache path: outside registered Vault roots, for example",
+          "embedding_batch_size: 256",
+          "embedding_parallelism: null, meaning main-process embedding",
+          "embedding_lazy_load: true",
+          "first use: download the configured model artifact if it is missing and network",
+          "offline: fail with clear model-unavailable status when the artifact is not",
+          "fallback: never silently fall back to another model"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "3.2 CPU Throughput Tuning Policy",
+        "content": "Phase 2B should expose CPU throughput tuning through the embedding adapter configuration, not through the vector store or CLI-specific shortcuts.\nFastEmbedTextEmbeddingsConfig should contain:\nembedding_batch_size: int = 256 embedding_parallelism: int | None = None embedding_lazy_load: bool = True\nembedding_parallelism uses FastEmbed semantics:\nNone: run in the main process. This is the default because it has the least memory surprise on a MacBook or laptop. 0: let FastEmbed detect available CPU cores. positive integer: use that many workers.\nThese values are runtime execution settings. They must be visible in index run metadata and status diagnostics, but they are not part of EmbeddingModelSpec. Changing embedding_batch_size or worker count must not stale vector records by itself.\nembedding_batch_size is not chunk size. Current chunk boundaries come from the heading-section-v1 chunker and are heading-section based, not a fixed token or character count.\nVectorIndexer remains responsible for stable behavior:\nselect only planned upsert chunks for embedding send texts to TextEmbeddings in batches reject duplicate input IDs before embedding bind every returned vector to the requested i...",
+        "items": [
+          "embedding_batch_size: int = 256",
+          "embedding_parallelism: int | None = None",
+          "embedding_lazy_load: bool = True",
+          "None: run in the main process. This is the default because it has the least",
+          "0: let FastEmbed detect available CPU cores.",
+          "positive integer: use that many workers.",
+          "select only planned upsert chunks for embedding",
+          "send texts to TextEmbeddings in batches",
+          "reject duplicate input IDs before embedding",
+          "bind every returned vector to the requested input ID",
+          "preserve vector identity and manifest keys regardless of batch boundaries",
+          "report configured tuning values in dry-run output without loading the model"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Sustainability Plan",
+        "content": "All derived projections should be rebuildable and recoverable through scope-local reconcile.\nPhase 2B applies that rule to vectors:\nThe vector indexer compares live MetadataStore chunks with the VectorStore manifest for the selected QueryScope. MetadataStore exposes current chunks through a stable interface. The vector indexer must not read SQLite tables directly. Vector manifests separate staleness comparison keys from lineage/status fields. Comparison keys are source chunk hash, chunker version, metadata revision, embedding model spec, and backend schema version. Vector revision and backend name are lineage/status fields. Inside the selected reconcile scope, missing, deleted, tombstoned, changed, re-chunked, or model-stale vector records are removed, replaced, or tombstoned so they are not queryable as fresh results. Records outside the selected scope are left untouched. Metadata and vector stores do not need one cross-store transaction. If vector indexing fails after metadata succeeds, vg index returns a nonzero exit, status reports vector state as stale or unavailable, and the next vg index recovers by reconcile. Future graph indexing uses the same pattern: current metadata ch...",
+        "items": [
+          "The vector indexer compares live MetadataStore chunks with the",
+          "MetadataStore exposes current chunks through a stable interface. The vector",
+          "Vector manifests separate staleness comparison keys from lineage/status",
+          "Inside the selected reconcile scope, missing, deleted, tombstoned, changed,",
+          "Metadata and vector stores do not need one cross-store transaction. If vector",
+          "Future graph indexing uses the same pattern: current metadata chunks plus",
+          "Current Phase 2B terminology is text chunk embedding and local vector"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Responsibility Map",
+        "content": "| Component | Owns | Must Not Own | | --- | --- | --- | | CatalogService | state path composition and catalog-backed service wiring | Vault content mutation | | VaultCatalog | registered Vault IDs and root paths | vector records or Chroma collections | | MetadataStore | current document and chunk projection, hashes, parser and chunker revisions, evidence resolution | embedding generation or vector backend internals | | TextEmbeddings | text-to-vector conversion under one EmbeddingModelSpec | storage, search, ranking, Vault identity | | FastEmbedTextEmbeddings | production local CPU embedding implementation and model artifact loading | Chroma writes, fallback policy, evidence resolution | | VectorIndexer | vector reconcile planning and application | metadata mutation, evidence rendering, search ranking | | VectorStore | vector persistence, manifest export, scoped vector search contract, backend health | chunk text authority, path authority, durable truth | | IndexService | metadata-then-vector orchestration and status assembly | backend-native Chroma details | | CLI | user command parsing and output | direct store table access |\nThis keeps Phase 2B as a small number of deep modules...",
+        "items": [
+          "Review the Responsibility Map section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Runtime Flow",
+        "content": "See Runtime Flow in the source Markdown document.",
+        "items": [
+          "Review the Runtime Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "6.1 Normal Index",
+        "content": "vg index should fail loudly if vector indexing fails, because the full requested index operation did not complete. The output must still report that metadata was applied when that is true, and vg status must show vector state as stale or unavailable until the next successful reconcile. The CLI exit code must be nonzero for the failed vector step.",
+        "items": [
+          "Review the 6.1 Normal Index section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg index\n  -> load VaultCatalog and state paths\n  -> resolve QueryScope from active Vault, --vault-id, or --all-vaults\n  -> MetadataIndexer.apply(scope)\n  -> VectorIndexer.apply(scope, metadata_revision)\n  -> StatusReport with metadata and vector fields"
+          }
+        ]
+      },
+      {
+        "heading": "6.2 Dry Run",
+        "content": "Dry-run may open stores in read-only or non-initializing mode. It must not create Chroma collections, SQLite schema, state directories, or Vault files.",
+        "items": [
+          "Review the 6.2 Dry Run section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg index --dry-run\n  -> MetadataIndexer.plan(scope)\n  -> VectorIndexer.plan(scope)\n  -> report planned metadata and vector changes\n  -> no MetadataStore or VectorStore writes"
+          }
+        ]
+      },
+      {
+        "heading": "6.3 Full Rebuild",
+        "content": "vg index --full rebuilds metadata and vector state for the selected scope. For vectors, full rebuild means all manifest rows in the selected scope are treated as stale unless they match the current desired chunk, model spec, schema, and revision state.\nThe selected scope still matters. A full rebuild for one Vault must not tombstone vector records from another Vault.",
+        "items": [
+          "Review the 6.3 Full Rebuild section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Data Contracts",
+        "content": "See Data Contracts in the source Markdown document.",
+        "items": [
+          "Review the Data Contracts section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.1 MetadataStore Chunk Listing",
+        "content": "Phase 2B adds one MetadataStore boundary:\nRules:\nReturn only current, non-tombstoned chunks. Filter by QueryScope.vault_ids. Filter by QueryScope.content_scopes with the same same-or-child semantics used by metadata indexing. Receive an actual per-Vault QueryScope from application services. The store must not infer catalog entry scope from a global all-vault scope union. Return ChunkSnapshot records, not backend-native rows. Include chunk text because embedding generation needs it. Include content_hash, chunker_version, and index_revision because vector freshness depends on them.\nIndexService or VectorIndexer must resolve user selection through VaultCatalog first. For all-vault runs, reconcile is planned over per-Vault actual scopes that match VaultLoader behavior:\nif the query scope is narrower than the catalog entry scope, use the query scope if the catalog entry scope is narrower than the query scope, use the catalog entry scope if neither contains the other, that scope pair contributes no work",
+        "items": [
+          "Return only current, non-tombstoned chunks.",
+          "Filter by QueryScope.vault_ids.",
+          "Filter by QueryScope.content_scopes with the same same-or-child semantics",
+          "Receive an actual per-Vault QueryScope from application services. The",
+          "Return ChunkSnapshot records, not backend-native rows.",
+          "Include chunk text because embedding generation needs it.",
+          "Include content_hash, chunker_version, and index_revision because vector",
+          "if the query scope is narrower than the catalog entry scope, use the query",
+          "if the catalog entry scope is narrower than the query scope, use the catalog",
+          "if neither contains the other, that scope pair contributes no work"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class MetadataStore(Protocol):\n    def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]: ..."
+          }
+        ]
+      },
+      {
+        "heading": "7.2 Content Scope Derivation",
+        "content": "VectorEmbeddingRecord.content_scope is filter metadata, not evidence.\nFor a document path, derive content scope from the normalized parent directory:\nwiki/page.md -> wiki wiki/systems/runtime.md -> wiki/systems docs/SPEC.md -> docs scratch/reports/phase-2/note.md -> scratch/reports/phase-2\nThis keeps same-or-child filtering useful:\na query scope of wiki includes wiki/systems a query scope of wiki/systems does not include unrelated wiki/decisions a query scope of docs includes docs/SPEC.md",
+        "items": [
+          "wiki/page.md -> wiki",
+          "wiki/systems/runtime.md -> wiki/systems",
+          "docs/SPEC.md -> docs",
+          "scratch/reports/phase-2/note.md -> scratch/reports/phase-2",
+          "a query scope of wiki includes wiki/systems",
+          "a query scope of wiki/systems does not include unrelated wiki/decisions",
+          "a query scope of docs includes docs/SPEC.md"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.3 Vector Record Freshness",
+        "content": "Phase 2A record shapes remain the public boundary. Phase 2B expands vector records, manifest records, and tombstones before Chroma is implemented.\nStaleness comparison keys:\nsource_chunk_hash: copied from ChunkSnapshot.content_hash chunker_version: copied from ChunkSnapshot.chunker_version metadata_index_revision: copied from ChunkSnapshot.index_revision embedding_spec: copied from TextEmbeddings.model_spec() backend_schema_version: local Chroma adapter schema version\nLineage and status fields:\nvector_index_revision: created by the vector indexer backend: chroma for the Phase 2B implementation\nThese fields are for rebuildability and status. They must not become user-facing evidence. Normal search results in Phase 2C still resolve evidence through MetadataStore.\nvector_index_revision is not a staleness comparison key. If it were, every successful vector run would make unchanged records stale in the next run.\nVectorTombstone should identify the exact stale row:\nvector_id vault_id chunk_id embedding_spec\nThe current (vault_id, chunk_id) identity is too broad once old-model and current-model rows can coexist during model-spec reconcile.",
+        "items": [
+          "source_chunk_hash: copied from ChunkSnapshot.content_hash",
+          "chunker_version: copied from ChunkSnapshot.chunker_version",
+          "metadata_index_revision: copied from ChunkSnapshot.index_revision",
+          "embedding_spec: copied from TextEmbeddings.model_spec()",
+          "backend_schema_version: local Chroma adapter schema version",
+          "vector_index_revision: created by the vector indexer",
+          "backend: chroma for the Phase 2B implementation",
+          "vector_id",
+          "vault_id",
+          "chunk_id",
+          "embedding_spec"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.4 Vector IDs",
+        "content": "Keep the Phase 2A vector ID rule:\nWhen a chunk hash changes under the same chunk_id, the vector indexer may replace the existing record under the same vector ID. When a backend stores stale rows under a previous vector ID, the vector indexer tombstones them. The required behavior is that stale vectors are no longer queryable as fresh records.",
+        "items": [
+          "Review the 7.4 Vector IDs section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vector_id = stable_id(\"vector\", vault_id, chunk_id, embedding_model_spec_key)"
+          }
+        ]
+      },
+      {
+        "heading": "7.5 Chroma Collection Strategy",
+        "content": "Use one logical Chroma collection per EmbeddingModelSpec.\nVector schema version is collection metadata for compatibility checks. It is not part of the accepted product-level collection key. If a schema version is incompatible, the adapter should fail loudly or require an explicit rebuild or migration path rather than silently mixing schemas.\nCollection metadata stores:\nmodel name model version dimensions spec version vector schema version backend name\nRecord payload stores:\nvector_id vault_id document_id chunk_id content_scope source_chunk_hash chunker_version metadata_index_revision vector_index_revision\nThe MVP does not create one collection per Vault. Vault filtering stays in payload metadata so a single Vault Graph instance can index multiple Vaults without changing the storage contract.",
+        "items": [
+          "model name",
+          "model version",
+          "dimensions",
+          "spec version",
+          "vector schema version",
+          "backend name",
+          "vector_id",
+          "vault_id",
+          "document_id",
+          "chunk_id",
+          "content_scope",
+          "source_chunk_hash",
+          "chunker_version",
+          "metadata_index_revision",
+          "vector_index_revision"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/2026-06-08-phase-2b-local-vector-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

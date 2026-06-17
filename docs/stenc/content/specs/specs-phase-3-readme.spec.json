@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:specs-phase-3-readme",
+  "slug": "specs-phase-3-readme",
+  "status": "canonical",
+  "title": "Phase 3 Design Documents",
+  "description": "This folder holds detailed Phase 3 design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and archite.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-17",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-3/README.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "This folder holds detailed Phase 3 design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and archite.",
+    "agentSummary": "Read docs/superpowers/specs/phase-3/README.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "This folder holds detailed Phase 3 design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how each Phase 3 slice should be implemented while staying inside that contract.",
+    "problem": "This folder holds detailed Phase 3 design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how each Phase 3 slice should be implemented while staying inside that contract.",
+    "scope": {
+      "in": [
+        "Structured Stenc view of the source spec Markdown.",
+        "Original Markdown remains at docs/superpowers/specs/phase-3/README.md."
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown source.",
+        "Changing Vault Graph runtime behavior."
+      ]
+    },
+    "architecture": {
+      "summary": "This folder holds detailed Phase 3 design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how each Phase 3 slice should be implemented while staying inside that contract.",
+      "flow": [
+        "Markdown source -> Stenc JSON -> generated fixed web page"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Overview",
+        "detail": "This folder holds detailed Phase 3 design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how each Phase 3 slice should be implemented while staying inside that contract.",
+        "acceptanceCriteria": [
+          "Review the Overview section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "Documents",
+        "detail": "| File | Role | | --- | --- | | CONTEXT.md | Shared Phase 3 glossary and terminology boundaries | | 2026-06-10-phase-3-overview-design.md | Cross-slice overview, common invariants, and implementation handoff map | | 2026-06-10-phase-3a-graphstore-contract-readiness-design.md | Detailed Phase 3A graph contract and readiness design | | 2026-06-10-phase-3b-local-entity-relationship-indexing-design.md | Detailed Phase 3B graph indexing and reconcile design | | 2026-06-10-phase-3c-graph-projection-retrieval-design.md | Detailed Phase 3C graph projection and retrieval design |",
+        "acceptanceCriteria": [
+          "Review the Documents section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Reading Order",
+        "detail": "Read docs/SPEC.md for the top-level product contract. Read CONTEXT.md for shared Phase 3 terms. Read 2026-06-10-phase-3-overview-design.md for Phase 3 invariants and dependencies. Read the target slice document before writing an implementation plan.",
+        "acceptanceCriteria": [
+          "Read docs/SPEC.md for the top-level product contract.",
+          "Read CONTEXT.md for shared Phase 3 terms.",
+          "Read 2026-06-10-phase-3-overview-design.md for Phase 3 invariants and",
+          "Read the target slice document before writing an implementation plan."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "This folder holds detailed Phase 3 design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how each Phase 3 slice should be implemented while staying inside that contract.",
+        "interfaces": [
+          "docs/SPEC.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Original Markdown is converted into Stenc JSON and rendered as a deterministic static page."
+    ],
+    "errorHandling": [
+      {
+        "case": "Conversion drift",
+        "behavior": "Treat the original Markdown and docs/SPEC.md as the source of truth if generated Stenc content is ambiguous."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Overview",
+        "rules": [
+          "Review the Overview section in the source Markdown."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-3/README.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "docs/SPEC.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/specs-phase-3-readme.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/specs-phase-3-readme.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-3/README.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "This folder holds detailed Phase 3 design documents that would make docs/SPEC.md too long if kept in the top-level contract.\ndocs/SPEC.md remains the canonical product and architecture contract. Files in this folder explain how each Phase 3 slice should be implemented while staying inside that contract.",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/README.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/README.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Documents",
+        "content": "| File | Role | | --- | --- | | CONTEXT.md | Shared Phase 3 glossary and terminology boundaries | | 2026-06-10-phase-3-overview-design.md | Cross-slice overview, common invariants, and implementation handoff map | | 2026-06-10-phase-3a-graphstore-contract-readiness-design.md | Detailed Phase 3A graph contract and readiness design | | 2026-06-10-phase-3b-local-entity-relationship-indexing-design.md | Detailed Phase 3B graph indexing and reconcile design | | 2026-06-10-phase-3c-graph-projection-retrieval-design.md | Detailed Phase 3C graph projection and retrieval design |",
+        "items": [
+          "Review the Documents section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/README.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/README.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Reading Order",
+        "content": "Read docs/SPEC.md for the top-level product contract. Read CONTEXT.md for shared Phase 3 terms. Read 2026-06-10-phase-3-overview-design.md for Phase 3 invariants and dependencies. Read the target slice document before writing an implementation plan.",
+        "items": [
+          "Read docs/SPEC.md for the top-level product contract.",
+          "Read CONTEXT.md for shared Phase 3 terms.",
+          "Read 2026-06-10-phase-3-overview-design.md for Phase 3 invariants and",
+          "Read the target slice document before writing an implementation plan."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/README.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/README.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

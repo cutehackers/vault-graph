@@ -1,0 +1,1466 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-15-phase-5a-mcp-server-foundation-stdio",
+  "slug": "2026-06-15-phase-5a-mcp-server-foundation-stdio",
+  "status": "approved",
+  "title": "Phase 5A MCP Server Foundation And Stdio Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-15",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "spec:2026-06-15-phase-5a-mcp-server-foundation-stdio-design"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Add a local read-only MCP stdio foundation so agents can connect to Vault Graph through vg serve --mcp without giving MCP ownership of retrieval, graph, indexing, or context-pack behavior.\nArchitecture: Create vault_graph.mcp as a thin outer adapter around existing application services. The adapter constructs read-only dependencies from the configured Vault Graph state path, creates a FastMCP stdio server, and exposes only lifecycle/capability readiness in Phase 5A; concret...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Add a local read-only MCP stdio foundation so agents can connect to Vault Graph through vg serve --mcp without giving MCP ownership of retrieval, graph, indexing, or context-pack behavior.\nArchitecture: Create vault_graph.mcp as a thin outer adapter around existing application services. The adapter constructs read-only dependencies from the configured Vault Graph state path, creates a FastMCP stdio server, and exposes only lifecycle/capability readiness in Phase 5A; concrete resources, tools, and prompts are added in Phase 5B/5C.\nTech Stack: Python 3.12, Typer CLI, offici...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "Phase 5A implements:\nmcp>=1.27,<2 dependency and updated uv.lock src/vault_graph/mcp/ package FastMCP server construction for local stdio only vg serve --mcp read-only MCP service factory over existing catalog, metadata, keyword, vector, retrieval, and context-pack services shared MCP scope input DTO for later resources/tools shared MCP-safe error payload and exception mapping Codex-compatible local stdio configuration example tests for CLI surface, read-only startup, import boundaries, scope validation, error mapping, and config examples\nPhase 5A does not implement:\nStreamable HTTP, SSE, authentication, remote hosting, or network binding MCP resources, resource templates, subscriptions, or...",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "mcp>=1.27,<2 dependency and updated uv.lock",
+        "src/vault_graph/mcp/ package",
+        "FastMCP server construction for local stdio only",
+        "vg serve --mcp",
+        "read-only MCP service factory over existing catalog, metadata, keyword, vector, retrieval, and context-pack services",
+        "shared MCP scope input DTO for later resources/tools",
+        "shared MCP-safe error payload and exception mapping",
+        "Codex-compatible local stdio configuration example",
+        "tests for CLI surface, read-only startup, import boundaries, scope validation, error mapping, and config examples",
+        "Streamable HTTP, SSE, authentication, remote hosting, or network binding"
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "AGENTS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/SPEC.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/FEATURES.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DESIGN.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/CONVENTIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-5/README.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/cli/main.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DECISIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "uv.lock",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_server.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_service_factory.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_scope.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_errors.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/mcp/mcp_config_examples.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_mcp_scope.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_mcp_errors.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_mcp_service_factory.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_mcp_import_boundaries.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_cli_mcp_serve.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Tasks",
+        "status": "todo",
+        "surfaces": [
+          "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Review the Tasks section in the source Markdown.",
+            "status": "todo",
+            "instruction": "Review the Tasks section in the source Markdown.",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 1: Add MCP Dependency And Config Example",
+        "status": "todo",
+        "surfaces": [
+          "pyproject.toml",
+          "uv.lock",
+          "docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json",
+          "docs/superpowers/specs/phase-5/README.md",
+          "tests/test_mcp_config_examples.py",
+          "src/vault_graph/mcp/init.py",
+          "src/vault_graph/mcp/mcp_config_examples.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "pyproject.toml",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "uv.lock",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/superpowers/specs/phase-5/README.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_config_examples.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_config_examples.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_config_examples.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv lock --python 3.12",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(mcp): add local stdio config example\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Modify: pyproject.toml",
+            "status": "todo",
+            "instruction": "Modify: pyproject.toml",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 2: Add MCP Scope And Error Contracts",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/init.py",
+          "src/vault_graph/mcp/mcp_scope.py",
+          "src/vault_graph/mcp/mcp_errors.py",
+          "tests/test_mcp_scope.py",
+          "tests/test_mcp_errors.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_scope.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_scope.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_scope.py tests/test_mcp_errors.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/mcp/init.py src/vault_graph/mcp/mcp_scope.py src/vault_graph/mcp/mcp_errors.py tests/test_mcp_scope.py tests/test_mcp_errors.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(mcp): add scope and error contracts\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Modify: src/vault_graph/mcp/init.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/mcp/init.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 3: Add Read-Only MCP Service Factory",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_service_factory.py",
+          "tests/test_mcp_service_factory.py",
+          "tests/test_mcp_import_boundaries.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_service_factory.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_service_factory.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_import_boundaries.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_service_factory.py tests/test_mcp_import_boundaries.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/mcp/mcp_service_factory.py tests/test_mcp_service_factory.py tests/test_mcp_import_boundaries.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(mcp): add read-only service factory\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Create: src/vault_graph/mcp/mcp_service_factory.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/mcp/mcp_service_factory.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 4: Add FastMCP Server Construction",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_server.py",
+          "tests/test_mcp_server.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_server.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_server.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_server.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_server.py tests/test_mcp_service_factory.py tests/test_mcp_import_boundaries.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/mcp/mcp_server.py tests/test_mcp_server.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(mcp): add stdio server construction\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-5",
+            "title": "Create: src/vault_graph/mcp/mcp_server.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/mcp/mcp_server.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 5: Add vg serve --mcp",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/cli/main.py",
+          "tests/test_cli_surface_boundary.py",
+          "tests/test_cli_mcp_serve.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_surface_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_mcp_serve.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_mcp_serve.py tests/test_cli_surface_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/cli/main.py tests/test_cli_mcp_serve.py tests/test_cli_surface_boundary.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(cli): add mcp serve command\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Modify: src/vault_graph/cli/main.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/cli/main.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Task 6: Add End-To-End MCP Stdio Smoke Verification",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_mcp_stdio_smoke.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_mcp_stdio_smoke.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_mcp_stdio_smoke.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "VG_RUN_MCP_STDIO_SMOKE=1 uv run --python 3.12 pytest tests/test_mcp_stdio_smoke.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add tests/test_mcp_stdio_smoke.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"test(mcp): add opt-in stdio smoke coverage\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-5",
+            "title": "Test: tests/test_mcp_stdio_smoke.py",
+            "status": "todo",
+            "instruction": "Test: tests/test_mcp_stdio_smoke.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-8",
+        "title": "Task 7: Full Verification And Documentation Check",
+        "status": "todo",
+        "surfaces": [
+          "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-8-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest \\",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "VG_RUN_MCP_STDIO_SMOKE=1 uv run --python 3.12 pytest tests/test_mcp_stdio_smoke.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-5",
+            "title": "No new production files unless verification exposes a defect.",
+            "status": "todo",
+            "instruction": "No new production files unless verification exposes a defect.",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7",
+      "slice-8"
+    ],
+    "risks": [
+      {
+        "risk": "src/vault_graph/mcp/mcp_errors.py",
+        "mitigation": "Rules:\nDomain validation errors map to invalid parameters or structured execution errors. Domain and internal error messages must redact arbitrary absolute paths. A user-provided --state path may appear in diagnostics because the user explicitly provided it; unrelated absolute paths in the same message must still be redacted. Error payloads are the structured contract used by Phase 5B resources and Phase 5C tools.\nPhase 5A does not convert warning DTOs because it registers no concrete handlers...."
+      },
+      {
+        "risk": "Error Handling And Edge Cases",
+        "mitigation": "Required behavior:\nMissing catalog at --state exits before stdio startup with nonzero exit and stderr message. State path inside a registered Vault is rejected by CatalogService.load_catalog(). Unsupported transport is rejected by McpServerConfig. --http returns http_transport_not_supported_in_phase_5a. --mcp --http returns Use either --mcp or --http, not both. McpScopeInput(all_vaults=True, vault_ids=(\"default\",)) raises CatalogError. McpScopeInput(vault_ids=(\"disabled\",)) raises CatalogError...."
+      },
+      {
+        "risk": "Task 2: Add MCP Scope And Error Contracts",
+        "mitigation": "Files:\nModify: src/vault_graph/mcp/init.py Create: src/vault_graph/mcp/mcp_scope.py Create: src/vault_graph/mcp/mcp_errors.py Test: tests/test_mcp_scope.py Test: tests/test_mcp_errors.py\n[ ] Step 1: Write failing scope tests\n[ ] Step 2: Write failing error mapping tests\n[ ] Step 3: Run tests to verify they fail\nRun:\nExpected: FAIL because the MCP package, scope DTO, and error mapper do not exist.\n[ ] Step 4: Implement scope, error, and lazy package exports\nCreate src/vault_graph/mcp/mcp_scope.p..."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_mcp_config_examples.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv lock --python 3.12",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(mcp): add local stdio config example\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_mcp_scope.py tests/test_mcp_errors.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/mcp/init.py src/vault_graph/mcp/mcp_scope.py src/vault_graph/mcp/mcp_errors.py tests/test_mcp_scope.py tests/test_mcp_errors.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(mcp): add scope and error contracts\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_mcp_service_factory.py tests/test_mcp_import_boundaries.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/mcp/mcp_service_factory.py tests/test_mcp_service_factory.py tests/test_mcp_import_boundaries.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Add a local read-only MCP stdio foundation so agents can connect to Vault Graph through vg serve --mcp without giving MCP ownership of retrieval, graph, indexing, or context-pack behavior.\nArchitecture: Create vault_graph.mcp as a thin outer adapter around existing application services. The adapter constructs read-only dependencies from the configured Vault Graph state path, creates a FastMCP stdio server, and exposes only lifecycle/capability readiness in Phase 5A; concrete resources, tools, and prompts are added in Phase 5B/5C.\nTech Stack: Python 3.12, Typer CLI, official MCP Python SDK v1 (mcp>=1.27,<2), FastMCP stdio transport, frozen dataclasses, existing SQLite/Chroma/FastEmbed read-only constructors, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Source Documents",
+        "content": "Read these before implementation:\nAGENTS.md docs/SPEC.md docs/FEATURES.md docs/DESIGN.md docs/CONVENTIONS.md docs/superpowers/specs/phase-5/README.md docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md\nImplementation must preserve these current repo facts:\nsrc/vault_graph/cli/main.py already owns CLI parsing and has private read-only service helpers. CatalogService owns state-path layout and Vault boundary checks. SQLiteMetadataStore(path, initialize=False) opens SQLite with mode=ro and does not create missing state. ChromaVectorStore(path, initialize=False, read_only=True) avoids creating missing Chroma state. FastEmbedTextEmbeddingsConfig(local_files_only=True, embedding_lazy_load=True) avoids first-use model download during read-only search construction. RustworkxGraphProjection must remain lazily imported only for explicit graph behavior. docs/DECISIONS.md records accepted decisions only; no new user decision is required for this slice.",
+        "items": [
+          "AGENTS.md",
+          "docs/SPEC.md",
+          "docs/FEATURES.md",
+          "docs/DESIGN.md",
+          "docs/CONVENTIONS.md",
+          "docs/superpowers/specs/phase-5/README.md",
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5-mcp-server-overview-design.md",
+          "docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md",
+          "src/vault_graph/cli/main.py already owns CLI parsing and has private read-only service helpers.",
+          "CatalogService owns state-path layout and Vault boundary checks.",
+          "SQLiteMetadataStore(path, initialize=False) opens SQLite with mode=ro and does not create missing state.",
+          "ChromaVectorStore(path, initialize=False, read_only=True) avoids creating missing Chroma state.",
+          "FastEmbedTextEmbeddingsConfig(local_files_only=True, embedding_lazy_load=True) avoids first-use model download during read-only search construction.",
+          "RustworkxGraphProjection must remain lazily imported only for explicit graph behavior.",
+          "docs/DECISIONS.md records accepted decisions only; no new user decision is required for this slice."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope",
+        "content": "Phase 5A implements:\nmcp>=1.27,<2 dependency and updated uv.lock src/vault_graph/mcp/ package FastMCP server construction for local stdio only vg serve --mcp read-only MCP service factory over existing catalog, metadata, keyword, vector, retrieval, and context-pack services shared MCP scope input DTO for later resources/tools shared MCP-safe error payload and exception mapping Codex-compatible local stdio configuration example tests for CLI surface, read-only startup, import boundaries, scope validation, error mapping, and config examples\nPhase 5A does not implement:\nStreamable HTTP, SSE, authentication, remote hosting, or network binding MCP resources, resource templates, subscriptions, or context-pack resource cache MCP tools such as search_vault, build_context_pack, find_related, get_decision_trace, or check_index_status MCP prompts ask_vault, answer synthesis, memory projections, or autonomous Vault publication indexing or derived-state mutation from MCP",
+        "items": [
+          "mcp>=1.27,<2 dependency and updated uv.lock",
+          "src/vault_graph/mcp/ package",
+          "FastMCP server construction for local stdio only",
+          "vg serve --mcp",
+          "read-only MCP service factory over existing catalog, metadata, keyword, vector, retrieval, and context-pack services",
+          "shared MCP scope input DTO for later resources/tools",
+          "shared MCP-safe error payload and exception mapping",
+          "Codex-compatible local stdio configuration example",
+          "tests for CLI surface, read-only startup, import boundaries, scope validation, error mapping, and config examples",
+          "Streamable HTTP, SSE, authentication, remote hosting, or network binding",
+          "MCP resources, resource templates, subscriptions, or context-pack resource cache",
+          "MCP tools such as search_vault, build_context_pack, find_related, get_decision_trace, or check_index_status",
+          "MCP prompts",
+          "ask_vault, answer synthesis, memory projections, or autonomous Vault publication",
+          "indexing or derived-state mutation from MCP"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Directory And File Structure",
+        "content": "Create:\nsrc/vault_graph/mcp/init.py: lazy public exports for MCP DTOs and entry points. src/vault_graph/mcp/mcp_server.py: McpServerConfig, FastMCP construction, and stdio serving. src/vault_graph/mcp/mcp_service_factory.py: read-only application service composition for MCP handlers. src/vault_graph/mcp/mcp_scope.py: JSON scope input DTO and mapping to QueryScope. src/vault_graph/mcp/mcp_errors.py: MCP-safe error payloads and domain error mapping. src/vault_graph/mcp/mcp_config_examples.py: durable local stdio client configuration examples. tests/test_mcp_scope.py tests/test_mcp_errors.py tests/test_mcp_service_factory.py tests/test_mcp_import_boundaries.py tests/test_cli_mcp_serve.py tests/test_mcp_config_examples.py docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json\nModify:\npyproject.toml: add mcp>=1.27,<2 to project dependencies. uv.lock: refresh with uv lock --python 3.12. src/vault_graph/cli/main.py: add serve command and stderr-oriented domain error helper for server startup. tests/test_cli_surface_boundary.py: assert the root CLI exposes serve and still does not expose ask. docs/superpowers/specs/phase-5/README.md: link the new Codex config example.\nDo not...",
+        "items": [
+          "src/vault_graph/mcp/init.py: lazy public exports for MCP DTOs and entry points.",
+          "src/vault_graph/mcp/mcp_server.py: McpServerConfig, FastMCP construction, and stdio serving.",
+          "src/vault_graph/mcp/mcp_service_factory.py: read-only application service composition for MCP handlers.",
+          "src/vault_graph/mcp/mcp_scope.py: JSON scope input DTO and mapping to QueryScope.",
+          "src/vault_graph/mcp/mcp_errors.py: MCP-safe error payloads and domain error mapping.",
+          "src/vault_graph/mcp/mcp_config_examples.py: durable local stdio client configuration examples.",
+          "tests/test_mcp_scope.py",
+          "tests/test_mcp_errors.py",
+          "tests/test_mcp_service_factory.py",
+          "tests/test_mcp_import_boundaries.py",
+          "tests/test_cli_mcp_serve.py",
+          "tests/test_mcp_config_examples.py",
+          "docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json",
+          "pyproject.toml: add mcp>=1.27,<2 to project dependencies.",
+          "uv.lock: refresh with uv lock --python 3.12.",
+          "src/vault_graph/cli/main.py: add serve command and stderr-oriented domain error helper for server startup."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Component And Interface Spec",
+        "content": "See Component And Interface Spec in the source Markdown document.",
+        "items": [
+          "Review the Component And Interface Spec section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "pyproject.toml",
+        "content": "Add the SDK dependency with a v2 guard because official MCP Python SDK v2 is alpha while v1 is the current stable line. Do not use the mcp[cli] extra for runtime Phase 5A; it widens the dependency surface beyond the stdio server requirement.",
+        "items": [
+          "Review the pyproject.toml section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "toml",
+            "content": "dependencies = [\n  \"PyYAML>=6.0.2\",\n  \"chromadb>=1.5.9,<2.0\",\n  \"fastembed>=0.8.0,<1.0\",\n  \"huggingface-hub>=0.31,<1.0\",\n  \"mcp>=1.27,<2\",\n  \"rustworkx>=0.17,<1.0\",\n  \"typer>=0.12.5\",\n]"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_server.py",
+        "content": "Use FastMCP v1 as the server boundary. Phase 5A creates a server that can initialize over stdio but intentionally registers no product resources, tools, or prompts.\nRules:\nImport FastMCP inside create_mcp_server, not at package import time. Do not write startup text to stdout. Do not register uncallable stub tools, resources, or prompts. Do not create missing state directories or stores while constructing the server.\nKeep server_version in McpServerConfig and RegisteredMcpServer for Vault Graph diagnostics and later low-level protocol tests; FastMCP v1 does not expose a stable constructor argument for server version.\nPass McpServices through the owned RegisteredMcpServer wrapper instead of attaching private attributes to the SDK server object.",
+        "items": [
+          "Import FastMCP inside create_mcp_server, not at package import time.",
+          "Do not write startup text to stdout.",
+          "Do not register uncallable stub tools, resources, or prompts.",
+          "Do not create missing state directories or stores while constructing the server.",
+          "Keep server_version in McpServerConfig and RegisteredMcpServer for Vault Graph diagnostics and later low-level protocol tests; FastMCP v1 does not expose a stable constructor argument for server version.",
+          "Pass McpServices through the owned RegisteredMcpServer wrapper instead of attaching private attributes to the SDK server object."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import Literal, Protocol\n\nfrom vault_graph import __version__\nfrom vault_graph.errors import CatalogError\nfrom vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices\n\nMcpTransport = Literal[\"stdio\"]\n\n\nclass McpServer(Protocol):\n    name: str\n\n    def run(self, transport: McpTransport = \"stdio\", mount_path: str | None = None) -> None:\n        \"\"\"Run the MCP server on the selected transport.\"\"\"\n\n\n@dataclass(frozen=True)\nclass McpServerConfig:\n    state_path: Path\n    transport: McpTransport = \"stdio\"\n    server_name: str = \"vault-graph\"\n    server_version: str = __version__\n\n    def __post_init__(self) -> None:\n        if self.transport != \"stdio\":\n            raise CatalogError(f\"unsupported MCP transport for Phase 5A: {self.transport}\")\n        if not self.server_name.strip():\n            raise CatalogError(\"MCP server_name is required\")\n        if not self.server_version.strip():\n            raise CatalogError(\"MCP server_version is required\")\n\n\n@dataclass(frozen=True)\nclass RegisteredMcpServer:\n    server: McpServer\n    services: McpServices\n    service_factory: McpServiceFactory\n    server_version: str\n\n\ndef create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:\n    from mcp.server.fastmcp import FastMCP\n\n    factory = McpServiceFactory(state_path=config.state_path)\n    services = factory.open_read_only()\n    instructions = (\n        \"Vault Graph exposes read-only, rebuildable, evidence-first working context over configured Vaults. \"\n        \"Treat all output as context, not durable knowledge.\"\n    )\n    server = FastMCP(\n        config.server_name,\n        instructions=instructions,\n        json_response=True,\n        log_level=\"WARNING\",\n    )\n    return RegisteredMcpServer(\n        server=server,\n        services=services,\n        service_factory=factory,\n        server_version=config.server_version,\n    )\n\n\ndef run_mcp_server(registered: RegisteredMcpServer, *, config: McpServerConfig) -> None:\n    registered.server.run(transport=config.transport)\n\n\ndef serve_mcp(config: McpServerConfig) -> None:\n    registered = create_mcp_server(config)\n    run_mcp_server(registered, config=config)"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_service_factory.py",
+        "content": "This is the deep composition boundary for MCP. It may import concrete local adapters because it is an outer adapter composition point. Domain packages must not import this module.\nRules:\nopen_read_only() must not call open_status_service() or open_graph_retrieval_service(). open_graph_retrieval_service() is the only Phase 5A function that imports RustworkxGraphProjection.\nmcp_service_factory.py module import must not import RetrievalService, IndexService, context-pack builder implementations, graph service classes, graph status stores, ChromaVectorStore, FastEmbedTextEmbeddings, chromadb, fastembed, huggingface_hub, rustworkx, or local graph projection adapters.\nMcpServiceFactory must not call IndexService.run_plan(), IndexService.run_apply(), ContextPackBuilder.build(), or RetrievalService.search() during startup. McpServiceFactory may duplicate current CLI composition in Phase 5A. Do not refactor CLI helpers into a shared application factory until a later task proves the duplication is harmful.",
+        "items": [
+          "open_read_only() must not call open_status_service() or open_graph_retrieval_service().",
+          "open_graph_retrieval_service() is the only Phase 5A function that imports RustworkxGraphProjection.",
+          "mcp_service_factory.py module import must not import RetrievalService, IndexService, context-pack builder implementations, graph service classes, graph status stores, ChromaVectorStore, FastEmbedTextEmbeddings, chromadb, fastembed, huggingface_hub, rustworkx, or local graph projection adapters.",
+          "McpServiceFactory must not call IndexService.run_plan(), IndexService.run_apply(), ContextPackBuilder.build(), or RetrievalService.search() during startup.",
+          "McpServiceFactory may duplicate current CLI composition in Phase 5A. Do not refactor CLI helpers into a shared application factory until a later task proves the duplication is harmful."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import TYPE_CHECKING\n\nfrom vault_graph.app.catalog_service import CatalogService\nfrom vault_graph.ingestion.vault_catalog import VaultCatalog\nfrom vault_graph.storage.interfaces.metadata_store import MetadataStore\n\nif TYPE_CHECKING:\n    from vault_graph.app.graph_retrieval_service import GraphRetrievalService\n    from vault_graph.app.index_service import IndexService\n    from vault_graph.context.context_pack_builder import ContextPackBuilder\n    from vault_graph.context.context_pack_renderer import ContextPackRenderer\n    from vault_graph.embeddings.text_embeddings import TextEmbeddings\n    from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider\n    from vault_graph.retrieval.retrieval_service import RetrievalService\n\n\n@dataclass(frozen=True)\nclass McpServices:\n    catalog_service: CatalogService\n    catalog: VaultCatalog\n    metadata_store: MetadataStore\n    retrieval_service: RetrievalService\n    context_pack_builder: ContextPackBuilder\n    context_pack_renderer: ContextPackRenderer\n\n\nclass McpServiceFactory:\n    def __init__(self, *, state_path: Path) -> None:\n        self._state_path = state_path\n\n    def open_read_only(self) -> McpServices:\n        from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness\n        from vault_graph.context.context_pack_builder import MetadataContextEvidenceResolver, SearchContextPackBuilder\n        from vault_graph.context.context_pack_renderer import DefaultContextPackRenderer\n        from vault_graph.retrieval.retrieval_service import RetrievalService\n        from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore\n        from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex\n        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n        catalog_service, catalog = self._catalog()\n        metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)\n        keyword_index = SQLiteKeywordIndex(catalog_service.metadata_path)\n        vector_store = ChromaVectorStore(catalog_service.vector_path, initialize=False, read_only=True)\n        text_embeddings = self._search_text_embeddings(catalog_service)\n        retrieval_service = RetrievalService(\n            catalog=catalog,\n            metadata_store=metadata_store,\n            keyword_index=keyword_index,\n            vector_store=vector_store,\n            text_embeddings=text_embeddings,\n            readiness=ReadOnlySearchReadiness(\n                metadata_store=metadata_store,\n                keyword_index=keyword_index,\n                vector_store=vector_store,\n                text_embeddings=text_embeddings,\n            ),\n        )\n        return McpServices(\n            catalog_service=catalog_service,\n            catalog=catalog,\n            metadata_store=metadata_store,\n            retrieval_service=retrieval_service,\n            context_pack_builder=SearchContextPackBuilder(\n                catalog=catalog,\n                retrieval_service=retrieval_service,\n                evidence_resolver=MetadataContextEvidenceResolver(metadata_store=metadata_store),\n            ),\n            context_pack_renderer=DefaultContextPackRenderer(),\n        )\n\n    def open_status_service(self) -> IndexService:\n        from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness\n        from vault_graph.app.index_service import IndexService\n        from vault_graph.graph.graph_contracts import current_graph_extraction_spec\n        from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore\n        from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore\n        from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore\n        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n        from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore\n\n        catalog_service, catalog = self._catalog()\n        metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)\n        graph_store = SQLiteGraphStore.open_read_only(catalog_service.graph_path)\n        text_embeddings = self._search_text_embeddings(catalog_service)\n        return IndexService(\n            catalog=catalog,\n            metadata_store=metadata_store,\n            vector_store=ChromaVectorStore(catalog_service.vector_path, initialize=False, read_only=True),\n            text_embeddings=text_embeddings,\n            vector_status_store=LocalVectorStatusStore(catalog_service.vector_status_path),\n            embedding_batch_size=text_embeddings.config.embedding_batch_size,\n            embedding_parallelism=text_embeddings.config.embedding_parallelism,\n            embedding_lazy_load=text_embeddings.config.embedding_lazy_load,\n            graph_store=graph_store,\n            graph_extraction_spec=current_graph_extraction_spec(),\n            graph_status_store=LocalGraphStatusStore(catalog_service.graph_status_path),\n            graph_readiness=ReadOnlyGraphReadiness(\n                metadata_store=metadata_store,\n                graph_store=graph_store,\n                expected_spec=current_graph_extraction_spec(),\n            ),\n        )\n\n    def open_graph_retrieval_service(self) -> GraphRetrievalService:\n        from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness\n        from vault_graph.app.graph_retrieval_service import GraphRetrievalService\n        from vault_graph.graph.graph_contracts import current_graph_extraction_spec\n        from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection\n        from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore\n        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n        catalog_service, catalog = self._catalog()\n        metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)\n        graph_store = SQLiteGraphStore.open_read_only(catalog_service.graph_path)\n        readiness = ReadOnlyGraphReadiness(\n            metadata_store=metadata_store,\n            graph_store=graph_store,\n            expected_spec=current_graph_extraction_spec(),\n        )\n        return GraphRetrievalService(\n            catalog=catalog,\n            metadata_store=metadata_store,\n            graph_store=graph_store,\n            graph_readiness=readiness,\n            projection=RustworkxGraphProjection(),\n        )\n\n    def open_graph_search_candidate_provider(self) -> GraphSearchCandidateProvider:\n        from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider\n\n        return GraphSearchCandidateProvider(graph_retrieval_service=self.open_graph_retrieval_service())\n\n    def _catalog(self) -> tuple[CatalogService, VaultCatalog]:\n        config = CatalogService(state_path=self._state_path)\n        catalog = config.load_catalog()\n        return config, catalog\n\n    def _search_text_embeddings(self, catalog_service: CatalogService) -> TextEmbeddings:\n        from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig\n\n        return FastEmbedTextEmbeddings(\n            config=FastEmbedTextEmbeddingsConfig(\n                cache_dir=catalog_service.embedding_cache_path,\n                local_files_only=True,\n            )\n        )"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_scope.py",
+        "content": "Mapping rules:\nNone uses the active Vault. all_vaults=True expands to enabled Vault IDs only. vault_ids rejects unknown or disabled Vault IDs. all_vaults and vault_ids are mutually exclusive. content_scopes narrows only when each selected Vault enables that scope, using the existing actual_query_scopes(...) helper as the authority for scope compatibility. include_cross_vault=True requires allow_graph_cross_vault=True.",
+        "items": [
+          "None uses the active Vault.",
+          "all_vaults=True expands to enabled Vault IDs only.",
+          "vault_ids rejects unknown or disabled Vault IDs.",
+          "all_vaults and vault_ids are mutually exclusive.",
+          "content_scopes narrows only when each selected Vault enables that scope, using the existing actual_query_scopes(...) helper as the authority for scope compatibility.",
+          "include_cross_vault=True requires allow_graph_cross_vault=True."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\n\nfrom vault_graph.errors import CatalogError\nfrom vault_graph.ingestion.query_scope_resolution import actual_query_scopes\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry\n\n\n@dataclass(frozen=True)\nclass McpScopeInput:\n    vault_ids: tuple[str, ...] | None = None\n    all_vaults: bool = False\n    content_scopes: tuple[str, ...] | None = None\n    include_cross_vault: bool = False\n\n\ndef scope_from_mcp_input(\n    scope_input: McpScopeInput | None,\n    *,\n    catalog: VaultCatalog,\n    allow_graph_cross_vault: bool = False,\n) -> QueryScope:\n    if scope_input is None:\n        base_scope = catalog.default_scope()\n        selected_entries = tuple(catalog.resolve(vault_id) for vault_id in base_scope.vault_ids)\n        _reject_disabled_entries(selected_entries)\n        return base_scope\n    if scope_input.all_vaults and scope_input.vault_ids:\n        raise CatalogError(\"Use either all_vaults or vault_ids, not both.\")\n    if scope_input.all_vaults:\n        base_scope = catalog.scope_for_all_enabled()\n    elif scope_input.vault_ids:\n        selected_entries = tuple(catalog.resolve(vault_id) for vault_id in scope_input.vault_ids)\n        _reject_disabled_entries(selected_entries)\n        base_scope = catalog.scope_for_vault_ids(scope_input.vault_ids)\n    else:\n        base_scope = catalog.default_scope()\n        selected_entries = tuple(catalog.resolve(vault_id) for vault_id in base_scope.vault_ids)\n        _reject_disabled_entries(selected_entries)\n    if scope_input.include_cross_vault and not allow_graph_cross_vault:\n        raise CatalogError(\"include_cross_vault is allowed only for explicit graph behavior\")\n    content_scopes = base_scope.content_scopes\n    if scope_input.content_scopes is not None:\n        narrowed_scope = QueryScope(\n            vault_ids=base_scope.vault_ids,\n            content_scopes=scope_input.content_scopes,\n            include_cross_vault=scope_input.include_cross_vault,\n        )\n        _validate_content_scope_narrowing(catalog=catalog, requested_scope=narrowed_scope)\n        content_scopes = scope_input.content_scopes\n    return QueryScope(\n        vault_ids=base_scope.vault_ids,\n        content_scopes=content_scopes,\n        include_cross_vault=scope_input.include_cross_vault,\n    )\n\n\ndef _reject_disabled_entries(entries: tuple[VaultCatalogEntry, ...]) -> None:\n    for entry in entries:\n        if not entry.enabled:\n            raise CatalogError(f\"disabled vault_id: {entry.vault_id}\")\n\n\ndef _validate_content_scope_narrowing(*, catalog: VaultCatalog, requested_scope: QueryScope) -> None:\n    if not requested_scope.content_scopes:\n        raise CatalogError(\"content_scopes cannot be empty\")\n    actual_by_vault = {\n        actual_scope.vault_ids[0]: actual_scope\n        for actual_scope in actual_query_scopes(catalog=catalog, scope=requested_scope)\n    }\n    for vault_id in requested_scope.vault_ids:\n        actual_scope = actual_by_vault.get(vault_id)\n        if actual_scope is None or actual_scope.content_scopes != requested_scope.content_scopes:\n            requested = \", \".join(requested_scope.content_scopes)\n            raise CatalogError(f\"content scope {requested} is not enabled for vault_id: {vault_id}\")"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_errors.py",
+        "content": "Rules:\nDomain validation errors map to invalid parameters or structured execution errors. Domain and internal error messages must redact arbitrary absolute paths. A user-provided --state path may appear in diagnostics because the user explicitly provided it; unrelated absolute paths in the same message must still be redacted. Error payloads are the structured contract used by Phase 5B resources and Phase 5C tools.\nPhase 5A does not convert warning DTOs because it registers no concrete handlers. Phase 5B and Phase 5C handlers must pass original warning codes into McpErrorPayload.code or their structured result warning fields without renaming them.",
+        "items": [
+          "Domain validation errors map to invalid parameters or structured execution errors.",
+          "Domain and internal error messages must redact arbitrary absolute paths.",
+          "A user-provided --state path may appear in diagnostics because the user explicitly provided it; unrelated absolute paths in the same message must still be redacted.",
+          "Error payloads are the structured contract used by Phase 5B resources and Phase 5C tools.",
+          "Phase 5A does not convert warning DTOs because it registers no concrete handlers. Phase 5B and Phase 5C handlers must pass original warning codes into McpErrorPayload.code or their structured result warning fields without renaming them."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport re\nfrom dataclasses import dataclass\nfrom pathlib import Path\nfrom typing import Literal\n\nfrom vault_graph.errors import (\n    CatalogError,\n    ContextPackError,\n    GraphStoreError,\n    KeywordIndexError,\n    ReadOnlyBoundaryError,\n    SearchError,\n    TextEmbeddingsError,\n    VaultGraphError,\n    VectorStoreError,\n)\n\nMcpErrorSeverity = Literal[\"info\", \"warning\", \"error\"]\nMcpProtocolErrorKind = Literal[\"invalid_parameter\", \"not_found\", \"execution\", \"internal\"]\nABSOLUTE_PATH_RE = re.compile(r\"(?P<path>(?:/[^\\s:;,)\\]]+)+|[A-Za-z]:\\\\[^\\s:;,)\\]]+)\")\n\n\n@dataclass(frozen=True)\nclass McpErrorPayload:\n    code: str\n    message: str\n    severity: McpErrorSeverity\n    affected_vault_ids: tuple[str, ...]\n    recovery_hint: str | None = None\n\n\nclass McpProtocolError(Exception):\n    def __init__(self, *, kind: McpProtocolErrorKind, payload: McpErrorPayload) -> None:\n        super().__init__(payload.message)\n        self.kind = kind\n        self.payload = payload\n\n\ndef map_exception_to_mcp_error(\n    exc: Exception,\n    *,\n    affected_vault_ids: tuple[str, ...] = (),\n    user_state_path: Path | None = None,\n) -> McpProtocolError:\n    if isinstance(exc, CatalogError):\n        return _error(\n            \"invalid_parameter\",\n            \"catalog_error\",\n            _sanitize_error_message(str(exc), user_state_path=user_state_path),\n            affected_vault_ids,\n        )\n    if isinstance(exc, ReadOnlyBoundaryError):\n        return _error(\n            \"execution\",\n            \"read_only_boundary_error\",\n            _sanitize_error_message(str(exc), user_state_path=user_state_path),\n            affected_vault_ids,\n        )\n    if isinstance(exc, (KeywordIndexError, VectorStoreError, GraphStoreError, TextEmbeddingsError)):\n        return _error(\n            \"execution\",\n            _code_for_domain_error(exc),\n            _sanitize_error_message(str(exc), user_state_path=user_state_path),\n            affected_vault_ids,\n        )\n    if isinstance(exc, (SearchError, ContextPackError)):\n        return _error(\n            \"execution\",\n            _code_for_domain_error(exc),\n            _sanitize_error_message(str(exc), user_state_path=user_state_path),\n            affected_vault_ids,\n        )\n    if isinstance(exc, VaultGraphError):\n        return _error(\n            \"execution\",\n            _code_for_domain_error(exc),\n            _sanitize_error_message(str(exc), user_state_path=user_state_path),\n            affected_vault_ids,\n        )\n    return _error(\n        \"internal\",\n        \"internal_error\",\n        _sanitize_internal_message(exc, user_state_path=user_state_path),\n        affected_vault_ids,\n        recovery_hint=\"Check stderr logs and rerun the command with the same --state path.\",\n    )\n\n\ndef _error(\n    kind: McpProtocolErrorKind,\n    code: str,\n    message: str,\n    affected_vault_ids: tuple[str, ...],\n    recovery_hint: str | None = None,\n) -> McpProtocolError:\n    return McpProtocolError(\n        kind=kind,\n        payload=McpErrorPayload(\n            code=code,\n            message=message,\n            severity=\"error\",\n            affected_vault_ids=affected_vault_ids,\n            recovery_hint=recovery_hint,\n        ),\n    )\n\n\ndef _code_for_domain_error(exc: Exception) -> str:\n    name = exc.__class__.__name__\n    chars: list[str] = []\n    for index, char in enumerate(name):\n        if char.isupper() and index > 0:\n            chars.append(\"_\")\n        chars.append(char.lower())\n    return \"\".join(chars)\n\n\ndef _sanitize_internal_message(exc: Exception, *, user_state_path: Path | None) -> str:\n    text = str(exc)\n    sanitized = _sanitize_error_message(text, user_state_path=user_state_path)\n    return sanitized if sanitized != text else \"unexpected MCP server error\"\n\n\ndef _sanitize_error_message(message: str, *, user_state_path: Path | None) -> str:\n    allowed_state = str(user_state_path.expanduser().resolve()) if user_state_path is not None else None\n\n    def replace(match: re.Match[str]) -> str:\n        path = match.group(\"path\")\n        if allowed_state is not None and (path == allowed_state or path.startswith(f\"{allowed_state}/\")):\n            return path\n        return \"<redacted-path>\"\n\n    return ABSOLUTE_PATH_RE.sub(replace, message)"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/mcp_config_examples.py",
+        "content": "See src/vault_graph/mcp/mcp_config_examples.py in the source Markdown document.",
+        "items": [
+          "Review the src/vault_graph/mcp/mcp_config_examples.py section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport json\nfrom typing import TypedDict\n\n\nclass CodexMcpServerConfig(TypedDict):\n    command: str\n    args: list[str]\n\n\nclass CodexMcpConfig(TypedDict):\n    mcpServers: dict[str, CodexMcpServerConfig]\n\n\nCODEX_STDIO_CONFIG_EXAMPLE: CodexMcpConfig = {\n    \"mcpServers\": {\n        \"vault-graph\": {\n            \"command\": \"uv\",\n            \"args\": [\n                \"run\",\n                \"--python\",\n                \"3.12\",\n                \"vg\",\n                \"serve\",\n                \"--mcp\",\n                \"--state\",\n                \"/path/to/.vault-graph\",\n            ],\n        }\n    }\n}\n\n\ndef codex_stdio_config_json() -> str:\n    return json.dumps(CODEX_STDIO_CONFIG_EXAMPLE, sort_keys=True, indent=2) + \"\\n\""
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/mcp/init.py",
+        "content": "Use lazy exports so import vault_graph.mcp does not import the MCP SDK, Chroma, rustworkx, or storage backends.",
+        "items": [
+          "Review the src/vault_graph/mcp/init.py section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom typing import Any\n\n__all__ = [\n    \"McpErrorPayload\",\n    \"McpProtocolError\",\n    \"McpScopeInput\",\n    \"McpServerConfig\",\n    \"McpServiceFactory\",\n    \"McpServices\",\n    \"RegisteredMcpServer\",\n    \"codex_stdio_config_json\",\n    \"create_mcp_server\",\n    \"map_exception_to_mcp_error\",\n    \"run_mcp_server\",\n    \"scope_from_mcp_input\",\n    \"serve_mcp\",\n]\n\n\ndef __getattr__(name: str) -> Any:\n    if name in {\"McpServerConfig\", \"RegisteredMcpServer\", \"create_mcp_server\", \"run_mcp_server\", \"serve_mcp\"}:\n        from vault_graph.mcp.mcp_server import (\n            McpServerConfig,\n            RegisteredMcpServer,\n            create_mcp_server,\n            run_mcp_server,\n            serve_mcp,\n        )\n\n        return {\n            \"McpServerConfig\": McpServerConfig,\n            \"RegisteredMcpServer\": RegisteredMcpServer,\n            \"create_mcp_server\": create_mcp_server,\n            \"run_mcp_server\": run_mcp_server,\n            \"serve_mcp\": serve_mcp,\n        }[name]\n    if name in {\"McpServiceFactory\", \"McpServices\"}:\n        from vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices\n\n        return {\"McpServiceFactory\": McpServiceFactory, \"McpServices\": McpServices}[name]\n    if name in {\"McpScopeInput\", \"scope_from_mcp_input\"}:\n        from vault_graph.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input\n\n        return {\"McpScopeInput\": McpScopeInput, \"scope_from_mcp_input\": scope_from_mcp_input}[name]\n    if name in {\"McpErrorPayload\", \"McpProtocolError\", \"map_exception_to_mcp_error\"}:\n        from vault_graph.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error\n\n        return {\n            \"McpErrorPayload\": McpErrorPayload,\n            \"McpProtocolError\": McpProtocolError,\n            \"map_exception_to_mcp_error\": map_exception_to_mcp_error,\n        }[name]\n    if name == \"codex_stdio_config_json\":\n        from vault_graph.mcp.mcp_config_examples import codex_stdio_config_json\n\n        return codex_stdio_config_json\n    raise AttributeError(name)\n\n\ndef __dir__() -> list[str]:\n    return sorted(__all__)"
+          }
+        ]
+      },
+      {
+        "heading": "src/vault_graph/cli/main.py",
+        "content": "Add a serve command. Keep the MCP import inside the command body so ordinary CLI imports and help do not load the MCP SDK.\nAdd this helper near _exit_on_domain_error:\nRules:\nvg serve --mcp --help may print help to stdout. vg serve --mcp itself must print no human startup text to stdout. Startup domain errors go to stderr. vg serve --http fails explicitly instead of starting a partial HTTP server.",
+        "items": [
+          "vg serve --mcp --help may print help to stdout.",
+          "vg serve --mcp itself must print no human startup text to stdout.",
+          "Startup domain errors go to stderr.",
+          "vg serve --http fails explicitly instead of starting a partial HTTP server."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "@app.command()\ndef serve(\n    state: Path = typer.Option(Path(\".vault-graph\"), \"--state\", help=\"Vault Graph state path.\"),\n    mcp: bool = typer.Option(False, \"--mcp\", help=\"Start the local stdio MCP server.\"),\n    http: bool = typer.Option(False, \"--http\", help=\"Reserved for a future HTTP server.\"),\n) -> None:\n    if mcp and http:\n        typer.echo(\"Use either --mcp or --http, not both.\", err=True)\n        raise typer.Exit(1)\n    if http:\n        typer.echo(\"http_transport_not_supported_in_phase_5a\", err=True)\n        raise typer.Exit(1)\n    if not mcp:\n        typer.echo(\"select one server transport: --mcp\", err=True)\n        raise typer.Exit(1)\n    from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server, run_mcp_server\n\n    config = _exit_on_domain_error_stderr(lambda: McpServerConfig(state_path=state))\n    registered = _exit_on_domain_error_stderr(lambda: create_mcp_server(config))\n    _exit_on_domain_error_stderr(lambda: run_mcp_server(registered, config=config))"
+          },
+          {
+            "language": "python",
+            "content": "def _exit_on_domain_error_stderr[T](operation: Callable[[], T]) -> T:\n    try:\n        return operation()\n    except (\n        CatalogError,\n        ContextPackError,\n        GraphIndexingError,\n        GraphStoreError,\n        KeywordIndexError,\n        ReadOnlyBoundaryError,\n        SearchError,\n        TextEmbeddingsError,\n        VectorStoreError,\n    ) as exc:\n        typer.echo(str(exc), err=True)\n        raise typer.Exit(1) from exc"
+          }
+        ]
+      },
+      {
+        "heading": "State Management And Data Flow",
+        "content": "Startup flow:\nRuntime state rules:\nPhase 5A does not create metadata, vector, graph, projection, model cache, or context-pack cache state. The MCP server keeps service objects in process memory only. Missing indexes produce startup failure only if the read-only constructor raises during service creation; missing queryable state remains a Phase 5B/5C handler concern. No MCP argument can provide a raw Vault path or arbitrary filesystem root. Later handlers must reuse McpServiceFactory and scope_from_mcp_input instead of opening stores directly.",
+        "items": [
+          "Phase 5A does not create metadata, vector, graph, projection, model cache, or context-pack cache state.",
+          "The MCP server keeps service objects in process memory only.",
+          "Missing indexes produce startup failure only if the read-only constructor raises during service creation; missing queryable state remains a Phase 5B/5C handler concern.",
+          "No MCP argument can provide a raw Vault path or arbitrary filesystem root.",
+          "Later handlers must reuse McpServiceFactory and scope_from_mcp_input instead of opening stores directly."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg serve --mcp --state PATH\n  -> parse CLI flags\n  -> construct McpServerConfig\n  -> create_mcp_server(config)\n  -> McpServiceFactory.open_read_only()\n  -> CatalogService.load_catalog()\n  -> open read-only MetadataStore, KeywordIndex, VectorStore, TextEmbeddings\n  -> construct RetrievalService and SearchContextPackBuilder\n  -> FastMCP.run(transport=\"stdio\")"
+          }
+        ]
+      },
+      {
+        "heading": "Error Handling And Edge Cases",
+        "content": "Required behavior:\nMissing catalog at --state exits before stdio startup with nonzero exit and stderr message. State path inside a registered Vault is rejected by CatalogService.load_catalog(). Unsupported transport is rejected by McpServerConfig. --http returns http_transport_not_supported_in_phase_5a. --mcp --http returns Use either --mcp or --http, not both. McpScopeInput(all_vaults=True, vault_ids=(\"default\",)) raises CatalogError. McpScopeInput(vault_ids=(\"disabled\",)) raises CatalogError. McpScopeInput(include_cross_vault=True) raises unless the caller passes allow_graph_cross_vault=True. Unexpected exceptions map to internal_error without leaking arbitrary absolute paths.",
+        "items": [
+          "Missing catalog at --state exits before stdio startup with nonzero exit and stderr message.",
+          "State path inside a registered Vault is rejected by CatalogService.load_catalog().",
+          "Unsupported transport is rejected by McpServerConfig.",
+          "--http returns http_transport_not_supported_in_phase_5a.",
+          "--mcp --http returns Use either --mcp or --http, not both.",
+          "McpScopeInput(all_vaults=True, vault_ids=(\"default\",)) raises CatalogError.",
+          "McpScopeInput(vault_ids=(\"disabled\",)) raises CatalogError.",
+          "McpScopeInput(include_cross_vault=True) raises unless the caller passes allow_graph_cross_vault=True.",
+          "Unexpected exceptions map to internal_error without leaking arbitrary absolute paths."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Tasks",
+        "content": "See Tasks in the source Markdown document.",
+        "items": [
+          "Review the Tasks section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Task 1: Add MCP Dependency And Config Example",
+        "content": "Files:\nModify: pyproject.toml Modify: uv.lock Create: docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json Modify: docs/superpowers/specs/phase-5/README.md Test: tests/test_mcp_config_examples.py\n[ ] Step 1: Write failing config-example tests\n[ ] Step 2: Run tests to verify they fail\nRun:\nExpected: FAIL because vault_graph.mcp.mcp_config_examples and the JSON example do not exist.\n[ ] Step 3: Add dependency and config example\nAdd mcp>=1.27,<2 to pyproject.toml, then run:\nCreate src/vault_graph/mcp/init.py with this temporary content:\nCreate src/vault_graph/mcp/mcp_config_examples.py using the code in the Component And Interface Spec.\nCreate docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json:\nAdd this row to the Phase 5 README document table:\n[ ] Step 4: Run tests to verify they pass\nRun:\nExpected: PASS.\n[ ] Step 5: Commit",
+        "items": [
+          "Modify: pyproject.toml",
+          "Modify: uv.lock",
+          "Create: docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json",
+          "Modify: docs/superpowers/specs/phase-5/README.md",
+          "Test: tests/test_mcp_config_examples.py",
+          "[ ] Step 1: Write failing config-example tests",
+          "[ ] Step 2: Run tests to verify they fail",
+          "[ ] Step 3: Add dependency and config example",
+          "[ ] Step 4: Run tests to verify they pass",
+          "[ ] Step 5: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport json\nfrom pathlib import Path\n\nfrom vault_graph.mcp.mcp_config_examples import CODEX_STDIO_CONFIG_EXAMPLE, codex_stdio_config_json\n\n\ndef test_codex_stdio_config_example_uses_only_local_stdio() -> None:\n    payload = CODEX_STDIO_CONFIG_EXAMPLE\n    server = payload[\"mcpServers\"][\"vault-graph\"]\n\n    assert server[\"command\"] == \"uv\"\n    assert server[\"args\"] == [\n        \"run\",\n        \"--python\",\n        \"3.12\",\n        \"vg\",\n        \"serve\",\n        \"--mcp\",\n        \"--state\",\n        \"/path/to/.vault-graph\",\n    ]\n    assert \"url\" not in server\n    assert \"headers\" not in server\n\n\ndef test_codex_stdio_config_json_matches_documented_example() -> None:\n    rendered = codex_stdio_config_json()\n    parsed = json.loads(rendered)\n    docs_example = json.loads(\n        Path(\"docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json\").read_text(encoding=\"utf-8\")\n    )\n\n    assert parsed == docs_example\n    assert str(Path.home()) not in rendered\n    assert str(Path.cwd()) not in rendered\n    assert \"/path/to/.vault-graph\" in rendered"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_mcp_config_examples.py -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv lock --python 3.12"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\n__all__: list[str] = []"
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: Add MCP Scope And Error Contracts",
+        "content": "Files:\nModify: src/vault_graph/mcp/init.py Create: src/vault_graph/mcp/mcp_scope.py Create: src/vault_graph/mcp/mcp_errors.py Test: tests/test_mcp_scope.py Test: tests/test_mcp_errors.py\n[ ] Step 1: Write failing scope tests\n[ ] Step 2: Write failing error mapping tests\n[ ] Step 3: Run tests to verify they fail\nRun:\nExpected: FAIL because the MCP package, scope DTO, and error mapper do not exist.\n[ ] Step 4: Implement scope, error, and lazy package exports\nCreate src/vault_graph/mcp/mcp_scope.py and src/vault_graph/mcp/mcp_errors.py. Replace the temporary src/vault_graph/mcp/init.py content with the lazy export implementation from the Component And Interface Spec.\n[ ] Step 5: Run tests to verify they pass\nRun:\nExpected: PASS.\n[ ] Step 6: Commit",
+        "items": [
+          "Modify: src/vault_graph/mcp/init.py",
+          "Create: src/vault_graph/mcp/mcp_scope.py",
+          "Create: src/vault_graph/mcp/mcp_errors.py",
+          "Test: tests/test_mcp_scope.py",
+          "Test: tests/test_mcp_errors.py",
+          "[ ] Step 1: Write failing scope tests",
+          "[ ] Step 2: Write failing error mapping tests",
+          "[ ] Step 3: Run tests to verify they fail",
+          "[ ] Step 4: Implement scope, error, and lazy package exports",
+          "[ ] Step 5: Run tests to verify they pass",
+          "[ ] Step 6: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-15-phase-5a-mcp-server-foundation-stdio.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom pathlib import Path\n\nimport pytest\n\nfrom vault_graph.errors import CatalogError\nfrom vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry\nfrom vault_graph.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input\n\n\ndef _catalog(tmp_path: Path) -> VaultCatalog:\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    disabled = tmp_path / \"disabled\"\n    for root in (first, second, disabled):\n        root.mkdir()\n    return VaultCatalog.from_entries(\n        entries=[\n            VaultCatalogEntry.from_root(vault_id=\"default\", root_path=first, content_scopes=(\"wiki\", \"docs\")),\n            VaultCatalogEntry.from_root(vault_id=\"work\", root_path=second, content_scopes=(\"wiki\",)),\n            VaultCatalogEntry.from_root(vault_id=\"off\", root_path=disabled, enabled=False),\n        ],\n        active_vault_id=\"default\",\n    )\n\n\ndef test_none_scope_uses_active_vault(tmp_path: Path) -> None:\n    scope = scope_from_mcp_input(None, catalog=_catalog(tmp_path))\n\n    assert scope.vault_ids == (\"default\",)\n    assert scope.content_scopes == (\"wiki\", \"docs\")\n    assert scope.include_cross_vault is False\n\n\ndef test_all_vaults_expands_enabled_vaults(tmp_path: Path) -> None:\n    scope = scope_from_mcp_input(McpScopeInput(all_vaults=True), catalog=_catalog(tmp_path))\n\n    assert scope.vault_ids == (\"default\", \"work\")\n    assert scope.include_cross_vault is False\n\n\ndef test_scope_rejects_ambiguous_vault_selection(tmp_path: Path) -> None:\n    with pytest.raises(CatalogError, match=\"either all_vaults or vault_ids\"):\n        scope_from_mcp_input(McpScopeInput(vault_ids=(\"default\",), all_vaults=True), catalog=_catalog(tmp_path))\n\n\ndef test_scope_rejects_disabled_vault_id(tmp_path: Path) -> None:\n    with pytest.raises(CatalogError, match=\"disabled vault_id: off\"):\n        scope_from_mcp_input(McpScopeInput(vault_ids=(\"off\",)), catalog=_catalog(tmp_path))\n\n\ndef test_scope_rejects_cross_vault_without_graph_permission(tmp_path: Path) -> None:\n    with pytest.raises(CatalogError, match=\"explicit graph behavior\"):\n        scope_from_mcp_input(\n            McpScopeInput(all_vaults=True, include_cross_vault=True),\n            catalog=_catalog(tmp_path),\n        )\n\n\ndef test_scope_allows_cross_vault_for_explicit_graph_behavior(tmp_path: Path) -> None:\n    scope = scope_from_mcp_input(\n        McpScopeInput(all_vaults=True, include_cross_vault=True),\n        catalog=_catalog(tmp_path),\n        allow_graph_cross_vault=True,\n    )\n\n    assert scope.include_cross_vault is True\n\n\ndef test_scope_content_scopes_must_narrow_every_selected_vault(tmp_path: Path) -> None:\n    with pytest.raises(CatalogError, match=\"not enabled for vault_id: work\"):\n        scope_from_mcp_input(\n            McpScopeInput(vault_ids=(\"default\", \"work\"), content_scopes=(\"docs\",)),\n            catalog=_catalog(tmp_path),\n        )\n\n\ndef test_scope_content_scopes_can_narrow_shared_scope(tmp_path: Path) -> None:\n    scope = scope_from_mcp_input(\n        McpScopeInput(vault_ids=(\"default\", \"work\"), content_scopes=(\"wiki\",)),\n        catalog=_catalog(tmp_path),\n    )\n\n    assert scope.vault_ids == (\"default\", \"work\")\n    assert scope.content_scopes == (\"wiki\",)"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom pathlib import Path\n\nfrom vault_graph.errors import CatalogError, VectorStoreError\nfrom vault_graph.mcp.mcp_errors import McpProtocolError, map_exception_to_mcp_error\n\n\ndef test_catalog_error_maps_to_invalid_parameter() -> None:\n    error = map_exception_to_mcp_error(CatalogError(\"unknown vault_id: work\"))\n\n    assert isinstance(error, McpProtocolError)\n    assert error.kind == \"invalid_parameter\"\n    assert error.payload.code == \"catalog_error\"\n    assert error.payload.message == \"unknown vault_id: work\"\n    assert error.payload.severity == \"error\"\n\n\ndef test_backend_error_maps_to_execution_error() -> None:\n    error = map_exception_to_mcp_error(VectorStoreError(\"vector search unavailable: not initialized\"))\n\n    assert error.kind == \"execution\"\n    assert error.payload.code == \"vector_store_error\"\n    assert error.payload.message == \"vector search unavailable: not initialized\"\n\n\ndef test_domain_error_redacts_absolute_paths(tmp_path: Path) -> None:\n    vault_file = tmp_path / \"vault\" / \"wiki\" / \"page.md\"\n    error = map_exception_to_mcp_error(CatalogError(f\"vault root does not exist: {vault_file}\"))\n\n    assert str(vault_file) not in error.payload.message\n    assert \"<redacted-path>\" in error.payload.message\n\n\ndef test_internal_error_does_not_leak_arbitrary_absolute_path(tmp_path: Path) -> None:\n    secret_path = tmp_path / \"vault\" / \"wiki\" / \"page.md\"\n    error = map_exception_to_mcp_error(RuntimeError(f\"failed at {secret_path}\"))\n\n    assert error.kind == \"internal\"\n    assert error.payload.code == \"internal_error\"\n    assert str(secret_path) not in error.payload.message\n\n\ndef test_internal_error_may_include_user_state_path(tmp_path: Path) -> None:\n    state_path = tmp_path / \"state\"\n    secret_path = tmp_path / \"vault\" / \"wiki\" / \"page.md\"\n    error = map_exception_to_mcp_error(\n        RuntimeError(f\"failed at {state_path}; checked {secret_path}\"),\n        user_state_path=state_path,\n    )\n\n    assert str(state_path) in error.payload.message\n    assert str(secret_path) not in error.payload.message\n    assert \"<redacted-path>\" in error.payload.message"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_mcp_scope.py tests/test_mcp_errors.py -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_mcp_scope.py tests/test_mcp_errors.py -q"
+          }
+        ]
+      }
+    ],
+    "openQuestions": []
+  }
+}

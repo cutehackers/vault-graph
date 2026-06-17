@@ -1,0 +1,1763 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-09-phase-2c-evidence-first-keyword-vector-search",
+  "slug": "2026-06-09-phase-2c-evidence-first-keyword-vector-search",
+  "status": "approved",
+  "title": "Phase 2C Evidence-First Keyword And Vector Search Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-09",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "spec:2026-06-09-phase-2c-evidence-first-keyword-vector-search-design"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the first release-ready vg search command that returns ranked, evidence-linked keyword/vector search results without mutating Vault or Vault Graph index state.\nArchitecture: Search is a read-only retrieval service over existing metadata, keyword, and vector projections. KeywordIndex and VectorStore return candidates only; RetrievalService owns query normalization, per-Vault scope expansion, rank fusion, evidence resolution, warnings, and SearchResponse assembly.\nTech...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the first release-ready vg search command that returns ranked, evidence-linked keyword/vector search results without mutating Vault or Vault Graph index state.\nArchitecture: Search is a read-only retrieval service over existing metadata, keyword, and vector projections. KeywordIndex and VectorStore return candidates only; RetrievalService owns query normalization, per-Vault scope expansion, rank fusion, evidence resolution, warnings, and SearchResponse assembly.\nTech Stack: Python 3.12, Typer CLI, SQLite/FTS5 metadata-owned keyword projection, Chroma vector store, F...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "Phase 2C implements only:\nvg search \"query\" keyword candidate lookup over indexed Markdown chunks optional vector candidate lookup when already indexed and locally embeddable evidence chunk results resolved through MetadataStore text and JSON output degraded keyword-only search with structured warnings\nPhase 2C must not implement:\nvg ask LLM answers graph traversal graph extraction context packs MCP or HTTP search serving Qdrant non-Markdown readers automatic indexing during search embedding model downloads during search writes to Vault content or Vault Graph projections during search\nRelease-ready means a user can run:\nand receive deterministic evidence-linked results or a clear recovery d...",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "vg search \"query\"",
+        "keyword candidate lookup over indexed Markdown chunks",
+        "optional vector candidate lookup when already indexed and locally embeddable",
+        "evidence chunk results resolved through MetadataStore",
+        "text and JSON output",
+        "degraded keyword-only search with structured warnings",
+        "vg ask",
+        "LLM answers",
+        "graph traversal",
+        "graph extraction"
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/query_scope_resolution.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/search_readiness_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/keyword_index.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/sqlite_keyword_index.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/search_response.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/search_readiness.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/retrieval_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/fakes/in_memory_keyword_index.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/fakes/search_readiness.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_app_search_readiness_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_retrieval_import_boundaries.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_keyword_index_contract.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_sqlite_keyword_index.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_query_scope_resolution.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_search_response_contract.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_retrieval_service_search.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_cli_search.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_search_read_only_boundary.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_multi_vault_search.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/errors.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/index_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Task 1: Add Keyword Candidate Contract",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/interfaces/keyword_index.py",
+          "src/vault_graph/errors.py",
+          "src/vault_graph/storage/interfaces/init.py",
+          "tests/test_keyword_index_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/keyword_index.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_keyword_index_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_keyword_index_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/errors.py src/vault_graph/storage/interfaces/init.py src/vault_graph/storage/interfaces/keyword_index.py tests/test_keyword_index_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(search): add keyword candidate contract\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "Create: src/vault_graph/storage/interfaces/keyword_index.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/interfaces/keyword_index.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 2: Add SQLite FTS Keyword Projection",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/local/sqlite_keyword_index.py",
+          "src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "tests/test_sqlite_keyword_index.py",
+          "tests/test_sqlite_metadata_store.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_keyword_index.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_sqlite_keyword_index.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_sqlite_metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_sqlite_keyword_index.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_sqlite_metadata_store.py tests/test_sqlite_keyword_index.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/storage/local/sqlite_keyword_index.py src/vault_graph/storage/local/sqlite_metadata_store.py tests/test_sqlite_keyword_index.py tests/test_sqlite_metadata_store.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(search): add sqlite keyword projection\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-5",
+            "title": "Create: src/vault_graph/storage/local/sqlite_keyword_index.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/local/sqlite_keyword_index.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 3: Share Per-Vault Actual Scope Resolution",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/app/query_scope_resolution.py",
+          "src/vault_graph/app/index_service.py",
+          "tests/test_query_scope_resolution.py",
+          "tests/test_index_service_vector_reconcile.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/query_scope_resolution.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/index_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_query_scope_resolution.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_index_service_vector_reconcile.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_query_scope_resolution.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_query_scope_resolution.py tests/test_index_service_vector_reconcile.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/app/query_scope_resolution.py src/vault_graph/app/index_service.py tests/test_query_scope_resolution.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"refactor(app): share actual query scope resolution\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-5",
+            "title": "Create: src/vault_graph/app/query_scope_resolution.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/app/query_scope_resolution.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 4: Add SearchResponse Contract",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/retrieval/search_response.py",
+          "src/vault_graph/retrieval/init.py",
+          "tests/test_search_response_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/search_response.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_search_response_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_search_response_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/retrieval/search_response.py src/vault_graph/retrieval/init.py tests/test_search_response_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(search): add search response contract\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Create: src/vault_graph/retrieval/search_response.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/retrieval/search_response.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 5: Add No-Download Embedding And Search Readiness Boundaries",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/embeddings/text_embeddings.py",
+          "src/vault_graph/embeddings/fastembed_text_embeddings.py",
+          "tests/fakes/deterministic_text_embeddings.py",
+          "src/vault_graph/retrieval/search_readiness.py",
+          "src/vault_graph/app/search_readiness_service.py",
+          "tests/test_text_embeddings_contract.py",
+          "tests/test_fastembed_text_embeddings.py",
+          "tests/test_app_search_readiness_service.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/embeddings/text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/embeddings/fastembed_text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/deterministic_text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/search_readiness.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/search_readiness_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_text_embeddings_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_fastembed_text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_app_search_readiness_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_text_embeddings_contract.py tests/test_fastembed_text_embeddings.py tests/test_app_search_readiness_service.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_text_embeddings_contract.py tests/test_fastembed_text_embeddings.py tests/test_app_search_readiness_service.py tests/test_retrieval_import_boundaries.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(search): add read-only search readiness\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Modify: src/vault_graph/embeddings/text_embeddings.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/embeddings/text_embeddings.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 6: Add RetrievalService Keyword Search And Fusion",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/retrieval/retrieval_service.py",
+          "src/vault_graph/retrieval/init.py",
+          "tests/fakes/in_memory_keyword_index.py",
+          "tests/fakes/search_readiness.py",
+          "tests/test_retrieval_service_search.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/in_memory_keyword_index.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/search_readiness.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_retrieval_service_search.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_retrieval_service_search.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/retrieval/retrieval_service.py src/vault_graph/retrieval/init.py tests/fakes/in_memory_keyword_index.py tests/fakes/search_readiness.py tests/test_retrieval_service_search.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat(search): add evidence-first retrieval service\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Create: src/vault_graph/retrieval/retrieval_service.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/retrieval/retrieval_service.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Task 7: Enable Read-Only Vector Query Path",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/local/chroma_vector_store.py",
+          "tests/test_chroma_vector_store.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/chroma_vector_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_chroma_vector_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_chroma_vector_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/storage/local/chroma_vector_store.py tests/test_chroma_vector_store.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"fix(search): allow read-only vector queries\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "Modify: src/vault_graph/storage/local/chroma_vector_store.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/storage/local/chroma_vector_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-8",
+        "title": "Task 8: Add vg search CLI And Output Rendering",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/cli/main.py",
+          "tests/test_cli_search.py",
+          "tests/test_search_read_only_boundary.py",
+          "tests/test_vector_indexing_read_only_boundary.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_search.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_search_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_vector_indexing_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-8-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_search.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_search.py tests/test_search_read_only_boundary.py tests/test_vector_indexing_read_only_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/cli/main.py tests/test_cli_search.py tests/test_search_read_only_boundary.py tests/test_vector_indexing_read_only_boundary.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat(cli): add evidence-first search command\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-8-step-5",
+            "title": "Modify: src/vault_graph/cli/main.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/cli/main.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-9",
+        "title": "Task 9: Add Multi-Vault Search Coverage",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_multi_vault_search.py",
+          "src/vault_graph/retrieval/retrieval_service.py",
+          "src/vault_graph/cli/main.py",
+          "src/vault_graph/storage/local/sqlite_keyword_index.py",
+          "tests/test_retrieval_service_search.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_multi_vault_search.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/retrieval_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_keyword_index.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_retrieval_service_search.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-9-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_multi_vault_search.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add tests/test_multi_vault_search.py src/vault_graph/retrieval/retrieval_service.py src/vault_graph/cli/main.py src/vault_graph/storage/local/sqlite_keyword_index.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"test(search): cover multi-vault search identity\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-9-step-4",
+            "title": "Test: tests/test_multi_vault_search.py",
+            "status": "todo",
+            "instruction": "Test: tests/test_multi_vault_search.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-10",
+        "title": "Task 10: Final Verification And Documentation Trace",
+        "status": "todo",
+        "surfaces": [
+          "docs/PATCH_LOG.md",
+          "docs/DECISIONS.md",
+          "docs/SPEC.md",
+          "docs/DESIGN.md",
+          "docs/FEATURES.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/PATCH_LOG.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/DECISIONS.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/SPEC.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/DESIGN.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/FEATURES.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-10-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest \\",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-10-step-5",
+            "title": "Modify if implementation review produced corrections: docs/PATCH_LOG.md",
+            "status": "todo",
+            "instruction": "Modify if implementation review produced corrections: docs/PATCH_LOG.md",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7",
+      "slice-8",
+      "slice-9",
+      "slice-10"
+    ],
+    "risks": [
+      {
+        "risk": "Generated Stenc view drifts from Markdown source.",
+        "mitigation": "Treat the original Markdown as source of truth and regenerate Stenc JSON/pages after updates."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_keyword_index_contract.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/errors.py src/vault_graph/storage/interfaces/init.py src/vault_graph/storage/interfaces/keyword_index.py tests/test_keyword_index_contract.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(search): add keyword candidate contract\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_sqlite_keyword_index.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_sqlite_metadata_store.py tests/test_sqlite_keyword_index.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/storage/local/sqlite_keyword_index.py src/vault_graph/storage/local/sqlite_metadata_store.py tests/test_sqlite_keyword_index.py tests/test_sqlite_metadata_store.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat(search): add sqlite keyword projection\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_query_scope_resolution.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the first release-ready vg search command that returns ranked, evidence-linked keyword/vector search results without mutating Vault or Vault Graph index state.\nArchitecture: Search is a read-only retrieval service over existing metadata, keyword, and vector projections. KeywordIndex and VectorStore return candidates only; RetrievalService owns query normalization, per-Vault scope expansion, rank fusion, evidence resolution, warnings, and SearchResponse assembly.\nTech Stack: Python 3.12, Typer CLI, SQLite/FTS5 metadata-owned keyword projection, Chroma vector store, FastEmbed local embeddings, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope Guardrails",
+        "content": "Phase 2C implements only:\nvg search \"query\" keyword candidate lookup over indexed Markdown chunks optional vector candidate lookup when already indexed and locally embeddable evidence chunk results resolved through MetadataStore text and JSON output degraded keyword-only search with structured warnings\nPhase 2C must not implement:\nvg ask LLM answers graph traversal graph extraction context packs MCP or HTTP search serving Qdrant non-Markdown readers automatic indexing during search embedding model downloads during search writes to Vault content or Vault Graph projections during search\nRelease-ready means a user can run:\nand receive deterministic evidence-linked results or a clear recovery diagnostic.",
+        "items": [
+          "vg search \"query\"",
+          "keyword candidate lookup over indexed Markdown chunks",
+          "optional vector candidate lookup when already indexed and locally embeddable",
+          "evidence chunk results resolved through MetadataStore",
+          "text and JSON output",
+          "degraded keyword-only search with structured warnings",
+          "vg ask",
+          "LLM answers",
+          "graph traversal",
+          "graph extraction",
+          "context packs",
+          "MCP or HTTP search serving",
+          "Qdrant",
+          "non-Markdown readers",
+          "automatic indexing during search",
+          "embedding model downloads during search"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg init --vault /path/to/vault\nvg index\nvg search \"query\"\nvg search --format json \"query\"\nvg search --all-vaults \"query\""
+          }
+        ]
+      },
+      {
+        "heading": "File Structure",
+        "content": "Create:\nsrc/vault_graph/app/query_scope_resolution.py: shared per-Vault actual scope resolution for indexing and search. src/vault_graph/app/search_readiness_service.py: read-only readiness implementation for metadata, keyword, vector, and model availability. src/vault_graph/storage/interfaces/keyword_index.py: keyword candidate contract. src/vault_graph/storage/local/sqlite_keyword_index.py: SQLite FTS5 keyword projection helpers and read-only keyword adapter. src/vault_graph/retrieval/search_response.py: top-level search request, response, warning, and scoped revision contracts. src/vault_graph/retrieval/search_readiness.py: retrieval-owned readiness protocol and report contracts only. src/vault_graph/retrieval/retrieval_service.py: Phase 2C search orchestration and rank fusion. tests/fakes/in_memory_keyword_index.py: deterministic keyword fake for retrieval tests. tests/fakes/search_readiness.py: deterministic readiness fake for retrieval tests. tests/test_app_search_readiness_service.py tests/test_retrieval_import_boundaries.py tests/test_keyword_index_contract.py tests/test_sqlite_keyword_index.py tests/test_query_scope_resolution.py tests/test_search_response_contract.py tes...",
+        "items": [
+          "src/vault_graph/app/query_scope_resolution.py: shared per-Vault actual scope resolution for indexing and search.",
+          "src/vault_graph/app/search_readiness_service.py: read-only readiness implementation for metadata, keyword, vector, and model availability.",
+          "src/vault_graph/storage/interfaces/keyword_index.py: keyword candidate contract.",
+          "src/vault_graph/storage/local/sqlite_keyword_index.py: SQLite FTS5 keyword projection helpers and read-only keyword adapter.",
+          "src/vault_graph/retrieval/search_response.py: top-level search request, response, warning, and scoped revision contracts.",
+          "src/vault_graph/retrieval/search_readiness.py: retrieval-owned readiness protocol and report contracts only.",
+          "src/vault_graph/retrieval/retrieval_service.py: Phase 2C search orchestration and rank fusion.",
+          "tests/fakes/in_memory_keyword_index.py: deterministic keyword fake for retrieval tests.",
+          "tests/fakes/search_readiness.py: deterministic readiness fake for retrieval tests.",
+          "tests/test_app_search_readiness_service.py",
+          "tests/test_retrieval_import_boundaries.py",
+          "tests/test_keyword_index_contract.py",
+          "tests/test_sqlite_keyword_index.py",
+          "tests/test_query_scope_resolution.py",
+          "tests/test_search_response_contract.py",
+          "tests/test_retrieval_service_search.py"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Task 1: Add Keyword Candidate Contract",
+        "content": "Files:\nCreate: src/vault_graph/storage/interfaces/keyword_index.py Modify: src/vault_graph/errors.py Modify: src/vault_graph/storage/interfaces/init.py Test: tests/test_keyword_index_contract.py\n[ ] Step 1: Write the failing contract tests\nCreate tests/test_keyword_index_contract.py:\n[ ] Step 2: Run the contract tests and verify failure\nRun:\nExpected: FAIL because KeywordIndexError, KeywordQuery, and KeywordHit do not exist.\n[ ] Step 3: Add keyword errors and contract records\nAdd to src/vault_graph/errors.py:\nCreate src/vault_graph/storage/interfaces/keyword_index.py:\nUpdate src/vault_graph/storage/interfaces/init.py:\nIf all already contains other exports, append these names without removing existing exports.\n[ ] Step 4: Run the contract tests and verify pass\nRun:\nExpected: PASS.\n[ ] Step 5: Commit\n---",
+        "items": [
+          "Create: src/vault_graph/storage/interfaces/keyword_index.py",
+          "Modify: src/vault_graph/errors.py",
+          "Modify: src/vault_graph/storage/interfaces/init.py",
+          "Test: tests/test_keyword_index_contract.py",
+          "[ ] Step 1: Write the failing contract tests",
+          "[ ] Step 2: Run the contract tests and verify failure",
+          "[ ] Step 3: Add keyword errors and contract records",
+          "[ ] Step 4: Run the contract tests and verify pass",
+          "[ ] Step 5: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import pytest\n\nfrom vault_graph.errors import KeywordIndexError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery\n\n\ndef test_keyword_query_rejects_empty_text() -> None:\n    with pytest.raises(KeywordIndexError, match=\"query_text is required\"):\n        KeywordQuery(query_text=\"  \", scope=QueryScope(vault_ids=(\"default\",)), limit=10)\n\n\ndef test_keyword_query_rejects_non_positive_limit() -> None:\n    with pytest.raises(KeywordIndexError, match=\"limit must be positive\"):\n        KeywordQuery(query_text=\"GraphRAG\", scope=QueryScope(vault_ids=(\"default\",)), limit=0)\n\n\ndef test_keyword_hit_requires_vault_scoped_identity() -> None:\n    hit = KeywordHit(\n        vault_id=\"default\",\n        document_id=\"default:wiki/page.md\",\n        chunk_id=\"chunk-1\",\n        rank=1,\n        score=-1.25,\n        backend=\"sqlite-fts5\",\n        index_revision=\"metadata-1\",\n        matched_fields=(\"text\", \"section\"),\n    )\n\n    assert hit.vault_id == \"default\"\n    assert hit.chunk_id == \"chunk-1\"\n    assert hit.rank == 1\n    assert hit.score == -1.25\n    assert hit.matched_fields == (\"text\", \"section\")\n\n\ndef test_keyword_hit_rejects_unranked_candidate() -> None:\n    with pytest.raises(KeywordIndexError, match=\"rank must be positive\"):\n        KeywordHit(\n            vault_id=\"default\",\n            document_id=\"doc\",\n            chunk_id=\"chunk\",\n            rank=0,\n            score=0.0,\n            backend=\"sqlite-fts5\",\n            index_revision=\"metadata-1\",\n            matched_fields=(\"text\",),\n        )"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_keyword_index_contract.py -q"
+          },
+          {
+            "language": "python",
+            "content": "class KeywordIndexError(VaultGraphError):\n    \"\"\"Raised when keyword candidate lookup contracts are violated.\"\"\"\n\n\nclass SearchError(VaultGraphError):\n    \"\"\"Raised when search cannot produce a valid response.\"\"\""
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Protocol\n\nfrom vault_graph.errors import KeywordIndexError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\n\n\n@dataclass(frozen=True)\nclass KeywordQuery:\n    query_text: str\n    scope: QueryScope\n    limit: int\n\n    def __post_init__(self) -> None:\n        if not self.query_text.strip():\n            raise KeywordIndexError(\"query_text is required\")\n        if self.limit <= 0:\n            raise KeywordIndexError(\"limit must be positive\")\n\n\n@dataclass(frozen=True)\nclass KeywordHit:\n    vault_id: str\n    document_id: str\n    chunk_id: str\n    rank: int\n    score: float\n    backend: str\n    index_revision: str\n    matched_fields: tuple[str, ...]\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.vault_id, \"vault_id\")\n        _require_non_empty(self.document_id, \"document_id\")\n        _require_non_empty(self.chunk_id, \"chunk_id\")\n        _require_non_empty(self.backend, \"backend\")\n        _require_non_empty(self.index_revision, \"index_revision\")\n        if self.rank <= 0:\n            raise KeywordIndexError(\"rank must be positive\")\n        if not isinstance(self.matched_fields, tuple):\n            raise KeywordIndexError(\"matched_fields must be an immutable tuple\")\n\n\nclass KeywordIndex(Protocol):\n    def search(self, query: KeywordQuery) -> tuple[KeywordHit, ...]: ...\n\n    def health(self) -> StoreHealth: ...\n\n\ndef _require_non_empty(value: str, field_name: str) -> None:\n    if not value:\n        raise KeywordIndexError(f\"{field_name} is required\")"
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: Add SQLite FTS Keyword Projection",
+        "content": "Files:\nCreate: src/vault_graph/storage/local/sqlite_keyword_index.py Modify: src/vault_graph/storage/local/sqlite_metadata_store.py Test: tests/test_sqlite_keyword_index.py Test: tests/test_sqlite_metadata_store.py\n[ ] Step 1: Write failing SQLite keyword tests\nCreate tests/test_sqlite_keyword_index.py:\n[ ] Step 2: Run the SQLite keyword tests and verify failure\nRun:\nExpected: FAIL because the SQLite keyword adapter and projection do not exist.\n[ ] Step 3: Implement SQLite keyword projection helpers and adapter\nCreate src/vault_graph/storage/local/sqlite_keyword_index.py:\n[ ] Step 4: Wire keyword updates into metadata transactions\nModify src/vault_graph/storage/local/sqlite_metadata_store.py:\nIn init, after connection.executescript(SCHEMA):\nIn apply_metadata_revision, inside the same with self._connect() as connection: block and after document/chunk/tombstone writes:\nThis must remain in the same SQLite transaction. If keyword projection update fails, the metadata revision must fail too.\n[ ] Step 5: Run SQLite metadata and keyword tests\nRun:\nExpected: PASS.\n[ ] Step 6: Commit\n---",
+        "items": [
+          "Create: src/vault_graph/storage/local/sqlite_keyword_index.py",
+          "Modify: src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "Test: tests/test_sqlite_keyword_index.py",
+          "Test: tests/test_sqlite_metadata_store.py",
+          "[ ] Step 1: Write failing SQLite keyword tests",
+          "[ ] Step 2: Run the SQLite keyword tests and verify failure",
+          "[ ] Step 3: Implement SQLite keyword projection helpers and adapter",
+          "[ ] Step 4: Wire keyword updates into metadata transactions",
+          "[ ] Step 5: Run SQLite metadata and keyword tests",
+          "[ ] Step 6: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom tests.test_sqlite_metadata_store import make_chunk, make_document\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.keyword_index import KeywordQuery\nfrom vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\ndef test_keyword_search_returns_current_chunk_candidates(tmp_path: Path) -> None:\n    database_path = tmp_path / \"metadata.sqlite3\"\n    metadata_store = SQLiteMetadataStore(database_path, initialize=True)\n    document = make_document(\"default\", \"wiki/page.md\", \"hash-1\")\n    chunk = make_chunk(\"default\", document.document_id, document.path)\n    metadata_store.apply_metadata_revision(index_revision=\"metadata-1\", documents=[document], chunks=[chunk], tombstones=[])\n    keyword_index = SQLiteKeywordIndex(database_path)\n\n    hits = keyword_index.search(\n        KeywordQuery(query_text=\"Body\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)), limit=10)\n    )\n\n    assert tuple((hit.vault_id, hit.document_id, hit.chunk_id) for hit in hits) == (\n        (\"default\", document.document_id, chunk.chunk_id),\n    )\n    assert hits[0].backend == \"sqlite-fts5\"\n    assert hits[0].index_revision == \"metadata-1\"\n\n\ndef test_keyword_search_filters_vault_before_limit(tmp_path: Path) -> None:\n    database_path = tmp_path / \"metadata.sqlite3\"\n    metadata_store = SQLiteMetadataStore(database_path, initialize=True)\n    first = make_document(\"first\", \"wiki/same.md\", \"hash-first\")\n    second = make_document(\"second\", \"wiki/same.md\", \"hash-second\")\n    first_chunk = make_chunk(\"first\", first.document_id, first.path)\n    second_chunk = make_chunk(\"second\", second.document_id, second.path)\n    metadata_store.apply_metadata_revision(\n        index_revision=\"metadata-1\",\n        documents=[first, second],\n        chunks=[first_chunk, second_chunk],\n        tombstones=[],\n    )\n    keyword_index = SQLiteKeywordIndex(database_path)\n\n    hits = keyword_index.search(\n        KeywordQuery(query_text=\"Body\", scope=QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\",)), limit=1)\n    )\n\n    assert tuple(hit.vault_id for hit in hits) == (\"second\",)\n\n\ndef test_keyword_search_filters_content_scope_before_limit(tmp_path: Path) -> None:\n    database_path = tmp_path / \"metadata.sqlite3\"\n    metadata_store = SQLiteMetadataStore(database_path, initialize=True)\n    raw_doc = make_document(\"default\", \"raw/source.md\", \"hash-raw\")\n    wiki_doc = make_document(\"default\", \"wiki/page.md\", \"hash-wiki\")\n    metadata_store.apply_metadata_revision(\n        index_revision=\"metadata-1\",\n        documents=[raw_doc, wiki_doc],\n        chunks=[\n            make_chunk(\"default\", raw_doc.document_id, raw_doc.path),\n            make_chunk(\"default\", wiki_doc.document_id, wiki_doc.path),\n        ],\n        tombstones=[],\n    )\n    keyword_index = SQLiteKeywordIndex(database_path)\n\n    hits = keyword_index.search(\n        KeywordQuery(query_text=\"Body\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)), limit=1)\n    )\n\n    assert tuple(hit.document_id for hit in hits) == (wiki_doc.document_id,)\n\n\ndef test_tombstoned_documents_are_removed_from_keyword_projection(tmp_path: Path) -> None:\n    database_path = tmp_path / \"metadata.sqlite3\"\n    metadata_store = SQLiteMetadataStore(database_path, initialize=True)\n    document = make_document(\"default\", \"wiki/page.md\", \"hash-1\")\n    chunk = make_chunk(\"default\", document.document_id, document.path)\n    metadata_store.apply_metadata_revision(index_revision=\"metadata-1\", documents=[document], chunks=[chunk], tombstones=[])\n    metadata_store.apply_metadata_revision(\n        index_revision=\"metadata-2\",\n        documents=[],\n        chunks=[],\n        tombstones=[(\"default\", \"wiki/page.md\")],\n    )\n    keyword_index = SQLiteKeywordIndex(database_path)\n\n    hits = keyword_index.search(\n        KeywordQuery(query_text=\"Body\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)), limit=10)\n    )\n\n    assert hits == ()\n\n\ndef test_missing_keyword_projection_health_is_visible(tmp_path: Path) -> None:\n    keyword_index = SQLiteKeywordIndex(tmp_path / \"missing.sqlite3\")\n\n    health = keyword_index.health()\n\n    assert health.ok is False\n    assert health.schema_compatible is False\n    assert \"not initialized\" in health.message\n\n\ndef test_keyword_schema_version_mismatch_is_visible(tmp_path: Path) -> None:\n    database_path = tmp_path / \"metadata.sqlite3\"\n    metadata_store = SQLiteMetadataStore(database_path, initialize=True)\n    with metadata_store.connect_for_tests() as connection:\n        connection.execute(\n            \"\"\"\n            UPDATE keyword_projection_metadata\n            SET value = 'old-version'\n            WHERE key = 'schema_version'\n            \"\"\"\n        )\n    keyword_index = SQLiteKeywordIndex(database_path)\n\n    health = keyword_index.health()\n\n    assert health.ok is False\n    assert health.schema_compatible is False\n    assert \"schema version mismatch\" in health.message"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_sqlite_keyword_index.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nimport json\nimport re\nimport sqlite3\nfrom pathlib import Path, PurePosixPath\nfrom typing import Any\n\nfrom vault_graph.errors import KeywordIndexError\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\n\nSQLITE_KEYWORD_BACKEND = \"sqlite-fts5\"\nKEYWORD_SCHEMA_VERSION = \"sqlite-keyword-v1\"\n\nKEYWORD_SCHEMA = \"\"\"\nCREATE TABLE IF NOT EXISTS keyword_projection_metadata (\n  key TEXT PRIMARY KEY,\n  value TEXT NOT NULL\n);\n\nCREATE VIRTUAL TABLE IF NOT EXISTS keyword_chunks USING fts5(\n  vault_id UNINDEXED,\n  document_id UNINDEXED,\n  chunk_id UNINDEXED,\n  path,\n  section,\n  anchor UNINDEXED,\n  title,\n  frontmatter,\n  text,\n  content_scope UNINDEXED,\n  index_revision UNINDEXED,\n  tokenize='unicode61'\n);\n\"\"\"\n\nREQUIRED_KEYWORD_COLUMNS = (\n    \"vault_id\",\n    \"document_id\",\n    \"chunk_id\",\n    \"path\",\n    \"section\",\n    \"anchor\",\n    \"title\",\n    \"frontmatter\",\n    \"text\",\n    \"content_scope\",\n    \"index_revision\",\n)\n\n\nclass SQLiteKeywordIndex:\n    def __init__(self, database_path: Path) -> None:\n        self._database_path = database_path.expanduser().resolve()\n\n    def search(self, query: KeywordQuery) -> tuple[KeywordHit, ...]:\n        health = self.health()\n        if not health.ok or not health.schema_compatible:\n            raise KeywordIndexError(f\"keyword index unavailable: {health.message}. Run `vg index`.\")\n        match_query = _match_query(query.query_text)\n        vault_placeholders = \", \".join(\"?\" for _ in query.scope.vault_ids)\n        path_clause, path_args = _content_scope_clause(query.scope.content_scopes)\n        with self._connect_readonly() as connection:\n            rows = connection.execute(\n                f\"\"\"\n                SELECT vault_id, document_id, chunk_id, path, section, title, frontmatter, text,\n                       index_revision, bm25(keyword_chunks) AS score\n                FROM keyword_chunks\n                WHERE keyword_chunks MATCH ?\n                  AND vault_id IN ({vault_placeholders})\n                  AND ({path_clause})\n                ORDER BY score ASC, vault_id ASC, path ASC, chunk_id ASC\n                LIMIT ?\n                \"\"\",\n                (match_query, *query.scope.vault_ids, *path_args, query.limit),\n            ).fetchall()\n        return tuple(_keyword_hit_from_row(rank=rank, row=row) for rank, row in enumerate(rows, start=1))\n\n    def health(self) -> StoreHealth:\n        if not self._database_path.exists():\n            return StoreHealth(\n                ok=False,\n                backend=SQLITE_KEYWORD_BACKEND,\n                schema_version=KEYWORD_SCHEMA_VERSION,\n                schema_compatible=False,\n                message=\"not initialized\",\n            )\n        try:\n            with self._connect_readonly() as connection:\n                tables = {\n                    str(row[\"name\"])\n                    for row in connection.execute(\"SELECT name FROM sqlite_master WHERE type = 'table'\").fetchall()\n                }\n                missing = {\"keyword_projection_metadata\", \"keyword_chunks\"} - tables\n                if missing:\n                    return StoreHealth(\n                        ok=False,\n                        backend=SQLITE_KEYWORD_BACKEND,\n                        schema_version=KEYWORD_SCHEMA_VERSION,\n                        schema_compatible=False,\n                        message=f\"schema incompatible: missing {', '.join(sorted(missing))}\",\n                    )\n                version = connection.execute(\n                    \"SELECT value FROM keyword_projection_metadata WHERE key = 'schema_version'\"\n                ).fetchone()\n                if version is None or str(version[\"value\"]) != KEYWORD_SCHEMA_VERSION:\n                    return StoreHealth(\n                        ok=False,\n                        backend=SQLITE_KEYWORD_BACKEND,\n                        schema_version=KEYWORD_SCHEMA_VERSION,\n                        schema_compatible=False,\n                        message=\"schema incompatible: keyword schema version mismatch\",\n                    )\n                columns = {\n                    str(row[\"name\"])\n                    for row in connection.execute(\"PRAGMA table_info(keyword_chunks)\").fetchall()\n                }\n                missing_columns = set(REQUIRED_KEYWORD_COLUMNS) - columns\n                if missing_columns:\n                    return StoreHealth(\n                        ok=False,\n                        backend=SQLITE_KEYWORD_BACKEND,\n                        schema_version=KEYWORD_SCHEMA_VERSION,\n                        schema_compatible=False,\n                        message=f\"schema incompatible: missing keyword columns {', '.join(sorted(missing_columns))}\",\n                    )\n        except sqlite3.Error as exc:\n            return StoreHealth(\n                ok=False,\n                backend=SQLITE_KEYWORD_BACKEND,\n                schema_version=KEYWORD_SCHEMA_VERSION,\n                schema_compatible=False,\n                message=str(exc),\n            )\n        return StoreHealth(\n            ok=True,\n            backend=SQLITE_KEYWORD_BACKEND,\n            schema_version=KEYWORD_SCHEMA_VERSION,\n            schema_compatible=True,\n            message=\"ok\",\n        )\n\n    def _connect_readonly(self) -> sqlite3.Connection:\n        connection = sqlite3.connect(f\"file:{self._database_path}?mode=ro\", uri=True)\n        connection.row_factory = sqlite3.Row\n        return connection\n\n\ndef apply_keyword_revision(\n    connection: sqlite3.Connection,\n    *,\n    index_revision: str,\n    documents: list[DocumentSnapshot],\n    chunks: list[ChunkSnapshot],\n    tombstones: list[tuple[str, str]],\n) -> None:\n    ensure_keyword_schema(connection)\n    for document in documents:\n        connection.execute(\n            \"DELETE FROM keyword_chunks WHERE vault_id = ? AND document_id = ?\",\n            (document.vault_id, document.document_id),\n        )\n    for vault_id, path in tombstones:\n        connection.execute(\"DELETE FROM keyword_chunks WHERE vault_id = ? AND path = ?\", (vault_id, path))\n    documents_by_id = {(document.vault_id, document.document_id): document for document in documents}\n    for chunk in chunks:\n        document = documents_by_id[(chunk.vault_id, chunk.document_id)]\n        connection.execute(\n            \"\"\"\n            INSERT INTO keyword_chunks (\n              vault_id, document_id, chunk_id, path, section, anchor, title, frontmatter,\n              text, content_scope, index_revision\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n            \"\"\",\n            (\n                chunk.vault_id,\n                chunk.document_id,\n                chunk.chunk_id,\n                chunk.path,\n                chunk.section or \"\",\n                chunk.anchor or \"\",\n                _title_for_document(document),\n                json.dumps(document.frontmatter, sort_keys=True),\n                chunk.text,\n                _content_scope_for_path(chunk.path),\n                index_revision,\n            ),\n        )\n\n\ndef ensure_keyword_schema(connection: sqlite3.Connection) -> None:\n    connection.executescript(KEYWORD_SCHEMA)\n    connection.execute(\n        \"\"\"\n        INSERT INTO keyword_projection_metadata (key, value)\n        VALUES ('schema_version', ?)\n        ON CONFLICT(key) DO UPDATE SET value = excluded.value\n        \"\"\",\n        (KEYWORD_SCHEMA_VERSION,),\n    )\n\n\ndef _match_query(query_text: str) -> str:\n    tokens = re.findall(r\"[\\w가-힣]+\", query_text, flags=re.UNICODE)\n    if not tokens:\n        raise KeywordIndexError(\"query_text has no searchable tokens\")\n    quoted_tokens = []\n    for token in tokens:\n        escaped = token.replace('\"', '\"\"')\n        quoted_tokens.append(f'\"{escaped}\"')\n    return \" OR \".join(quoted_tokens)\n\n\ndef _content_scope_clause(content_scopes: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:\n    clauses: list[str] = []\n    args: list[str] = []\n    for content_scope in content_scopes:\n        clauses.append(\"(path = ? OR path LIKE ?)\")\n        args.extend((content_scope, f\"{content_scope}/%\"))\n    return \" OR \".join(clauses), tuple(args)\n\n\ndef _keyword_hit_from_row(*, rank: int, row: sqlite3.Row) -> KeywordHit:\n    return KeywordHit(\n        vault_id=str(row[\"vault_id\"]),\n        document_id=str(row[\"document_id\"]),\n        chunk_id=str(row[\"chunk_id\"]),\n        rank=rank,\n        score=float(row[\"score\"]),\n        backend=SQLITE_KEYWORD_BACKEND,\n        index_revision=str(row[\"index_revision\"]),\n        matched_fields=_matched_fields(row),\n    )\n\n\ndef _matched_fields(row: sqlite3.Row) -> tuple[str, ...]:\n    return tuple(\n        field\n        for field in (\"title\", \"section\", \"frontmatter\", \"text\", \"path\")\n        if str(row[field] or \"\").strip()\n    )\n\n\ndef _title_for_document(document: DocumentSnapshot) -> str:\n    title = document.frontmatter.get(\"title\")\n    return str(title) if title is not None else PurePosixPath(document.path).stem\n\n\ndef _content_scope_for_path(path: str) -> str:\n    parent = PurePosixPath(path).parent.as_posix()\n    if parent == \".\":\n        return path.split(\"/\", 1)[0]\n    return parent"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.storage.local.sqlite_keyword_index import apply_keyword_revision, ensure_keyword_schema"
+          }
+        ]
+      },
+      {
+        "heading": "Task 3: Share Per-Vault Actual Scope Resolution",
+        "content": "Files:\nCreate: src/vault_graph/app/query_scope_resolution.py Modify: src/vault_graph/app/index_service.py Test: tests/test_query_scope_resolution.py Test: tests/test_index_service_vector_reconcile.py\n[ ] Step 1: Write failing scope resolution tests\nCreate tests/test_query_scope_resolution.py:\n[ ] Step 2: Run scope tests and verify failure\nRun:\nExpected: FAIL because actual_query_scopes does not exist.\n[ ] Step 3: Add shared scope resolution module\nCreate src/vault_graph/app/query_scope_resolution.py:\n[ ] Step 4: Replace the private vector scope resolver\nModify src/vault_graph/app/index_service.py:\nReplace:\nwith:\nRemove the private _actual_vector_scopes and _is_same_or_child functions from index_service.py.\n[ ] Step 5: Run scope and Phase 2B index service tests\nRun:\nExpected: PASS.\n[ ] Step 6: Commit\n---",
+        "items": [
+          "Create: src/vault_graph/app/query_scope_resolution.py",
+          "Modify: src/vault_graph/app/index_service.py",
+          "Test: tests/test_query_scope_resolution.py",
+          "Test: tests/test_index_service_vector_reconcile.py",
+          "[ ] Step 1: Write failing scope resolution tests",
+          "[ ] Step 2: Run scope tests and verify failure",
+          "[ ] Step 3: Add shared scope resolution module",
+          "[ ] Step 4: Replace the private vector scope resolver",
+          "[ ] Step 5: Run scope and Phase 2B index service tests",
+          "[ ] Step 6: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom vault_graph.app.query_scope_resolution import actual_query_scopes\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry\n\n\ndef _entry(tmp_path: Path, vault_id: str, scopes: tuple[str, ...]) -> VaultCatalogEntry:\n    root = tmp_path / vault_id\n    root.mkdir()\n    return VaultCatalogEntry.from_root(vault_id=vault_id, root_path=root, content_scopes=scopes)\n\n\ndef test_actual_scopes_keep_each_vault_narrow(tmp_path: Path) -> None:\n    catalog = VaultCatalog.from_entries(\n        entries=[\n            _entry(tmp_path, \"first\", (\"wiki\",)),\n            _entry(tmp_path, \"second\", (\"docs\",)),\n        ],\n        active_vault_id=\"first\",\n    )\n\n    scopes = actual_query_scopes(\n        catalog=catalog,\n        scope=QueryScope(vault_ids=(\"first\", \"second\"), content_scopes=(\"wiki\", \"docs\")),\n    )\n\n    assert tuple(scope.vault_ids for scope in scopes) == ((\"first\",), (\"second\",))\n    assert tuple(scope.content_scopes for scope in scopes) == ((\"wiki\",), (\"docs\",))\n\n\ndef test_actual_scopes_use_narrower_child_scope(tmp_path: Path) -> None:\n    catalog = VaultCatalog.from_entries(\n        entries=[_entry(tmp_path, \"default\", (\"wiki\",))],\n        active_vault_id=\"default\",\n    )\n\n    scopes = actual_query_scopes(\n        catalog=catalog,\n        scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki/systems\",)),\n    )\n\n    assert scopes[0].content_scopes == (\"wiki/systems\",)\n\n\ndef test_actual_scopes_skip_disjoint_scope_pairs(tmp_path: Path) -> None:\n    catalog = VaultCatalog.from_entries(\n        entries=[_entry(tmp_path, \"default\", (\"wiki\",))],\n        active_vault_id=\"default\",\n    )\n\n    scopes = actual_query_scopes(\n        catalog=catalog,\n        scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"docs\",)),\n    )\n\n    assert scopes == ()"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_query_scope_resolution.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog\n\n\ndef actual_query_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:\n    actual_scopes: list[QueryScope] = []\n    for vault_id in scope.vault_ids:\n        entry = catalog.resolve(vault_id)\n        content_scopes: list[str] = []\n        for query_scope in scope.content_scopes:\n            for entry_scope in entry.content_scopes:\n                if _is_same_or_child(path=query_scope, parent=entry_scope):\n                    content_scopes.append(query_scope)\n                elif _is_same_or_child(path=entry_scope, parent=query_scope):\n                    content_scopes.append(entry_scope)\n        deduped = tuple(dict.fromkeys(content_scopes))\n        if deduped:\n            actual_scopes.append(\n                QueryScope(\n                    vault_ids=(entry.vault_id,),\n                    content_scopes=deduped,\n                    include_cross_vault=scope.include_cross_vault,\n                )\n            )\n    return tuple(actual_scopes)\n\n\ndef _is_same_or_child(*, path: str, parent: str) -> bool:\n    return path == parent or path.startswith(f\"{parent}/\")"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.app.query_scope_resolution import actual_query_scopes"
+          }
+        ]
+      },
+      {
+        "heading": "Task 4: Add SearchResponse Contract",
+        "content": "Files:\nCreate: src/vault_graph/retrieval/search_response.py Modify: src/vault_graph/retrieval/init.py Test: tests/test_search_response_contract.py\n[ ] Step 1: Write failing response contract tests\nCreate tests/test_search_response_contract.py:\n[ ] Step 2: Run response tests and verify failure\nRun:\nExpected: FAIL because search response contracts do not exist.\n[ ] Step 3: Add response contracts\nCreate src/vault_graph/retrieval/search_response.py:\nUpdate src/vault_graph/retrieval/init.py to export:\nAppend these names to all.\n[ ] Step 4: Run response tests and verify pass\nRun:\nExpected: PASS.\n[ ] Step 5: Commit\n---",
+        "items": [
+          "Create: src/vault_graph/retrieval/search_response.py",
+          "Modify: src/vault_graph/retrieval/init.py",
+          "Test: tests/test_search_response_contract.py",
+          "[ ] Step 1: Write failing response contract tests",
+          "[ ] Step 2: Run response tests and verify failure",
+          "[ ] Step 3: Add response contracts",
+          "[ ] Step 4: Run response tests and verify pass",
+          "[ ] Step 5: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import pytest\n\nfrom tests.test_retrieval_result_contract import make_evidence, make_signal, make_store_revisions\nfrom vault_graph.errors import SearchError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.retrieval import RetrievalResult\nfrom vault_graph.retrieval.search_response import (\n    SearchOutputFormat,\n    SearchRequest,\n    SearchResponse,\n    SearchStoreRevision,\n    SearchWarning,\n)\n\n\ndef _result() -> RetrievalResult:\n    return RetrievalResult(\n        result_id=\"default:chunk:rank-1\",\n        vault_id=\"default\",\n        kind=\"evidence_chunk\",\n        title=\"wiki/page.md#section\",\n        summary=\"Body\",\n        rank=1,\n        evidence=(make_evidence(),),\n        signals=(make_signal(kind=\"keyword\"),),\n        relationship_status=\"not_applicable\",\n        warnings=(),\n        store_revisions=make_store_revisions(),\n    )\n\n\ndef test_search_request_rejects_empty_query() -> None:\n    with pytest.raises(SearchError, match=\"query_text is required\"):\n        SearchRequest(\n            query_text=\" \",\n            requested_scope=QueryScope(vault_ids=(\"default\",)),\n            actual_scopes=(QueryScope(vault_ids=(\"default\",)),),\n            limit=10,\n            output_format=\"text\",\n        )\n\n\ndef test_search_response_records_query_wide_degraded_state() -> None:\n    warning = SearchWarning(\n        code=\"vector_unavailable\",\n        message=\"Vector search is unavailable\",\n        severity=\"warning\",\n        affected_vault_ids=(\"default\",),\n    )\n    response = SearchResponse(\n        query_text=\"GraphRAG\",\n        requested_scope=QueryScope(vault_ids=(\"default\",)),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",)),),\n        limit=10,\n        result_count=1,\n        candidate_count=2,\n        dropped_candidate_count=1,\n        results=(_result(),),\n        warnings=(warning,),\n        degraded=True,\n        store_revisions=(\n            SearchStoreRevision(\n                kind=\"metadata\",\n                revision=\"metadata-1\",\n                scope_key=\"default:wiki\",\n                vault_id=\"default\",\n            ),\n        ),\n        generated_at=\"2026-06-09T00:00:00+00:00\",\n    )\n\n    assert response.degraded is True\n    assert response.warnings[0].affected_vault_ids == (\"default\",)\n    assert response.result_count == len(response.results)\n\n\ndef test_search_response_rejects_result_count_mismatch() -> None:\n    with pytest.raises(SearchError, match=\"result_count must match results\"):\n        SearchResponse(\n            query_text=\"GraphRAG\",\n            requested_scope=QueryScope(vault_ids=(\"default\",)),\n            actual_scopes=(QueryScope(vault_ids=(\"default\",)),),\n            limit=10,\n            result_count=2,\n            candidate_count=1,\n            dropped_candidate_count=0,\n            results=(_result(),),\n            warnings=(),\n            degraded=False,\n            store_revisions=(\n                SearchStoreRevision(\n                    kind=\"metadata\",\n                    revision=\"metadata-1\",\n                    scope_key=\"default:wiki\",\n                    vault_id=\"default\",\n                ),\n            ),\n            generated_at=\"2026-06-09T00:00:00+00:00\",\n        )\n\n\ndef test_search_warning_requires_vault_attribution() -> None:\n    with pytest.raises(SearchError, match=\"affected_vault_ids is required\"):\n        SearchWarning(\n            code=\"vector_unavailable\",\n            message=\"Vector search is unavailable\",\n            severity=\"warning\",\n            affected_vault_ids=(),\n        )\n\n\ndef test_store_revision_requires_scope_attribution() -> None:\n    with pytest.raises(SearchError, match=\"scope_key is required\"):\n        SearchStoreRevision(kind=\"metadata\", revision=\"metadata-1\", scope_key=\"\")\n\n\ndef test_search_output_format_type_allows_text_and_json() -> None:\n    text_format: SearchOutputFormat = \"text\"\n    json_format: SearchOutputFormat = \"json\"\n\n    assert text_format == \"text\"\n    assert json_format == \"json\""
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_search_response_contract.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Literal\n\nfrom vault_graph.errors import SearchError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.retrieval.retrieval_result import RetrievalResult, RetrievalSeverity\n\nSearchOutputFormat = Literal[\"text\", \"json\"]\n\n\n@dataclass(frozen=True)\nclass SearchStoreRevision:\n    kind: str\n    revision: str\n    scope_key: str\n    vault_id: str | None = None\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.kind, \"kind\")\n        _require_non_empty(self.revision, \"revision\")\n        _require_non_empty(self.scope_key, \"scope_key\")\n\n\n@dataclass(frozen=True)\nclass SearchWarning:\n    code: str\n    message: str\n    severity: RetrievalSeverity\n    affected_vault_ids: tuple[str, ...]\n    document_id: str | None = None\n    chunk_id: str | None = None\n    source_id: str | None = None\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.code, \"code\")\n        _require_non_empty(self.message, \"message\")\n        if not isinstance(self.affected_vault_ids, tuple):\n            raise SearchError(\"affected_vault_ids must be an immutable tuple\")\n        if not self.affected_vault_ids:\n            raise SearchError(\"affected_vault_ids is required\")\n\n\n@dataclass(frozen=True)\nclass SearchRequest:\n    query_text: str\n    requested_scope: QueryScope\n    actual_scopes: tuple[QueryScope, ...]\n    limit: int\n    output_format: SearchOutputFormat\n\n    def __post_init__(self) -> None:\n        if not self.query_text.strip():\n            raise SearchError(\"query_text is required\")\n        if self.limit <= 0:\n            raise SearchError(\"limit must be positive\")\n        if self.output_format not in (\"text\", \"json\"):\n            raise SearchError(\"unsupported_format\")\n\n\n@dataclass(frozen=True)\nclass SearchResponse:\n    query_text: str\n    requested_scope: QueryScope\n    actual_scopes: tuple[QueryScope, ...]\n    limit: int\n    result_count: int\n    candidate_count: int\n    dropped_candidate_count: int\n    results: tuple[RetrievalResult, ...]\n    warnings: tuple[SearchWarning, ...]\n    degraded: bool\n    store_revisions: tuple[SearchStoreRevision, ...]\n    generated_at: str\n\n    def __post_init__(self) -> None:\n        if not self.query_text.strip():\n            raise SearchError(\"query_text is required\")\n        if self.limit <= 0:\n            raise SearchError(\"limit must be positive\")\n        if self.result_count != len(self.results):\n            raise SearchError(\"result_count must match results\")\n        if self.candidate_count < 0:\n            raise SearchError(\"candidate_count must not be negative\")\n        if self.dropped_candidate_count < 0:\n            raise SearchError(\"dropped_candidate_count must not be negative\")\n        if not isinstance(self.results, tuple):\n            raise SearchError(\"results must be an immutable tuple\")\n        if not isinstance(self.warnings, tuple):\n            raise SearchError(\"warnings must be an immutable tuple\")\n        if not isinstance(self.store_revisions, tuple):\n            raise SearchError(\"store_revisions must be an immutable tuple\")\n\n\ndef _require_non_empty(value: str, field_name: str) -> None:\n    if not value:\n        raise SearchError(f\"{field_name} is required\")"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.retrieval.search_response import (\n    SearchOutputFormat,\n    SearchRequest,\n    SearchResponse,\n    SearchStoreRevision,\n    SearchWarning,\n)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 5: Add No-Download Embedding And Search Readiness Boundaries",
+        "content": "Files:\nModify: src/vault_graph/embeddings/text_embeddings.py Modify: src/vault_graph/embeddings/fastembed_text_embeddings.py Modify: tests/fakes/deterministic_text_embeddings.py Create: src/vault_graph/retrieval/search_readiness.py Create: src/vault_graph/app/search_readiness_service.py Test: tests/test_text_embeddings_contract.py Test: tests/test_fastembed_text_embeddings.py Test: tests/test_app_search_readiness_service.py Test: tests/test_retrieval_import_boundaries.py\n[ ] Step 1: Write failing no-download and readiness tests\nAppend to tests/test_text_embeddings_contract.py:\nAppend to tests/test_fastembed_text_embeddings.py:\nCreate tests/test_app_search_readiness_service.py:\n[ ] Step 2: Run tests and verify failure\nRun:\nExpected: FAIL because the no-download method and readiness boundary do not exist.\n[ ] Step 3: Extend TextEmbeddings protocol and deterministic fake\nModify src/vault_graph/embeddings/text_embeddings.py:\nModify tests/fakes/deterministic_text_embeddings.py:\n[ ] Step 4: Add local-files-only support to FastEmbed\nModify FastEmbedTextEmbeddingsConfig in src/vault_graph/embeddings/fastembed_text_embeddings.py:\nAdd to FastEmbedTextEmbeddings:\nModify _resolve_snapshot:\nSe...",
+        "items": [
+          "Modify: src/vault_graph/embeddings/text_embeddings.py",
+          "Modify: src/vault_graph/embeddings/fastembed_text_embeddings.py",
+          "Modify: tests/fakes/deterministic_text_embeddings.py",
+          "Create: src/vault_graph/retrieval/search_readiness.py",
+          "Create: src/vault_graph/app/search_readiness_service.py",
+          "Test: tests/test_text_embeddings_contract.py",
+          "Test: tests/test_fastembed_text_embeddings.py",
+          "Test: tests/test_app_search_readiness_service.py",
+          "Test: tests/test_retrieval_import_boundaries.py",
+          "[ ] Step 1: Write failing no-download and readiness tests",
+          "[ ] Step 2: Run tests and verify failure",
+          "[ ] Step 3: Extend TextEmbeddings protocol and deterministic fake",
+          "[ ] Step 4: Add local-files-only support to FastEmbed",
+          "[ ] Step 5: Add readiness protocol and read-only app implementation",
+          "[ ] Step 6: Run readiness and embedding tests",
+          "[ ] Step 7: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from vault_graph.embeddings.text_embeddings import EmbeddingModelSpec\n\n\ndef test_text_embeddings_exposes_no_download_availability() -> None:\n    spec = EmbeddingModelSpec(\n        model_name=\"deterministic\",\n        model_version=\"test\",\n        dimensions=4,\n        spec_version=\"embedding-spec-v1\",\n    )\n    embeddings = DeterministicTextEmbeddings(spec)\n\n    assert embeddings.can_embed_without_download() is True"
+          },
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nimport pytest\n\n\ndef test_fastembed_can_check_local_artifact_without_loading_backend(tmp_path: Path) -> None:\n    calls: list[str] = []\n\n    def resolver(_: FastEmbedTextEmbeddingsConfig) -> Path:\n        calls.append(\"resolver\")\n        return tmp_path / \"snapshot\"\n\n    embeddings = FastEmbedTextEmbeddings(\n        config=FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path, local_files_only=True),\n        snapshot_resolver=resolver,\n        backend_factory=lambda _config, _path: pytest.fail(\"backend must not load\"),\n    )\n\n    assert embeddings.can_embed_without_download() is True\n    assert calls == [\"resolver\"]"
+          },
+          {
+            "language": "python",
+            "content": "from dataclasses import replace\nfrom pathlib import Path\n\nfrom tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings\nfrom tests.fakes.in_memory_vector_store import InMemoryVectorStore\nfrom tests.test_sqlite_metadata_store import make_chunk, make_document\nfrom tests.test_vector_indexer import SPEC\nfrom vault_graph.app.search_readiness_service import ReadOnlySearchReadiness\nfrom vault_graph.indexing.vector_indexer import VectorIndexer\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\nclass HealthyKeywordIndex:\n    def health(self) -> StoreHealth:\n        return StoreHealth(ok=True, backend=\"keyword\", schema_version=\"v1\", schema_compatible=True, message=\"ok\")\n\n\ndef metadata_store_with_chunk(tmp_path: Path, *, content_hash: str = \"chunk\") -> tuple[SQLiteMetadataStore, QueryScope]:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\", initialize=True)\n    document = make_document(\"default\", \"wiki/page.md\", \"hash\")\n    chunk = make_chunk(\"default\", document.document_id, document.path)\n    chunk = replace(chunk, content_hash=content_hash, index_revision=\"metadata-1\")\n    store.apply_metadata_revision(index_revision=\"metadata-1\", documents=[document], chunks=[chunk], tombstones=[])\n    return store, QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",))\n\n\ndef test_search_readiness_reports_vector_freshness(tmp_path: Path) -> None:\n    metadata_store, scope = metadata_store_with_chunk(tmp_path)\n    vector_store = InMemoryVectorStore()\n    embeddings = DeterministicTextEmbeddings(SPEC)\n    VectorIndexer(chunk_store=metadata_store, vector_store=vector_store, text_embeddings=embeddings).apply(\n        scopes=(scope,)\n    )\n    readiness = ReadOnlySearchReadiness(\n        metadata_store=metadata_store,\n        keyword_index=HealthyKeywordIndex(),\n        vector_store=vector_store,\n        text_embeddings=embeddings,\n    )\n\n    report = readiness.check(actual_scopes=(scope,))\n\n    assert report.metadata_health.ok is True\n    assert report.keyword_health.ok is True\n    assert report.vector_health is not None\n    assert report.vector_stale_count == 0\n    assert report.can_embed_without_download is True\n    assert {revision.kind for revision in report.store_revisions} >= {\"metadata\", \"keyword\", \"vector\"}\n    assert all(revision.scope_key for revision in report.store_revisions)\n\n\ndef test_search_readiness_reports_stale_vector_without_status_store(tmp_path: Path) -> None:\n    old_store, scope = metadata_store_with_chunk(tmp_path / \"old\", content_hash=\"old\")\n    vector_store = InMemoryVectorStore()\n    embeddings = DeterministicTextEmbeddings(SPEC)\n    VectorIndexer(chunk_store=old_store, vector_store=vector_store, text_embeddings=embeddings).apply(scopes=(scope,))\n    new_store, _ = metadata_store_with_chunk(tmp_path / \"new\", content_hash=\"changed\")\n    readiness = ReadOnlySearchReadiness(\n        metadata_store=new_store,\n        keyword_index=HealthyKeywordIndex(),\n        vector_store=vector_store,\n        text_embeddings=embeddings,\n    )\n\n    report = readiness.check(actual_scopes=(scope,))\n\n    assert report.vector_stale_count == 2"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_text_embeddings_contract.py tests/test_fastembed_text_embeddings.py tests/test_app_search_readiness_service.py -q"
+          }
+        ]
+      },
+      {
+        "heading": "Task 6: Add RetrievalService Keyword Search And Fusion",
+        "content": "Files:\nCreate: src/vault_graph/retrieval/retrieval_service.py Modify: src/vault_graph/retrieval/init.py Create: tests/fakes/in_memory_keyword_index.py Create: tests/fakes/search_readiness.py Test: tests/test_retrieval_service_search.py\n[ ] Step 1: Write failing retrieval service tests\nCreate tests/fakes/in_memory_keyword_index.py:\nCreate tests/fakes/search_readiness.py:\nCreate tests/test_retrieval_service_search.py with these first tests:\n[ ] Step 2: Run retrieval tests and verify failure\nRun:\nExpected: FAIL because RetrievalService does not exist.\n[ ] Step 3: Implement RetrievalService\nCreate src/vault_graph/retrieval/retrieval_service.py:\nUse this implementation shape:\nImplement _search_request with these rules:\nInternal helper requirements:\n_fatal_readiness_error raises SearchError(\"metadata_unavailable: ...\") when metadata health is not ok or schema incompatible. _fatal_readiness_error raises SearchError(\"keyword_index_unavailable: ... Run vg index.\") when keyword health is not ok or schema incompatible.\n_warnings_for_readiness emits vector_unavailable, vector_stale, embedding_model_unavailable, and degraded_keyword_only as appropriate. Every warning must set affected_vault_id...",
+        "items": [
+          "Create: src/vault_graph/retrieval/retrieval_service.py",
+          "Modify: src/vault_graph/retrieval/init.py",
+          "Create: tests/fakes/in_memory_keyword_index.py",
+          "Create: tests/fakes/search_readiness.py",
+          "Test: tests/test_retrieval_service_search.py",
+          "[ ] Step 1: Write failing retrieval service tests",
+          "[ ] Step 2: Run retrieval tests and verify failure",
+          "[ ] Step 3: Implement RetrievalService",
+          "_fatal_readiness_error raises SearchError(\"metadata_unavailable: ...\") when metadata health is not ok or schema incompatible.",
+          "_fatal_readiness_error raises SearchError(\"keyword_index_unavailable: ... Run vg index.\") when keyword health is not ok or schema incompatible.",
+          "_warnings_for_readiness emits vector_unavailable, vector_stale, embedding_model_unavailable, and degraded_keyword_only as appropriate. Every warning must set affected_vault_ids to the non-empty Vault IDs from the affected actual scopes.",
+          "_keyword_hits calls KeywordIndex.search(KeywordQuery(...)) once per actual scope and never queries SQLite directly.",
+          "_vector_hits skips vector search when readiness says vector is unavailable, stale, or the model cannot embed without download.",
+          "_vector_hits embeds one query input with EmbeddingInput(input_id=\"query\", text=request.query_text) and calls VectorStore.search(VectorQuery(...)) once per actual scope.",
+          "_vector_hits catches TextEmbeddingsError and VectorStoreError, adds query-wide warnings, and returns no vector hits.",
+          "_fuse_candidates merges by (vault_id, chunk_id) and uses weight / (RANK_CONSTANT + signal_rank)."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\n\n\nclass InMemoryKeywordIndex:\n    def __init__(\n        self,\n        hits: tuple[KeywordHit, ...] = (),\n        *,\n        content_scope_by_key: dict[tuple[str, str], str] | None = None,\n    ) -> None:\n        self._hits = hits\n        self._content_scope_by_key = content_scope_by_key or {}\n\n    def search(self, query: KeywordQuery) -> tuple[KeywordHit, ...]:\n        scoped = tuple(\n            hit\n            for hit in self._hits\n            if hit.vault_id in query.scope.vault_ids\n            and _content_scope_in_scope(\n                record_scope=self._content_scope_by_key.get((hit.vault_id, hit.chunk_id), \"wiki\"),\n                query_scopes=query.scope.content_scopes,\n            )\n        )\n        return scoped[: query.limit]\n\n    def health(self) -> StoreHealth:\n        return StoreHealth(ok=True, backend=\"memory-keyword\", schema_version=\"v1\", schema_compatible=True, message=\"ok\")\n\n\ndef _content_scope_in_scope(*, record_scope: str, query_scopes: tuple[str, ...]) -> bool:\n    return any(record_scope == query_scope or record_scope.startswith(f\"{query_scope}/\") for query_scope in query_scopes)"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom vault_graph.retrieval.search_readiness import SearchReadinessReport\nfrom vault_graph.retrieval.search_response import SearchStoreRevision\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\n\n\ndef ready_report(\n    *,\n    vector_ok: bool = False,\n    vector_stale_count: int | None = None,\n    can_embed_without_download: bool = False,\n    scope_key: str = \"default:wiki\",\n) -> SearchReadinessReport:\n    return SearchReadinessReport(\n        metadata_health=StoreHealth(ok=True, backend=\"metadata\", schema_version=\"v1\", schema_compatible=True, message=\"ok\"),\n        keyword_health=StoreHealth(ok=True, backend=\"keyword\", schema_version=\"v1\", schema_compatible=True, message=\"ok\"),\n        vector_health=StoreHealth(ok=vector_ok, backend=\"vector\", schema_version=\"v1\", schema_compatible=vector_ok, message=\"ok\" if vector_ok else \"not initialized\"),\n        vector_stale_count=vector_stale_count,\n        can_embed_without_download=can_embed_without_download,\n        store_revisions=(\n            SearchStoreRevision(kind=\"metadata\", revision=\"metadata-1\", scope_key=scope_key),\n            SearchStoreRevision(kind=\"keyword\", revision=\"metadata-1\", scope_key=scope_key),\n        )\n        + (\n            (SearchStoreRevision(kind=\"vector\", revision=\"vector-1\", scope_key=scope_key),)\n            if vector_ok\n            else ()\n        ),\n    )"
+          },
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nimport pytest\n\nfrom tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings\nfrom tests.fakes.in_memory_keyword_index import InMemoryKeywordIndex\nfrom tests.fakes.in_memory_vector_store import InMemoryVectorStore\nfrom tests.fakes.search_readiness import ready_report\nfrom tests.test_sqlite_metadata_store import make_chunk, make_document\nfrom tests.test_vector_indexer import SPEC\nfrom vault_graph.embeddings.text_embeddings import EmbeddingInput\nfrom vault_graph.errors import SearchError\nfrom vault_graph.indexing.vector_indexer import stable_vector_id\nfrom vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry\nfrom vault_graph.retrieval.retrieval_service import RetrievalService\nfrom vault_graph.retrieval.search_readiness import SearchReadinessReport\nfrom vault_graph.storage.interfaces.keyword_index import KeywordHit\nfrom vault_graph.storage.interfaces.vector_store import VectorEmbeddingRecord\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\nclass StaticReadiness:\n    def __init__(self, report: SearchReadinessReport) -> None:\n        self._report = report\n\n    def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:\n        return self._report\n\n\ndef _catalog(tmp_path: Path, vault_id: str = \"default\") -> VaultCatalog:\n    root = tmp_path / vault_id\n    root.mkdir()\n    return VaultCatalog.from_entries(\n        entries=[VaultCatalogEntry.from_root(vault_id=vault_id, root_path=root)],\n        active_vault_id=vault_id,\n    )\n\n\ndef _metadata_store(tmp_path: Path) -> tuple[SQLiteMetadataStore, str, str]:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\", initialize=True)\n    document = make_document(\"default\", \"wiki/page.md\", \"hash-1\")\n    chunk = make_chunk(\"default\", document.document_id, document.path)\n    store.apply_metadata_revision(index_revision=\"metadata-1\", documents=[document], chunks=[chunk], tombstones=[])\n    return store, document.document_id, chunk.chunk_id\n\n\ndef _keyword_hit(document_id: str, chunk_id: str, rank: int = 1) -> KeywordHit:\n    return KeywordHit(\n        vault_id=\"default\",\n        document_id=document_id,\n        chunk_id=chunk_id,\n        rank=rank,\n        score=-1.0,\n        backend=\"memory-keyword\",\n        index_revision=\"metadata-1\",\n        matched_fields=(\"text\",),\n    )\n\n\ndef test_keyword_only_search_returns_evidence_chunk(tmp_path: Path) -> None:\n    catalog = _catalog(tmp_path)\n    store, document_id, chunk_id = _metadata_store(tmp_path)\n    service = RetrievalService(\n        catalog=catalog,\n        metadata_store=store,\n        keyword_index=InMemoryKeywordIndex((_keyword_hit(document_id, chunk_id),)),\n        readiness=StaticReadiness(ready_report(vector_ok=False)),\n    )\n\n    response = service.search(\n        query_text=\"Body\",\n        requested_scope=catalog.default_scope(),\n        limit=10,\n        output_format=\"text\",\n    )\n\n    assert response.result_count == 1\n    assert response.results[0].kind == \"evidence_chunk\"\n    assert response.results[0].evidence[0].vault_id == \"default\"\n    assert response.results[0].signals[0].kind == \"keyword\"\n    assert response.degraded is True\n    assert response.warnings[0].code == \"vector_unavailable\"\n\n\ndef test_empty_query_fails_before_candidate_lookup(tmp_path: Path) -> None:\n    catalog = _catalog(tmp_path)\n    store, document_id, chunk_id = _metadata_store(tmp_path)\n    service = RetrievalService(\n        catalog=catalog,\n        metadata_store=store,\n        keyword_index=InMemoryKeywordIndex((_keyword_hit(document_id, chunk_id),)),\n        readiness=StaticReadiness(ready_report(vector_ok=False)),\n    )\n\n    with pytest.raises(SearchError, match=\"query_text is required\"):\n        service.search(query_text=\" \", requested_scope=catalog.default_scope(), limit=10, output_format=\"text\")\n\n\ndef test_keyword_and_vector_signals_merge_by_vault_chunk(tmp_path: Path) -> None:\n    catalog = _catalog(tmp_path)\n    store, document_id, chunk_id = _metadata_store(tmp_path)\n    embeddings = DeterministicTextEmbeddings(SPEC)\n    chunk = store.resolve_chunk(vault_id=\"default\", chunk_id=chunk_id)\n    assert chunk is not None\n    vector = embeddings.embed((EmbeddingInput(input_id=\"default:chunk\", text=chunk.text),))[0]\n    record = VectorEmbeddingRecord(\n        vector_id=stable_vector_id(vault_id=\"default\", chunk_id=chunk_id, embedding_spec=SPEC),\n        vault_id=\"default\",\n        document_id=document_id,\n        chunk_id=chunk_id,\n        content_scope=\"wiki\",\n        embedding=vector,\n        source_chunk_hash=chunk.content_hash,\n        chunker_version=chunk.chunker_version,\n        metadata_index_revision=\"metadata-1\",\n        vector_index_revision=\"vector-1\",\n        backend_schema_version=\"memory-vector-v1\",\n    )\n    vector_store = InMemoryVectorStore()\n    vector_store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n    service = RetrievalService(\n        catalog=catalog,\n        metadata_store=store,\n        keyword_index=InMemoryKeywordIndex((_keyword_hit(document_id, chunk_id),)),\n        vector_store=vector_store,\n        text_embeddings=embeddings,\n        readiness=StaticReadiness(ready_report(vector_ok=True, vector_stale_count=0, can_embed_without_download=True)),\n    )\n\n    response = service.search(query_text=\"Body\", requested_scope=catalog.default_scope(), limit=10, output_format=\"text\")\n\n    assert response.result_count == 1\n    assert tuple(signal.kind for signal in response.results[0].signals) == (\"keyword\", \"vector\")\n    assert response.degraded is False\n\n\ndef test_zero_result_search_still_reports_store_revisions(tmp_path: Path) -> None:\n    catalog = _catalog(tmp_path)\n    store, _, _ = _metadata_store(tmp_path)\n    service = RetrievalService(\n        catalog=catalog,\n        metadata_store=store,\n        keyword_index=InMemoryKeywordIndex(()),\n        readiness=StaticReadiness(ready_report(vector_ok=False)),\n    )\n\n    response = service.search(query_text=\"missing\", requested_scope=catalog.default_scope(), limit=10, output_format=\"text\")\n\n    assert response.result_count == 0\n    assert {revision.kind for revision in response.store_revisions} >= {\"metadata\", \"keyword\"}\n    assert all(revision.scope_key for revision in response.store_revisions)"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_retrieval_service_search.py -q"
+          }
+        ]
+      },
+      {
+        "heading": "Task 7: Enable Read-Only Vector Query Path",
+        "content": "Files:\nModify: src/vault_graph/storage/local/chroma_vector_store.py Test: tests/test_chroma_vector_store.py\n[ ] Step 1: Write failing read-only vector tests\nAppend to tests/test_chroma_vector_store.py:\nAppend an existing-state test using the current helper functions in tests/test_chroma_vector_store.py:\n[ ] Step 2: Run Chroma tests and verify failure\nRun:\nExpected: the existing-state read-only search test fails because read-only search returns empty.\n[ ] Step 3: Modify ChromaVectorStore.search\nIn src/vault_graph/storage/local/chroma_vector_store.py, replace:\nwith:\nKeep apply_vector_revision rejecting read-only writes. Keep _get_collection_if_exists; never call _get_or_create_collection in search.\n[ ] Step 4: Run Chroma tests\nRun:\nExpected: PASS.\n[ ] Step 5: Commit\n---",
+        "items": [
+          "Modify: src/vault_graph/storage/local/chroma_vector_store.py",
+          "Test: tests/test_chroma_vector_store.py",
+          "[ ] Step 1: Write failing read-only vector tests",
+          "[ ] Step 2: Run Chroma tests and verify failure",
+          "[ ] Step 3: Modify ChromaVectorStore.search",
+          "[ ] Step 4: Run Chroma tests",
+          "[ ] Step 5: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def test_read_only_search_does_not_create_missing_chroma_state(tmp_path: Path) -> None:\n    store = ChromaVectorStore(tmp_path / \"missing\", initialize=False, read_only=True)\n    query = make_query(text=\"alpha\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n\n    hits = store.search(query)\n\n    assert hits == ()\n    assert not (tmp_path / \"missing\" / \"chroma.sqlite3\").exists()"
+          },
+          {
+            "language": "python",
+            "content": "def test_read_only_search_can_query_existing_chroma_state(tmp_path: Path) -> None:\n    path = tmp_path / \"chroma\"\n    writable = ChromaVectorStore(path, initialize=True)\n    record = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    writable.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n    before = _tree_snapshot(path)\n    readonly = ChromaVectorStore(path, initialize=False, read_only=True)\n\n    hits = readonly.search(make_query(text=\"alpha\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",))))\n\n    assert tuple((hit.vault_id, hit.chunk_id) for hit in hits) == ((\"default\", record.chunk_id),)\n    assert _tree_snapshot(path) == before\n\n\ndef _tree_snapshot(root: Path) -> dict[str, tuple[int, bytes]]:\n    return {\n        str(path.relative_to(root)): (path.stat().st_size, path.read_bytes())\n        for path in sorted(root.rglob(\"*\"))\n        if path.is_file()\n    }"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_chroma_vector_store.py -q"
+          },
+          {
+            "language": "python",
+            "content": "        if self._read_only:\n            return ()"
+          }
+        ]
+      },
+      {
+        "heading": "Task 8: Add vg search CLI And Output Rendering",
+        "content": "Files:\nModify: src/vault_graph/cli/main.py Test: tests/test_cli_search.py Test: tests/test_search_read_only_boundary.py Test: tests/test_vector_indexing_read_only_boundary.py\n[ ] Step 1: Write failing CLI tests\nCreate tests/test_cli_search.py:\nCreate tests/test_search_read_only_boundary.py:\n[ ] Step 2: Run CLI tests and verify failure\nRun:\nExpected: FAIL because vg search does not exist.\n[ ] Step 3: Add CLI service construction\nModify src/vault_graph/cli/main.py imports:\nAdd imports:\nUpdate _exit_on_domain_error to catch:\nAdd the missing error imports.\nAdd service construction:\n[ ] Step 4: Add search command\nAdd to src/vault_graph/cli/main.py:\nThe config variable can be assigned to _ if ruff reports it unused.\n[ ] Step 5: Add output helpers\nAdd to src/vault_graph/cli/main.py:\n[ ] Step 6: Run CLI and read-only tests\nUpdate tests/test_vector_indexing_read_only_boundary.py by replacing the Phase 2B assertion that search is absent. Phase 2C must expose search, while later answer/context commands remain absent:\nRun:\nExpected: PASS.\n[ ] Step 7: Commit\n---",
+        "items": [
+          "Modify: src/vault_graph/cli/main.py",
+          "Test: tests/test_cli_search.py",
+          "Test: tests/test_search_read_only_boundary.py",
+          "Test: tests/test_vector_indexing_read_only_boundary.py",
+          "[ ] Step 1: Write failing CLI tests",
+          "[ ] Step 2: Run CLI tests and verify failure",
+          "[ ] Step 3: Add CLI service construction",
+          "[ ] Step 4: Add search command",
+          "[ ] Step 5: Add output helpers",
+          "[ ] Step 6: Run CLI and read-only tests",
+          "[ ] Step 7: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import json\nfrom pathlib import Path\n\nfrom pytest import MonkeyPatch\nfrom typer.testing import CliRunner\n\nfrom tests.test_cli_vector_indexing import _ConfiguredDeterministicTextEmbeddings\nfrom vault_graph.cli.main import app\n\nrunner = CliRunner()\n\n\ndef write_page(root: Path, path: str, body: str) -> None:\n    file_path = root / path\n    file_path.parent.mkdir(parents=True, exist_ok=True)\n    file_path.write_text(body, encoding=\"utf-8\")\n\n\ndef _deterministic_text_embeddings(_: object) -> _ConfiguredDeterministicTextEmbeddings:\n    from tests.test_vector_indexer import SPEC\n\n    return _ConfiguredDeterministicTextEmbeddings(SPEC)\n\n\ndef test_cli_search_uses_active_vault_by_default(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    monkeypatch.setattr(\"vault_graph.cli.main._text_embeddings\", _deterministic_text_embeddings)\n    monkeypatch.setattr(\"vault_graph.cli.main._search_text_embeddings\", _deterministic_text_embeddings)\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nGraphRAG evidence\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n    runner.invoke(app, [\"index\", \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"search\", \"--state\", str(state_path), \"GraphRAG\"])\n\n    assert result.exit_code == 0\n    assert \"default\" in result.stdout\n    assert \"wiki/page.md\" in result.stdout\n    assert \"GraphRAG evidence\" in result.stdout\n\n\ndef test_cli_search_json_uses_search_response_contract(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    monkeypatch.setattr(\"vault_graph.cli.main._text_embeddings\", _deterministic_text_embeddings)\n    monkeypatch.setattr(\"vault_graph.cli.main._search_text_embeddings\", _deterministic_text_embeddings)\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nGraphRAG evidence\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n    runner.invoke(app, [\"index\", \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"search\", \"--state\", str(state_path), \"--format\", \"json\", \"GraphRAG\"])\n\n    assert result.exit_code == 0\n    payload = json.loads(result.stdout)\n    assert payload[\"query_text\"] == \"GraphRAG\"\n    assert payload[\"result_count\"] == 1\n    assert payload[\"results\"][0][\"vault_id\"] == \"default\"\n    assert payload[\"results\"][0][\"kind\"] == \"evidence_chunk\"\n    assert payload[\"warnings\"] == []\n\n\ndef test_cli_search_scope_flags_are_mutually_exclusive(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"search\", \"--state\", str(state_path), \"--vault-id\", \"default\", \"--all-vaults\", \"GraphRAG\"])\n\n    assert result.exit_code == 1\n    assert \"Use either --vault-id or --all-vaults\" in result.stdout\n\n\ndef test_cli_search_missing_keyword_projection_exits_nonzero_without_writes(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nGraphRAG evidence\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"search\", \"--state\", str(state_path), \"GraphRAG\"])\n\n    assert result.exit_code == 1\n    assert \"keyword_index_unavailable\" in result.stdout or \"metadata_unavailable\" in result.stdout\n    assert not (state_path / \"metadata\" / \"metadata.sqlite3\").exists()\n\n\ndef test_search_text_embeddings_uses_local_files_only(tmp_path: Path) -> None:\n    from vault_graph.app.catalog_service import CatalogService\n\n    config = CatalogService(state_path=tmp_path / \"state\", embedding_cache_path=tmp_path / \"embedding-cache\")\n\n    embeddings = _search_text_embeddings(config)\n\n    assert embeddings.config.local_files_only is True"
+          },
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom pytest import MonkeyPatch\nfrom typer.testing import CliRunner\n\nfrom vault_graph.cli.main import app\n\nrunner = CliRunner()\n\n\ndef write_page(root: Path, path: str, body: str) -> None:\n    file_path = root / path\n    file_path.parent.mkdir(parents=True, exist_ok=True)\n    file_path.write_text(body, encoding=\"utf-8\")\n\n\ndef test_search_missing_indexes_does_not_create_metadata_or_vector_state(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nBody\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"search\", \"--state\", str(state_path), \"Body\"])\n\n    assert result.exit_code == 1\n    assert not (state_path / \"metadata\" / \"metadata.sqlite3\").exists()\n    assert not (state_path / \"vector\" / \"chroma\" / \"chroma.sqlite3\").exists()\n    assert not (state_path / \"vector\" / \"status.json\").exists()\n\n\ndef test_successful_search_does_not_mutate_existing_state_or_vault(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    from tests.test_cli_search import _deterministic_text_embeddings\n\n    monkeypatch.setattr(\"vault_graph.cli.main._text_embeddings\", _deterministic_text_embeddings)\n    monkeypatch.setattr(\"vault_graph.cli.main._search_text_embeddings\", _deterministic_text_embeddings)\n    vault_root = tmp_path / \"vault\"\n    write_page(vault_root, \"wiki/page.md\", \"# Page\\nGraphRAG evidence\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n    runner.invoke(app, [\"index\", \"--state\", str(state_path)])\n    before_vault = _tree_snapshot(vault_root)\n    before_state = _tree_snapshot(state_path)\n\n    result = runner.invoke(app, [\"search\", \"--state\", str(state_path), \"GraphRAG\"])\n\n    assert result.exit_code == 0\n    assert _tree_snapshot(vault_root) == before_vault\n    assert _tree_snapshot(state_path) == before_state\n\n\ndef _tree_snapshot(root: Path) -> dict[str, tuple[int, bytes]]:\n    return {\n        str(path.relative_to(root)): (path.stat().st_size, path.read_bytes())\n        for path in sorted(root.rglob(\"*\"))\n        if path.is_file()\n    }"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_search.py -q"
+          },
+          {
+            "language": "python",
+            "content": "import json\nfrom dataclasses import asdict"
+          }
+        ]
+      },
+      {
+        "heading": "Task 9: Add Multi-Vault Search Coverage",
+        "content": "Files:\nTest: tests/test_multi_vault_search.py Modify only if tests reveal a real bug: src/vault_graph/retrieval/retrieval_service.py, src/vault_graph/cli/main.py, or src/vault_graph/storage/local/sqlite_keyword_index.py\n[ ] Step 1: Write multi-vault tests\nCreate tests/test_multi_vault_search.py:\nAppend these service-level regressions to tests/test_retrieval_service_search.py:\n[ ] Step 2: Run multi-vault tests\nRun:\nExpected: PASS. If it fails, fix only the narrow bug shown by the test.\n[ ] Step 3: Add mandatory result, warning, and store-revision attribution checks\nExtend the JSON assertions so missing attribution fails:\nThen update serialization or response assembly to satisfy it.\n[ ] Step 4: Commit\nOnly include source files that actually changed.\n---",
+        "items": [
+          "Test: tests/test_multi_vault_search.py",
+          "Modify only if tests reveal a real bug: src/vault_graph/retrieval/retrieval_service.py, src/vault_graph/cli/main.py, or src/vault_graph/storage/local/sqlite_keyword_index.py",
+          "[ ] Step 1: Write multi-vault tests",
+          "[ ] Step 2: Run multi-vault tests",
+          "[ ] Step 3: Add mandatory result, warning, and store-revision attribution checks",
+          "[ ] Step 4: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import json\nfrom pathlib import Path\n\nfrom pytest import MonkeyPatch\nfrom typer.testing import CliRunner\n\nfrom tests.test_cli_search import _deterministic_text_embeddings, write_page\nfrom vault_graph.cli.main import app\n\nrunner = CliRunner()\n\n\ndef test_all_vault_search_keeps_identical_paths_separate(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    monkeypatch.setattr(\"vault_graph.cli.main._text_embeddings\", _deterministic_text_embeddings)\n    monkeypatch.setattr(\"vault_graph.cli.main._search_text_embeddings\", _deterministic_text_embeddings)\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    write_page(first, \"wiki/same.md\", \"# Same\\nGraphRAG from first\\n\")\n    write_page(second, \"wiki/same.md\", \"# Same\\nGraphRAG from second\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault-id\", \"first\", \"--vault\", str(first), \"--state\", str(state_path)])\n    runner.invoke(app, [\"vault\", \"add\", \"second\", \"--path\", str(second), \"--state\", str(state_path)])\n    runner.invoke(app, [\"index\", \"--state\", str(state_path), \"--all-vaults\"])\n\n    result = runner.invoke(app, [\"search\", \"--state\", str(state_path), \"--all-vaults\", \"--format\", \"json\", \"GraphRAG\"])\n\n    assert result.exit_code == 0\n    payload = json.loads(result.stdout)\n    assert sorted(item[\"vault_id\"] for item in payload[\"results\"]) == [\"first\", \"second\"]\n    assert all(item[\"kind\"] == \"evidence_chunk\" for item in payload[\"results\"])\n    assert len({item[\"result_id\"] for item in payload[\"results\"]}) == 2\n\n\ndef test_single_vault_search_does_not_leak_other_vault_results(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:\n    monkeypatch.setattr(\"vault_graph.cli.main._text_embeddings\", _deterministic_text_embeddings)\n    monkeypatch.setattr(\"vault_graph.cli.main._search_text_embeddings\", _deterministic_text_embeddings)\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    write_page(first, \"wiki/same.md\", \"# Same\\nGraphRAG from first\\n\")\n    write_page(second, \"wiki/same.md\", \"# Same\\nGraphRAG from second\\n\")\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault-id\", \"first\", \"--vault\", str(first), \"--state\", str(state_path)])\n    runner.invoke(app, [\"vault\", \"add\", \"second\", \"--path\", str(second), \"--state\", str(state_path)])\n    runner.invoke(app, [\"index\", \"--state\", str(state_path), \"--all-vaults\"])\n\n    result = runner.invoke(app, [\"search\", \"--state\", str(state_path), \"--vault-id\", \"second\", \"--format\", \"json\", \"GraphRAG\"])\n\n    assert result.exit_code == 0\n    payload = json.loads(result.stdout)\n    assert [item[\"vault_id\"] for item in payload[\"results\"]] == [\"second\"]\n    assert \"from second\" in payload[\"results\"][0][\"summary\"]"
+          },
+          {
+            "language": "python",
+            "content": "from dataclasses import replace\n\n\ndef _multi_vault_catalog(tmp_path: Path) -> VaultCatalog:\n    first = tmp_path / \"first-root\"\n    second = tmp_path / \"second-root\"\n    first.mkdir()\n    second.mkdir()\n    return VaultCatalog.from_entries(\n        entries=[\n            VaultCatalogEntry.from_root(vault_id=\"first\", root_path=first, content_scopes=(\"wiki\",)),\n            VaultCatalogEntry.from_root(vault_id=\"second\", root_path=second, content_scopes=(\"docs\",)),\n        ],\n        active_vault_id=\"first\",\n    )\n\n\ndef _hit(vault_id: str, document_id: str, chunk_id: str, rank: int) -> KeywordHit:\n    return KeywordHit(\n        vault_id=vault_id,\n        document_id=document_id,\n        chunk_id=chunk_id,\n        rank=rank,\n        score=-float(rank),\n        backend=\"memory-keyword\",\n        index_revision=\"metadata-1\",\n        matched_fields=(\"text\",),\n    )\n\n\ndef test_all_vault_search_does_not_widen_content_scopes_per_vault(tmp_path: Path) -> None:\n    catalog = _multi_vault_catalog(tmp_path)\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\", initialize=True)\n    first_allowed = make_document(\"first\", \"wiki/allowed.md\", \"first-allowed\")\n    first_leak = make_document(\"first\", \"docs/leak.md\", \"first-leak\")\n    second_allowed = make_document(\"second\", \"docs/allowed.md\", \"second-allowed\")\n    second_leak = make_document(\"second\", \"wiki/leak.md\", \"second-leak\")\n    documents = [first_allowed, first_leak, second_allowed, second_leak]\n    chunks = [make_chunk(document.vault_id, document.document_id, document.path) for document in documents]\n    store.apply_metadata_revision(index_revision=\"metadata-1\", documents=documents, chunks=chunks, tombstones=[])\n    keyword_hits = tuple(_hit(chunk.vault_id, chunk.document_id, chunk.chunk_id, rank) for rank, chunk in enumerate(chunks, start=1))\n    content_scope_by_key = {\n        (chunk.vault_id, chunk.chunk_id): chunk.path.split(\"/\", 1)[0]\n        for chunk in chunks\n    }\n    service = RetrievalService(\n        catalog=catalog,\n        metadata_store=store,\n        keyword_index=InMemoryKeywordIndex(keyword_hits, content_scope_by_key=content_scope_by_key),\n        readiness=StaticReadiness(ready_report(vector_ok=False, scope_key=\"first:wiki|second:docs\")),\n    )\n\n    response = service.search(\n        query_text=\"Body\",\n        requested_scope=catalog.scope_for_all_enabled(),\n        limit=10,\n        output_format=\"json\",\n    )\n\n    assert tuple(scope.vault_ids for scope in response.actual_scopes) == ((\"first\",), (\"second\",))\n    assert tuple(scope.content_scopes for scope in response.actual_scopes) == ((\"wiki\",), (\"docs\",))\n    assert sorted(result.evidence[0].path for result in response.results) == [\"docs/allowed.md\", \"wiki/allowed.md\"]\n\n\ndef test_same_chunk_id_across_vaults_does_not_collapse_keyword_vector_fusion(tmp_path: Path) -> None:\n    first = tmp_path / \"first-root\"\n    second = tmp_path / \"second-root\"\n    first.mkdir()\n    second.mkdir()\n    catalog = VaultCatalog.from_entries(\n        entries=[\n            VaultCatalogEntry.from_root(vault_id=\"first\", root_path=first),\n            VaultCatalogEntry.from_root(vault_id=\"second\", root_path=second),\n        ],\n        active_vault_id=\"first\",\n    )\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\", initialize=True)\n    first_doc = make_document(\"first\", \"wiki/same.md\", \"first\")\n    second_doc = make_document(\"second\", \"wiki/same.md\", \"second\")\n    first_chunk = replace(make_chunk(\"first\", first_doc.document_id, first_doc.path), chunk_id=\"shared-chunk\", text=\"GraphRAG first\")\n    second_chunk = replace(make_chunk(\"second\", second_doc.document_id, second_doc.path), chunk_id=\"shared-chunk\", text=\"GraphRAG second\")\n    store.apply_metadata_revision(\n        index_revision=\"metadata-1\",\n        documents=[first_doc, second_doc],\n        chunks=[first_chunk, second_chunk],\n        tombstones=[],\n    )\n    embeddings = DeterministicTextEmbeddings(SPEC)\n    vector_store = InMemoryVectorStore()\n    vector_records = []\n    for chunk in (first_chunk, second_chunk):\n        embedding = embeddings.embed((EmbeddingInput(input_id=f\"{chunk.vault_id}:{chunk.chunk_id}\", text=chunk.text),))[0]\n        vector_records.append(\n            VectorEmbeddingRecord(\n                vector_id=stable_vector_id(vault_id=chunk.vault_id, chunk_id=chunk.chunk_id, embedding_spec=SPEC),\n                vault_id=chunk.vault_id,\n                document_id=chunk.document_id,\n                chunk_id=chunk.chunk_id,\n                content_scope=\"wiki\",\n                embedding=embedding,\n                source_chunk_hash=chunk.content_hash,\n                chunker_version=chunk.chunker_version,\n                metadata_index_revision=\"metadata-1\",\n                vector_index_revision=\"vector-1\",\n                backend_schema_version=\"memory-vector-v1\",\n            )\n        )\n    vector_store.apply_vector_revision(vector_index_revision=\"vector-1\", records=tuple(vector_records), tombstones=())\n    service = RetrievalService(\n        catalog=catalog,\n        metadata_store=store,\n        keyword_index=InMemoryKeywordIndex(\n            (\n                _hit(\"first\", first_doc.document_id, \"shared-chunk\", 1),\n                _hit(\"second\", second_doc.document_id, \"shared-chunk\", 2),\n            )\n        ),\n        vector_store=vector_store,\n        text_embeddings=embeddings,\n        readiness=StaticReadiness(ready_report(vector_ok=True, vector_stale_count=0, can_embed_without_download=True)),\n    )\n\n    response = service.search(\n        query_text=\"GraphRAG\",\n        requested_scope=catalog.scope_for_all_enabled(),\n        limit=10,\n        output_format=\"json\",\n    )\n\n    assert sorted((result.vault_id, result.evidence[0].chunk_id) for result in response.results) == [\n        (\"first\", \"shared-chunk\"),\n        (\"second\", \"shared-chunk\"),\n    ]\n    assert len({result.result_id for result in response.results}) == 2\n    assert all(result.vault_id in signal.source_id for result in response.results for signal in result.signals)"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_multi_vault_search.py -q"
+          },
+          {
+            "language": "python",
+            "content": "assert all(item.get(\"scope_key\") for item in payload[\"store_revisions\"])\nassert all(warning.get(\"affected_vault_ids\") for warning in payload[\"warnings\"])\nassert all(item[\"vault_id\"] in item[\"result_id\"] for item in payload[\"results\"])"
+          }
+        ]
+      },
+      {
+        "heading": "Task 10: Final Verification And Documentation Trace",
+        "content": "Files:\nModify if implementation review produced corrections: docs/PATCH_LOG.md Modify only with user-approved policy decisions: docs/DECISIONS.md No changes expected: docs/SPEC.md, docs/DESIGN.md, docs/FEATURES.md\n[ ] Step 1: Run focused Phase 2C tests\nRun:\nExpected: PASS.\n[ ] Step 2: Run full repository tests and static checks\nRun:\nExpected: all commands pass.\n[ ] Step 3: Verify read-only behavior manually\nRun against a temporary Vault:\nExpected:\nsearch before indexing exits nonzero and does not create metadata/vector state index creates derived projections search after indexing exits zero and returns an evidence chunk Vault files under $tmpdir/vault are unchanged\n[ ] Step 4: Update PATCH_LOG only if review or implementation required corrections\nIf subagent or implementation review finds a plan/code correction, append this format to docs/PATCH_LOG.md:\nDo not add this entry if no corrections were applied.\n[ ] Step 5: Record user-approved decisions only if needed\nIf a review identifies a decision that changes product policy, stop and ask the user. After approval, add a short entry to docs/DECISIONS.md using the existing format:\nDo not add implementation details, test plans, or revi...",
+        "items": [
+          "Modify if implementation review produced corrections: docs/PATCH_LOG.md",
+          "Modify only with user-approved policy decisions: docs/DECISIONS.md",
+          "No changes expected: docs/SPEC.md, docs/DESIGN.md, docs/FEATURES.md",
+          "[ ] Step 1: Run focused Phase 2C tests",
+          "[ ] Step 2: Run full repository tests and static checks",
+          "[ ] Step 3: Verify read-only behavior manually",
+          "search before indexing exits nonzero and does not create metadata/vector state",
+          "index creates derived projections",
+          "search after indexing exits zero and returns an evidence chunk",
+          "Vault files under $tmpdir/vault are unchanged",
+          "[ ] Step 4: Update PATCH_LOG only if review or implementation required corrections",
+          "[ ] Step 5: Record user-approved decisions only if needed",
+          "[ ] Step 6: Final commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest \\\n  tests/test_keyword_index_contract.py \\\n  tests/test_sqlite_keyword_index.py \\\n  tests/test_query_scope_resolution.py \\\n  tests/test_search_response_contract.py \\\n  tests/test_app_search_readiness_service.py \\\n  tests/test_retrieval_import_boundaries.py \\\n  tests/test_retrieval_service_search.py \\\n  tests/test_chroma_vector_store.py \\\n  tests/test_cli_search.py \\\n  tests/test_search_read_only_boundary.py \\\n  tests/test_multi_vault_search.py \\\n  -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src\nuv run --python 3.12 mypy tests\ngit diff --check"
+          },
+          {
+            "language": "bash",
+            "content": "tmpdir=\"$(mktemp -d)\"\nmkdir -p \"$tmpdir/vault/wiki\"\nprintf '# Page\\nGraphRAG evidence\\n' > \"$tmpdir/vault/wiki/page.md\"\nuv run --python 3.12 vg init --vault \"$tmpdir/vault\" --state \"$tmpdir/state\"\nuv run --python 3.12 vg search --state \"$tmpdir/state\" \"GraphRAG\"\ntest ! -e \"$tmpdir/state/metadata/metadata.sqlite3\"\ntest ! -e \"$tmpdir/state/vector/chroma/chroma.sqlite3\"\nuv run --python 3.12 vg index --state \"$tmpdir/state\"\nuv run --python 3.12 vg search --state \"$tmpdir/state\" \"GraphRAG\""
+          },
+          {
+            "language": "markdown",
+            "content": "## 2026-06-09 - Phase 2C Implementation Plan Review Hardening\n\n**Trigger:** Subagent review found implementation-plan gaps before coding.\n\n**Scope:** `docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md`.\n\n**Core Values Protected:**\n\n- search remains evidence-first\n- `vg search` remains read-only\n- keyword/vector stores remain candidate sources\n- multi-vault identity remains explicit\n\n**Changes Applied:**\n\n- [specific correction]\n\n**Verification:**\n\n- subagent review focused on product/spec consistency\n- subagent review focused on implementation readiness\n- subagent review focused on multi-vault and read-only consistency\n- `git diff --check`"
+          }
+        ]
+      },
+      {
+        "heading": "Implementation Review Checklist",
+        "content": "Before marking Phase 2C implementation complete, verify every item below with current evidence:\nvg search exists in uv run --python 3.12 vg --help. vg search \"query\" uses active Vault by default. vg search --vault-id ID \"query\" searches exactly one Vault. vg search --all-vaults \"query\" expands enabled Vaults into per-Vault actual scopes. --vault-id and --all-vaults are mutually exclusive. --limit controls final result count. --format json returns the SearchResponse contract. Missing metadata or keyword projection exits nonzero and points to vg index. Missing vector state degrades to keyword-only with exit code 0 when keyword search is healthy. Search never initializes metadata SQLite state. Search never creates keyword FTS schema. Search never creates Chroma state when absent. Search never writes vector status. Search never downloads embedding model artifacts. Search resolves all normal results through MetadataStore.resolve_chunk_evidence(...). Candidate dedupe uses (vault_id, chunk_id). Result IDs and signal source IDs include Vault-scoped identity. Multi-vault JSON warnings include affected Vault IDs. Store revisions include metadata, keyword, and vector when available. Graph tr...",
+        "items": [
+          "vg search exists in uv run --python 3.12 vg --help.",
+          "vg search \"query\" uses active Vault by default.",
+          "vg search --vault-id ID \"query\" searches exactly one Vault.",
+          "vg search --all-vaults \"query\" expands enabled Vaults into per-Vault actual scopes.",
+          "--vault-id and --all-vaults are mutually exclusive.",
+          "--limit controls final result count.",
+          "--format json returns the SearchResponse contract.",
+          "Missing metadata or keyword projection exits nonzero and points to vg index.",
+          "Missing vector state degrades to keyword-only with exit code 0 when keyword search is healthy.",
+          "Search never initializes metadata SQLite state.",
+          "Search never creates keyword FTS schema.",
+          "Search never creates Chroma state when absent.",
+          "Search never writes vector status.",
+          "Search never downloads embedding model artifacts.",
+          "Search resolves all normal results through MetadataStore.resolve_chunk_evidence(...).",
+          "Candidate dedupe uses (vault_id, chunk_id)."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Execution Handoff",
+        "content": "Recommended execution mode:\nSubagent-Driven: one implementation subagent per task, with review after each task. Inline Execution: execute tasks in this session using superpowers:executing-plans, with review checkpoints after Tasks 2, 6, 8, and 10.\nUse Subagent-Driven for this plan unless there is a strong reason to keep all edits in one session. The tasks have clean boundaries and frequent commits, which makes review and rollback straightforward.",
+        "items": [
+          "Subagent-Driven: one implementation subagent per task, with review after each task.",
+          "Inline Execution: execute tasks in this session using superpowers:executing-plans, with review checkpoints after Tasks 2, 6, 8, and 10."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-09-phase-2c-evidence-first-keyword-vector-search.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

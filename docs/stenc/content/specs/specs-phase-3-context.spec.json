@@ -1,0 +1,310 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:specs-phase-3-context",
+  "slug": "specs-phase-3-context",
+  "status": "draft",
+  "title": "Phase 3 Entity And Relationship Graph",
+  "description": "This context defines the shared language for Phase 3 graph work in Vault Graph. It exists to keep graph terminology evidence-first, read-only, and consistent with Vault as the sou.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-17",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-3/CONTEXT.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "This context defines the shared language for Phase 3 graph work in Vault Graph. It exists to keep graph terminology evidence-first, read-only, and consistent with Vault as the sou.",
+    "agentSummary": "Read docs/superpowers/specs/phase-3/CONTEXT.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "This context defines the shared language for Phase 3 graph work in Vault Graph. It exists to keep graph terminology evidence-first, read-only, and consistent with Vault as the source of truth.",
+    "problem": "This context defines the shared language for Phase 3 graph work in Vault Graph. It exists to keep graph terminology evidence-first, read-only, and consistent with Vault as the source of truth.",
+    "scope": {
+      "in": [
+        "Review the Scope And Vaults section in the source Markdown."
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown source.",
+        "Changing Vault Graph runtime behavior."
+      ]
+    },
+    "architecture": {
+      "summary": "This context defines the shared language for Phase 3 graph work in Vault Graph. It exists to keep graph terminology evidence-first, read-only, and consistent with Vault as the source of truth.",
+      "flow": [
+        "Markdown source -> Stenc JSON -> generated fixed web page"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Scope And Vaults",
+        "detail": "Actual Scope: The concrete Vault and content-scope selection used by a store operation after user scope has been resolved. _Avoid_: global scope, implicit all-vault scope\nCross-Vault Relationship: A relationship whose source, target, or evidence belongs to different Vaults and is only considered when cross-Vault graph behavior is explicit. _Avoid_: merged entity, global relationship, automatic federation\nVault-Scoped Identity: The rule that entity, relationship, evidence, warning, and revision identity must include Vault identity wherever collisions are possible. _Avoid_: path-only identity, name-only identity, global ID by default",
+        "acceptanceCriteria": [
+          "Review the Scope And Vaults section in the source Markdown."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "This context defines the shared language for Phase 3 graph work in Vault Graph. It exists to keep graph terminology evidence-first, read-only, and consistent with Vault as the source of truth.",
+        "interfaces": [
+          "docs/superpowers/specs/phase-3/CONTEXT.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "Original Markdown is converted into Stenc JSON and rendered as a deterministic static page."
+    ],
+    "errorHandling": [
+      {
+        "case": "Conversion drift",
+        "behavior": "Treat the original Markdown and docs/SPEC.md as the source of truth if generated Stenc content is ambiguous."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Overview",
+        "rules": [
+          "Review the Overview section in the source Markdown."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-3/CONTEXT.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/specs-phase-3-context.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/specs-phase-3-context.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-3/CONTEXT.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "This context defines the shared language for Phase 3 graph work in Vault Graph. It exists to keep graph terminology evidence-first, read-only, and consistent with Vault as the source of truth.",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/CONTEXT.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/CONTEXT.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Language",
+        "content": "See Language in the source Markdown document.",
+        "items": [
+          "Review the Language section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/CONTEXT.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/CONTEXT.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Source And Evidence",
+        "content": "Vault: The durable source of truth that Vault Graph reads from and never mutates. _Avoid_: graph database, knowledge database, mutable workspace\nVault Graph: A read-only, rebuildable access layer over one or more registered Vaults. _Avoid_: source of truth, authoring system, durable knowledge store\nEvidence Chunk: A Vault-derived text unit that can support search results, graph entities, and graph relationships. _Avoid_: fact, final answer, graph payload\nEvidence Authority: The rule that user-visible claims must resolve back to Vault-derived evidence through metadata, not rely on cached graph excerpts. _Avoid_: graph authority, vector authority, excerpt authority",
+        "items": [
+          "Review the Source And Evidence section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/CONTEXT.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/CONTEXT.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Graph Concepts",
+        "content": "Entity: A Vault-scoped meaningful subject discovered from evidence, such as a concept, project, decision, issue, system, workflow, or document. _Avoid_: global entity, knowledge object, source record\nRelationship: A directed, evidence-linked connection from one entity to another. _Avoid_: undirected edge, fact, merged identity\nStated Relationship: A relationship directly supported by durable Vault text or explicit Vault links. _Avoid_: confirmed fact, ground truth edge\nInferred Relationship: A relationship derived by local extraction or graph traversal and presented with its evidence and confidence. _Avoid_: hidden fact, generated truth\nContested Relationship: A relationship with conflicting evidence or unresolved disagreement. _Avoid_: error, duplicate, invalid edge\nDeprecated Relationship: A relationship that is stale, superseded, or marked obsolete by durable Vault text. _Avoid_: deleted relationship, removed fact\nGraph Evidence Ref: An owner-scoped link from an entity or relationship to one evidence chunk. _Avoid_: evidence text, citation, source of truth\nGraph State: Derived entity, relationship, evidence, revision, and manifest data that can be deleted and rebuilt from Vault...",
+        "items": [
+          "Review the Graph Concepts section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/CONTEXT.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/CONTEXT.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Graph Boundaries",
+        "content": "Graph Store: The persisted derived graph boundary for entity records, relationship records, evidence refs, revisions, and readiness data. _Avoid_: graph authority, traversal engine, source database\nGraph Projection: A bounded runtime graph view used for traversal, paths, and ranking. _Avoid_: graph database, durable graph, persisted authority\nGraph Indexer: The component that reconciles current evidence chunks into derived graph state. _Avoid_: extractor, answer generator, Vault writer\nGraph Extraction Spec: The versioned contract that defines how graph entities and relationships were derived from evidence. _Avoid_: user preference, backend configuration, ranking policy\nGraph Readiness: The status of graph backend health, schema compatibility, extraction spec compatibility, freshness, and recovery guidance. _Avoid_: graph availability only, search readiness, health check\nGraph Manifest: A scoped current-state view used to compare existing graph state with desired graph state during reconcile. _Avoid_: second source of truth, global inventory, cache\nGraph Revision: A Vault-scoped lineage marker that records which metadata and graph extraction state produced graph records. _Avoid_:...",
+        "items": [
+          "Review the Graph Boundaries section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/CONTEXT.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/CONTEXT.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope And Vaults",
+        "content": "Actual Scope: The concrete Vault and content-scope selection used by a store operation after user scope has been resolved. _Avoid_: global scope, implicit all-vault scope\nCross-Vault Relationship: A relationship whose source, target, or evidence belongs to different Vaults and is only considered when cross-Vault graph behavior is explicit. _Avoid_: merged entity, global relationship, automatic federation\nVault-Scoped Identity: The rule that entity, relationship, evidence, warning, and revision identity must include Vault identity wherever collisions are possible. _Avoid_: path-only identity, name-only identity, global ID by default",
+        "items": [
+          "Review the Scope And Vaults section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/CONTEXT.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/CONTEXT.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

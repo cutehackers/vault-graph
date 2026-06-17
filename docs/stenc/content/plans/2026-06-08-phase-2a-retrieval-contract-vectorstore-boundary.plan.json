@@ -1,0 +1,1232 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary",
+  "slug": "2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary",
+  "status": "approved",
+  "title": "Phase 2A Retrieval Contract And VectorStore Boundary Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-08",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "spec:2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 2A contract-only slice: embedding contracts, vector store contracts, metadata evidence resolution, vector-hit evidence binding, and graph-ready retrieval result records without adding Chroma, vector indexing, search, graph traversal, MCP, HTTP, or CLI user search.\nArchitecture: Keep Phase 2A interface-first and local-testable. TextEmbeddings hides embedding mechanics, VectorStore returns scoped semantic candidates only, MetadataStore remains the evidence aut...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 2A contract-only slice: embedding contracts, vector store contracts, metadata evidence resolution, vector-hit evidence binding, and graph-ready retrieval result records without adding Chroma, vector indexing, search, graph traversal, MCP, HTTP, or CLI user search.\nArchitecture: Keep Phase 2A interface-first and local-testable. TextEmbeddings hides embedding mechanics, VectorStore returns scoped semantic candidates only, MetadataStore remains the evidence authority, and retrieval result records carry resolved evidence plus signal-level explanations without...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "In scope:\nEmbeddingModelSpec, EmbeddingInput, EmbeddingVector, and TextEmbeddings deterministic test TextEmbeddings implementation VectorStore protocol, vector records, vector queries, vector hits, tombstones, and manifests in-memory test vector store used only for backend-neutral contract tests MetadataStore.resolve_chunk_evidence(...) vector-hit-to-evidence binding guards and missing/stale evidence warnings graph-ready retrieval result dataclasses contract tests for multi-vault identity, content-scope filtering, evidence authority, model spec validation, and Phase 2A boundary protection documentation verification that Chroma and Qdrant remain behind the same VectorStore contract\nOut of sc...",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "EmbeddingModelSpec, EmbeddingInput, EmbeddingVector, and TextEmbeddings",
+        "deterministic test TextEmbeddings implementation",
+        "VectorStore protocol, vector records, vector queries, vector hits, tombstones, and manifests",
+        "in-memory test vector store used only for backend-neutral contract tests",
+        "MetadataStore.resolve_chunk_evidence(...)",
+        "vector-hit-to-evidence binding guards and missing/stale evidence warnings",
+        "graph-ready retrieval result dataclasses",
+        "contract tests for multi-vault identity, content-scope filtering, evidence authority, model spec validation, and Phase 2A boundary protection",
+        "documentation verification that Chroma and Qdrant remain behind the same VectorStore contract",
+        "Chroma collections"
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/embeddings/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/embeddings/text_embeddings.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/retrieval/retrieval_result.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/vector_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/fakes/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/fakes/deterministic_text_embeddings.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/fakes/in_memory_vector_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_text_embeddings_contract.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_vector_store_contract.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_metadata_evidence_resolution.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_retrieval_result_contract.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_cli_surface_boundary.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/errors.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/metadata_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/PATCH_LOG.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/cli/main.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/index_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/embeddings",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/fakes",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_sqlite_metadata_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Task 1: TextEmbeddings Contract",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/errors.py",
+          "src/vault_graph/embeddings/init.py",
+          "src/vault_graph/embeddings/text_embeddings.py",
+          "tests/init.py",
+          "tests/fakes/init.py",
+          "tests/fakes/deterministic_text_embeddings.py",
+          "tests/test_text_embeddings_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/embeddings/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/embeddings/text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/deterministic_text_embeddings.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_text_embeddings_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_text_embeddings_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add src/vault_graph/errors.py src/vault_graph/embeddings tests/init.py tests/fakes tests/test_text_embeddings_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-5",
+            "title": "Modify: src/vault_graph/errors.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/errors.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 2: VectorStore Contract And In-Memory Contract Fake",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/interfaces/vector_store.py",
+          "tests/fakes/in_memory_vector_store.py",
+          "tests/test_vector_store_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/vector_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/in_memory_vector_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_vector_store_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_vector_store_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add src/vault_graph/storage/interfaces/vector_store.py tests/fakes/in_memory_vector_store.py tests/test_vector_store_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-5",
+            "title": "Create: src/vault_graph/storage/interfaces/vector_store.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/interfaces/vector_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 3: MetadataStore Evidence Resolution",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/interfaces/metadata_store.py",
+          "src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "tests/test_metadata_evidence_resolution.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_metadata_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_metadata_evidence_resolution.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_metadata_evidence_resolution.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_metadata_evidence_resolution.py tests/test_sqlite_metadata_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-5",
+            "title": "Modify: src/vault_graph/storage/interfaces/metadata_store.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/storage/interfaces/metadata_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 4: Retrieval Result Contract",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/retrieval/init.py",
+          "src/vault_graph/retrieval/retrieval_result.py",
+          "tests/test_retrieval_result_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/retrieval/retrieval_result.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_retrieval_result_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_retrieval_result_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add src/vault_graph/retrieval tests/test_retrieval_result_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-5",
+            "title": "Create: src/vault_graph/retrieval/init.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/retrieval/init.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 5: Phase 2A Boundary Tests",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_cli_surface_boundary.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_cli_surface_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_surface_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git add tests/test_cli_surface_boundary.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-5",
+            "title": "Test: tests/test_cli_surface_boundary.py",
+            "status": "todo",
+            "instruction": "Test: tests/test_cli_surface_boundary.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 6: Documentation And Final Acceptance Verification",
+        "status": "todo",
+        "surfaces": [
+          "docs/SPEC.md",
+          "docs/DESIGN.md",
+          "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+          "docs/PATCH_LOG.md",
+          "docs/DECISIONS.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/SPEC.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/DESIGN.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/PATCH_LOG.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/DECISIONS.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git diff --check",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-5",
+            "title": "Review: docs/SPEC.md",
+            "status": "todo",
+            "instruction": "Review: docs/SPEC.md",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6"
+    ],
+    "risks": [
+      {
+        "risk": "Generated Stenc view drifts from Markdown source.",
+        "mitigation": "Treat the original Markdown as source of truth and regenerate Stenc JSON/pages after updates."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_text_embeddings_contract.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 ruff check src tests",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 mypy src",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/errors.py src/vault_graph/embeddings tests/init.py tests/fakes tests/test_text_embeddings_contract.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat: add text embeddings contract\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_vector_store_contract.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/storage/interfaces/vector_store.py tests/fakes/in_memory_vector_store.py tests/test_vector_store_contract.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat: add vector store contract\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 2A contract-only slice: embedding contracts, vector store contracts, metadata evidence resolution, vector-hit evidence binding, and graph-ready retrieval result records without adding Chroma, vector indexing, search, graph traversal, MCP, HTTP, or CLI user search.\nArchitecture: Keep Phase 2A interface-first and local-testable. TextEmbeddings hides embedding mechanics, VectorStore returns scoped semantic candidates only, MetadataStore remains the evidence authority, and retrieval result records carry resolved evidence plus signal-level explanations without owning runtime search policy.\nTech Stack: Python 3.12, dataclasses, Protocol interfaces, SQLite from the standard library, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope",
+        "content": "In scope:\nEmbeddingModelSpec, EmbeddingInput, EmbeddingVector, and TextEmbeddings deterministic test TextEmbeddings implementation VectorStore protocol, vector records, vector queries, vector hits, tombstones, and manifests in-memory test vector store used only for backend-neutral contract tests MetadataStore.resolve_chunk_evidence(...) vector-hit-to-evidence binding guards and missing/stale evidence warnings graph-ready retrieval result dataclasses contract tests for multi-vault identity, content-scope filtering, evidence authority, model spec validation, and Phase 2A boundary protection documentation verification that Chroma and Qdrant remain behind the same VectorStore contract\nOut of scope:\nChroma collections Qdrant support vector indexing from Vault chunks embedding manifests on disk vg search vector fields in vg status keyword search hybrid ranking execution graph extraction or traversal MCP, HTTP, context packs, or LLM answers",
+        "items": [
+          "EmbeddingModelSpec, EmbeddingInput, EmbeddingVector, and TextEmbeddings",
+          "deterministic test TextEmbeddings implementation",
+          "VectorStore protocol, vector records, vector queries, vector hits, tombstones, and manifests",
+          "in-memory test vector store used only for backend-neutral contract tests",
+          "MetadataStore.resolve_chunk_evidence(...)",
+          "vector-hit-to-evidence binding guards and missing/stale evidence warnings",
+          "graph-ready retrieval result dataclasses",
+          "contract tests for multi-vault identity, content-scope filtering, evidence authority, model spec validation, and Phase 2A boundary protection",
+          "documentation verification that Chroma and Qdrant remain behind the same VectorStore contract",
+          "Chroma collections",
+          "Qdrant support",
+          "vector indexing from Vault chunks",
+          "embedding manifests on disk",
+          "vg search",
+          "vector fields in vg status",
+          "keyword search"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "File Structure",
+        "content": "Create these files:\nsrc/vault_graph/embeddings/init.py: embedding contract exports src/vault_graph/embeddings/text_embeddings.py: embedding model spec, input, vector, and TextEmbeddings protocol src/vault_graph/retrieval/init.py: retrieval contract exports src/vault_graph/retrieval/retrieval_result.py: retrieval signal, warning, and resolved result records src/vault_graph/storage/interfaces/vector_store.py: vector store protocol and record shapes tests/init.py: test package marker so tests.fakes imports are stable tests/fakes/init.py: test fake package marker tests/fakes/deterministic_text_embeddings.py: deterministic test-only TextEmbeddings implementation tests/fakes/in_memory_vector_store.py: backend-neutral test-only vector store tests/test_text_embeddings_contract.py: embedding contract tests tests/test_vector_store_contract.py: vector store contract tests tests/test_metadata_evidence_resolution.py: metadata evidence resolution tests tests/test_retrieval_result_contract.py: retrieval result contract tests tests/test_cli_surface_boundary.py: tests that Phase 2A does not expose Phase 2B or Phase 2C features\nModify these files:\nsrc/vault_graph/errors.py: add embedding, vector, a...",
+        "items": [
+          "src/vault_graph/embeddings/init.py: embedding contract exports",
+          "src/vault_graph/embeddings/text_embeddings.py: embedding model spec, input, vector, and TextEmbeddings protocol",
+          "src/vault_graph/retrieval/init.py: retrieval contract exports",
+          "src/vault_graph/retrieval/retrieval_result.py: retrieval signal, warning, and resolved result records",
+          "src/vault_graph/storage/interfaces/vector_store.py: vector store protocol and record shapes",
+          "tests/init.py: test package marker so tests.fakes imports are stable",
+          "tests/fakes/init.py: test fake package marker",
+          "tests/fakes/deterministic_text_embeddings.py: deterministic test-only TextEmbeddings implementation",
+          "tests/fakes/in_memory_vector_store.py: backend-neutral test-only vector store",
+          "tests/test_text_embeddings_contract.py: embedding contract tests",
+          "tests/test_vector_store_contract.py: vector store contract tests",
+          "tests/test_metadata_evidence_resolution.py: metadata evidence resolution tests",
+          "tests/test_retrieval_result_contract.py: retrieval result contract tests",
+          "tests/test_cli_surface_boundary.py: tests that Phase 2A does not expose Phase 2B or Phase 2C features",
+          "src/vault_graph/errors.py: add embedding, vector, and retrieval contract errors",
+          "src/vault_graph/storage/interfaces/metadata_store.py: add EvidenceReference and resolve_chunk_evidence(...)"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Task 1: TextEmbeddings Contract",
+        "content": "Files:\nModify: src/vault_graph/errors.py Create: src/vault_graph/embeddings/init.py Create: src/vault_graph/embeddings/text_embeddings.py Create: tests/init.py Create: tests/fakes/init.py Create: tests/fakes/deterministic_text_embeddings.py Test: tests/test_text_embeddings_contract.py\n[ ] Step 1: Write the failing embedding contract tests\nCreate tests/test_text_embeddings_contract.py:\n[ ] Step 2: Run the embedding test to verify it fails\nRun:\nExpected: FAIL with ModuleNotFoundError for vault_graph.embeddings or tests.fakes.\n[ ] Step 3: Add embedding domain errors\nAppend these classes to src/vault_graph/errors.py:\n[ ] Step 4: Add the text embeddings contract\nCreate src/vault_graph/embeddings/text_embeddings.py:\nCreate src/vault_graph/embeddings/init.py:\n[ ] Step 5: Add the deterministic test TextEmbeddings implementation\nCreate tests/init.py:\nCreate tests/fakes/init.py:\nCreate tests/fakes/deterministic_text_embeddings.py:\n[ ] Step 6: Run embedding checks\nRun:\nExpected: all commands pass.\n[ ] Step 7: Commit embedding contract\nRun:",
+        "items": [
+          "Modify: src/vault_graph/errors.py",
+          "Create: src/vault_graph/embeddings/init.py",
+          "Create: src/vault_graph/embeddings/text_embeddings.py",
+          "Create: tests/init.py",
+          "Create: tests/fakes/init.py",
+          "Create: tests/fakes/deterministic_text_embeddings.py",
+          "Test: tests/test_text_embeddings_contract.py",
+          "[ ] Step 1: Write the failing embedding contract tests",
+          "[ ] Step 2: Run the embedding test to verify it fails",
+          "[ ] Step 3: Add embedding domain errors",
+          "[ ] Step 4: Add the text embeddings contract",
+          "[ ] Step 5: Add the deterministic test TextEmbeddings implementation",
+          "[ ] Step 6: Run embedding checks",
+          "[ ] Step 7: Commit embedding contract"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nimport pytest\n\nfrom tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings\nfrom vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector\nfrom vault_graph.errors import TextEmbeddingsError\n\n\ndef test_empty_input_returns_empty_output() -> None:\n    embeddings = DeterministicTextEmbeddings(\n        EmbeddingModelSpec(\n            model_name=\"deterministic\",\n            model_version=\"test\",\n            dimensions=4,\n            spec_version=\"embedding-spec-v1\",\n        )\n    )\n\n    assert embeddings.embed(()) == ()\n\n\ndef test_text_embeddings_returns_stable_dimensioned_vectors() -> None:\n    spec = EmbeddingModelSpec(\n        model_name=\"deterministic\",\n        model_version=\"test\",\n        dimensions=4,\n        spec_version=\"embedding-spec-v1\",\n    )\n    embeddings = DeterministicTextEmbeddings(spec)\n    inputs = (\n        EmbeddingInput(input_id=\"first\", text=\"alpha\"),\n        EmbeddingInput(input_id=\"second\", text=\"beta\"),\n    )\n\n    first = embeddings.embed(inputs)\n    second = embeddings.embed(inputs)\n\n    assert first == second\n    assert tuple(vector.input_id for vector in first) == (\"first\", \"second\")\n    assert all(vector.model_spec == spec for vector in first)\n    assert all(len(vector.values) == 4 for vector in first)\n\n\ndef test_input_id_is_only_a_batch_correlation_key() -> None:\n    spec = EmbeddingModelSpec(\n        model_name=\"deterministic\",\n        model_version=\"test\",\n        dimensions=3,\n        spec_version=\"embedding-spec-v1\",\n    )\n    embeddings = DeterministicTextEmbeddings(spec)\n\n    vector = embeddings.embed((EmbeddingInput(input_id=\"batch-item-1\", text=\"wiki/page.md\"),))[0]\n\n    assert vector.input_id == \"batch-item-1\"\n    assert not hasattr(vector, \"vault_id\")\n    assert not hasattr(vector, \"document_id\")\n    assert not hasattr(vector, \"chunk_id\")\n    assert not hasattr(vector, \"path\")\n\n\ndef test_duplicate_input_id_fails_loudly_within_one_call() -> None:\n    spec = EmbeddingModelSpec(\n        model_name=\"deterministic\",\n        model_version=\"test\",\n        dimensions=4,\n        spec_version=\"embedding-spec-v1\",\n    )\n    embeddings = DeterministicTextEmbeddings(spec)\n    inputs = (\n        EmbeddingInput(input_id=\"duplicate\", text=\"alpha\"),\n        EmbeddingInput(input_id=\"duplicate\", text=\"beta\"),\n    )\n\n    with pytest.raises(TextEmbeddingsError, match=\"input_id must be unique\"):\n        embeddings.embed(inputs)\n\n\ndef test_embedding_spec_rejects_invalid_dimensions() -> None:\n    with pytest.raises(TextEmbeddingsError, match=\"dimensions must be positive\"):\n        EmbeddingModelSpec(\n            model_name=\"deterministic\",\n            model_version=\"test\",\n            dimensions=0,\n            spec_version=\"embedding-spec-v1\",\n        )\n\n\ndef test_embedding_vector_rejects_dimension_mismatch() -> None:\n    spec = EmbeddingModelSpec(\n        model_name=\"deterministic\",\n        model_version=\"test\",\n        dimensions=4,\n        spec_version=\"embedding-spec-v1\",\n    )\n\n    with pytest.raises(TextEmbeddingsError, match=\"embedding dimension mismatch\"):\n        EmbeddingVector(input_id=\"bad\", values=(1.0, 2.0), model_spec=spec)\n\n\ndef test_text_embeddings_does_not_write_files(tmp_path: Path) -> None:\n    embeddings = DeterministicTextEmbeddings(\n        EmbeddingModelSpec(\n            model_name=\"deterministic\",\n            model_version=\"test\",\n            dimensions=4,\n            spec_version=\"embedding-spec-v1\",\n        )\n    )\n    before = tuple(tmp_path.iterdir())\n\n    embeddings.embed((EmbeddingInput(input_id=\"one\", text=str(tmp_path)),))\n\n    assert tuple(tmp_path.iterdir()) == before"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_text_embeddings_contract.py -q"
+          },
+          {
+            "language": "python",
+            "content": "class TextEmbeddingsError(VaultGraphError):\n    \"\"\"Raised when text embeddings contracts are violated.\"\"\"\n\n\nclass VectorStoreError(VaultGraphError):\n    \"\"\"Raised when vector store contracts are violated.\"\"\"\n\n\nclass RetrievalContractError(VaultGraphError):\n    \"\"\"Raised when retrieval result contracts are violated.\"\"\""
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Protocol\n\nfrom vault_graph.errors import TextEmbeddingsError\n\n\n@dataclass(frozen=True)\nclass EmbeddingModelSpec:\n    model_name: str\n    model_version: str\n    dimensions: int\n    spec_version: str\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.model_name, \"model_name\")\n        _require_non_empty(self.model_version, \"model_version\")\n        _require_non_empty(self.spec_version, \"spec_version\")\n        if self.dimensions <= 0:\n            raise TextEmbeddingsError(\"dimensions must be positive\")\n\n\n@dataclass(frozen=True)\nclass EmbeddingInput:\n    input_id: str\n    text: str\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.input_id, \"input_id\")\n\n\n@dataclass(frozen=True)\nclass EmbeddingVector:\n    input_id: str\n    values: tuple[float, ...]\n    model_spec: EmbeddingModelSpec\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.input_id, \"input_id\")\n        if len(self.values) != self.model_spec.dimensions:\n            raise TextEmbeddingsError(\n                f\"embedding dimension mismatch: expected {self.model_spec.dimensions}, got {len(self.values)}\"\n            )\n\n\nclass TextEmbeddings(Protocol):\n    def model_spec(self) -> EmbeddingModelSpec: ...\n\n    def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]: ...\n\n\ndef _require_non_empty(value: str, field_name: str) -> None:\n    if not value:\n        raise TextEmbeddingsError(f\"{field_name} is required\")"
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: VectorStore Contract And In-Memory Contract Fake",
+        "content": "Files:\nCreate: src/vault_graph/storage/interfaces/vector_store.py Create: tests/fakes/in_memory_vector_store.py Test: tests/test_vector_store_contract.py\n[ ] Step 1: Write the failing vector store contract tests\nCreate tests/test_vector_store_contract.py:\n[ ] Step 2: Run the vector test to verify it fails\nRun:\nExpected: FAIL with ModuleNotFoundError for vault_graph.storage.interfaces.vector_store or tests.fakes.in_memory_vector_store.\n[ ] Step 3: Add the vector store interface\nCreate src/vault_graph/storage/interfaces/vector_store.py:\n[ ] Step 4: Add the in-memory vector store fake\nCreate tests/fakes/in_memory_vector_store.py:\n[ ] Step 5: Run vector store checks\nRun:\nExpected: all commands pass.\n[ ] Step 6: Commit vector contract\nRun:",
+        "items": [
+          "Create: src/vault_graph/storage/interfaces/vector_store.py",
+          "Create: tests/fakes/in_memory_vector_store.py",
+          "Test: tests/test_vector_store_contract.py",
+          "[ ] Step 1: Write the failing vector store contract tests",
+          "[ ] Step 2: Run the vector test to verify it fails",
+          "[ ] Step 3: Add the vector store interface",
+          "[ ] Step 4: Add the in-memory vector store fake",
+          "[ ] Step 5: Run vector store checks",
+          "[ ] Step 6: Commit vector contract"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import pytest\n\nfrom tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings\nfrom tests.fakes.in_memory_vector_store import InMemoryVectorStore\nfrom vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec\nfrom vault_graph.errors import VectorStoreError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.vector_store import VectorEmbeddingRecord, VectorQuery, VectorTombstone\n\n\nSPEC = EmbeddingModelSpec(\n    model_name=\"deterministic\",\n    model_version=\"test\",\n    dimensions=4,\n    spec_version=\"embedding-spec-v1\",\n)\n\nSECOND_SPEC = EmbeddingModelSpec(\n    model_name=\"deterministic\",\n    model_version=\"test-v2\",\n    dimensions=4,\n    spec_version=\"embedding-spec-v2\",\n)\n\n\ndef make_record(\n    *,\n    vault_id: str,\n    path: str,\n    text: str,\n    content_scope: str,\n    model_spec: EmbeddingModelSpec = SPEC,\n) -> VectorEmbeddingRecord:\n    embeddings = DeterministicTextEmbeddings(model_spec)\n    embedding = embeddings.embed((EmbeddingInput(input_id=f\"{vault_id}:{path}\", text=text),))[0]\n    chunk_id = f\"{vault_id}:{path}:chunk\"\n    return VectorEmbeddingRecord(\n        vector_id=make_vector_id(vault_id=vault_id, chunk_id=chunk_id, model_spec=model_spec),\n        vault_id=vault_id,\n        document_id=f\"{vault_id}:{path}:document\",\n        chunk_id=chunk_id,\n        content_scope=content_scope,\n        embedding=embedding,\n        metadata_index_revision=\"metadata-1\",\n        vector_index_revision=\"vector-1\",\n    )\n\n\ndef make_query(*, text: str, scope: QueryScope, limit: int = 10) -> VectorQuery:\n    embeddings = DeterministicTextEmbeddings(SPEC)\n    query_vector = embeddings.embed((EmbeddingInput(input_id=\"query\", text=text),))[0]\n    return VectorQuery(query_vector=query_vector, scope=scope, limit=limit, embedding_spec=SPEC)\n\n\ndef make_vector_id(*, vault_id: str, chunk_id: str, model_spec: EmbeddingModelSpec) -> str:\n    spec_key = \"|\".join(\n        (\n            model_spec.model_name,\n            model_spec.model_version,\n            str(model_spec.dimensions),\n            model_spec.spec_version,\n        )\n    )\n    return f\"{vault_id}:{chunk_id}:{spec_key}:vector\"\n\n\ndef test_search_returns_scoped_semantic_candidates() -> None:\n    store = InMemoryVectorStore()\n    expected = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    other = make_record(vault_id=\"other\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(expected, other), tombstones=())\n\n    hits = store.search(make_query(text=\"alpha\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",))))\n\n    assert tuple(hit.vault_id for hit in hits) == (\"default\",)\n    assert hits[0].document_id == expected.document_id\n    assert hits[0].chunk_id == expected.chunk_id\n    assert hits[0].content_scope == \"wiki\"\n    assert hits[0].rank == 1\n    assert hits[0].backend == \"memory-vector\"\n\n\ndef test_search_filters_content_scope_before_limit() -> None:\n    store = InMemoryVectorStore()\n    raw = make_record(vault_id=\"default\", path=\"raw/source.md\", text=\"exact query\", content_scope=\"raw\")\n    wiki = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"different text\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(raw, wiki), tombstones=())\n\n    hits = store.search(\n        make_query(\n            text=\"exact query\",\n            scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n            limit=1,\n        )\n    )\n\n    assert len(hits) == 1\n    assert hits[0].content_scope == \"wiki\"\n    assert hits[0].chunk_id == wiki.chunk_id\n\n\ndef test_content_scope_filter_uses_same_or_child_semantics() -> None:\n    store = InMemoryVectorStore()\n    broad = make_record(vault_id=\"default\", path=\"wiki/index.md\", text=\"broad\", content_scope=\"wiki\")\n    child = make_record(vault_id=\"default\", path=\"wiki/systems/vault.md\", text=\"child\", content_scope=\"wiki/systems\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(broad, child), tombstones=())\n\n    broad_hits = store.search(\n        make_query(text=\"child\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n    )\n    narrow_hits = store.search(\n        make_query(text=\"broad\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki/systems\",)))\n    )\n\n    assert {hit.content_scope for hit in broad_hits} == {\"wiki\", \"wiki/systems\"}\n    assert tuple(hit.content_scope for hit in narrow_hits) == (\"wiki/systems\",)\n\n\ndef test_include_cross_vault_does_not_expand_vector_scope() -> None:\n    store = InMemoryVectorStore()\n    first = make_record(vault_id=\"first\", path=\"wiki/page.md\", text=\"same\", content_scope=\"wiki\")\n    second = make_record(vault_id=\"second\", path=\"wiki/page.md\", text=\"same\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(first, second), tombstones=())\n\n    hits = store.search(\n        make_query(\n            text=\"same\",\n            scope=QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\",), include_cross_vault=True),\n        )\n    )\n\n    assert tuple(hit.vault_id for hit in hits) == (\"first\",)\n\n\ndef test_same_relative_path_in_different_vaults_does_not_collide() -> None:\n    store = InMemoryVectorStore()\n    first = make_record(vault_id=\"first\", path=\"wiki/same.md\", text=\"same\", content_scope=\"wiki\")\n    second = make_record(vault_id=\"second\", path=\"wiki/same.md\", text=\"same\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(first, second), tombstones=())\n\n    hits = store.search(\n        make_query(\n            text=\"same\",\n            scope=QueryScope(vault_ids=(\"first\", \"second\"), content_scopes=(\"wiki\",)),\n        )\n    )\n\n    assert sorted((hit.vault_id, hit.chunk_id) for hit in hits) == [\n        (\"first\", first.chunk_id),\n        (\"second\", second.chunk_id),\n    ]\n\n\ndef test_vector_id_is_stable_for_vault_chunk_and_model_spec() -> None:\n    first = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    second = make_record(\n        vault_id=\"default\",\n        path=\"wiki/page.md\",\n        text=\"alpha\",\n        content_scope=\"wiki\",\n        model_spec=SECOND_SPEC,\n    )\n\n    assert first.chunk_id == second.chunk_id\n    assert first.vector_id == make_vector_id(vault_id=first.vault_id, chunk_id=first.chunk_id, model_spec=SPEC)\n    assert second.vector_id == make_vector_id(\n        vault_id=second.vault_id,\n        chunk_id=second.chunk_id,\n        model_spec=SECOND_SPEC,\n    )\n    assert first.vector_id != second.vector_id\n\n\ndef test_tombstone_removes_only_named_vault_and_chunk() -> None:\n    store = InMemoryVectorStore()\n    first = make_record(vault_id=\"first\", path=\"wiki/same.md\", text=\"same\", content_scope=\"wiki\")\n    second = make_record(vault_id=\"second\", path=\"wiki/same.md\", text=\"same\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(first, second), tombstones=())\n    store.apply_vector_revision(\n        vector_index_revision=\"vector-2\",\n        records=(),\n        tombstones=(VectorTombstone(vault_id=\"first\", chunk_id=first.chunk_id),),\n    )\n\n    hits = store.search(\n        make_query(\n            text=\"same\",\n            scope=QueryScope(vault_ids=(\"first\", \"second\"), content_scopes=(\"wiki\",)),\n        )\n    )\n\n    assert tuple((hit.vault_id, hit.chunk_id) for hit in hits) == ((\"second\", second.chunk_id),)\n\n\ndef test_store_rejects_records_from_multiple_model_specs() -> None:\n    store = InMemoryVectorStore()\n    first = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    second = make_record(\n        vault_id=\"default\",\n        path=\"wiki/page.md\",\n        text=\"alpha\",\n        content_scope=\"wiki\",\n        model_spec=SECOND_SPEC,\n    )\n\n    with pytest.raises(VectorStoreError, match=\"embedding model spec mismatch\"):\n        store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(first, second), tombstones=())\n\n\ndef test_model_spec_mismatch_fails_loudly() -> None:\n    store = InMemoryVectorStore()\n    record = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n    incompatible_spec = EmbeddingModelSpec(\n        model_name=\"deterministic\",\n        model_version=\"other\",\n        dimensions=4,\n        spec_version=\"embedding-spec-v1\",\n    )\n    embeddings = DeterministicTextEmbeddings(incompatible_spec)\n    query_vector = embeddings.embed((EmbeddingInput(input_id=\"query\", text=\"alpha\"),))[0]\n\n    with pytest.raises(VectorStoreError, match=\"embedding model spec mismatch\"):\n        store.search(\n            VectorQuery(\n                query_vector=query_vector,\n                scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n                limit=10,\n                embedding_spec=incompatible_spec,\n            )\n        )\n\n\ndef test_vector_hits_do_not_expose_evidence_fields() -> None:\n    store = InMemoryVectorStore()\n    record = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n\n    hit = store.search(make_query(text=\"alpha\", scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",))))[0]\n\n    for field_name in (\"path\", \"text\", \"title\", \"summary\", \"anchor\", \"evidence\", \"content_hash\"):\n        assert not hasattr(hit, field_name)\n\n\ndef test_manifest_and_health_are_inspectable() -> None:\n    store = InMemoryVectorStore()\n    record = make_record(vault_id=\"default\", path=\"wiki/page.md\", text=\"alpha\", content_scope=\"wiki\")\n    store.apply_vector_revision(vector_index_revision=\"vector-1\", records=(record,), tombstones=())\n\n    manifest = store.export_manifest(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)))\n    health = store.health()\n\n    assert len(manifest) == 1\n    assert manifest[0].vector_id == record.vector_id\n    assert manifest[0].content_scope == \"wiki\"\n    assert health.ok is True\n    assert health.backend == \"memory-vector\"\n    assert health.schema_compatible is True"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_vector_store_contract.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Protocol\n\nfrom vault_graph.embeddings.text_embeddings import EmbeddingModelSpec, EmbeddingVector\nfrom vault_graph.errors import CatalogError, VectorStoreError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\n\n\n@dataclass(frozen=True)\nclass VectorEmbeddingRecord:\n    vector_id: str\n    vault_id: str\n    document_id: str\n    chunk_id: str\n    content_scope: str\n    embedding: EmbeddingVector\n    metadata_index_revision: str\n    vector_index_revision: str\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.vector_id, \"vector_id\")\n        _require_non_empty(self.vault_id, \"vault_id\")\n        _require_non_empty(self.document_id, \"document_id\")\n        _require_non_empty(self.chunk_id, \"chunk_id\")\n        _require_non_empty(self.content_scope, \"content_scope\")\n        _require_non_empty(self.metadata_index_revision, \"metadata_index_revision\")\n        _require_non_empty(self.vector_index_revision, \"vector_index_revision\")\n        _validate_single_content_scope(vault_id=self.vault_id, content_scope=self.content_scope)\n\n\n@dataclass(frozen=True)\nclass VectorTombstone:\n    vault_id: str\n    chunk_id: str\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.vault_id, \"vault_id\")\n        _require_non_empty(self.chunk_id, \"chunk_id\")\n\n\n@dataclass(frozen=True)\nclass VectorQuery:\n    query_vector: EmbeddingVector\n    scope: QueryScope\n    limit: int\n    embedding_spec: EmbeddingModelSpec\n\n    def __post_init__(self) -> None:\n        if self.limit <= 0:\n            raise VectorStoreError(\"limit must be positive\")\n        if self.query_vector.model_spec != self.embedding_spec:\n            raise VectorStoreError(\"query vector model spec must match embedding_spec\")\n\n\n@dataclass(frozen=True)\nclass VectorHit:\n    vector_id: str\n    vault_id: str\n    document_id: str\n    chunk_id: str\n    content_scope: str\n    score: float\n    rank: int\n    embedding_spec: EmbeddingModelSpec\n    metadata_index_revision: str\n    vector_index_revision: str\n    backend: str\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.vector_id, \"vector_id\")\n        _require_non_empty(self.vault_id, \"vault_id\")\n        _require_non_empty(self.document_id, \"document_id\")\n        _require_non_empty(self.chunk_id, \"chunk_id\")\n        _require_non_empty(self.content_scope, \"content_scope\")\n        _require_non_empty(self.metadata_index_revision, \"metadata_index_revision\")\n        _require_non_empty(self.vector_index_revision, \"vector_index_revision\")\n        _require_non_empty(self.backend, \"backend\")\n        if self.rank <= 0:\n            raise VectorStoreError(\"rank must be positive\")\n        _validate_single_content_scope(vault_id=self.vault_id, content_scope=self.content_scope)\n\n\n@dataclass(frozen=True)\nclass VectorManifestRecord:\n    vector_id: str\n    vault_id: str\n    document_id: str\n    chunk_id: str\n    content_scope: str\n    embedding_spec: EmbeddingModelSpec\n    metadata_index_revision: str\n    vector_index_revision: str\n    backend: str\n\n\nclass VectorStore(Protocol):\n    def apply_vector_revision(\n        self,\n        *,\n        vector_index_revision: str,\n        records: tuple[VectorEmbeddingRecord, ...],\n        tombstones: tuple[VectorTombstone, ...],\n    ) -> None: ...\n\n    def search(self, query: VectorQuery) -> tuple[VectorHit, ...]: ...\n\n    def health(self) -> StoreHealth: ...\n\n    def export_manifest(self, scope: QueryScope) -> tuple[VectorManifestRecord, ...]: ...\n\n\ndef _require_non_empty(value: str, field_name: str) -> None:\n    if not value:\n        raise VectorStoreError(f\"{field_name} is required\")\n\n\ndef _validate_single_content_scope(*, vault_id: str, content_scope: str) -> None:\n    try:\n        QueryScope(vault_ids=(vault_id,), content_scopes=(content_scope,))\n    except CatalogError as exc:\n        raise VectorStoreError(str(exc)) from exc"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom vault_graph.embeddings.text_embeddings import EmbeddingModelSpec, EmbeddingVector\nfrom vault_graph.errors import VectorStoreError\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\nfrom vault_graph.storage.interfaces.vector_store import (\n    VectorEmbeddingRecord,\n    VectorHit,\n    VectorManifestRecord,\n    VectorQuery,\n    VectorTombstone,\n)\n\n\nclass InMemoryVectorStore:\n    def __init__(self) -> None:\n        self._records: dict[tuple[str, str], VectorEmbeddingRecord] = {}\n        self._embedding_spec: EmbeddingModelSpec | None = None\n\n    def apply_vector_revision(\n        self,\n        *,\n        vector_index_revision: str,\n        records: tuple[VectorEmbeddingRecord, ...],\n        tombstones: tuple[VectorTombstone, ...],\n    ) -> None:\n        if not vector_index_revision:\n            raise VectorStoreError(\"vector_index_revision is required\")\n        next_embedding_spec = self._validated_embedding_spec(records)\n        for record in records:\n            if record.vector_index_revision != vector_index_revision:\n                raise VectorStoreError(\"record vector_index_revision must match revision being applied\")\n        for tombstone in tombstones:\n            self._records.pop((tombstone.vault_id, tombstone.chunk_id), None)\n        for record in records:\n            self._records[(record.vault_id, record.chunk_id)] = record\n        self._embedding_spec = next_embedding_spec\n\n    def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:\n        if self._embedding_spec is not None and query.embedding_spec != self._embedding_spec:\n            raise VectorStoreError(\"embedding model spec mismatch\")\n        scoped_records = tuple(record for record in self._records.values() if _record_in_scope(record, query.scope))\n        scored = sorted(\n            ((_dot_product(query.query_vector, record.embedding), record) for record in scoped_records),\n            key=lambda item: (-item[0], item[1].vault_id, item[1].chunk_id, item[1].vector_id),\n        )\n        return tuple(\n            VectorHit(\n                vector_id=record.vector_id,\n                vault_id=record.vault_id,\n                document_id=record.document_id,\n                chunk_id=record.chunk_id,\n                content_scope=record.content_scope,\n                score=score,\n                rank=rank,\n                embedding_spec=record.embedding.model_spec,\n                metadata_index_revision=record.metadata_index_revision,\n                vector_index_revision=record.vector_index_revision,\n                backend=\"memory-vector\",\n            )\n            for rank, (score, record) in enumerate(scored[: query.limit], start=1)\n        )\n\n    def health(self) -> StoreHealth:\n        return StoreHealth(\n            ok=True,\n            backend=\"memory-vector\",\n            schema_version=\"memory-vector-v1\",\n            schema_compatible=True,\n            message=\"ok\",\n        )\n\n    def export_manifest(self, scope: QueryScope) -> tuple[VectorManifestRecord, ...]:\n        records = sorted(\n            (record for record in self._records.values() if _record_in_scope(record, scope)),\n            key=lambda record: (record.vault_id, record.chunk_id, record.vector_id),\n        )\n        return tuple(\n            VectorManifestRecord(\n                vector_id=record.vector_id,\n                vault_id=record.vault_id,\n                document_id=record.document_id,\n                chunk_id=record.chunk_id,\n                content_scope=record.content_scope,\n                embedding_spec=record.embedding.model_spec,\n                metadata_index_revision=record.metadata_index_revision,\n                vector_index_revision=record.vector_index_revision,\n                backend=\"memory-vector\",\n            )\n            for record in records\n        )\n\n    def _validated_embedding_spec(self, records: tuple[VectorEmbeddingRecord, ...]) -> EmbeddingModelSpec | None:\n        next_embedding_spec = self._embedding_spec\n        for record in records:\n            if next_embedding_spec is None:\n                next_embedding_spec = record.embedding.model_spec\n            elif next_embedding_spec != record.embedding.model_spec:\n                raise VectorStoreError(\"embedding model spec mismatch\")\n        return next_embedding_spec\n\n\ndef _record_in_scope(record: VectorEmbeddingRecord, scope: QueryScope) -> bool:\n    return record.vault_id in scope.vault_ids and _content_scope_in_scope(\n        record_scope=record.content_scope,\n        query_scopes=scope.content_scopes,\n    )\n\n\ndef _content_scope_in_scope(*, record_scope: str, query_scopes: tuple[str, ...]) -> bool:\n    return any(\n        record_scope == query_scope or record_scope.startswith(f\"{query_scope}/\") for query_scope in query_scopes\n    )\n\n\ndef _dot_product(left: EmbeddingVector, right: EmbeddingVector) -> float:\n    if left.model_spec.dimensions != right.model_spec.dimensions:\n        raise VectorStoreError(\"embedding dimension mismatch\")\n    return sum(left_value * right_value for left_value, right_value in zip(left.values, right.values, strict=True))"
+          }
+        ]
+      },
+      {
+        "heading": "Task 3: MetadataStore Evidence Resolution",
+        "content": "Files:\nModify: src/vault_graph/storage/interfaces/metadata_store.py Modify: src/vault_graph/storage/local/sqlite_metadata_store.py Test: tests/test_metadata_evidence_resolution.py\n[ ] Step 1: Write the failing evidence resolution tests\nCreate tests/test_metadata_evidence_resolution.py:\n[ ] Step 2: Run the evidence test to verify it fails\nRun:\nExpected: FAIL with AttributeError because SQLiteMetadataStore.resolve_chunk_evidence does not exist.\n[ ] Step 3: Add evidence reference to the metadata interface\nUpdate src/vault_graph/storage/interfaces/metadata_store.py so it includes EvidenceReference and the new protocol method:\n[ ] Step 4: Implement SQLite evidence resolution\nModify the import in src/vault_graph/storage/local/sqlite_metadata_store.py:\nAdd this method to SQLiteMetadataStore after resolve_chunk(...):\nAdd this helper near the existing row mapping helpers:\n[ ] Step 5: Run metadata evidence checks\nRun:\nExpected: all commands pass.\n[ ] Step 6: Commit metadata evidence resolution\nRun:",
+        "items": [
+          "Modify: src/vault_graph/storage/interfaces/metadata_store.py",
+          "Modify: src/vault_graph/storage/local/sqlite_metadata_store.py",
+          "Test: tests/test_metadata_evidence_resolution.py",
+          "[ ] Step 1: Write the failing evidence resolution tests",
+          "[ ] Step 2: Run the evidence test to verify it fails",
+          "[ ] Step 3: Add evidence reference to the metadata interface",
+          "[ ] Step 4: Implement SQLite evidence resolution",
+          "[ ] Step 5: Run metadata evidence checks",
+          "[ ] Step 6: Commit metadata evidence resolution"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\ndef make_document(vault_id: str, path: str, content_hash: str) -> DocumentSnapshot:\n    return DocumentSnapshot(\n        vault_id=vault_id,\n        document_id=f\"{vault_id}:{path}:document\",\n        path=path,\n        kind=path.split(\"/\", 1)[0],\n        frontmatter={},\n        frontmatter_hash=\"frontmatter\",\n        content_hash=content_hash,\n        raw_sha256=f\"raw:{content_hash}\",\n        parser_version=\"parser\",\n        last_seen_at=\"2026-06-08T00:00:00+00:00\",\n        last_indexed_at=None,\n        vault_revision=\"vault-rev-1\",\n        index_revision=None,\n    )\n\n\ndef make_chunk(document: DocumentSnapshot, text: str = \"Body\") -> ChunkSnapshot:\n    return ChunkSnapshot(\n        vault_id=document.vault_id,\n        chunk_id=f\"{document.vault_id}:{document.path}:chunk\",\n        document_id=document.document_id,\n        path=document.path,\n        section=\"Section\",\n        anchor=\"section\",\n        text=text,\n        token_count=len(text.split()),\n        content_hash=f\"chunk:{document.content_hash}\",\n        chunker_version=\"chunker\",\n        index_revision=None,\n    )\n\n\ndef test_resolve_chunk_evidence_joins_document_and_chunk(tmp_path: Path) -> None:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\", initialize=True)\n    document = make_document(\"default\", \"wiki/page.md\", \"document-hash\")\n    chunk = make_chunk(document)\n    store.apply_metadata_revision(index_revision=\"metadata-1\", documents=[document], chunks=[chunk], tombstones=[])\n\n    evidence = store.resolve_chunk_evidence(\n        vault_id=\"default\",\n        document_id=document.document_id,\n        chunk_id=chunk.chunk_id,\n    )\n\n    assert evidence is not None\n    assert evidence.vault_id == \"default\"\n    assert evidence.document_id == document.document_id\n    assert evidence.chunk_id == chunk.chunk_id\n    assert evidence.path == \"wiki/page.md\"\n    assert evidence.section == \"Section\"\n    assert evidence.anchor == \"section\"\n    assert evidence.content_hash == chunk.content_hash\n    assert evidence.raw_sha256 == document.raw_sha256\n    assert evidence.metadata_index_revision == \"metadata-1\"\n    assert evidence.vault_revision == \"vault-rev-1\"\n\n\ndef test_resolve_chunk_evidence_rejects_mismatched_ids(tmp_path: Path) -> None:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\", initialize=True)\n    first = make_document(\"first\", \"wiki/same.md\", \"first-hash\")\n    second = make_document(\"second\", \"wiki/same.md\", \"second-hash\")\n    first_chunk = make_chunk(first)\n    second_chunk = make_chunk(second)\n    store.apply_metadata_revision(\n        index_revision=\"metadata-1\",\n        documents=[first, second],\n        chunks=[first_chunk, second_chunk],\n        tombstones=[],\n    )\n\n    assert (\n        store.resolve_chunk_evidence(\n            vault_id=\"first\",\n            document_id=second.document_id,\n            chunk_id=first_chunk.chunk_id,\n        )\n        is None\n    )\n    assert (\n        store.resolve_chunk_evidence(\n            vault_id=\"first\",\n            document_id=first.document_id,\n            chunk_id=second_chunk.chunk_id,\n        )\n        is None\n    )\n\n\ndef test_resolve_chunk_evidence_returns_none_after_tombstone(tmp_path: Path) -> None:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\", initialize=True)\n    document = make_document(\"default\", \"wiki/page.md\", \"document-hash\")\n    chunk = make_chunk(document)\n    store.apply_metadata_revision(index_revision=\"metadata-1\", documents=[document], chunks=[chunk], tombstones=[])\n    store.apply_metadata_revision(\n        index_revision=\"metadata-2\",\n        documents=[],\n        chunks=[],\n        tombstones=[(\"default\", \"wiki/page.md\")],\n    )\n\n    assert (\n        store.resolve_chunk_evidence(\n            vault_id=\"default\",\n            document_id=document.document_id,\n            chunk_id=chunk.chunk_id,\n        )\n        is None\n    )"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_metadata_evidence_resolution.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Protocol\n\nfrom vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\n\n\n@dataclass(frozen=True)\nclass EvidenceReference:\n    vault_id: str\n    document_id: str\n    chunk_id: str\n    path: str\n    section: str | None\n    anchor: str | None\n    content_hash: str\n    raw_sha256: str\n    metadata_index_revision: str | None\n    vault_revision: str | None\n\n\n@dataclass(frozen=True)\nclass DocumentState:\n    vault_id: str\n    path: str\n    document_id: str | None\n    frontmatter_hash: str | None\n    content_hash: str | None\n    raw_sha256: str | None\n    parser_version: str | None\n    chunker_version: str | None\n    is_tombstoned: bool\n\n\nclass MetadataStore(Protocol):\n    def apply_metadata_revision(\n        self,\n        *,\n        index_revision: str,\n        documents: list[DocumentSnapshot],\n        chunks: list[ChunkSnapshot],\n        tombstones: list[tuple[str, str]],\n    ) -> None: ...\n\n    def document_state(self, vault_id: str, path: str) -> DocumentState: ...\n\n    def list_document_states(self, vault_ids: tuple[str, ...]) -> tuple[DocumentState, ...]: ...\n\n    def resolve_document(self, document_id: str) -> DocumentSnapshot | None: ...\n\n    def resolve_chunk(self, *, vault_id: str, chunk_id: str) -> ChunkSnapshot | None: ...\n\n    def resolve_chunk_evidence(\n        self,\n        *,\n        vault_id: str,\n        document_id: str,\n        chunk_id: str,\n    ) -> EvidenceReference | None: ...\n\n    def health(self) -> StoreHealth: ..."
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference"
+          }
+        ]
+      },
+      {
+        "heading": "Task 4: Retrieval Result Contract",
+        "content": "Files:\nCreate: src/vault_graph/retrieval/init.py Create: src/vault_graph/retrieval/retrieval_result.py Test: tests/test_retrieval_result_contract.py\n[ ] Step 1: Write the failing retrieval result tests\nCreate tests/test_retrieval_result_contract.py:\n[ ] Step 2: Run the retrieval test to verify it fails\nRun:\nExpected: FAIL with ModuleNotFoundError for vault_graph.retrieval.\n[ ] Step 3: Add retrieval result records\nCreate src/vault_graph/retrieval/retrieval_result.py:\nCreate src/vault_graph/retrieval/init.py:\n[ ] Step 4: Run retrieval result checks\nRun:\nExpected: all commands pass.\n[ ] Step 5: Commit retrieval result contract\nRun:",
+        "items": [
+          "Create: src/vault_graph/retrieval/init.py",
+          "Create: src/vault_graph/retrieval/retrieval_result.py",
+          "Test: tests/test_retrieval_result_contract.py",
+          "[ ] Step 1: Write the failing retrieval result tests",
+          "[ ] Step 2: Run the retrieval test to verify it fails",
+          "[ ] Step 3: Add retrieval result records",
+          "[ ] Step 4: Run retrieval result checks",
+          "[ ] Step 5: Commit retrieval result contract"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import pytest\n\nfrom vault_graph.embeddings.text_embeddings import EmbeddingModelSpec\nfrom vault_graph.errors import RetrievalContractError\nfrom vault_graph.retrieval.retrieval_result import (\n    RetrievalResult,\n    RetrievalSignal,\n    RetrievalWarning,\n    StoreRevision,\n    require_vector_hit_evidence_match,\n    warning_for_missing_vector_evidence,\n    warning_for_stale_vector,\n)\nfrom vault_graph.storage.interfaces.metadata_store import EvidenceReference\nfrom vault_graph.storage.interfaces.vector_store import VectorHit\n\n\ndef make_store_revisions() -> tuple[StoreRevision, ...]:\n    return (\n        StoreRevision(kind=\"metadata\", revision=\"metadata-1\"),\n        StoreRevision(kind=\"vector\", revision=\"vector-1\"),\n    )\n\n\ndef make_evidence(vault_id: str = \"default\") -> EvidenceReference:\n    return EvidenceReference(\n        vault_id=vault_id,\n        document_id=f\"{vault_id}:document\",\n        chunk_id=f\"{vault_id}:chunk\",\n        path=\"wiki/page.md\",\n        section=\"Section\",\n        anchor=\"section\",\n        content_hash=\"chunk-hash\",\n        raw_sha256=\"raw-hash\",\n        metadata_index_revision=\"metadata-1\",\n        vault_revision=\"vault-rev-1\",\n    )\n\n\ndef make_vector_hit(vault_id: str = \"default\") -> VectorHit:\n    return VectorHit(\n        vector_id=f\"{vault_id}:vector\",\n        vault_id=vault_id,\n        document_id=f\"{vault_id}:document\",\n        chunk_id=f\"{vault_id}:chunk\",\n        content_scope=\"wiki\",\n        score=0.75,\n        rank=1,\n        embedding_spec=EmbeddingModelSpec(\n            model_name=\"deterministic\",\n            model_version=\"test\",\n            dimensions=4,\n            spec_version=\"embedding-spec-v1\",\n        ),\n        metadata_index_revision=\"metadata-1\",\n        vector_index_revision=\"vector-1\",\n        backend=\"memory-vector\",\n    )\n\n\ndef test_retrieval_result_requires_evidence() -> None:\n    signal = RetrievalSignal(\n        kind=\"vector\",\n        source_id=\"vector-1\",\n        rank=1,\n        score=0.5,\n        backend=\"memory-vector\",\n        index_revision=\"vector-1\",\n        explanation=\"semantic candidate\",\n    )\n\n    with pytest.raises(RetrievalContractError, match=\"evidence is required\"):\n        RetrievalResult(\n            result_id=\"default:wiki/page.md:section\",\n            vault_id=\"default\",\n            kind=\"document\",\n            title=\"Page\",\n            summary=\"Body\",\n            rank=1,\n            evidence=(),\n            signals=(signal,),\n            relationship_status=\"not_applicable\",\n            warnings=(),\n            store_revisions=make_store_revisions(),\n        )\n\n\ndef test_vector_signal_keeps_backend_score_off_result() -> None:\n    signal = RetrievalSignal(\n        kind=\"vector\",\n        source_id=\"vector-1\",\n        rank=1,\n        score=0.75,\n        backend=\"memory-vector\",\n        index_revision=\"vector-1\",\n        explanation=\"semantic candidate\",\n    )\n    result = RetrievalResult(\n        result_id=\"default:wiki/page.md:section\",\n        vault_id=\"default\",\n        kind=\"document\",\n        title=\"Page\",\n        summary=\"Body\",\n        rank=1,\n        evidence=(make_evidence(),),\n        signals=(signal,),\n        relationship_status=\"not_applicable\",\n        warnings=(),\n        store_revisions=make_store_revisions(),\n    )\n\n    assert result.signals[0].score == 0.75\n    assert result.signals[0].backend == \"memory-vector\"\n    assert not hasattr(result, \"score\")\n    assert not hasattr(result, \"backend\")\n    assert not hasattr(result, \"index_revision\")\n\n\ndef test_graph_signal_kind_is_accepted_without_graph_runtime() -> None:\n    signal = RetrievalSignal(\n        kind=\"graph\",\n        source_id=\"edge-1\",\n        rank=1,\n        score=1.0,\n        backend=\"graph-store\",\n        index_revision=\"graph-1\",\n        explanation=\"relationship candidate\",\n    )\n    result = RetrievalResult(\n        result_id=\"default:wiki/page.md:section\",\n        vault_id=\"default\",\n        kind=\"document\",\n        title=\"Page\",\n        summary=\"Body\",\n        rank=1,\n        evidence=(make_evidence(),),\n        signals=(signal,),\n        relationship_status=\"inferred\",\n        warnings=(),\n        store_revisions=(\n            StoreRevision(kind=\"metadata\", revision=\"metadata-1\"),\n            StoreRevision(kind=\"graph\", revision=\"graph-1\"),\n        ),\n    )\n\n    assert result.signals[0].kind == \"graph\"\n    assert result.relationship_status == \"inferred\"\n\n\ndef test_retrieval_result_allows_cross_vault_evidence_for_relationships() -> None:\n    signal = RetrievalSignal(\n        kind=\"graph\",\n        source_id=\"edge-1\",\n        rank=1,\n        score=1.0,\n        backend=\"graph-store\",\n        index_revision=\"graph-1\",\n        explanation=\"cross-vault relationship candidate\",\n    )\n    result = RetrievalResult(\n        result_id=\"source:target:relationship\",\n        vault_id=\"source\",\n        kind=\"relationship\",\n        title=\"Related decision\",\n        summary=\"Evidence lives in a separate Vault\",\n        rank=1,\n        evidence=(make_evidence(vault_id=\"evidence\"),),\n        signals=(signal,),\n        relationship_status=\"inferred\",\n        warnings=(),\n        store_revisions=(\n            StoreRevision(kind=\"metadata\", revision=\"metadata-1\"),\n            StoreRevision(kind=\"graph\", revision=\"graph-1\"),\n        ),\n    )\n\n    assert result.evidence[0].vault_id == \"evidence\"\n\n\ndef test_vector_hit_ids_must_match_resolved_evidence_before_result() -> None:\n    hit = make_vector_hit()\n    evidence = make_evidence()\n\n    require_vector_hit_evidence_match(hit=hit, evidence=evidence)\n\n\ndef test_vector_hit_evidence_mismatch_rejects_normal_result() -> None:\n    hit = make_vector_hit(vault_id=\"default\")\n    evidence = make_evidence(vault_id=\"other\")\n\n    with pytest.raises(RetrievalContractError, match=\"vector hit ids must match evidence\"):\n        require_vector_hit_evidence_match(hit=hit, evidence=evidence)\n\n\ndef test_missing_vector_evidence_becomes_visible_warning() -> None:\n    warning = warning_for_missing_vector_evidence(make_vector_hit())\n\n    assert warning.code == \"missing_evidence\"\n    assert warning.severity == \"warning\"\n\n\ndef test_vector_revision_mismatch_becomes_stale_warning() -> None:\n    hit = make_vector_hit()\n    evidence = make_evidence()\n    stale_evidence = EvidenceReference(\n        vault_id=evidence.vault_id,\n        document_id=evidence.document_id,\n        chunk_id=evidence.chunk_id,\n        path=evidence.path,\n        section=evidence.section,\n        anchor=evidence.anchor,\n        content_hash=evidence.content_hash,\n        raw_sha256=evidence.raw_sha256,\n        metadata_index_revision=\"metadata-2\",\n        vault_revision=evidence.vault_revision,\n    )\n\n    warning = warning_for_stale_vector(hit=hit, evidence=stale_evidence)\n\n    assert warning is not None\n    assert warning.code == \"stale_vector\"\n    assert warning.severity == \"warning\"\n\n\ndef test_warnings_remain_visible_on_result() -> None:\n    warning = RetrievalWarning(\n        code=\"graph_unavailable\",\n        message=\"GraphStore is not configured in Phase 2A\",\n        severity=\"warning\",\n    )\n    result = RetrievalResult(\n        result_id=\"default:wiki/page.md:section\",\n        vault_id=\"default\",\n        kind=\"document\",\n        title=\"Page\",\n        summary=\"Body\",\n        rank=1,\n        evidence=(make_evidence(),),\n        signals=(),\n        relationship_status=\"not_applicable\",\n        warnings=(warning,),\n        store_revisions=(StoreRevision(kind=\"metadata\", revision=\"metadata-1\"),),\n    )\n\n    assert result.warnings == (warning,)"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_retrieval_result_contract.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Literal\n\nfrom vault_graph.errors import RetrievalContractError\nfrom vault_graph.storage.interfaces.metadata_store import EvidenceReference\nfrom vault_graph.storage.interfaces.vector_store import VectorHit\n\nRetrievalSignalKind = Literal[\"keyword\", \"vector\", \"graph\"]\nRetrievalSeverity = Literal[\"info\", \"warning\", \"error\"]\nRelationshipStatus = Literal[\"not_applicable\", \"stated\", \"inferred\", \"contested\", \"deprecated\"]\n\n\n@dataclass(frozen=True)\nclass StoreRevision:\n    kind: str\n    revision: str\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.kind, \"kind\")\n        _require_non_empty(self.revision, \"revision\")\n\n\n@dataclass(frozen=True)\nclass RetrievalSignal:\n    kind: RetrievalSignalKind\n    source_id: str\n    rank: int\n    score: float\n    backend: str\n    index_revision: str\n    explanation: str\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.source_id, \"source_id\")\n        _require_non_empty(self.backend, \"backend\")\n        _require_non_empty(self.index_revision, \"index_revision\")\n        _require_non_empty(self.explanation, \"explanation\")\n        if self.rank <= 0:\n            raise RetrievalContractError(\"signal rank must be positive\")\n\n\n@dataclass(frozen=True)\nclass RetrievalWarning:\n    code: str\n    message: str\n    severity: RetrievalSeverity\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.code, \"code\")\n        _require_non_empty(self.message, \"message\")\n\n\n@dataclass(frozen=True)\nclass RetrievalResult:\n    result_id: str\n    vault_id: str\n    kind: str\n    title: str\n    summary: str\n    rank: int\n    evidence: tuple[EvidenceReference, ...]\n    signals: tuple[RetrievalSignal, ...]\n    relationship_status: RelationshipStatus\n    warnings: tuple[RetrievalWarning, ...]\n    store_revisions: tuple[StoreRevision, ...]\n\n    def __post_init__(self) -> None:\n        _require_non_empty(self.result_id, \"result_id\")\n        _require_non_empty(self.vault_id, \"vault_id\")\n        _require_non_empty(self.kind, \"kind\")\n        _require_non_empty(self.title, \"title\")\n        if self.rank <= 0:\n            raise RetrievalContractError(\"result rank must be positive\")\n        if not self.evidence:\n            raise RetrievalContractError(\"evidence is required for retrieval results\")\n        if not isinstance(self.store_revisions, tuple):\n            raise RetrievalContractError(\"store_revisions must be an immutable tuple\")\n        if any(not isinstance(store_revision, StoreRevision) for store_revision in self.store_revisions):\n            raise RetrievalContractError(\"store_revisions must contain StoreRevision records\")\n\n\ndef require_vector_hit_evidence_match(*, hit: VectorHit, evidence: EvidenceReference) -> None:\n    if (\n        hit.vault_id != evidence.vault_id\n        or hit.document_id != evidence.document_id\n        or hit.chunk_id != evidence.chunk_id\n    ):\n        raise RetrievalContractError(\"vector hit ids must match evidence before rendering\")\n\n\ndef warning_for_missing_vector_evidence(hit: VectorHit) -> RetrievalWarning:\n    return RetrievalWarning(\n        code=\"missing_evidence\",\n        message=f\"Metadata evidence could not be resolved for vector hit: {hit.vector_id}\",\n        severity=\"warning\",\n    )\n\n\ndef warning_for_stale_vector(*, hit: VectorHit, evidence: EvidenceReference) -> RetrievalWarning | None:\n    if hit.metadata_index_revision == evidence.metadata_index_revision:\n        return None\n    return RetrievalWarning(\n        code=\"stale_vector\",\n        message=f\"Vector hit metadata revision is stale for evidence: {hit.vector_id}\",\n        severity=\"warning\",\n    )\n\n\ndef _require_non_empty(value: str, field_name: str) -> None:\n    if not value:\n        raise RetrievalContractError(f\"{field_name} is required\")"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.retrieval.retrieval_result import (\n    RelationshipStatus,\n    RetrievalResult,\n    RetrievalSeverity,\n    RetrievalSignal,\n    RetrievalSignalKind,\n    RetrievalWarning,\n    StoreRevision,\n    require_vector_hit_evidence_match,\n    warning_for_missing_vector_evidence,\n    warning_for_stale_vector,\n)\n\n__all__ = [\n    \"RelationshipStatus\",\n    \"RetrievalResult\",\n    \"RetrievalSeverity\",\n    \"RetrievalSignal\",\n    \"RetrievalSignalKind\",\n    \"RetrievalWarning\",\n    \"StoreRevision\",\n    \"require_vector_hit_evidence_match\",\n    \"warning_for_missing_vector_evidence\",\n    \"warning_for_stale_vector\",\n]"
+          }
+        ]
+      },
+      {
+        "heading": "Task 5: Phase 2A Boundary Tests",
+        "content": "Files:\nTest: tests/test_cli_surface_boundary.py\n[ ] Step 1: Write boundary tests that protect Phase 2A scope\nCreate tests/test_cli_surface_boundary.py:\n[ ] Step 2: Run the boundary tests\nRun:\nExpected: boundary tests pass because Phase 2A has not added vg search or vector status output.\n[ ] Step 3: Run boundary checks with static checks\nRun:\nExpected: all commands pass.\n[ ] Step 4: Commit boundary tests\nRun:",
+        "items": [
+          "Test: tests/test_cli_surface_boundary.py",
+          "[ ] Step 1: Write boundary tests that protect Phase 2A scope",
+          "[ ] Step 2: Run the boundary tests",
+          "[ ] Step 3: Run boundary checks with static checks",
+          "[ ] Step 4: Commit boundary tests"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom typer.testing import CliRunner\n\nfrom vault_graph.cli.main import app\n\nrunner = CliRunner()\n\n\ndef test_cli_surface_does_not_expose_search_before_search_slice() -> None:\n    result = runner.invoke(app, [\"search\", \"query\"])\n\n    assert result.exit_code != 0\n    assert \"No such command\" in result.output\n\n\ndef test_cli_status_reports_metadata_fields(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = tmp_path / \"state\"\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    result = runner.invoke(app, [\"status\", \"--state\", str(state_path)])\n\n    assert result.exit_code == 0\n    assert \"metadata_ok:\" in result.stdout\n    assert \"vector_ok:\" not in result.stdout\n    assert \"vector_schema_compatible:\" not in result.stdout"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_surface_boundary.py -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_surface_boundary.py -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src"
+          },
+          {
+            "language": "bash",
+            "content": "git add tests/test_cli_surface_boundary.py\ngit commit -m \"test: protect phase 2a retrieval boundary\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 6: Documentation And Final Acceptance Verification",
+        "content": "Files:\nReview: docs/SPEC.md Review: docs/DESIGN.md Review: docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md Modify if needed: docs/PATCH_LOG.md\n[ ] Step 1: Verify documentation matches the implemented Phase 2A contract\nRun:\nExpected:\nChroma and Qdrant are both described as future implementations of the same VectorStore contract. old embedding provider/policy terms are absent. no global same-Vault evidence invariant remains.\n[ ] Step 2: Update docs/PATCH_LOG.md only if execution changed the plan\nRecord review-driven corrections that protect read-only behavior, rebuildability, evidence authority, or multi-vault consistency. Do not duplicate accepted architecture decisions that already live in docs/DECISIONS.md.\n[ ] Step 3: Run the final Phase 2A verification set\nRun:\nExpected: all commands pass.\n[ ] Step 4: Commit final documentation alignment if changed\nRun:",
+        "items": [
+          "Review: docs/SPEC.md",
+          "Review: docs/DESIGN.md",
+          "Review: docs/superpowers/specs/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary-design.md",
+          "Modify if needed: docs/PATCH_LOG.md",
+          "[ ] Step 1: Verify documentation matches the implemented Phase 2A contract",
+          "Chroma and Qdrant are both described as future implementations of the same",
+          "old embedding provider/policy terms are absent.",
+          "no global same-Vault evidence invariant remains.",
+          "[ ] Step 2: Update docs/PATCH_LOG.md only if execution changed the plan",
+          "[ ] Step 3: Run the final Phase 2A verification set",
+          "[ ] Step 4: Commit final documentation alignment if changed"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "rg -n \"contract tests that future Chroma and Qdrant\" docs/SPEC.md docs/superpowers/specs\nold_embedding_terms='Embedding''Provider|Embedding''Policy|embedding_''policy|policy_''mismatch'\nsame_vault_invariant='evidence_''vault_id_must_match_result_''vault_id'\nsame_vault_invariant=\"${same_vault_invariant/evidence_vault_id/evidence vault_id}\"\nsame_vault_invariant=\"${same_vault_invariant/result_vault_id/result vault_id}\"\nsame_vault_invariant=\"${same_vault_invariant//_/ }\"\nrg -n \"$old_embedding_terms\" docs README.md --glob '!docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md'\nrg -n \"$same_vault_invariant\" docs/SPEC.md docs/DESIGN.md docs/superpowers --glob '!docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md'"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src\ngit diff --check"
+          },
+          {
+            "language": "bash",
+            "content": "git add docs/PATCH_LOG.md docs/SPEC.md docs/DESIGN.md docs/superpowers/specs docs/superpowers/plans\ngit commit -m \"docs: align phase 2a implementation acceptance\""
+          }
+        ]
+      },
+      {
+        "heading": "Self-Review Checklist",
+        "content": "Spec coverage:\nTextEmbeddings contract: Task 1 duplicate embedding input ID validation: Task 1 Deterministic test TextEmbeddings implementation: Task 1 Vector store protocol and records: Task 2 Content-scope filter metadata: Task 2 Scope filtering before limits: Task 2 Multi-vault identity preservation: Task 2 model-spec-aware vector identity and mixed-spec rejection: Task 2 Metadata evidence resolution: Task 3 Vector hits are not evidence authority: Task 2 and Task 3 VectorHit-to-EvidenceReference ID binding before normal result rendering: Task 4 missing and stale vector evidence warnings: Task 4 Graph-ready retrieval result schema: Task 4 Signal-level backend and revision metadata: Task 4 No user-visible search or vector status in Phase 2A: Task 5 Chroma and Qdrant shared VectorStore contract documentation: Task 6\nType consistency:\nEvidenceReference is owned by MetadataStore because metadata resolution is the evidence authority. RetrievalResult imports EvidenceReference instead of teaching retrieval code metadata table internals. RetrievalResult does not globally require evidence to share the result vault_id; vector-backed normal result assembly uses require_vector_hit_evidence_...",
+        "items": [
+          "TextEmbeddings contract: Task 1",
+          "duplicate embedding input ID validation: Task 1",
+          "Deterministic test TextEmbeddings implementation: Task 1",
+          "Vector store protocol and records: Task 2",
+          "Content-scope filter metadata: Task 2",
+          "Scope filtering before limits: Task 2",
+          "Multi-vault identity preservation: Task 2",
+          "model-spec-aware vector identity and mixed-spec rejection: Task 2",
+          "Metadata evidence resolution: Task 3",
+          "Vector hits are not evidence authority: Task 2 and Task 3",
+          "VectorHit-to-EvidenceReference ID binding before normal result rendering: Task 4",
+          "missing and stale vector evidence warnings: Task 4",
+          "Graph-ready retrieval result schema: Task 4",
+          "Signal-level backend and revision metadata: Task 4",
+          "No user-visible search or vector status in Phase 2A: Task 5",
+          "Chroma and Qdrant shared VectorStore contract documentation: Task 6"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src\ngit diff --check"
+          }
+        ]
+      },
+      {
+        "heading": "Execution Handoff",
+        "content": "Use superpowers:subagent-driven-development for execution if multiple agents are available. Use one fresh implementation subagent per task, then review the diff before starting the next task.\nUse superpowers:executing-plans for inline execution when working in a single session.",
+        "items": [
+          "Review the Execution Handoff section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-08-phase-2a-retrieval-contract-vectorstore-boundary.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

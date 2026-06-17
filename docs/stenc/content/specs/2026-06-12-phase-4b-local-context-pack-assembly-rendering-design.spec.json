@@ -1,0 +1,645 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-12-phase-4b-local-context-pack-assembly-rendering-design",
+  "slug": "2026-06-12-phase-4b-local-context-pack-assembly-rendering-design",
+  "status": "draft",
+  "title": "Phase 4B Local Context Pack Assembly And Rendering Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4B only",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-12",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [
+      "plan:2026-06-12-phase-4b-local-context-pack-assembly-rendering"
+    ],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4B only",
+    "agentSummary": "Read docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 4B exposes the Phase 4A context pack contract through a local CLI command and Markdown rendering view.\nThe goal is that a user can run:\nand receive a bounded, evidence-linked context pack without mutating Vault.\nPhase 4B implements:\nvg context GOAL JSON output using ContextPack as the canonical artifact Markdown rendering generated from the JSON payload --max-tokens --vault-id, --all-vaults, --include-graph, and --include-cross-vault scope flags warnings for stale, missing, contested, deprecated, truncated, and omitted material read-only and multi-vault tests\nPhase 4B must not implement:\nvg ask MCP serving HTTP serving durable context pack persistence automatic Vault publication LLM-g...",
+    "problem": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4B only",
+    "scope": {
+      "in": [
+        "Structured Stenc view of the source spec Markdown.",
+        "Original Markdown remains at docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md."
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown source.",
+        "Changing Vault Graph runtime behavior."
+      ]
+    },
+    "architecture": {
+      "summary": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4B only",
+      "flow": [
+        "Markdown source -> Stenc JSON -> generated fixed web page"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Overview",
+        "detail": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4B only",
+        "acceptanceCriteria": [
+          "Review the Overview section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "Purpose",
+        "detail": "Phase 4B exposes the Phase 4A context pack contract through a local CLI command and Markdown rendering view.\nThe goal is that a user can run:\nand receive a bounded, evidence-linked context pack without mutating Vault.\nPhase 4B implements:\nvg context GOAL JSON output using ContextPack as the canonical artifact Markdown rendering generated from the JSON payload --max-tokens --vault-id, --all-vaults, --include-graph, and --include-cross-vault scope flags warnings for stale, missing, contested, deprecated, truncated, and omitted material read-only and multi-vault tests\nPhase 4B must not implement:\nvg ask MCP serving HTTP serving durable context pack persistence automatic Vault publication LLM-g...",
+        "acceptanceCriteria": [
+          "vg context GOAL",
+          "JSON output using ContextPack as the canonical artifact",
+          "Markdown rendering generated from the JSON payload",
+          "--max-tokens",
+          "--vault-id, --all-vaults, --include-graph, and",
+          "warnings for stale, missing, contested, deprecated, truncated, and omitted",
+          "read-only and multi-vault tests",
+          "vg ask"
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "CLI Surface",
+        "detail": "Command:\nOptions:\nDefaults:\n--format markdown for human CLI readability --max-tokens 8000 --limit 10 retrieval results before pack classification active Vault scope graph disabled cross-Vault graph disabled\nValidation:\n--vault-id and --all-vaults are mutually exclusive. --include-cross-vault requires --all-vaults --include-graph. --max-tokens must be positive and at least 1000. unsupported formats return unsupported_format.\nEven though Markdown is the default CLI view, JSON remains the canonical artifact. Tests should assert the JSON contract first.",
+        "acceptanceCriteria": [
+          "--format markdown for human CLI readability",
+          "--max-tokens 8000",
+          "--limit 10 retrieval results before pack classification",
+          "active Vault scope",
+          "graph disabled",
+          "cross-Vault graph disabled",
+          "--vault-id and --all-vaults are mutually exclusive.",
+          "--include-cross-vault requires --all-vaults --include-graph."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "Overview",
+        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4B only",
+        "interfaces": [
+          "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "The CLI should not classify results, truncate excerpts, or rewrite warnings. Those responsibilities belong to ContextPackBuilder."
+    ],
+    "errorHandling": [
+      {
+        "case": "Error Handling",
+        "behavior": "Fatal CLI errors:\n| Code | Condition | | --- | --- | | empty_goal | goal is blank | | unsupported_format | output format is not json or markdown | | context_budget_too_small | --max-tokens is below 1000 | | invalid_scope | selected Vault ID is missing or mutually exclusive flags are used | | metadata_unavailable | metadata projection is required and unavailable |\nNon-fatal warnings:\n| Code | Condition | | --- | --- | | search_degraded | retrieval ran with missing vector support or stale project..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Classification Rules",
+        "rules": [
+          "Review the Classification Rules section in the source Markdown."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/2026-06-12-phase-4b-local-context-pack-assembly-rendering.md",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-12\nScope: Phase 4B only",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 4B exposes the Phase 4A context pack contract through a local CLI command and Markdown rendering view.\nThe goal is that a user can run:\nand receive a bounded, evidence-linked context pack without mutating Vault.\nPhase 4B implements:\nvg context GOAL JSON output using ContextPack as the canonical artifact Markdown rendering generated from the JSON payload --max-tokens --vault-id, --all-vaults, --include-graph, and --include-cross-vault scope flags warnings for stale, missing, contested, deprecated, truncated, and omitted material read-only and multi-vault tests\nPhase 4B must not implement:\nvg ask MCP serving HTTP serving durable context pack persistence automatic Vault publication LLM-generated summaries or answers",
+        "items": [
+          "vg context GOAL",
+          "JSON output using ContextPack as the canonical artifact",
+          "Markdown rendering generated from the JSON payload",
+          "--max-tokens",
+          "--vault-id, --all-vaults, --include-graph, and",
+          "warnings for stale, missing, contested, deprecated, truncated, and omitted",
+          "read-only and multi-vault tests",
+          "vg ask",
+          "MCP serving",
+          "HTTP serving",
+          "durable context pack persistence",
+          "automatic Vault publication",
+          "LLM-generated summaries or answers"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg context \"Implement GraphRAG MVP\"\nvg context \"Implement GraphRAG MVP\" --format json\nvg context \"Implement GraphRAG MVP\" --format markdown\nvg context \"Implement GraphRAG MVP\" --include-graph"
+          }
+        ]
+      },
+      {
+        "heading": "CLI Surface",
+        "content": "Command:\nOptions:\nDefaults:\n--format markdown for human CLI readability --max-tokens 8000 --limit 10 retrieval results before pack classification active Vault scope graph disabled cross-Vault graph disabled\nValidation:\n--vault-id and --all-vaults are mutually exclusive. --include-cross-vault requires --all-vaults --include-graph. --max-tokens must be positive and at least 1000. unsupported formats return unsupported_format.\nEven though Markdown is the default CLI view, JSON remains the canonical artifact. Tests should assert the JSON contract first.",
+        "items": [
+          "--format markdown for human CLI readability",
+          "--max-tokens 8000",
+          "--limit 10 retrieval results before pack classification",
+          "active Vault scope",
+          "graph disabled",
+          "cross-Vault graph disabled",
+          "--vault-id and --all-vaults are mutually exclusive.",
+          "--include-cross-vault requires --all-vaults --include-graph.",
+          "--max-tokens must be positive and at least 1000.",
+          "unsupported formats return unsupported_format."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg context GOAL"
+          },
+          {
+            "language": "text",
+            "content": "--state PATH\n--vault-id ID\n--all-vaults\n--format json|markdown\n--max-tokens N\n--limit N\n--include-graph\n--include-cross-vault"
+          }
+        ]
+      },
+      {
+        "heading": "Assembly Flow",
+        "content": "The CLI should not classify results, truncate excerpts, or rewrite warnings. Those responsibilities belong to ContextPackBuilder.",
+        "items": [
+          "Review the Assembly Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg context GOAL\n  -> validate CLI options\n  -> load VaultCatalog\n  -> resolve QueryScope\n  -> create ContextPackRequest\n  -> ContextPackBuilder.build(request)\n     -> RetrievalService.search(goal, limit=request.retrieval_limit, include_graph=request.include_graph)\n     -> preserve SearchResponse warnings\n     -> classify SearchResponse results\n     -> create ContextEvidence entries\n     -> apply deterministic budget packing\n     -> compute pack_id from canonical identity JSON without pack_id or generated_at\n  -> render JSON or Markdown"
+          }
+        ]
+      },
+      {
+        "heading": "Classification Rules",
+        "content": "Phase 4B uses deterministic, local rules.\n| Section | Rule | | --- | --- | | decisions | path contains /decisions/ or graph entity type is Decision | | constraints | heading or path includes constraint, principle, invariant, policy, or convention | | open_questions | heading or path includes question, todo, follow-up, issue, or revisit | | relevant_pages | wiki/ or docs/ evidence not classified above | | relevant_sources | raw/ or source-like evidence | | current_state | evidence-backed status-like Vault content selected by retrieval |\nClassification must be conservative. If a result cannot be confidently classified, put it in relevant_pages or relevant_sources rather than inventing a stronger meaning.\nStore freshness summaries are not evidence chunks. They belong in warnings, backend metadata, vault revisions, or store revisions, not normal current_state items.\nPhase 4B does not run an LLM classifier.",
+        "items": [
+          "Review the Classification Rules section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Evidence Grouping",
+        "content": "Evidence grouping deduplicates by:\nIf multiple retrieval results point to the same evidence chunk, the pack keeps one top-level ContextEvidence entry and merges retrieval reasons:\nSection items may share evidence refs. Shared evidence does not duplicate excerpt tokens in budget accounting.",
+        "items": [
+          "Review the Evidence Grouping section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "(vault_id, document_id, chunk_id)"
+          },
+          {
+            "language": "text",
+            "content": "keyword\nvector\ngraph"
+          }
+        ]
+      },
+      {
+        "heading": "Ranking And Packing",
+        "content": "Phase 4B consumes the ranking produced by RetrievalService. It does not compare keyword, vector, and graph backend scores directly.\nPacking order inside each section:\nlower retrieval rank more signal kinds durable page path before raw source path lexical (vault_id, path, chunk_id) tie-break\nSection priority follows Phase 4A:\nwarnings and recovery hints decisions constraints open questions current state relevant pages relevant sources optional graph-related evidence\nWhen the budget is exhausted, omitted items produce budget_omitted warnings.",
+        "items": [
+          "lower retrieval rank",
+          "more signal kinds",
+          "durable page path before raw source path",
+          "lexical (vault_id, path, chunk_id) tie-break",
+          "warnings and recovery hints",
+          "decisions",
+          "constraints",
+          "open questions",
+          "current state",
+          "relevant pages",
+          "relevant sources",
+          "optional graph-related evidence"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Markdown Rendering",
+        "content": "Markdown output is a view over JSON.\nRequired Markdown sections:\nRendering rules:\nAlways render Warnings, even when empty. Evidence lines include [vault_id] path#anchor when anchor exists. Warnings include code, severity, affected Vault IDs, and recovery hint. Truncated excerpts include a visible [truncated] marker. Omitted sections include a visible warning, not just a missing heading. Markdown must not include any fact absent from JSON.",
+        "items": [
+          "Always render Warnings, even when empty.",
+          "Evidence lines include [vault_id] path#anchor when anchor exists.",
+          "Warnings include code, severity, affected Vault IDs, and recovery hint.",
+          "Truncated excerpts include a visible [truncated] marker.",
+          "Omitted sections include a visible warning, not just a missing heading.",
+          "Markdown must not include any fact absent from JSON."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "markdown",
+            "content": "# Context Pack\n\n## Goal\n## Scope\n## Warnings\n## Decisions\n## Constraints\n## Open Questions\n## Current State\n## Relevant Pages\n## Relevant Sources\n## Evidence\n## Revisions"
+          }
+        ]
+      },
+      {
+        "heading": "Read-Only Boundary",
+        "content": "vg context may read:\ncatalog config metadata store keyword projection vector projection graph store only when --include-graph is set\nvg context must not write:\nregistered Vault files metadata/vector/graph stores projection cache context pack cache embedding model cache\nPhase 4B should open stores read-only. If required projections are missing, the command should fail or degrade through warnings according to the Phase 4A error policy.",
+        "items": [
+          "catalog config",
+          "metadata store",
+          "keyword projection",
+          "vector projection",
+          "graph store only when --include-graph is set",
+          "registered Vault files",
+          "metadata/vector/graph stores",
+          "projection cache",
+          "context pack cache",
+          "embedding model cache"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Multi-Vault Behavior",
+        "content": "Default:\nuses the active Vault only.\nSingle Vault:\nuses exactly that Vault.\nAll Vaults:\nuses all enabled Vaults and records each Vault in scope.requested.vault_ids, scope.actual_scopes, vaults, warnings, evidence refs, and store revisions.\nCross-Vault graph:\nis the only Phase 4B mode that may include cross-Vault graph relationships.",
+        "items": [
+          "Review the Multi-Vault Behavior section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg context \"goal\""
+          },
+          {
+            "language": "bash",
+            "content": "vg context --vault-id work \"goal\""
+          },
+          {
+            "language": "bash",
+            "content": "vg context --all-vaults \"goal\""
+          },
+          {
+            "language": "bash",
+            "content": "vg context --all-vaults --include-graph --include-cross-vault \"goal\""
+          }
+        ]
+      },
+      {
+        "heading": "Error Handling",
+        "content": "Fatal CLI errors:\n| Code | Condition | | --- | --- | | empty_goal | goal is blank | | unsupported_format | output format is not json or markdown | | context_budget_too_small | --max-tokens is below 1000 | | invalid_scope | selected Vault ID is missing or mutually exclusive flags are used | | metadata_unavailable | metadata projection is required and unavailable |\nNon-fatal warnings:\n| Code | Condition | | --- | --- | | search_degraded | retrieval ran with missing vector support or stale projections | | graph_unavailable | graph was requested but cannot be used | | missing_evidence | an item cannot resolve its evidence chunk | | stale_projection | source projection is stale | | contested_relationship | graph status is contested | | deprecated_relationship | graph status is deprecated | | budget_omitted | item omitted due to budget | | excerpt_truncated | excerpt shortened due to budget |",
+        "items": [
+          "Review the Error Handling section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Tests Required Before Implementation",
+        "content": "Phase 4B implementation must include tests for:\nvg context --format json returns the Phase 4A JSON contract. vg context --format markdown renders from JSON and includes warnings. --limit is passed into ContextPackRequest.retrieval_limit. plain vg context does not open graph retrieval state. --include-graph opens graph retrieval read-only and preserves graph warnings. --include-cross-vault is rejected without --all-vaults --include-graph. budget truncation and omission are deterministic and warning-backed. missing metadata exits nonzero without creating metadata/vector/graph/cache files. multi-vault packs preserve Vault IDs on evidence, warnings, and revisions. read-only boundary tests prove no registered Vault files are changed. import boundary tests prove context pack code depends on interfaces, not local backend adapters.",
+        "items": [
+          "vg context --format json returns the Phase 4A JSON contract.",
+          "vg context --format markdown renders from JSON and includes warnings.",
+          "--limit is passed into ContextPackRequest.retrieval_limit.",
+          "plain vg context does not open graph retrieval state.",
+          "--include-graph opens graph retrieval read-only and preserves graph",
+          "--include-cross-vault is rejected without --all-vaults --include-graph.",
+          "budget truncation and omission are deterministic and warning-backed.",
+          "missing metadata exits nonzero without creating metadata/vector/graph/cache",
+          "multi-vault packs preserve Vault IDs on evidence, warnings, and revisions.",
+          "read-only boundary tests prove no registered Vault files are changed.",
+          "import boundary tests prove context pack code depends on interfaces, not"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Handoff To Phase 5",
+        "content": "Phase 5 MCP should expose `build_context_pack(goal, scope=None, max_tokens=None)` over the Phase 4 JSON contract. It may add generated resource URIs such as vault://context/packs/{id}, but it should not change the canonical pack schema without bumping context_pack_schema_version.",
+        "items": [
+          "Review the Handoff To Phase 5 section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-4/2026-06-12-phase-4b-local-context-pack-assembly-rendering-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

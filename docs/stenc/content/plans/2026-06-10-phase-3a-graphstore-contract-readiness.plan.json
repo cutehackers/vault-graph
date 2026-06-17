@@ -1,0 +1,1519 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-10-phase-3a-graphstore-contract-readiness",
+  "slug": "2026-06-10-phase-3a-graphstore-contract-readiness",
+  "status": "approved",
+  "title": "Phase 3A GraphStore Contract And Readiness Implementation Plan",
+  "description": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-10",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+      "docs/SPEC.md"
+    ],
+    "relatedSpec": "spec:2026-06-10-phase-3a-graphstore-contract-readiness-design"
+  },
+  "page": {
+    "humanSummary": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use ch.",
+    "agentSummary": "Follow the implementation sequence from docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md; use this Stenc plan as a structured execution view.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 3A contract-readiness slice: graph record contracts, deterministic graph identities, a reusable GraphStore interface, local SQLite graph persistence, and vg status graph readiness without graph extraction, traversal, ranking, or graph search.\nArchitecture: Phase 3A is a storage and readiness boundary. Immutable graph contract records live under vault_graph.graph; application code reads graph readiness through an app-level service; storage consumers depend on...",
+    "architecture": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 3A contract-readiness slice: graph record contracts, deterministic graph identities, a reusable GraphStore interface, local SQLite graph persistence, and vg status graph readiness without graph extraction, traversal, ranking, or graph search.\nArchitecture: Phase 3A is a storage and readiness boundary. Immutable graph contract records live under vault_graph.graph; application code reads graph readiness through an app-level service; storage consumers depend on GraphStore, with SQLiteGraphStore as the local reference backend and InMemoryGraphStore as the cont...",
+    "techStack": [
+      "Python 3.12",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Preserved Superpowers plan convention: execute task-by-task and keep checkbox tracking syntax in the original Markdown plan."
+    },
+    "scopeCheck": {
+      "assessment": "Phase 3A implements:\nimmutable graph contract records deterministic graph ID helpers graph domain errors GraphStore protocol in-memory graph store fake for contract tests SQLite graph store reference backend graph extraction spec default compatibility boundary graph manifests, revisions, tombstones, and apply result records GraphReadiness and app-level ReadOnlyGraphReadiness vg status graph readiness fields in text output vg status --format json machine-readable metadata/vector/graph status\nPhase 3A must not implement:\nentity extraction execution relationship extraction execution GraphIndexer graph writes during vg index rustworkx GraphProjection vg related vg decision-trace vg search --inc...",
+      "decomposition": "Use body.slices in order; consult supporting sections for preserved source outline, commands, and file references."
+    },
+    "currentState": "Current state is documented in docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md.",
+    "targetState": "Target state is the completed implementation described by the source plan.",
+    "scope": {
+      "in": [
+        "immutable graph contract records",
+        "deterministic graph ID helpers",
+        "graph domain errors",
+        "GraphStore protocol",
+        "in-memory graph store fake for contract tests",
+        "SQLite graph store reference backend",
+        "graph extraction spec default compatibility boundary",
+        "graph manifests, revisions, tombstones, and apply result records",
+        "GraphReadiness and app-level ReadOnlyGraphReadiness",
+        "vg status graph readiness fields in text output"
+      ],
+      "out": [
+        "Replacing or deleting the original Markdown plan.",
+        "Changing plan semantics during Stenc conversion."
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Preserve",
+        "path": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+        "responsibility": "Original implementation plan source"
+      },
+      {
+        "action": "Review",
+        "path": "docs/SPEC.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DESIGN.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/FEATURES.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/DECISIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/CONVENTIONS.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/README.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/CONTEXT.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/spec/phase-3/",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "docs/superpowers/specs/phase-3/",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/app/graph_readiness_service.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/graph/graph_readiness.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/graph/graph_contracts.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/graph/__init__.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/graph/graph_identity.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/interfaces/graph_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "src/vault_graph/storage/local/sqlite_graph_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/fakes/in_memory_graph_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_graph_contracts.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_graph_store_contract.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_sqlite_graph_store.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      },
+      {
+        "action": "Review",
+        "path": "tests/test_graph_readiness.py",
+        "responsibility": "Plan-referenced file or documentation surface"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Task 1: Add Graph Contracts And Identity Helpers",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/graph/init.py",
+          "src/vault_graph/graph/graph_contracts.py",
+          "src/vault_graph/graph/graph_identity.py",
+          "src/vault_graph/errors.py",
+          "tests/test_graph_contracts.py",
+          "tests/test_multi_vault_graph_identity.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/graph/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/graph/graph_contracts.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/graph/graph_identity.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/errors.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_contracts.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_multi_vault_graph_identity.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_contracts.py tests/test_multi_vault_graph_identity.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/graph src/vault_graph/errors.py tests/test_graph_contracts.py tests/test_multi_vault_graph_identity.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: add graph record contracts\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "Create: src/vault_graph/graph/init.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/graph/init.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Task 2: Add GraphStore Interface And In-Memory Contract Fake",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/interfaces/graph_store.py",
+          "src/vault_graph/storage/interfaces/init.py",
+          "tests/fakes/in_memory_graph_store.py",
+          "tests/test_graph_store_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/interfaces/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/fakes/in_memory_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_store_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_store_contract.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/storage/interfaces tests/fakes/in_memory_graph_store.py tests/test_graph_store_contract.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: define graph store contract\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "Create: src/vault_graph/storage/interfaces/graph_store.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/interfaces/graph_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Task 3: Add SQLiteGraphStore Reference Backend",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/storage/local/sqlite_graph_store.py",
+          "src/vault_graph/storage/local/init.py",
+          "tests/test_sqlite_graph_store.py",
+          "tests/test_graph_store_contract.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/sqlite_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/storage/local/init.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_sqlite_graph_store.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_store_contract.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_sqlite_graph_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/storage/local/sqlite_graph_store.py src/vault_graph/storage/local/init.py tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat: add sqlite graph store\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-5",
+            "title": "Create: src/vault_graph/storage/local/sqlite_graph_store.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/storage/local/sqlite_graph_store.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Task 4: Add Graph Readiness Types And Service",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/graph/graph_readiness.py",
+          "src/vault_graph/app/graph_readiness_service.py",
+          "tests/test_graph_readiness.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/graph/graph_readiness.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/graph_readiness_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_graph_readiness.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_graph_readiness.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add src/vault_graph/graph/graph_readiness.py src/vault_graph/app/graph_readiness_service.py tests/test_graph_readiness.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"feat: add graph readiness service\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "Create: src/vault_graph/graph/graph_readiness.py",
+            "status": "todo",
+            "instruction": "Create: src/vault_graph/graph/graph_readiness.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Task 5: Wire Graph Readiness Into Status",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/app/catalog_service.py",
+          "src/vault_graph/app/index_service.py",
+          "src/vault_graph/cli/main.py",
+          "tests/test_cli_graph_status.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/catalog_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/app/index_service.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/cli/main.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_graph_status.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_graph_status.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_cli_graph_status.py tests/test_cli_vector_indexing.py tests/test_cli_surface_boundary.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git add src/vault_graph/app/catalog_service.py src/vault_graph/app/index_service.py src/vault_graph/cli/main.py tests/test_cli_graph_status.py tests/test_cli_vector_indexing.py tests/test_cli_surface_boundary.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "git commit -m \"feat: report graph readiness in status\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-5",
+            "title": "Modify: src/vault_graph/app/catalog_service.py",
+            "status": "todo",
+            "instruction": "Modify: src/vault_graph/app/catalog_service.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Task 6: Add Read-Only And Multi-Vault Regression Coverage",
+        "status": "todo",
+        "surfaces": [
+          "tests/test_read_only_boundary.py",
+          "tests/test_vector_indexing_read_only_boundary.py",
+          "tests/test_multi_vault_graph_identity.py",
+          "tests/test_cli_graph_status.py"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "tests/test_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_vector_indexing_read_only_boundary.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_multi_vault_graph_identity.py",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "tests/test_cli_graph_status.py",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest tests/test_read_only_boundary.py tests/test_vector_indexing_read_only_boundary.py tests/test_multi_vault_graph_identity.py -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "git add tests/test_read_only_boundary.py tests/test_vector_indexing_read_only_boundary.py tests/test_multi_vault_graph_identity.py",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "git commit -m \"test: harden graph readiness boundaries\"",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "Modify: tests/test_read_only_boundary.py",
+            "status": "todo",
+            "instruction": "Modify: tests/test_read_only_boundary.py",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Task 7: Final Verification And Documentation Trace",
+        "status": "todo",
+        "surfaces": [
+          "docs/PATCH_LOG.md",
+          "docs/DECISIONS.md"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/PATCH_LOG.md",
+            "role": "Plan-referenced implementation or documentation file"
+          },
+          {
+            "action": "Review",
+            "path": "docs/DECISIONS.md",
+            "role": "Plan-referenced implementation or documentation file"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "Run preserved command 1",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest \\",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "Run preserved command 2",
+            "status": "todo",
+            "command": "uv run --python 3.12 pytest -q",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "Run preserved command 3",
+            "status": "todo",
+            "command": "uv run --python 3.12 ruff check src tests",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "Run preserved command 4",
+            "status": "todo",
+            "command": "uv run --python 3.12 mypy src",
+            "expected": "Command succeeds or produces the result required by the original plan.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-5",
+            "title": "Modify only if review found a real implementation correction:",
+            "status": "todo",
+            "instruction": "Modify only if review found a real implementation correction:",
+            "codeBlocks": []
+          }
+        ],
+        "doneWhen": [
+          "The slice steps are complete and their validation evidence is recorded."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7"
+    ],
+    "risks": [
+      {
+        "risk": "Error Handling",
+        "mitigation": "Add graph errors under VaultGraphError:\nGraphStoreError: base graph persistence/contract error GraphStoreUnavailable: backend cannot be opened or queried GraphSchemaIncompatible: schema cannot be safely read GraphReadOnlyViolation: write attempted through read-only store GraphRecordInvalid: graph record violates the contract\nUse exceptions for invalid records and illegal writes. Use GraphReadiness for normal operational states: missing, empty, fresh, stale, incompatible, and unavailable.\nvg sta..."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-06-10-phase-3a-graphstore-contract-readiness.plan.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_contracts.py tests/test_multi_vault_graph_identity.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/graph src/vault_graph/errors.py tests/test_graph_contracts.py tests/test_multi_vault_graph_identity.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat: add graph record contracts\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_store_contract.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git add src/vault_graph/storage/interfaces tests/fakes/in_memory_graph_store.py tests/test_graph_store_contract.py",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "git commit -m \"feat: define graph store contract\"",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_sqlite_graph_store.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py -q",
+        "purpose": "Preserved validation command from the original plan Markdown."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md as the original plan text; this JSON is a structured Stenc view.",
+      "Follow body.slices in executionOrder unless source Markdown or live repo evidence invalidates the sequence.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm task slices, commands, code fences, and file references remain visible in Stenc fields."
+      },
+      {
+        "name": "No source deletion",
+        "purpose": "Confirm original Markdown files remain unchanged."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Dispatch fresh subagents per task and review between task slices.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "Execute the slices in this session with checkpointed verification.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "For agentic workers: REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.\nGoal: Build the Phase 3A contract-readiness slice: graph record contracts, deterministic graph identities, a reusable GraphStore interface, local SQLite graph persistence, and vg status graph readiness without graph extraction, traversal, ranking, or graph search.\nArchitecture: Phase 3A is a storage and readiness boundary. Immutable graph contract records live under vault_graph.graph; application code reads graph readiness through an app-level service; storage consumers depend on GraphStore, with SQLiteGraphStore as the local reference backend and InMemoryGraphStore as the contract fake.\nTech Stack: Python 3.12, dataclasses, Protocol interfaces, SQLite, Typer CLI, pytest, ruff, mypy.\n---",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Source Documents",
+        "content": "Read these before implementation:\ndocs/SPEC.md docs/DESIGN.md docs/FEATURES.md docs/DECISIONS.md docs/CONVENTIONS.md docs/superpowers/specs/phase-3/README.md docs/superpowers/specs/phase-3/CONTEXT.md docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md\nThe implementation request mentioned docs/superpowers/spec/phase-3/. The accepted repo path is docs/superpowers/specs/phase-3/.",
+        "items": [
+          "docs/SPEC.md",
+          "docs/DESIGN.md",
+          "docs/FEATURES.md",
+          "docs/DECISIONS.md",
+          "docs/CONVENTIONS.md",
+          "docs/superpowers/specs/phase-3/README.md",
+          "docs/superpowers/specs/phase-3/CONTEXT.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3-overview-design.md",
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope Guardrails",
+        "content": "Phase 3A implements:\nimmutable graph contract records deterministic graph ID helpers graph domain errors GraphStore protocol in-memory graph store fake for contract tests SQLite graph store reference backend graph extraction spec default compatibility boundary graph manifests, revisions, tombstones, and apply result records GraphReadiness and app-level ReadOnlyGraphReadiness vg status graph readiness fields in text output vg status --format json machine-readable metadata/vector/graph status\nPhase 3A must not implement:\nentity extraction execution relationship extraction execution GraphIndexer graph writes during vg index rustworkx GraphProjection vg related vg decision-trace vg search --include-graph graph ranking graph node or edge embeddings LLM-assisted extraction Neo4j cross-Vault entity merging Vault file mutation\nRelease-ready Phase 3A means a user can run:\nand see graph backend readiness without creating graph state, projection cache state, model cache state, or modifying Vault files.",
+        "items": [
+          "immutable graph contract records",
+          "deterministic graph ID helpers",
+          "graph domain errors",
+          "GraphStore protocol",
+          "in-memory graph store fake for contract tests",
+          "SQLite graph store reference backend",
+          "graph extraction spec default compatibility boundary",
+          "graph manifests, revisions, tombstones, and apply result records",
+          "GraphReadiness and app-level ReadOnlyGraphReadiness",
+          "vg status graph readiness fields in text output",
+          "vg status --format json machine-readable metadata/vector/graph status",
+          "entity extraction execution",
+          "relationship extraction execution",
+          "GraphIndexer",
+          "graph writes during vg index",
+          "rustworkx GraphProjection"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "vg init --vault /path/to/vault\nvg status\nvg status --format json"
+          }
+        ]
+      },
+      {
+        "heading": "Implementation Assumptions",
+        "content": "GraphReadinessService is implemented as ReadOnlyGraphReadiness in src/vault_graph/app/graph_readiness_service.py, mirroring the existing ReadOnlySearchReadiness app-layer pattern. src/vault_graph/graph/graph_readiness.py owns GraphReadiness, GraphLineageSnapshot, and related typed status records. The current expected GraphExtractionSpec is a small hard-coded default in src/vault_graph/graph/graph_contracts.py. Phase 3A does not add a graph extraction config file. SQLiteGraphStore.open_read_only(path) never creates directories or files. SQLiteGraphStore.open_writable(path) creates the local graph database only when called by tests or future Phase 3B indexing. GraphStore.latest_revisions(scopes) and GraphStore.current_manifest(scopes) require actual scopes: each supplied QueryScope must contain exactly one vault_id. GraphManifest includes records through explicit graph record scope memberships. Readiness then resolves evidence refs through MetadataStore before claiming freshness. Graph records without evidence refs are invalid. vg status --format json is added because the Phase 3A design requires a machine-readable status surface for agents.",
+        "items": [
+          "GraphReadinessService is implemented as ReadOnlyGraphReadiness in",
+          "src/vault_graph/graph/graph_readiness.py owns GraphReadiness,",
+          "The current expected GraphExtractionSpec is a small hard-coded default in",
+          "SQLiteGraphStore.open_read_only(path) never creates directories or files.",
+          "SQLiteGraphStore.open_writable(path) creates the local graph database only",
+          "GraphStore.latest_revisions(scopes) and GraphStore.current_manifest(scopes)",
+          "GraphManifest includes records through explicit graph record scope",
+          "vg status --format json is added because the Phase 3A design requires a"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "File Structure",
+        "content": "Create:\nsrc/vault_graph/graph/init.py: exports public graph contracts. src/vault_graph/graph/graph_contracts.py: immutable graph record dataclasses, default graph extraction spec, and validation helpers. src/vault_graph/graph/graph_identity.py: deterministic ID and scope-key helpers. src/vault_graph/graph/graph_readiness.py: graph readiness, freshness, and lineage dataclasses. src/vault_graph/app/graph_readiness_service.py: app-level readiness comparison over MetadataStore and GraphStore. src/vault_graph/storage/interfaces/graph_store.py: GraphStore protocol and identity lookup records. src/vault_graph/storage/local/sqlite_graph_store.py: SQLite-backed local reference GraphStore. tests/fakes/in_memory_graph_store.py: in-memory graph store fake that satisfies the same contract tests. tests/test_graph_contracts.py tests/test_graph_store_contract.py tests/test_sqlite_graph_store.py tests/test_graph_readiness.py tests/test_cli_graph_status.py tests/test_multi_vault_graph_identity.py\nModify:\nsrc/vault_graph/errors.py: add graph domain error hierarchy. src/vault_graph/storage/interfaces/init.py: export graph store contracts. src/vault_graph/storage/local/init.py: export SQLiteGraphStore...",
+        "items": [
+          "src/vault_graph/graph/init.py: exports public graph contracts.",
+          "src/vault_graph/graph/graph_contracts.py: immutable graph record dataclasses, default graph extraction spec, and validation helpers.",
+          "src/vault_graph/graph/graph_identity.py: deterministic ID and scope-key helpers.",
+          "src/vault_graph/graph/graph_readiness.py: graph readiness, freshness, and lineage dataclasses.",
+          "src/vault_graph/app/graph_readiness_service.py: app-level readiness comparison over MetadataStore and GraphStore.",
+          "src/vault_graph/storage/interfaces/graph_store.py: GraphStore protocol and identity lookup records.",
+          "src/vault_graph/storage/local/sqlite_graph_store.py: SQLite-backed local reference GraphStore.",
+          "tests/fakes/in_memory_graph_store.py: in-memory graph store fake that satisfies the same contract tests.",
+          "tests/test_graph_contracts.py",
+          "tests/test_graph_store_contract.py",
+          "tests/test_sqlite_graph_store.py",
+          "tests/test_graph_readiness.py",
+          "tests/test_cli_graph_status.py",
+          "tests/test_multi_vault_graph_identity.py",
+          "src/vault_graph/errors.py: add graph domain error hierarchy.",
+          "src/vault_graph/storage/interfaces/init.py: export graph store contracts."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Runtime Data Flow",
+        "content": "Status text flow:\nStatus JSON flow:\nFuture Phase 3B write flow enabled by contracts only:\nPhase 3A must not call this future write flow from vg index.",
+        "items": [
+          "Review the Runtime Data Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg status\n  -> CatalogService.load_catalog()\n  -> resolve requested QueryScope\n  -> actual_query_scopes(catalog, scope)\n  -> SQLiteMetadataStore(read-only)\n  -> ChromaVectorStore(read-only)\n  -> SQLiteGraphStore.open_read_only(graph_path)\n  -> ReadOnlyGraphReadiness.check(requested_scope, actual_scopes)\n  -> render metadata/vector/graph fields"
+          },
+          {
+            "language": "text",
+            "content": "vg status --format json\n  -> same service path\n  -> explicit serializer\n  -> JSON with metadata, vector, graph, vaults, and selected scope"
+          },
+          {
+            "language": "text",
+            "content": "GraphIndexer\n  -> GraphReconcilePlan\n  -> GraphStore.apply_reconcile_plan(plan)\n  -> GraphApplyResult"
+          }
+        ]
+      },
+      {
+        "heading": "Error Handling",
+        "content": "Add graph errors under VaultGraphError:\nGraphStoreError: base graph persistence/contract error GraphStoreUnavailable: backend cannot be opened or queried GraphSchemaIncompatible: schema cannot be safely read GraphReadOnlyViolation: write attempted through read-only store GraphRecordInvalid: graph record violates the contract\nUse exceptions for invalid records and illegal writes. Use GraphReadiness for normal operational states: missing, empty, fresh, stale, incompatible, and unavailable.\nvg status must not fail because graph state is missing. It should fail only for catalog/scope errors or unexpected domain errors that already fail status today.\n---",
+        "items": [
+          "GraphStoreError: base graph persistence/contract error",
+          "GraphStoreUnavailable: backend cannot be opened or queried",
+          "GraphSchemaIncompatible: schema cannot be safely read",
+          "GraphReadOnlyViolation: write attempted through read-only store",
+          "GraphRecordInvalid: graph record violates the contract"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Task 1: Add Graph Contracts And Identity Helpers",
+        "content": "Files:\nCreate: src/vault_graph/graph/init.py Create: src/vault_graph/graph/graph_contracts.py Create: src/vault_graph/graph/graph_identity.py Modify: src/vault_graph/errors.py Test: tests/test_graph_contracts.py Test: tests/test_multi_vault_graph_identity.py\n[ ] Step 1: Write failing graph contract tests\nCreate tests/test_graph_contracts.py:\nCreate tests/test_multi_vault_graph_identity.py:\n[ ] Step 2: Verify the tests fail\nRun:\nExpected: FAIL because graph modules and graph errors do not exist.\n[ ] Step 3: Add graph domain errors\nAdd to src/vault_graph/errors.py:\n[ ] Step 4: Add deterministic graph identity helpers\nCreate src/vault_graph/graph/graph_identity.py:\n[ ] Step 5: Add graph contract dataclasses\nCreate src/vault_graph/graph/graph_contracts.py with immutable dataclasses for:\nGraphExtractionSpec GraphEvidenceRef EntityRecord RelationshipRecord GraphRevision GraphTombstone GraphRecordScope GraphManifestEntity GraphManifestRelationship GraphManifestEvidence GraphManifest GraphApplyResult GraphReconcilePlan\nUse these validation rules:\nGraphExtractionSpec must expose:\nThe default spec is:\nImplementation detail: from_payload(payload) must canonicalize with json.dumps(payload, so...",
+        "items": [
+          "Create: src/vault_graph/graph/init.py",
+          "Create: src/vault_graph/graph/graph_contracts.py",
+          "Create: src/vault_graph/graph/graph_identity.py",
+          "Modify: src/vault_graph/errors.py",
+          "Test: tests/test_graph_contracts.py",
+          "Test: tests/test_multi_vault_graph_identity.py",
+          "[ ] Step 1: Write failing graph contract tests",
+          "[ ] Step 2: Verify the tests fail",
+          "[ ] Step 3: Add graph domain errors",
+          "[ ] Step 4: Add deterministic graph identity helpers",
+          "[ ] Step 5: Add graph contract dataclasses",
+          "GraphExtractionSpec",
+          "GraphEvidenceRef",
+          "EntityRecord",
+          "RelationshipRecord",
+          "GraphRevision"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from dataclasses import FrozenInstanceError\n\nimport pytest\n\nfrom vault_graph.errors import GraphRecordInvalid\nfrom vault_graph.graph.graph_contracts import (\n    GraphEvidenceRef,\n    GraphExtractionSpec,\n    RelationshipRecord,\n    current_graph_extraction_spec,\n)\nfrom vault_graph.graph.graph_identity import (\n    stable_entity_id,\n    stable_evidence_ref_id,\n    stable_relationship_id,\n)\n\n\ndef test_current_graph_extraction_spec_has_canonical_digest() -> None:\n    spec = current_graph_extraction_spec()\n\n    assert spec.spec_version == \"graph-extraction-spec-v1\"\n    assert len(spec.spec_digest) == 64\n    assert spec.spec_digest == GraphExtractionSpec.from_payload(spec.payload()).spec_digest\n\n\ndef test_entity_id_is_stable_and_vault_scoped() -> None:\n    first = stable_entity_id(\n        vault_id=\"first\",\n        entity_type=\"concept\",\n        normalized_name=\"graphrag\",\n        canonical_path=\"wiki/graphrag.md\",\n    )\n    second = stable_entity_id(\n        vault_id=\"second\",\n        entity_type=\"concept\",\n        normalized_name=\"graphrag\",\n        canonical_path=\"wiki/graphrag.md\",\n    )\n\n    assert first == stable_entity_id(\n        vault_id=\"first\",\n        entity_type=\"concept\",\n        normalized_name=\"graphrag\",\n        canonical_path=\"wiki/graphrag.md\",\n    )\n    assert first != second\n\n\ndef test_relationship_id_includes_source_and_target_vaults() -> None:\n    left = stable_relationship_id(\n        relationship_type=\"depends_on\",\n        source_vault_id=\"first\",\n        source_entity_id=\"source\",\n        target_vault_id=\"second\",\n        target_entity_id=\"target\",\n    )\n    reversed_edge = stable_relationship_id(\n        relationship_type=\"depends_on\",\n        source_vault_id=\"second\",\n        source_entity_id=\"target\",\n        target_vault_id=\"first\",\n        target_entity_id=\"source\",\n    )\n\n    assert left != reversed_edge\n\n\ndef test_evidence_ref_requires_owner_and_evidence_vault_identity() -> None:\n    evidence_ref_id = stable_evidence_ref_id(\n        owner_kind=\"relationship\",\n        owner_vault_id=\"first\",\n        owner_id=\"rel-1\",\n        evidence_vault_id=\"second\",\n        document_id=\"doc-1\",\n        chunk_id=\"chunk-1\",\n        anchor=\"decision\",\n    )\n    ref = GraphEvidenceRef(\n        evidence_ref_id=evidence_ref_id,\n        owner_kind=\"relationship\",\n        owner_vault_id=\"first\",\n        owner_id=\"rel-1\",\n        evidence_vault_id=\"second\",\n        document_id=\"doc-1\",\n        chunk_id=\"chunk-1\",\n        content_hash=\"chunk-hash\",\n        section=\"Decision\",\n        anchor=\"decision\",\n        path=\"wiki/decision.md\",\n        excerpt=\"rendering hint\",\n    )\n\n    assert ref.evidence_ref_id == evidence_ref_id\n    assert ref.owner_kind == \"relationship\"\n    assert ref.evidence_vault_id == \"second\"\n\n\ndef test_invalid_relationship_status_is_rejected() -> None:\n    evidence = GraphEvidenceRef(\n        evidence_ref_id=\"evidence\",\n        owner_kind=\"relationship\",\n        owner_vault_id=\"default\",\n        owner_id=\"rel\",\n        evidence_vault_id=\"default\",\n        document_id=\"doc\",\n        chunk_id=\"chunk\",\n        content_hash=\"chunk-hash\",\n        section=None,\n        anchor=None,\n        path=\"wiki/page.md\",\n        excerpt=None,\n    )\n\n    with pytest.raises(GraphRecordInvalid, match=\"unsupported relationship status\"):\n        RelationshipRecord(\n            relationship_id=\"rel\",\n            type=\"depends_on\",\n            source_vault_id=\"default\",\n            source_entity_id=\"source\",\n            target_vault_id=\"default\",\n            target_entity_id=\"target\",\n            evidence_refs=(evidence,),\n            status=\"confirmed\",\n            confidence=0.8,\n            extraction_method=\"test\",\n            graph_extraction_spec_version=\"graph-extraction-spec-v1\",\n            graph_extraction_spec_digest=\"0\" * 64,\n            created_at=\"2026-06-10T00:00:00+00:00\",\n            updated_at=\"2026-06-10T00:00:00+00:00\",\n            graph_index_revision=\"graph-1\",\n        )\n\n\ndef test_graph_records_are_immutable() -> None:\n    spec = current_graph_extraction_spec()\n\n    with pytest.raises(FrozenInstanceError):\n        spec.__setattr__(\"spec_version\", \"changed\")"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.graph.graph_contracts import EntityRecord, GraphEvidenceRef, RelationshipRecord\nfrom vault_graph.graph.graph_identity import graph_scope_key, stable_entity_id, stable_evidence_ref_id, stable_relationship_id\nfrom vault_graph.ingestion.vault_catalog import QueryScope\n\n\ndef test_same_entity_name_in_two_vaults_does_not_collide() -> None:\n    first = stable_entity_id(\n        vault_id=\"first\",\n        entity_type=\"concept\",\n        normalized_name=\"retrieval\",\n        canonical_path=\"wiki/retrieval.md\",\n    )\n    second = stable_entity_id(\n        vault_id=\"second\",\n        entity_type=\"concept\",\n        normalized_name=\"retrieval\",\n        canonical_path=\"wiki/retrieval.md\",\n    )\n\n    assert first != second\n\n\ndef test_cross_vault_relationship_preserves_source_target_and_evidence_vaults() -> None:\n    source = stable_entity_id(\n        vault_id=\"first\",\n        entity_type=\"system\",\n        normalized_name=\"vault graph\",\n        canonical_path=\"wiki/vault-graph.md\",\n    )\n    target = stable_entity_id(\n        vault_id=\"second\",\n        entity_type=\"concept\",\n        normalized_name=\"context pack\",\n        canonical_path=\"wiki/context-pack.md\",\n    )\n    relationship_id = stable_relationship_id(\n        relationship_type=\"references\",\n        source_vault_id=\"first\",\n        source_entity_id=source,\n        target_vault_id=\"second\",\n        target_entity_id=target,\n    )\n    evidence = GraphEvidenceRef(\n        evidence_ref_id=stable_evidence_ref_id(\n            owner_kind=\"relationship\",\n            owner_vault_id=\"first\",\n            owner_id=relationship_id,\n            evidence_vault_id=\"second\",\n            document_id=\"doc\",\n            chunk_id=\"chunk\",\n            anchor=None,\n        ),\n        owner_kind=\"relationship\",\n        owner_vault_id=\"first\",\n        owner_id=relationship_id,\n        evidence_vault_id=\"second\",\n        document_id=\"doc\",\n        chunk_id=\"chunk\",\n        content_hash=\"hash\",\n        section=None,\n        anchor=None,\n        path=\"wiki/context-pack.md\",\n        excerpt=None,\n    )\n\n    relationship = RelationshipRecord(\n        relationship_id=relationship_id,\n        type=\"references\",\n        source_vault_id=\"first\",\n        source_entity_id=source,\n        target_vault_id=\"second\",\n        target_entity_id=target,\n        evidence_refs=(evidence,),\n        status=\"stated\",\n        confidence=1.0,\n        extraction_method=\"test\",\n        graph_extraction_spec_version=\"graph-extraction-spec-v1\",\n        graph_extraction_spec_digest=\"0\" * 64,\n        created_at=\"2026-06-10T00:00:00+00:00\",\n        updated_at=\"2026-06-10T00:00:00+00:00\",\n        graph_index_revision=\"graph-1\",\n    )\n\n    assert relationship.source_vault_id == \"first\"\n    assert relationship.target_vault_id == \"second\"\n    assert relationship.evidence_refs[0].evidence_vault_id == \"second\"\n\n\ndef test_graph_scope_key_includes_cross_vault_policy() -> None:\n    local = QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\",), include_cross_vault=False)\n    cross = QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\",), include_cross_vault=True)\n\n    assert graph_scope_key(local) == \"first:wiki:local\"\n    assert graph_scope_key(cross) == \"first:wiki:cross\""
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_contracts.py tests/test_multi_vault_graph_identity.py -q"
+          },
+          {
+            "language": "python",
+            "content": "class GraphStoreError(VaultGraphError):\n    \"\"\"Raised when graph store contracts are violated.\"\"\"\n\n\nclass GraphStoreUnavailable(GraphStoreError):\n    \"\"\"Raised when graph state cannot be opened or queried.\"\"\"\n\n\nclass GraphSchemaIncompatible(GraphStoreError):\n    \"\"\"Raised when graph state has an incompatible schema.\"\"\"\n\n\nclass GraphReadOnlyViolation(GraphStoreError):\n    \"\"\"Raised when a graph write is attempted through a read-only store.\"\"\"\n\n\nclass GraphRecordInvalid(GraphStoreError):\n    \"\"\"Raised when a graph record violates the public graph contract.\"\"\""
+          }
+        ]
+      },
+      {
+        "heading": "Task 2: Add GraphStore Interface And In-Memory Contract Fake",
+        "content": "Files:\nCreate: src/vault_graph/storage/interfaces/graph_store.py Modify: src/vault_graph/storage/interfaces/init.py Create: tests/fakes/in_memory_graph_store.py Test: tests/test_graph_store_contract.py\n[ ] Step 1: Write failing GraphStore contract tests\nCreate tests/test_graph_store_contract.py:\n[ ] Step 2: Verify the contract tests fail\nRun:\nExpected: FAIL because the GraphStore interface and fake do not exist.\n[ ] Step 3: Add GraphStore protocol\nCreate src/vault_graph/storage/interfaces/graph_store.py:\n[ ] Step 4: Add in-memory fake\nCreate tests/fakes/in_memory_graph_store.py.\nImplementation requirements:\nconstructor accepts read_only: bool = False and health_override: StoreHealth | None = None store entities by (vault_id, entity_id) store relationships by (source_vault_id, relationship_id) store evidence refs by (owner_kind, owner_vault_id, owner_id, evidence_vault_id, document_id, chunk_id, anchor) store revisions by (vault_id, actual_scope) store tombstones by tombstone_id store graph extraction specs by digest when applying a plan store record scope memberships by (record_kind, record_vault_id, record_id, actual_scope) from plan actual scopes reject writes when read_only=Tru...",
+        "items": [
+          "Create: src/vault_graph/storage/interfaces/graph_store.py",
+          "Modify: src/vault_graph/storage/interfaces/init.py",
+          "Create: tests/fakes/in_memory_graph_store.py",
+          "Test: tests/test_graph_store_contract.py",
+          "[ ] Step 1: Write failing GraphStore contract tests",
+          "[ ] Step 2: Verify the contract tests fail",
+          "[ ] Step 3: Add GraphStore protocol",
+          "[ ] Step 4: Add in-memory fake",
+          "constructor accepts read_only: bool = False and health_override: StoreHealth | None = None",
+          "store entities by (vault_id, entity_id)",
+          "store relationships by (source_vault_id, relationship_id)",
+          "store evidence refs by (owner_kind, owner_vault_id, owner_id, evidence_vault_id, document_id, chunk_id, anchor)",
+          "store revisions by (vault_id, actual_scope)",
+          "store tombstones by tombstone_id",
+          "store graph extraction specs by digest when applying a plan",
+          "store record scope memberships by (record_kind, record_vault_id, record_id, actual_scope) from plan actual scopes"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from collections.abc import Callable\n\nimport pytest\n\nfrom tests.fakes.in_memory_graph_store import InMemoryGraphStore\nfrom vault_graph.errors import GraphReadOnlyViolation, GraphStoreError\nfrom vault_graph.graph.graph_contracts import (\n    EntityRecord,\n    GraphEvidenceRef,\n    GraphReconcilePlan,\n    GraphRevision,\n    GraphTombstone,\n    RelationshipRecord,\n    current_graph_extraction_spec,\n)\nfrom vault_graph.graph.graph_identity import (\n    graph_scope_key,\n    stable_entity_id,\n    stable_evidence_ref_id,\n    stable_graph_tombstone_id,\n    stable_relationship_id,\n)\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.graph_store import GraphEntityIdentity, GraphRelationshipIdentity, GraphStore\n\n\ndef make_entity(\n    vault_id: str,\n    *,\n    name: str = \"GraphRAG\",\n    document_id: str | None = None,\n    chunk_id: str | None = None,\n    content_hash: str | None = None,\n    path: str = \"wiki/graphrag.md\",\n) -> EntityRecord:\n    spec = current_graph_extraction_spec()\n    entity_id = stable_entity_id(\n        vault_id=vault_id,\n        entity_type=\"concept\",\n        normalized_name=name.casefold(),\n        canonical_path=path,\n    )\n    resolved_document_id = document_id or f\"{vault_id}-doc\"\n    resolved_chunk_id = chunk_id or f\"{vault_id}-chunk\"\n    resolved_content_hash = content_hash or f\"{vault_id}-hash\"\n    evidence = GraphEvidenceRef(\n        evidence_ref_id=stable_evidence_ref_id(\n            owner_kind=\"entity\",\n            owner_vault_id=vault_id,\n            owner_id=entity_id,\n            evidence_vault_id=vault_id,\n            document_id=resolved_document_id,\n            chunk_id=resolved_chunk_id,\n            anchor=\"graphrag\",\n        ),\n        owner_kind=\"entity\",\n        owner_vault_id=vault_id,\n        owner_id=entity_id,\n        evidence_vault_id=vault_id,\n        document_id=resolved_document_id,\n        chunk_id=resolved_chunk_id,\n        content_hash=resolved_content_hash,\n        section=\"GraphRAG\",\n        anchor=\"graphrag\",\n        path=path,\n        excerpt=\"GraphRAG evidence\",\n    )\n    return EntityRecord(\n        vault_id=vault_id,\n        entity_id=entity_id,\n        type=\"concept\",\n        name=name,\n        normalized_name=name.casefold(),\n        aliases=(\"Graph RAG\",),\n        canonical_path=path,\n        evidence_refs=(evidence,),\n        confidence=0.9,\n        extraction_method=\"test\",\n        graph_extraction_spec_version=spec.spec_version,\n        graph_extraction_spec_digest=spec.spec_digest,\n        status=\"active\",\n        created_at=\"2026-06-10T00:00:00+00:00\",\n        updated_at=\"2026-06-10T00:00:00+00:00\",\n        graph_index_revision=\"graph-1\",\n    )\n\n\ndef make_relationship(source: EntityRecord, target: EntityRecord) -> RelationshipRecord:\n    spec = current_graph_extraction_spec()\n    relationship_id = stable_relationship_id(\n        relationship_type=\"depends_on\",\n        source_vault_id=source.vault_id,\n        source_entity_id=source.entity_id,\n        target_vault_id=target.vault_id,\n        target_entity_id=target.entity_id,\n    )\n    evidence = GraphEvidenceRef(\n        evidence_ref_id=stable_evidence_ref_id(\n            owner_kind=\"relationship\",\n            owner_vault_id=source.vault_id,\n            owner_id=relationship_id,\n            evidence_vault_id=source.vault_id,\n            document_id=f\"{source.vault_id}-doc\",\n            chunk_id=f\"{source.vault_id}-chunk\",\n            anchor=\"dependency\",\n        ),\n        owner_kind=\"relationship\",\n        owner_vault_id=source.vault_id,\n        owner_id=relationship_id,\n        evidence_vault_id=source.vault_id,\n        document_id=f\"{source.vault_id}-doc\",\n        chunk_id=f\"{source.vault_id}-chunk\",\n        content_hash=f\"{source.vault_id}-hash\",\n        section=\"Dependency\",\n        anchor=\"dependency\",\n        path=\"wiki/graphrag.md\",\n        excerpt=\"Dependency evidence\",\n    )\n    return RelationshipRecord(\n        relationship_id=relationship_id,\n        type=\"depends_on\",\n        source_vault_id=source.vault_id,\n        source_entity_id=source.entity_id,\n        target_vault_id=target.vault_id,\n        target_entity_id=target.entity_id,\n        evidence_refs=(evidence,),\n        status=\"stated\",\n        confidence=0.8,\n        extraction_method=\"test\",\n        graph_extraction_spec_version=spec.spec_version,\n        graph_extraction_spec_digest=spec.spec_digest,\n        created_at=\"2026-06-10T00:00:00+00:00\",\n        updated_at=\"2026-06-10T00:00:00+00:00\",\n        graph_index_revision=\"graph-1\",\n    )\n\n\ndef make_revision(scope: QueryScope, *, entity_count: int, relationship_count: int) -> GraphRevision:\n    spec = current_graph_extraction_spec()\n    return GraphRevision(\n        graph_run_id=\"graph-run-1\",\n        vault_id=scope.vault_ids[0],\n        actual_scope=graph_scope_key(scope),\n        graph_store_schema_version=\"memory-graph-v1\",\n        graph_extraction_spec_version=spec.spec_version,\n        graph_extraction_spec_digest=spec.spec_digest,\n        graph_index_revision=\"graph-1\",\n        metadata_index_revision=\"metadata-1\",\n        parser_version=\"markdown-frontmatter-v1\",\n        chunker_version=\"heading-section-v1\",\n        entity_count=entity_count,\n        relationship_count=relationship_count,\n        stale_count=0,\n        tombstone_count=0,\n        updated_at=\"2026-06-10T00:00:00+00:00\",\n    )\n\n\ndef make_plan(\n    *,\n    entities: tuple[EntityRecord, ...],\n    relationships: tuple[RelationshipRecord, ...],\n    scope: QueryScope | None = None,\n) -> GraphReconcilePlan:\n    resolved_scope = scope or _scope_for_records(entities=entities, relationships=relationships)\n    evidence_refs = tuple(ref for entity in entities for ref in entity.evidence_refs) + tuple(\n        ref for relationship in relationships for ref in relationship.evidence_refs\n    )\n    return GraphReconcilePlan(\n        requested_scope=resolved_scope,\n        actual_scopes=(resolved_scope,),\n        graph_run_id=\"graph-run-1\",\n        entity_upserts=entities,\n        relationship_upserts=relationships,\n        evidence_ref_upserts=evidence_refs,\n        entity_tombstones=(),\n        relationship_tombstones=(),\n        graph_revision_rows=(\n            make_revision(resolved_scope, entity_count=len(entities), relationship_count=len(relationships)),\n        ),\n        graph_extraction_spec=current_graph_extraction_spec(),\n        projection_cache_invalidations=(),\n    )\n\n\ndef _scope_for_records(\n    *,\n    entities: tuple[EntityRecord, ...],\n    relationships: tuple[RelationshipRecord, ...],\n) -> QueryScope:\n    if entities:\n        return QueryScope(vault_ids=(entities[0].vault_id,), content_scopes=(\"wiki\",))\n    if relationships:\n        return QueryScope(vault_ids=(relationships[0].source_vault_id,), content_scopes=(\"wiki\",))\n    return QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",))\n\n\ndef graph_store_contract(factory: Callable[[], GraphStore]) -> None:\n    store = factory()\n    source = make_entity(\"default\")\n    target = make_entity(\"default\", name=\"Context Pack\")\n    relationship = make_relationship(source, target)\n    result = store.apply_reconcile_plan(make_plan(entities=(source, target), relationships=(relationship,)))\n\n    assert result.applied_entity_upsert_count == 2\n    assert result.applied_relationship_upsert_count == 1\n    assert result.applied_evidence_ref_upsert_count == 3\n    assert store.get_entity(vault_id=\"default\", entity_id=source.entity_id) == source\n    assert store.get_relationship(source_vault_id=\"default\", relationship_id=relationship.relationship_id) == relationship\n    assert store.resolve_entities((GraphEntityIdentity(\"default\", source.entity_id),)) == (source,)\n    assert store.resolve_relationships((GraphRelationshipIdentity(\"default\", relationship.relationship_id),)) == (\n        relationship,\n    )\n    manifest = store.current_manifest((QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),))\n    assert tuple(row.entity_id for row in manifest.entity_rows) == (target.entity_id, source.entity_id)\n    assert tuple(row.relationship_id for row in manifest.relationship_rows) == (relationship.relationship_id,)\n    assert len(manifest.evidence_rows) == 3\n    assert {row.metadata_index_revision for row in manifest.entity_rows} == {\"metadata-1\"}\n    assert {row.graph_index_revision for row in manifest.relationship_rows} == {\"graph-1\"}\n    assert {row.graph_extraction_spec_digest for row in manifest.entity_rows} == {\n        current_graph_extraction_spec().spec_digest,\n    }\n    assert {row.content_hash for row in manifest.evidence_rows} == {\"default-hash\"}\n    assert manifest.relationship_rows[0].source_vault_id == \"default\"\n    assert manifest.relationship_rows[0].target_vault_id == \"default\"\n    assert store.latest_revisions((QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),))[0].graph_index_revision == \"graph-1\"\n\n\ndef test_in_memory_graph_store_satisfies_contract() -> None:\n    graph_store_contract(lambda: InMemoryGraphStore())\n\n\ndef test_read_only_graph_store_rejects_apply() -> None:\n    store = InMemoryGraphStore(read_only=True)\n    source = make_entity(\"default\")\n\n    with pytest.raises(GraphReadOnlyViolation):\n        store.apply_reconcile_plan(make_plan(entities=(source,), relationships=()))\n\n\ndef test_current_manifest_rejects_global_all_vault_scope() -> None:\n    store = InMemoryGraphStore()\n\n    with pytest.raises(GraphStoreError, match=\"per-Vault actual scopes\"):\n        store.current_manifest((QueryScope(vault_ids=(\"first\", \"second\"), content_scopes=(\"wiki\",)),))\n\n\ndef test_tombstones_are_scoped_records() -> None:\n    store = InMemoryGraphStore()\n    source = make_entity(\"default\")\n    scope = QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",))\n    spec = current_graph_extraction_spec()\n    tombstone = GraphTombstone(\n        tombstone_id=stable_graph_tombstone_id(\n            record_kind=\"entity\",\n            record_vault_id=\"default\",\n            record_id=source.entity_id,\n            actual_scope=graph_scope_key(scope),\n        ),\n        record_kind=\"entity\",\n        record_vault_id=\"default\",\n        record_id=source.entity_id,\n        actual_scope=graph_scope_key(scope),\n        reason=\"missing_from_scope\",\n        graph_run_id=\"graph-run-2\",\n        graph_index_revision=\"graph-2\",\n        graph_extraction_spec_version=spec.spec_version,\n        graph_extraction_spec_digest=spec.spec_digest,\n        tombstoned_at=\"2026-06-10T00:01:00+00:00\",\n    )\n    plan = GraphReconcilePlan(\n        requested_scope=scope,\n        actual_scopes=(scope,),\n        graph_run_id=\"graph-run-2\",\n        entity_upserts=(),\n        relationship_upserts=(),\n        evidence_ref_upserts=(),\n        entity_tombstones=(tombstone,),\n        relationship_tombstones=(),\n        graph_revision_rows=(make_revision(scope, entity_count=0, relationship_count=0),),\n        graph_extraction_spec=spec,\n        projection_cache_invalidations=(),\n    )\n\n    result = store.apply_reconcile_plan(plan)\n    repeat = store.apply_reconcile_plan(plan)\n\n    assert result.applied_tombstone_count == 1\n    assert repeat.applied_tombstone_count == 1\n    assert store.current_manifest((scope,)).tombstone_rows[0].record_vault_id == \"default\"\n    assert len(store.current_manifest((scope,)).tombstone_rows) == 1"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_store_contract.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Protocol\n\nfrom vault_graph.graph.graph_contracts import (\n    EntityRecord,\n    GraphApplyResult,\n    GraphExtractionSpec,\n    GraphManifest,\n    GraphReconcilePlan,\n    GraphRevision,\n    RelationshipRecord,\n)\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\n\n\n@dataclass(frozen=True)\nclass GraphEntityIdentity:\n    vault_id: str\n    entity_id: str\n\n\n@dataclass(frozen=True)\nclass GraphRelationshipIdentity:\n    source_vault_id: str\n    relationship_id: str\n\n\nclass GraphStore(Protocol):\n    def health(self) -> StoreHealth:\n        raise NotImplementedError\n\n    def stored_specs(self) -> tuple[GraphExtractionSpec, ...]:\n        raise NotImplementedError\n\n    def latest_revisions(self, scopes: tuple[QueryScope, ...]) -> tuple[GraphRevision, ...]:\n        raise NotImplementedError\n\n    def current_manifest(self, scopes: tuple[QueryScope, ...]) -> GraphManifest:\n        raise NotImplementedError\n\n    def get_entity(self, *, vault_id: str, entity_id: str) -> EntityRecord | None:\n        raise NotImplementedError\n\n    def get_relationship(self, *, source_vault_id: str, relationship_id: str) -> RelationshipRecord | None:\n        raise NotImplementedError\n\n    def resolve_entities(self, identities: tuple[GraphEntityIdentity, ...]) -> tuple[EntityRecord, ...]:\n        raise NotImplementedError\n\n    def resolve_relationships(\n        self,\n        identities: tuple[GraphRelationshipIdentity, ...],\n    ) -> tuple[RelationshipRecord, ...]:\n        raise NotImplementedError\n\n    def apply_reconcile_plan(self, plan: GraphReconcilePlan) -> GraphApplyResult:\n        raise NotImplementedError"
+          },
+          {
+            "language": "python",
+            "content": "from vault_graph.storage.interfaces.graph_store import GraphEntityIdentity, GraphRelationshipIdentity, GraphStore"
+          }
+        ]
+      },
+      {
+        "heading": "Task 3: Add SQLiteGraphStore Reference Backend",
+        "content": "Files:\nCreate: src/vault_graph/storage/local/sqlite_graph_store.py Modify: src/vault_graph/storage/local/init.py Test: tests/test_sqlite_graph_store.py Modify: tests/test_graph_store_contract.py\n[ ] Step 1: Write failing SQLite graph store tests\nCreate tests/test_sqlite_graph_store.py:\n[ ] Step 2: Verify the SQLite tests fail\nRun:\nExpected: FAIL because SQLiteGraphStore does not exist.\n[ ] Step 3: Add SQLite schema constants\nCreate src/vault_graph/storage/local/sqlite_graph_store.py with:\nUse this logical schema:\nAdd indexes:\n[ ] Step 4: Implement SQLiteGraphStore construction modes\nAdd classmethods:\nRules:\ninitialize=True creates parent directories and runs schema creation. writable initialization upserts ('schema_version', GRAPH_SCHEMA_VERSION) into graph_metadata. read_only=True uses sqlite3.connect(f\"file:{path}?mode=ro\", uri=True). read methods return empty values when the database path does not exist. read-only methods do not run migrations, create tables, or create parent directories. health() validates required tables, schema version in graph_metadata, and required columns.\n[ ] Step 5: Implement SQLite apply and read methods\napply_reconcile_plan(plan) must:\nraise GraphRead...",
+        "items": [
+          "Create: src/vault_graph/storage/local/sqlite_graph_store.py",
+          "Modify: src/vault_graph/storage/local/init.py",
+          "Test: tests/test_sqlite_graph_store.py",
+          "Modify: tests/test_graph_store_contract.py",
+          "[ ] Step 1: Write failing SQLite graph store tests",
+          "[ ] Step 2: Verify the SQLite tests fail",
+          "[ ] Step 3: Add SQLite schema constants",
+          "[ ] Step 4: Implement SQLiteGraphStore construction modes",
+          "initialize=True creates parent directories and runs schema creation.",
+          "writable initialization upserts ('schema_version', GRAPH_SCHEMA_VERSION) into graph_metadata.",
+          "read_only=True uses sqlite3.connect(f\"file:{path}?mode=ro\", uri=True).",
+          "read methods return empty values when the database path does not exist.",
+          "read-only methods do not run migrations, create tables, or create parent directories.",
+          "health() validates required tables, schema version in graph_metadata, and required columns.",
+          "[ ] Step 5: Implement SQLite apply and read methods",
+          "raise GraphReadOnlyViolation when read_only=True"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import sqlite3\nfrom pathlib import Path\n\nimport pytest\n\nfrom tests.test_graph_store_contract import graph_store_contract, make_entity, make_plan\nfrom vault_graph.errors import GraphReadOnlyViolation\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.local.sqlite_graph_store import GRAPH_SCHEMA_VERSION, SQLiteGraphStore\n\n\ndef test_sqlite_graph_store_satisfies_contract(tmp_path: Path) -> None:\n    graph_store_contract(lambda: SQLiteGraphStore.open_writable(tmp_path / \"graph.sqlite3\"))\n\n\ndef test_sqlite_graph_store_persists_records(tmp_path: Path) -> None:\n    path = tmp_path / \"graph.sqlite3\"\n    writable = SQLiteGraphStore.open_writable(path)\n    entity = make_entity(\"default\")\n    writable.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))\n\n    readonly = SQLiteGraphStore.open_read_only(path)\n\n    assert readonly.get_entity(vault_id=\"default\", entity_id=entity.entity_id) == entity\n    assert readonly.health().ok is True\n    assert readonly.health().schema_version == GRAPH_SCHEMA_VERSION\n\n\ndef test_sqlite_graph_store_stamps_revision_schema_version(tmp_path: Path) -> None:\n    path = tmp_path / \"graph.sqlite3\"\n    store = SQLiteGraphStore.open_writable(path)\n    entity = make_entity(\"default\")\n    store.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))\n\n    revision = store.latest_revisions((QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),))[0]\n\n    assert revision.graph_store_schema_version == GRAPH_SCHEMA_VERSION\n\n\ndef test_read_only_missing_graph_store_does_not_create_state(tmp_path: Path) -> None:\n    path = tmp_path / \"missing\" / \"graph.sqlite3\"\n    store = SQLiteGraphStore.open_read_only(path)\n\n    health = store.health()\n    manifest = store.current_manifest((QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),))\n\n    assert health.ok is False\n    assert health.schema_compatible is False\n    assert \"not initialized\" in health.message\n    assert manifest.entity_rows == ()\n    assert not path.exists()\n    assert not path.parent.exists()\n\n\ndef test_read_only_sqlite_graph_store_rejects_apply(tmp_path: Path) -> None:\n    path = tmp_path / \"graph.sqlite3\"\n    SQLiteGraphStore.open_writable(path)\n    readonly = SQLiteGraphStore.open_read_only(path)\n    entity = make_entity(\"default\")\n\n    with pytest.raises(GraphReadOnlyViolation):\n        readonly.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))\n\n\ndef test_sqlite_graph_health_reports_missing_required_table(tmp_path: Path) -> None:\n    path = tmp_path / \"graph.sqlite3\"\n    with sqlite3.connect(path) as connection:\n        connection.execute(\"CREATE TABLE graph_entities (vault_id TEXT)\")\n\n    store = SQLiteGraphStore.open_read_only(path)\n\n    health = store.health()\n    assert health.ok is False\n    assert health.schema_compatible is False\n    assert \"missing\" in health.message"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_sqlite_graph_store.py -q"
+          },
+          {
+            "language": "python",
+            "content": "GRAPH_SQLITE_BACKEND = \"sqlite-graph\"\nGRAPH_SCHEMA_VERSION = \"sqlite-graph-v1\""
+          },
+          {
+            "language": "sql",
+            "content": "CREATE TABLE IF NOT EXISTS graph_metadata (\n  key TEXT PRIMARY KEY,\n  value TEXT NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS graph_specs (\n  spec_digest TEXT PRIMARY KEY,\n  spec_version TEXT NOT NULL,\n  entity_schema_version TEXT NOT NULL,\n  relationship_schema_version TEXT NOT NULL,\n  entity_extractor_name TEXT NOT NULL,\n  entity_extractor_version TEXT NOT NULL,\n  relationship_extractor_name TEXT NOT NULL,\n  relationship_extractor_version TEXT NOT NULL,\n  relationship_status_rules_version TEXT NOT NULL,\n  confidence_rules_version TEXT NOT NULL,\n  serialized_spec TEXT NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS graph_entities (\n  vault_id TEXT NOT NULL,\n  entity_id TEXT NOT NULL,\n  type TEXT NOT NULL,\n  name TEXT NOT NULL,\n  normalized_name TEXT NOT NULL,\n  aliases_json TEXT NOT NULL,\n  canonical_path TEXT,\n  confidence REAL NOT NULL,\n  extraction_method TEXT NOT NULL,\n  graph_extraction_spec_version TEXT NOT NULL,\n  graph_extraction_spec_digest TEXT NOT NULL,\n  status TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL,\n  graph_index_revision TEXT NOT NULL,\n  PRIMARY KEY (vault_id, entity_id)\n);\n\nCREATE TABLE IF NOT EXISTS graph_relationships (\n  source_vault_id TEXT NOT NULL,\n  relationship_id TEXT NOT NULL,\n  type TEXT NOT NULL,\n  source_entity_id TEXT NOT NULL,\n  target_vault_id TEXT NOT NULL,\n  target_entity_id TEXT NOT NULL,\n  status TEXT NOT NULL,\n  confidence REAL NOT NULL,\n  extraction_method TEXT NOT NULL,\n  graph_extraction_spec_version TEXT NOT NULL,\n  graph_extraction_spec_digest TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL,\n  graph_index_revision TEXT NOT NULL,\n  PRIMARY KEY (source_vault_id, relationship_id)\n);\n\nCREATE TABLE IF NOT EXISTS graph_evidence_refs (\n  evidence_ref_id TEXT PRIMARY KEY,\n  owner_kind TEXT NOT NULL,\n  owner_vault_id TEXT NOT NULL,\n  owner_id TEXT NOT NULL,\n  evidence_vault_id TEXT NOT NULL,\n  document_id TEXT NOT NULL,\n  chunk_id TEXT NOT NULL,\n  content_hash TEXT NOT NULL,\n  section TEXT,\n  anchor TEXT,\n  anchor_key TEXT NOT NULL,\n  path TEXT,\n  excerpt TEXT,\n  UNIQUE (owner_kind, owner_vault_id, owner_id, evidence_vault_id, document_id, chunk_id, anchor_key)\n);\n\nCREATE TABLE IF NOT EXISTS graph_record_scopes (\n  record_kind TEXT NOT NULL,\n  record_vault_id TEXT NOT NULL,\n  record_id TEXT NOT NULL,\n  actual_scope TEXT NOT NULL,\n  metadata_index_revision TEXT NOT NULL,\n  graph_index_revision TEXT NOT NULL,\n  graph_extraction_spec_digest TEXT NOT NULL,\n  PRIMARY KEY (record_kind, record_vault_id, record_id, actual_scope)\n);\n\nCREATE TABLE IF NOT EXISTS graph_revisions (\n  graph_run_id TEXT NOT NULL,\n  vault_id TEXT NOT NULL,\n  actual_scope TEXT NOT NULL,\n  graph_store_schema_version TEXT NOT NULL,\n  graph_extraction_spec_version TEXT NOT NULL,\n  graph_extraction_spec_digest TEXT NOT NULL,\n  graph_index_revision TEXT NOT NULL,\n  metadata_index_revision TEXT NOT NULL,\n  parser_version TEXT NOT NULL,\n  chunker_version TEXT NOT NULL,\n  entity_count INTEGER NOT NULL,\n  relationship_count INTEGER NOT NULL,\n  stale_count INTEGER NOT NULL,\n  tombstone_count INTEGER NOT NULL,\n  updated_at TEXT NOT NULL,\n  PRIMARY KEY (vault_id, actual_scope, graph_index_revision)\n);\n\nCREATE TABLE IF NOT EXISTS graph_tombstones (\n  tombstone_id TEXT PRIMARY KEY,\n  record_kind TEXT NOT NULL,\n  record_vault_id TEXT NOT NULL,\n  record_id TEXT NOT NULL,\n  actual_scope TEXT NOT NULL,\n  reason TEXT NOT NULL,\n  graph_run_id TEXT NOT NULL,\n  graph_index_revision TEXT NOT NULL,\n  graph_extraction_spec_version TEXT NOT NULL,\n  graph_extraction_spec_digest TEXT NOT NULL,\n  tombstoned_at TEXT NOT NULL\n);"
+          }
+        ]
+      },
+      {
+        "heading": "Task 4: Add Graph Readiness Types And Service",
+        "content": "Files:\nCreate: src/vault_graph/graph/graph_readiness.py Create: src/vault_graph/app/graph_readiness_service.py Test: tests/test_graph_readiness.py\n[ ] Step 1: Write failing graph readiness tests\nCreate tests/test_graph_readiness.py:\n[ ] Step 2: Verify readiness tests fail\nRun:\nExpected: FAIL because graph readiness modules do not exist.\n[ ] Step 3: Add graph readiness dataclasses\nCreate src/vault_graph/graph/graph_readiness.py:\n[ ] Step 4: Implement ReadOnlyGraphReadiness\nCreate src/vault_graph/app/graph_readiness_service.py.\nConstructor:\nPublic method:\nReadiness algorithm:\nGet graph_health = graph_store.health(). If graph_health.ok is False and message contains not initialized, return freshness=\"missing\". If graph_health.ok is False and schema_compatible is False, return freshness=\"incompatible\". If graph_health.ok is False, return freshness=\"unavailable\". Build metadata lineage from MetadataStore.list_chunks(scope) and MetadataStore.list_document_states(scope.vault_ids). Call graph_store.stored_specs() and graph_store.latest_revisions(actual_scopes).\nCall graph_store.current_manifest(actual_scopes) and resolve every manifest evidence key through MetadataStore.resolve_chunk_evide...",
+        "items": [
+          "Create: src/vault_graph/graph/graph_readiness.py",
+          "Create: src/vault_graph/app/graph_readiness_service.py",
+          "Test: tests/test_graph_readiness.py",
+          "[ ] Step 1: Write failing graph readiness tests",
+          "[ ] Step 2: Verify readiness tests fail",
+          "[ ] Step 3: Add graph readiness dataclasses",
+          "[ ] Step 4: Implement ReadOnlyGraphReadiness",
+          "Get graph_health = graph_store.health().",
+          "If graph_health.ok is False and message contains not initialized, return freshness=\"missing\".",
+          "If graph_health.ok is False and schema_compatible is False, return freshness=\"incompatible\".",
+          "If graph_health.ok is False, return freshness=\"unavailable\".",
+          "Build metadata lineage from MetadataStore.list_chunks(scope) and MetadataStore.list_document_states(scope.vault_ids).",
+          "Call graph_store.stored_specs() and graph_store.latest_revisions(actual_scopes).",
+          "Call graph_store.current_manifest(actual_scopes) and resolve every manifest evidence key through MetadataStore.resolve_chunk_evidence(vault_id=evidence.evidence_vault_id, document_id=evidence.document_id, chunk_id=evidence.chunk_id).",
+          "If any evidence ref cannot be resolved or its content_hash differs from metadata, mark the affected scope stale with an unresolved graph evidence or stale graph evidence warning.",
+          "Build one GraphScopeReadiness per actual scope."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from pathlib import Path\n\nfrom tests.fakes.in_memory_graph_store import InMemoryGraphStore\nfrom tests.test_graph_store_contract import make_entity, make_plan, make_relationship\nfrom tests.test_sqlite_metadata_store import make_chunk, make_document\nfrom vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness\nfrom vault_graph.errors import GraphStoreUnavailable\nfrom vault_graph.graph.graph_contracts import GraphManifest, current_graph_extraction_spec\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.interfaces.store_health import StoreHealth\nfrom vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore\n\n\ndef metadata_store_with_chunk(\n    tmp_path: Path,\n    *,\n    vault_id: str = \"default\",\n    index_revision: str = \"metadata-1\",\n) -> SQLiteMetadataStore:\n    store, _, _, _ = metadata_store_with_chunk_ids(tmp_path, vault_id=vault_id, index_revision=index_revision)\n    return store\n\n\ndef metadata_store_with_chunk_ids(\n    tmp_path: Path,\n    *,\n    vault_id: str = \"default\",\n    index_revision: str = \"metadata-1\",\n) -> tuple[SQLiteMetadataStore, str, str, str]:\n    store = SQLiteMetadataStore(tmp_path / \"metadata.sqlite3\", initialize=True)\n    document = make_document(vault_id, \"wiki/page.md\", \"hash\")\n    document = type(document)(\n        vault_id=document.vault_id,\n        document_id=document.document_id,\n        path=document.path,\n        kind=document.kind,\n        frontmatter=document.frontmatter,\n        frontmatter_hash=document.frontmatter_hash,\n        content_hash=document.content_hash,\n        raw_sha256=document.raw_sha256,\n        parser_version=\"markdown-frontmatter-v1\",\n        last_seen_at=document.last_seen_at,\n        last_indexed_at=document.last_indexed_at,\n        vault_revision=document.vault_revision,\n        index_revision=document.index_revision,\n    )\n    chunk = make_chunk(\"default\", document.document_id, document.path)\n    chunk = type(chunk)(\n        vault_id=chunk.vault_id,\n        chunk_id=chunk.chunk_id,\n        document_id=chunk.document_id,\n        path=chunk.path,\n        section=chunk.section,\n        anchor=chunk.anchor,\n        text=chunk.text,\n        token_count=chunk.token_count,\n        content_hash=chunk.content_hash,\n        chunker_version=\"heading-section-v1\",\n        index_revision=index_revision,\n    )\n    store.apply_metadata_revision(index_revision=index_revision, documents=[document], chunks=[chunk], tombstones=[])\n    return store, document.document_id, chunk.chunk_id, chunk.content_hash\n\n\ndef test_graph_readiness_reports_missing_graph_store(tmp_path: Path) -> None:\n    metadata_store = metadata_store_with_chunk(tmp_path)\n    graph_store = InMemoryGraphStore(health_override=StoreHealth(\n        ok=False,\n        backend=\"memory-graph\",\n        schema_version=\"memory-graph-v1\",\n        schema_compatible=False,\n        message=\"not initialized\",\n    ))\n    service = ReadOnlyGraphReadiness(\n        metadata_store=metadata_store,\n        graph_store=graph_store,\n        expected_spec=current_graph_extraction_spec(),\n    )\n\n    report = service.check(\n        requested_scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),),\n    )\n\n    assert report.backend_name == \"memory-graph\"\n    assert report.backend_available is False\n    assert report.freshness == \"missing\"\n    assert \"run `vg index`\" in report.recovery_hint\n\n\ndef test_graph_readiness_reports_empty_when_store_has_no_revision(tmp_path: Path) -> None:\n    metadata_store = metadata_store_with_chunk(tmp_path)\n    service = ReadOnlyGraphReadiness(\n        metadata_store=metadata_store,\n        graph_store=InMemoryGraphStore(),\n        expected_spec=current_graph_extraction_spec(),\n    )\n\n    report = service.check(\n        requested_scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),),\n    )\n\n    assert report.freshness == \"empty\"\n    assert report.last_graph_revision is None\n\n\ndef test_graph_readiness_reports_unavailable_when_manifest_read_fails(tmp_path: Path) -> None:\n    class FailingGraphStore(InMemoryGraphStore):\n        def current_manifest(self, scopes: tuple[QueryScope, ...]) -> GraphManifest:\n            raise GraphStoreUnavailable(\"graph read failed\")\n\n    metadata_store = metadata_store_with_chunk(tmp_path)\n    graph_store = FailingGraphStore()\n    entity = make_entity(\"default\")\n    graph_store.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))\n    service = ReadOnlyGraphReadiness(\n        metadata_store=metadata_store,\n        graph_store=graph_store,\n        expected_spec=current_graph_extraction_spec(),\n    )\n\n    report = service.check(\n        requested_scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),),\n    )\n\n    assert report.freshness == \"unavailable\"\n    assert \"graph read failed\" in report.recovery_hint\n\n\ndef test_graph_readiness_reports_fresh_when_lineage_matches(tmp_path: Path) -> None:\n    metadata_store, document_id, chunk_id, content_hash = metadata_store_with_chunk_ids(tmp_path)\n    graph_store = InMemoryGraphStore()\n    entity = make_entity(\n        \"default\",\n        document_id=document_id,\n        chunk_id=chunk_id,\n        content_hash=content_hash,\n        path=\"wiki/page.md\",\n    )\n    graph_store.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))\n    service = ReadOnlyGraphReadiness(\n        metadata_store=metadata_store,\n        graph_store=graph_store,\n        expected_spec=current_graph_extraction_spec(),\n    )\n\n    report = service.check(\n        requested_scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),),\n    )\n\n    assert report.freshness == \"fresh\"\n    assert report.graph_extraction_spec_compatible is True\n    assert report.stale_count == 0\n    assert report.tombstone_count == 0\n    assert report.last_graph_revision == \"graph-1\"\n\n\ndef test_graph_readiness_reports_scope_rows_for_all_vaults(tmp_path: Path) -> None:\n    first_store, document_id, chunk_id, content_hash = metadata_store_with_chunk_ids(\n        tmp_path,\n        vault_id=\"first\",\n        index_revision=\"metadata-1\",\n    )\n    graph_store = InMemoryGraphStore()\n    first_entity = make_entity(\n        \"first\",\n        document_id=document_id,\n        chunk_id=chunk_id,\n        content_hash=content_hash,\n        path=\"wiki/page.md\",\n    )\n    graph_store.apply_reconcile_plan(\n        make_plan(\n            entities=(first_entity,),\n            relationships=(),\n            scope=QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\")),\n        )\n    )\n    service = ReadOnlyGraphReadiness(\n        metadata_store=first_store,\n        graph_store=graph_store,\n        expected_spec=current_graph_extraction_spec(),\n    )\n\n    report = service.check(\n        requested_scope=QueryScope(vault_ids=(\"first\", \"second\"), content_scopes=(\"wiki\",)),\n        actual_scopes=(\n            QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\")),\n            QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\")),\n        ),\n    )\n\n    assert report.freshness == \"empty\"\n    assert tuple((row.vault_id, row.freshness) for row in report.scope_readiness) == (\n        (\"first\", \"fresh\"),\n        (\"second\", \"empty\"),\n    )\n    assert tuple(row.last_graph_revision for row in report.scope_readiness) == (\"graph-1\", None)\n\n\ndef test_graph_readiness_reports_stale_when_graph_evidence_is_unresolved(tmp_path: Path) -> None:\n    metadata_store = metadata_store_with_chunk(tmp_path)\n    graph_store = InMemoryGraphStore()\n    entity = make_entity(\"default\", document_id=\"missing-doc\", chunk_id=\"missing-chunk\")\n    graph_store.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))\n    service = ReadOnlyGraphReadiness(\n        metadata_store=metadata_store,\n        graph_store=graph_store,\n        expected_spec=current_graph_extraction_spec(),\n    )\n\n    report = service.check(\n        requested_scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),),\n    )\n\n    assert report.freshness == \"stale\"\n    assert any(\"unresolved graph evidence\" in warning for warning in report.warnings)\n    assert \"rerun metadata indexing, then graph indexing\" in report.recovery_hint\n\n\ndef test_graph_readiness_reports_stale_when_metadata_revision_changes(tmp_path: Path) -> None:\n    old_metadata = metadata_store_with_chunk(tmp_path / \"old\", index_revision=\"metadata-1\")\n    graph_store = InMemoryGraphStore()\n    entity = make_entity(\"default\")\n    graph_store.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))\n    new_metadata = metadata_store_with_chunk(tmp_path / \"new\", index_revision=\"metadata-2\")\n    service = ReadOnlyGraphReadiness(\n        metadata_store=new_metadata,\n        graph_store=graph_store,\n        expected_spec=current_graph_extraction_spec(),\n    )\n\n    report = service.check(\n        requested_scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),),\n    )\n\n    assert old_metadata.health().ok is True\n    assert report.freshness == \"stale\"\n    assert \"rerun `vg index`\" in report.recovery_hint\n\n\ndef test_graph_readiness_reports_incompatible_when_spec_digest_conflicts(tmp_path: Path) -> None:\n    metadata_store = metadata_store_with_chunk(tmp_path)\n    graph_store = InMemoryGraphStore()\n    entity = make_entity(\"default\")\n    graph_store.apply_reconcile_plan(make_plan(entities=(entity,), relationships=()))\n    different_spec = current_graph_extraction_spec().__class__.from_payload(\n        {\n            **current_graph_extraction_spec().payload(),\n            \"entity_schema_version\": \"entity-schema-v2\",\n        }\n    )\n    service = ReadOnlyGraphReadiness(\n        metadata_store=metadata_store,\n        graph_store=graph_store,\n        expected_spec=different_spec,\n    )\n\n    report = service.check(\n        requested_scope=QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\",)),\n        actual_scopes=(QueryScope(vault_ids=(\"default\",), content_scopes=(\"wiki\")),),\n    )\n\n    assert report.freshness == \"incompatible\"\n    assert report.graph_extraction_spec_compatible is False"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_graph_readiness.py -q"
+          },
+          {
+            "language": "python",
+            "content": "from __future__ import annotations\n\nfrom dataclasses import dataclass\n\nfrom vault_graph.ingestion.vault_catalog import QueryScope\n\nGRAPH_FRESHNESS_VALUES = (\"missing\", \"empty\", \"fresh\", \"stale\", \"incompatible\", \"unavailable\")\n\n\n@dataclass(frozen=True)\nclass GraphLineageScope:\n    vault_id: str\n    actual_scope: str\n    metadata_index_revision: str\n    parser_version: str\n    chunker_version: str\n\n\n@dataclass(frozen=True)\nclass GraphLineageSnapshot:\n    requested_scope: QueryScope\n    actual_scopes: tuple[QueryScope, ...]\n    metadata_lineage: tuple[GraphLineageScope, ...]\n    graph_store_schema_version: str\n    expected_graph_extraction_spec_version: str\n    expected_graph_extraction_spec_digest: str\n\n\n@dataclass(frozen=True)\nclass GraphScopeReadiness:\n    vault_id: str\n    actual_scope: str\n    freshness: str\n    stale_count: int\n    tombstone_count: int\n    last_graph_revision: str | None\n    warnings: tuple[str, ...]\n\n\n@dataclass(frozen=True)\nclass GraphReadiness:\n    backend_name: str\n    backend_available: bool\n    schema_version: str\n    schema_compatible: bool\n    graph_extraction_spec_version: str\n    graph_extraction_spec_digest: str\n    graph_extraction_spec_compatible: bool\n    freshness: str\n    stale_count: int\n    tombstone_count: int\n    last_graph_revision: str | None\n    affected_vault_ids: tuple[str, ...]\n    scope_readiness: tuple[GraphScopeReadiness, ...]\n    warnings: tuple[str, ...]\n    recovery_hint: str"
+          },
+          {
+            "language": "python",
+            "content": "class ReadOnlyGraphReadiness:\n    def __init__(\n        self,\n        *,\n        metadata_store: MetadataStore,\n        graph_store: GraphStore,\n        expected_spec: GraphExtractionSpec,\n    ) -> None:\n        self._metadata_store = metadata_store\n        self._graph_store = graph_store\n        self._expected_spec = expected_spec"
+          }
+        ]
+      },
+      {
+        "heading": "Task 5: Wire Graph Readiness Into Status",
+        "content": "Files:\nModify: src/vault_graph/app/catalog_service.py Modify: src/vault_graph/app/index_service.py Modify: src/vault_graph/cli/main.py Test: tests/test_cli_graph_status.py Modify: existing status tests as needed\n[ ] Step 1: Write failing CLI graph status tests\nCreate tests/test_cli_graph_status.py:\n[ ] Step 2: Verify CLI tests fail\nRun:\nExpected: FAIL because status does not include graph fields or JSON output.\n[ ] Step 3: Add graph state path\nModify src/vault_graph/app/catalog_service.py:\nIn _service(state, initialize_store=True) inside src/vault_graph/cli/main.py, add:\nThis assertion is a future-write guard only. Phase 3A must not initialize the graph path during vg index.\n[ ] Step 4: Extend StatusReport\nModify src/vault_graph/app/index_service.py:\nAdd graph_readiness: GraphReadiness to StatusReport.\nAdd optional constructor dependency:\nIn status(scope), resolve:\nKeep metadata and vector status behavior unchanged.\n[ ] Step 5: Wire graph store into CLI service construction\nModify src/vault_graph/cli/main.py imports:\nAlso add GraphStoreError to _exit_on_domain_error(...) so unexpected graph domain errors render as user-facing CLI failures instead of tracebacks. Normal missing, emp...",
+        "items": [
+          "Modify: src/vault_graph/app/catalog_service.py",
+          "Modify: src/vault_graph/app/index_service.py",
+          "Modify: src/vault_graph/cli/main.py",
+          "Test: tests/test_cli_graph_status.py",
+          "Modify: existing status tests as needed",
+          "[ ] Step 1: Write failing CLI graph status tests",
+          "[ ] Step 2: Verify CLI tests fail",
+          "[ ] Step 3: Add graph state path",
+          "[ ] Step 4: Extend StatusReport",
+          "[ ] Step 5: Wire graph store into CLI service construction",
+          "[ ] Step 6: Add vg status --format text|json",
+          "[ ] Step 7: Add explicit status JSON serializer",
+          "[ ] Step 8: Verify CLI status tests pass",
+          "[ ] Step 9: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "import json\nfrom pathlib import Path\n\nfrom typer.testing import CliRunner\n\nfrom vault_graph.cli.main import app\n\nrunner = CliRunner()\n\n\ndef test_cli_status_reports_graph_readiness_without_creating_graph_state(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = tmp_path / \"state\"\n    assert runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)]).exit_code == 0\n\n    result = runner.invoke(app, [\"status\", \"--state\", str(state_path)])\n\n    assert result.exit_code == 0\n    assert \"graph_backend: sqlite-graph\" in result.stdout\n    assert \"graph_freshness: missing\" in result.stdout\n    assert \"graph_schema_compatible: False\" in result.stdout\n    assert \"graph_extraction_spec_version: graph-extraction-spec-v1\" in result.stdout\n    assert \"graph_extraction_spec_digest: a0b9dbf6a6fff27580fe2fbb0b81a9799d63a14bcad2aef614d243fed93ffe37\" in result.stdout\n    assert not (state_path / \"graph\").exists()\n\n\ndef test_cli_status_json_reports_graph_readiness(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = tmp_path / \"state\"\n    assert runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)]).exit_code == 0\n\n    result = runner.invoke(app, [\"status\", \"--state\", str(state_path), \"--format\", \"json\"])\n\n    assert result.exit_code == 0\n    payload = json.loads(result.stdout)\n    assert payload[\"active_vault_id\"] == \"default\"\n    assert payload[\"graph\"][\"backend_name\"] == \"sqlite-graph\"\n    assert payload[\"graph\"][\"freshness\"] == \"missing\"\n    assert payload[\"graph\"][\"graph_extraction_spec_version\"] == \"graph-extraction-spec-v1\"\n    assert payload[\"graph\"][\"graph_extraction_spec_digest\"] == \"a0b9dbf6a6fff27580fe2fbb0b81a9799d63a14bcad2aef614d243fed93ffe37\"\n    assert payload[\"graph\"][\"scope_readiness\"][0][\"vault_id\"] == \"default\"\n    assert payload[\"graph\"][\"scope_readiness\"][0][\"freshness\"] == \"missing\"\n    assert payload[\"selected_scope\"][\"vault_ids\"] == [\"default\"]\n\n\ndef test_cli_status_rejects_unknown_format(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = tmp_path / \"state\"\n    assert runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)]).exit_code == 0\n\n    result = runner.invoke(app, [\"status\", \"--state\", str(state_path), \"--format\", \"xml\"])\n\n    assert result.exit_code == 1\n    assert \"unsupported_format\" in result.stdout\n\n\ndef test_cli_status_all_vaults_uses_explicit_graph_scope(tmp_path: Path) -> None:\n    first = tmp_path / \"first\"\n    second = tmp_path / \"second\"\n    first.mkdir()\n    second.mkdir()\n    state_path = tmp_path / \"state\"\n    assert runner.invoke(app, [\"init\", \"--vault-id\", \"first\", \"--vault\", str(first), \"--state\", str(state_path)]).exit_code == 0\n    assert runner.invoke(app, [\"vault\", \"add\", \"second\", \"--path\", str(second), \"--state\", str(state_path)]).exit_code == 0\n\n    result = runner.invoke(app, [\"status\", \"--state\", str(state_path), \"--all-vaults\", \"--format\", \"json\"])\n\n    assert result.exit_code == 0\n    payload = json.loads(result.stdout)\n    assert payload[\"selected_scope\"][\"vault_ids\"] == [\"first\", \"second\"]\n    assert payload[\"graph\"][\"affected_vault_ids\"] == [\"first\", \"second\"]\n    assert [row[\"vault_id\"] for row in payload[\"graph\"][\"scope_readiness\"]] == [\"first\", \"second\"]"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_cli_graph_status.py -q"
+          },
+          {
+            "language": "python",
+            "content": "self.graph_path = self.state_path / \"graph\" / \"graph.sqlite3\""
+          },
+          {
+            "language": "python",
+            "content": "config.assert_write_target_safe(target_path=config.graph_path, catalog=catalog)"
+          }
+        ]
+      },
+      {
+        "heading": "Task 6: Add Read-Only And Multi-Vault Regression Coverage",
+        "content": "Files:\nModify: tests/test_read_only_boundary.py Modify: tests/test_vector_indexing_read_only_boundary.py Modify: tests/test_multi_vault_graph_identity.py Optional Test: tests/test_cli_graph_status.py\n[ ] Step 1: Add read-only status boundary tests\nAdd to tests/test_read_only_boundary.py:\n[ ] Step 2: Add graph path guard test\nAdd to tests/test_vector_indexing_read_only_boundary.py:\nThis overlaps with the state-path guard but preserves graph-specific intent in the Phase 3A regression suite.\n[ ] Step 3: Add multi-Vault SQLite graph regression\nAdd to tests/test_multi_vault_graph_identity.py:\n[ ] Step 4: Verify regression tests pass\nRun:\nExpected: PASS.\n[ ] Step 5: Commit\n---",
+        "items": [
+          "Modify: tests/test_read_only_boundary.py",
+          "Modify: tests/test_vector_indexing_read_only_boundary.py",
+          "Modify: tests/test_multi_vault_graph_identity.py",
+          "Optional Test: tests/test_cli_graph_status.py",
+          "[ ] Step 1: Add read-only status boundary tests",
+          "[ ] Step 2: Add graph path guard test",
+          "[ ] Step 3: Add multi-Vault SQLite graph regression",
+          "[ ] Step 4: Verify regression tests pass",
+          "[ ] Step 5: Commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def test_status_with_graph_readiness_does_not_modify_vault_or_create_graph_state(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    (vault_root / \"wiki\").mkdir(parents=True)\n    (vault_root / \"wiki\" / \"page.md\").write_text(\"# Page\\nBody\\n\", encoding=\"utf-8\")\n    state_path = tmp_path / \"state\"\n    runner = CliRunner()\n    runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n    before = file_bytes(vault_root)\n\n    result = runner.invoke(app, [\"status\", \"--state\", str(state_path)])\n\n    assert result.exit_code == 0\n    assert file_bytes(vault_root) == before\n    assert not (state_path / \"graph\").exists()\n    assert not (state_path / \"projection_cache\").exists()"
+          },
+          {
+            "language": "python",
+            "content": "def test_graph_state_path_cannot_be_inside_vault_root(tmp_path: Path) -> None:\n    vault_root = tmp_path / \"vault\"\n    vault_root.mkdir()\n    state_path = vault_root / \".vault-graph\"\n\n    result = runner.invoke(app, [\"init\", \"--vault\", str(vault_root), \"--state\", str(state_path)])\n\n    assert result.exit_code != 0\n    assert \"state path must not be inside a registered Vault\" in result.stdout"
+          },
+          {
+            "language": "python",
+            "content": "from tests.test_graph_store_contract import make_entity, make_plan\nfrom vault_graph.ingestion.vault_catalog import QueryScope\nfrom vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore\n\n\ndef test_sqlite_graph_manifest_keeps_same_names_separate_by_vault(tmp_path: Path) -> None:\n    store = SQLiteGraphStore.open_writable(tmp_path / \"graph.sqlite3\")\n    first = make_entity(\"first\", name=\"Shared\")\n    second = make_entity(\"second\", name=\"Shared\")\n    store.apply_reconcile_plan(\n        make_plan(\n            entities=(first,),\n            relationships=(),\n            scope=QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\")),\n        )\n    )\n    store.apply_reconcile_plan(\n        make_plan(\n            entities=(second,),\n            relationships=(),\n            scope=QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\")),\n        )\n    )\n\n    first_manifest = store.current_manifest((QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\")),))\n    second_manifest = store.current_manifest((QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\")),))\n\n    assert tuple(row.vault_id for row in first_manifest.entity_rows) == (\"first\",)\n    assert tuple(row.vault_id for row in second_manifest.entity_rows) == (\"second\",)\n\n\ndef test_sqlite_graph_manifest_requires_explicit_cross_vault_scope(tmp_path: Path) -> None:\n    store = SQLiteGraphStore.open_writable(tmp_path / \"graph.sqlite3\")\n    source = make_entity(\"first\", name=\"Source\")\n    target = make_entity(\"second\", name=\"Target\")\n    relationship = make_relationship(source, target)\n    store.apply_reconcile_plan(\n        make_plan(\n            entities=(source,),\n            relationships=(),\n            scope=QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\")),\n        )\n    )\n    store.apply_reconcile_plan(\n        make_plan(\n            entities=(target,),\n            relationships=(),\n            scope=QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\")),\n        )\n    )\n    store.apply_reconcile_plan(\n        make_plan(\n            entities=(),\n            relationships=(relationship,),\n            scope=QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\"), include_cross_vault=True),\n        )\n    )\n\n    local_manifest = store.current_manifest((QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\")),))\n    cross_manifest = store.current_manifest(\n        (\n            QueryScope(vault_ids=(\"first\",), content_scopes=(\"wiki\"), include_cross_vault=True),\n            QueryScope(vault_ids=(\"second\",), content_scopes=(\"wiki\"), include_cross_vault=True),\n        )\n    )\n\n    assert local_manifest.relationship_rows == ()\n    assert tuple(row.relationship_id for row in cross_manifest.relationship_rows) == (relationship.relationship_id,)"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_read_only_boundary.py tests/test_vector_indexing_read_only_boundary.py tests/test_multi_vault_graph_identity.py -q"
+          }
+        ]
+      },
+      {
+        "heading": "Task 7: Final Verification And Documentation Trace",
+        "content": "Files:\nModify only if review found a real implementation correction: docs/PATCH_LOG.md docs/DECISIONS.md\n[ ] Step 1: Run focused Phase 3A tests\nRun:\nExpected: PASS.\n[ ] Step 2: Run read-only and CLI regression tests\nRun:\nExpected: PASS.\n[ ] Step 3: Run the full suite\nRun:\nExpected: PASS.\n[ ] Step 4: Run static checks\nRun:\nExpected: all commands exit 0.\n[ ] Step 5: Update patch log only when implementation changed the plan or design\nIf implementation review required a correction, add a short concrete entry to docs/PATCH_LOG.md with the actual trigger, scope, protected values, applied changes, and verification commands. Do not add a generic template entry. Do not add an entry if implementation follows the plan without correction.\n[ ] Step 6: Record decisions only with user approval\nIf a reviewer finds a policy decision that is not already accepted, stop and ask the user. Use docs/DECISIONS.md only after approval.\n[ ] Step 7: Final commit\nIf prior tasks used task-level commits, make no extra commit unless verification or documentation changed files. If implementing in one batch, commit all Phase 3A implementation files with exact paths:",
+        "items": [
+          "Modify only if review found a real implementation correction:",
+          "docs/PATCH_LOG.md",
+          "docs/DECISIONS.md",
+          "[ ] Step 1: Run focused Phase 3A tests",
+          "[ ] Step 2: Run read-only and CLI regression tests",
+          "[ ] Step 3: Run the full suite",
+          "[ ] Step 4: Run static checks",
+          "[ ] Step 5: Update patch log only when implementation changed the plan or design",
+          "[ ] Step 6: Record decisions only with user approval",
+          "[ ] Step 7: Final commit"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest \\\n  tests/test_graph_contracts.py \\\n  tests/test_graph_store_contract.py \\\n  tests/test_sqlite_graph_store.py \\\n  tests/test_graph_readiness.py \\\n  tests/test_cli_graph_status.py \\\n  tests/test_multi_vault_graph_identity.py \\\n  -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest \\\n  tests/test_read_only_boundary.py \\\n  tests/test_vector_indexing_read_only_boundary.py \\\n  tests/test_cli_vector_indexing.py \\\n  tests/test_cli_surface_boundary.py \\\n  -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest -q"
+          },
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src\nuv run --python 3.12 mypy tests\ngit diff --check"
+          }
+        ]
+      },
+      {
+        "heading": "Acceptance Criteria",
+        "content": "GraphExtractionSpec has a canonical digest and is stored with records, manifests, and revisions. Entity IDs include vault_id. Relationship IDs include relationship type, source Vault/entity ID, and target Vault/entity ID. Evidence refs include owner kind, owner Vault ID, owner ID, and evidence Vault ID. GraphStore methods never expose SQLite row IDs. GraphStore.current_manifest(scopes) accepts only per-Vault actual scopes. In-memory and SQLite stores satisfy the same contract tests. Read-only graph store opening does not create missing graph files. vg status reports graph readiness when graph state is missing. vg status --format json exposes machine-readable graph readiness. vg index still does not write graph records in Phase 3A. No command mutates Vault content. Full tests, ruff, mypy, and git diff --check pass.",
+        "items": [
+          "GraphExtractionSpec has a canonical digest and is stored with records,",
+          "Entity IDs include vault_id.",
+          "Relationship IDs include relationship type, source Vault/entity ID, and",
+          "Evidence refs include owner kind, owner Vault ID, owner ID, and evidence",
+          "GraphStore methods never expose SQLite row IDs.",
+          "GraphStore.current_manifest(scopes) accepts only per-Vault actual scopes.",
+          "In-memory and SQLite stores satisfy the same contract tests.",
+          "Read-only graph store opening does not create missing graph files.",
+          "vg status reports graph readiness when graph state is missing.",
+          "vg status --format json exposes machine-readable graph readiness.",
+          "vg index still does not write graph records in Phase 3A.",
+          "No command mutates Vault content.",
+          "Full tests, ruff, mypy, and git diff --check pass."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Self-Review Checklist",
+        "content": "Spec coverage: every Phase 3A design boundary maps to a task above. Non-goals: no task adds extraction execution, GraphIndexer, GraphProjection, graph retrieval, or graph commands. Placeholder scan: every task has concrete paths, checks, and failure behavior. Type consistency: graph contract names match docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md. Multi-vault consistency: entity, relationship, evidence, revision, and tombstone identity all carry Vault identity where collisions are possible. Read-only consistency: status uses read-only graph opening and missing graph state is a readiness value, not a write-trigger.\nPlan complete and saved to docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md.",
+        "items": [
+          "Spec coverage: every Phase 3A design boundary maps to a task above.",
+          "Non-goals: no task adds extraction execution, GraphIndexer, GraphProjection, graph retrieval, or graph commands.",
+          "Placeholder scan: every task has concrete paths, checks, and failure behavior.",
+          "Type consistency: graph contract names match docs/superpowers/specs/phase-3/2026-06-10-phase-3a-graphstore-contract-readiness-design.md.",
+          "Multi-vault consistency: entity, relationship, evidence, revision, and tombstone identity all carry Vault identity where collisions are possible.",
+          "Read-only consistency: status uses read-only graph opening and missing graph state is a readiness value, not a write-trigger."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/plans/2026-06-10-phase-3a-graphstore-contract-readiness.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

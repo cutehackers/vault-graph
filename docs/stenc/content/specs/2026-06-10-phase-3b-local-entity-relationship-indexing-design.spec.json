@@ -1,0 +1,906 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-06-10-phase-3b-local-entity-relationship-indexing-design",
+  "slug": "2026-06-10-phase-3b-local-entity-relationship-indexing-design",
+  "status": "draft",
+  "title": "Phase 3B Local Entity And Relationship Indexing Design",
+  "description": "Status: Draft for implementation planning\nDate: 2026-06-11\nScope: Phase 3B only",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-10",
+  "updatedAt": "2026-06-17",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+      "docs/SPEC.md"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": []
+  },
+  "page": {
+    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-11\nScope: Phase 3B only",
+    "agentSummary": "Read docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Phase 3B turns current MetadataStore evidence chunks into persisted local graph state.\nThe deliverable is deterministic entity and relationship indexing through scope-local graph reconcile. This slice uses the Phase 3A GraphStore, GraphExtractionSpec, graph manifest, graph revision, evidence-ref, and tombstone contracts. It does not change Vault content, does not build runtime graph projections, and does not make graph signals part of default search.\nThe user value is operational:\nvg index can build graph state from current metadata chunks. graph state can be deleted and rebuilt from Vault-derived metadata. graph indexing can repair stale entities, stale relationships, stale evidence refs,...",
+    "problem": "GraphExtractionContext is the read-only context that lets extractors resolve explicit local links without reading Vault files or depending on global state.\nLogical fields and operations:\nscope: QueryScope current_document_paths: tuple[str, ...] resolve_local_document_link(source_path, raw_target) -> DocumentSnapshot | None source_store: GraphSourceStore\nRules:\nGraphIndexer builds the context from the selected actual scope before invoking extractors. link resolution is same-Vault only in Phase 3B. link resolution returns a document only when the target path is present in the selected current document set. unresolved links remain visible as concept mentions and warnings. extractors must not n...",
+    "scope": {
+      "in": [
+        "Review the Scope section in the source Markdown."
+      ],
+      "out": [
+        "LLM-assisted extraction",
+        "general noun-phrase extraction",
+        "graph node embeddings or relationship embeddings",
+        "rustworkx GraphProjection",
+        "graph ranking, traversal, or path finding",
+        "vg related",
+        "vg decision-trace",
+        "vg search --include-graph",
+        "vg ask",
+        "context packs"
+      ]
+    },
+    "architecture": {
+      "summary": "Phase 3B uses a conservative deterministic extractor.\nThe extractor must prefer fewer, high-confidence graph records over broad but noisy semantic extraction. This protects Vault Graph's core value: inspectable context over fluent guesswork.\nRequired extraction inputs:\nChunkSnapshot text, path, section, anchor, content hash, chunker version, and metadata index revision DocumentSnapshot frontmatter and document identity when available through Vault-scoped GraphSourceStore.resolve_document current selected actual scope current GraphExtractionSpec\nRequired extraction signals:\ndocument/page/source identity from path and frontmatter decision identity from path or frontmatter heading concepts from Markdown sections tag concepts from frontmatter explicit Markdown links and Obsidian-style wiki li...",
+      "flow": [
+        "ChunkSnapshot text, path, section, anchor, content hash, chunker version,",
+        "DocumentSnapshot frontmatter and document identity when available through",
+        "current selected actual scope",
+        "current GraphExtractionSpec",
+        "document/page/source identity from path and frontmatter",
+        "decision identity from path or frontmatter",
+        "heading concepts from Markdown sections",
+        "tag concepts from frontmatter"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Scope",
+        "detail": "See Scope in the source Markdown document.",
+        "acceptanceCriteria": [
+          "Review the Scope section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "3.1 In Scope",
+        "detail": "Phase 3B implements:\nlocal deterministic EntityExtractor local deterministic RelationshipExtractor GraphIndexer planning and applying graph dry-run planning for vg index --dry-run graph apply during vg index graph upsert, tombstone, and revision reporting graph status freshness through existing Phase 3A readiness projection_cache_invalidations keys inside GraphReconcilePlan, without writing or building a projection cache graph indexing tests for read-only behavior, rebuildability, scope-local reconcile, and multi-vault identity",
+        "acceptanceCriteria": [
+          "local deterministic EntityExtractor",
+          "local deterministic RelationshipExtractor",
+          "GraphIndexer planning and applying",
+          "graph dry-run planning for vg index --dry-run",
+          "graph apply during vg index",
+          "graph upsert, tombstone, and revision reporting",
+          "graph status freshness through existing Phase 3A readiness",
+          "projection_cache_invalidations keys inside GraphReconcilePlan, without"
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "3.2 Out Of Scope",
+        "detail": "Phase 3B must not implement:\nLLM-assisted extraction general noun-phrase extraction graph node embeddings or relationship embeddings rustworkx GraphProjection graph ranking, traversal, or path finding vg related vg decision-trace vg search --include-graph vg ask context packs MCP serving HTTP serving Neo4j cross-Vault entity merging automatic Vault publication or Vault file mutation",
+        "acceptanceCriteria": [
+          "LLM-assisted extraction",
+          "general noun-phrase extraction",
+          "graph node embeddings or relationship embeddings",
+          "rustworkx GraphProjection",
+          "graph ranking, traversal, or path finding",
+          "vg related",
+          "vg decision-trace",
+          "vg search --include-graph"
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "7.4 Supported Graph Scope Width",
+        "detail": "Phase 3B graph indexing supports whole selected Vault scopes only:\nactive Vault one explicit --vault-id all enabled Vaults with --all-vaults\nIt must not introduce user-facing content-scope-limited graph indexing such as wiki/foo inside a broader wiki Vault scope.\nReason: the Phase 3A manifest is keyed by exact actual_scope. A broad wiki graph run and a later narrower wiki/foo graph run would otherwise have overlapping records that cannot be repaired safely by exact scope keys alone. Supporting that properly requires a separate same-or-child overlap manifest contract.\nPhase 3B implementation rule:\napp-layer graph indexing must reject mixed-width content scopes with a clear unsupported_graph_...",
+        "acceptanceCriteria": [
+          "active Vault",
+          "one explicit --vault-id",
+          "all enabled Vaults with --all-vaults",
+          "app-layer graph indexing must reject mixed-width content scopes with a clear",
+          "metadata and vector indexing may keep their existing scope behavior",
+          "graph records outside the selected exact Vault actual scopes are untouched",
+          "future content-scope graph indexing must add explicit overlap-aware manifest,"
+        ]
+      },
+      {
+        "id": "REQ-5",
+        "title": "Deterministic Extraction Contract",
+        "detail": "Extraction returns occurrences, not persisted records. GraphIndexer turns occurrences into deduped EntityRecord, RelationshipRecord, and GraphEvidenceRef values.",
+        "acceptanceCriteria": [
+          "Review the Deterministic Extraction Contract section in the source Markdown."
+        ]
+      },
+      {
+        "id": "REQ-6",
+        "title": "GraphIndexer Contract",
+        "detail": "GraphIndexer is the deep module for Phase 3B. It returns app-level reports that wrap the Phase 3A store boundary types.\nConstructor dependencies:\nsource_store: GraphSourceStore graph_store: GraphStore entity_extractor: EntityExtractor relationship_extractor: RelationshipExtractor graph_extraction_spec: GraphExtractionSpec optional clock or revision ID factory for deterministic tests\nRules:\nplan reads metadata chunks, document snapshots, and current graph manifest. plan does not write graph state. apply calls plan, then passes report.reconcile_plan to GraphStore.apply_reconcile_plan. GraphReconcilePlan remains the store write contract; app-level warnings and failed/error fields live in Graph...",
+        "acceptanceCriteria": [
+          "source_store: GraphSourceStore",
+          "graph_store: GraphStore",
+          "entity_extractor: EntityExtractor",
+          "relationship_extractor: RelationshipExtractor",
+          "graph_extraction_spec: GraphExtractionSpec",
+          "optional clock or revision ID factory for deterministic tests",
+          "plan reads metadata chunks, document snapshots, and current graph manifest.",
+          "plan does not write graph state."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "Structured Stenc conversion",
+        "tradeoffs": [
+          "Keeps the original Markdown as source evidence.",
+          "Adds generated JSON and styled pages for scanning and agent use."
+        ],
+        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+      }
+    ],
+    "components": [
+      {
+        "name": "8.5 EntityExtractor Interface",
+        "responsibility": "Required behavior:\ncreate one document-level entity for each chunk's document when enough document identity is available create heading concept entities for non-empty section headings create tag concept entities from frontmatter tags create target entities only for resolvable local links whose target document is present in the selected metadata chunk set create unresolved link text as a Concept mention, not as a durable page entity keep entity extraction deterministic for the same input chunk a...",
+        "interfaces": [
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      },
+      {
+        "name": "8.6 RelationshipExtractor Interface",
+        "responsibility": "Required behavior:\ncreate mentions relationships from the document entity to heading, tag, and unresolved-link concept entities create links_to relationships from the document entity to resolvable local document/page entities create explicit frontmatter relationships when fields are present and the target can be resolved to an extracted entity avoid duplicate relationships for the same source, target, type, and evidence chunk",
+        "interfaces": [
+          "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+        ],
+        "dependencies": [
+          "docs/SPEC.md"
+        ]
+      }
+    ],
+    "dataFlow": [
+      "See Indexing Flow in the source Markdown document."
+    ],
+    "errorHandling": [
+      {
+        "case": "Error Handling",
+        "behavior": "Domain errors should stay small and explicit.\nExpected error classes:\nGraphIndexingError: base error for graph indexing failures GraphExtractionError: extractor produced invalid or unsupported occurrence GraphReconcileError: desired state cannot be reconciled with manifest state existing GraphStoreError subclasses for backend and schema failures\nError policy:\nmetadata failure aborts graph indexing vector failure does not hide graph planning or graph apply when metadata succeeded graph failure r..."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Deterministic Extraction Contract",
+        "rules": [
+          "Review the Deterministic Extraction Contract section in the source Markdown."
+        ]
+      },
+      {
+        "name": "Entity Extraction Rules",
+        "rules": [
+          "Review the Entity Extraction Rules section in the source Markdown."
+        ]
+      },
+      {
+        "name": "Relationship Extraction Rules",
+        "rules": [
+          "Review the Relationship Extraction Rules section in the source Markdown."
+        ]
+      },
+      {
+        "name": "GraphIndexer Contract",
+        "rules": [
+          "source_store: GraphSourceStore",
+          "graph_store: GraphStore",
+          "entity_extractor: EntityExtractor",
+          "relationship_extractor: RelationshipExtractor",
+          "graph_extraction_spec: GraphExtractionSpec",
+          "optional clock or revision ID factory for deterministic tests",
+          "plan reads metadata chunks, document snapshots, and current graph manifest.",
+          "plan does not write graph state."
+        ]
+      },
+      {
+        "name": "Deduplication Rules",
+        "rules": [
+          "merge occurrences with the same `(vault_id, entity_type, normalized_name,",
+          "combine aliases in deterministic sorted order",
+          "combine evidence refs in deterministic sorted order",
+          "use the maximum confidence from merged occurrences",
+          "keep status=\"active\" for desired records",
+          "merge occurrences with the same relationship type, source entity, and target",
+          "combine evidence refs in deterministic sorted order",
+          "use the maximum confidence from merged occurrences"
+        ]
+      },
+      {
+        "name": "Multi-Vault Rules",
+        "rules": [
+          "input scopes are expanded into per-Vault actual scopes before graph planning",
+          "MetadataStore.list_chunks is called per actual scope",
+          "document resolution includes both vault_id and document_id",
+          "graph records include Vault IDs according to Phase 3A contracts",
+          "entity identity includes vault_id",
+          "relationship identity includes source and target Vault IDs",
+          "graph evidence refs include evidence Vault ID",
+          "graph revisions are written per Vault/actual scope"
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+        "role": "Original Markdown source",
+        "owner": "Vault Graph documentation"
+      },
+      {
+        "path": "docs/SPEC.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "docs/DESIGN.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "docs/FEATURES.md",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      },
+      {
+        "path": "src/vault_graph/",
+        "role": "Referenced implementation or documentation surface",
+        "owner": "Vault Graph"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-10-phase-3b-local-entity-relationship-indexing-design.spec.json",
+        "expected": "Stenc validation passed."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-10-phase-3b-local-entity-relationship-indexing-design.spec.json",
+        "purpose": "Validate the generated Stenc JSON source."
+      }
+    ],
+    "agentInstructions": [
+      "Use docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md as the original spec text; this JSON is a structured Stenc view.",
+      "Preserve Vault Graph as read-only and rebuildable over Vault.",
+      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+    ],
+    "reviewChecklist": [
+      "Original Markdown source remains present and unchanged.",
+      "Stenc JSON validates with validate-stenc-doc.js.",
+      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source fidelity",
+        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+      },
+      {
+        "name": "Repo boundary",
+        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/superpowers/plans/",
+      "requiredSkill": "superpowers:writing-plans",
+      "notes": [
+        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Overview",
+        "content": "Status: Draft for implementation planning\nDate: 2026-06-11\nScope: Phase 3B only",
+        "items": [
+          "Review the Overview section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "0"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Purpose",
+        "content": "Phase 3B turns current MetadataStore evidence chunks into persisted local graph state.\nThe deliverable is deterministic entity and relationship indexing through scope-local graph reconcile. This slice uses the Phase 3A GraphStore, GraphExtractionSpec, graph manifest, graph revision, evidence-ref, and tombstone contracts. It does not change Vault content, does not build runtime graph projections, and does not make graph signals part of default search.\nThe user value is operational:\nvg index can build graph state from current metadata chunks. graph state can be deleted and rebuilt from Vault-derived metadata. graph indexing can repair stale entities, stale relationships, stale evidence refs, and tombstones inside the selected Vault scope. Phase 3C can later expose vg related, vg decision-trace, and opt-in graph search without inventing another persistence model.",
+        "items": [
+          "vg index can build graph state from current metadata chunks.",
+          "graph state can be deleted and rebuilt from Vault-derived metadata.",
+          "graph indexing can repair stale entities, stale relationships, stale evidence",
+          "Phase 3C can later expose vg related, vg decision-trace, and opt-in graph"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Value Alignment",
+        "content": "Phase 3B follows the product contract from docs/SPEC.md, docs/DESIGN.md, and docs/FEATURES.md.\n| Vault Graph value | Phase 3B design rule | | --- | --- | | Vault is the source of truth | Extraction reads only Vault-derived metadata chunks and document snapshots. It never edits Vault files. | | Derived data is rebuildable | Graph records are recomputed from metadata chunks, GraphExtractionSpec, and graph manifest state. | | Evidence over fluency | Every entity and relationship must have at least one GraphEvidenceRef resolving to a MetadataStore evidence chunk. | | Local first | The default extractor is deterministic local code. No hosted model, graph service, or LLM is required. | | Simplicity before scale | Phase 3B extracts only explicit, inspectable signals: document identity, frontmatter, headings, and local links. | | Multi-vault correctness | Reconcile runs against per-Vault actual scopes. Same names in different Vaults never merge. |",
+        "items": [
+          "Review the Value Alignment section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Scope",
+        "content": "See Scope in the source Markdown document.",
+        "items": [
+          "Review the Scope section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "3.1 In Scope",
+        "content": "Phase 3B implements:\nlocal deterministic EntityExtractor local deterministic RelationshipExtractor GraphIndexer planning and applying graph dry-run planning for vg index --dry-run graph apply during vg index graph upsert, tombstone, and revision reporting graph status freshness through existing Phase 3A readiness projection_cache_invalidations keys inside GraphReconcilePlan, without writing or building a projection cache graph indexing tests for read-only behavior, rebuildability, scope-local reconcile, and multi-vault identity",
+        "items": [
+          "local deterministic EntityExtractor",
+          "local deterministic RelationshipExtractor",
+          "GraphIndexer planning and applying",
+          "graph dry-run planning for vg index --dry-run",
+          "graph apply during vg index",
+          "graph upsert, tombstone, and revision reporting",
+          "graph status freshness through existing Phase 3A readiness",
+          "projection_cache_invalidations keys inside GraphReconcilePlan, without",
+          "graph indexing tests for read-only behavior, rebuildability, scope-local"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "3.2 Out Of Scope",
+        "content": "Phase 3B must not implement:\nLLM-assisted extraction general noun-phrase extraction graph node embeddings or relationship embeddings rustworkx GraphProjection graph ranking, traversal, or path finding vg related vg decision-trace vg search --include-graph vg ask context packs MCP serving HTTP serving Neo4j cross-Vault entity merging automatic Vault publication or Vault file mutation",
+        "items": [
+          "LLM-assisted extraction",
+          "general noun-phrase extraction",
+          "graph node embeddings or relationship embeddings",
+          "rustworkx GraphProjection",
+          "graph ranking, traversal, or path finding",
+          "vg related",
+          "vg decision-trace",
+          "vg search --include-graph",
+          "vg ask",
+          "context packs",
+          "MCP serving",
+          "HTTP serving",
+          "Neo4j",
+          "cross-Vault entity merging",
+          "automatic Vault publication or Vault file mutation"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Core Design Choice",
+        "content": "Phase 3B uses a conservative deterministic extractor.\nThe extractor must prefer fewer, high-confidence graph records over broad but noisy semantic extraction. This protects Vault Graph's core value: inspectable context over fluent guesswork.\nRequired extraction inputs:\nChunkSnapshot text, path, section, anchor, content hash, chunker version, and metadata index revision DocumentSnapshot frontmatter and document identity when available through Vault-scoped GraphSourceStore.resolve_document current selected actual scope current GraphExtractionSpec\nRequired extraction signals:\ndocument/page/source identity from path and frontmatter decision identity from path or frontmatter heading concepts from Markdown sections tag concepts from frontmatter explicit Markdown links and Obsidian-style wiki links explicit frontmatter relationship fields\nNot allowed in deterministic v1:\ncreating entities from arbitrary noun phrases treating cached excerpts as evidence authority inferring cross-Vault equivalence by name silently widening default search with graph records",
+        "items": [
+          "ChunkSnapshot text, path, section, anchor, content hash, chunker version,",
+          "DocumentSnapshot frontmatter and document identity when available through",
+          "current selected actual scope",
+          "current GraphExtractionSpec",
+          "document/page/source identity from path and frontmatter",
+          "decision identity from path or frontmatter",
+          "heading concepts from Markdown sections",
+          "tag concepts from frontmatter",
+          "explicit Markdown links and Obsidian-style wiki links",
+          "explicit frontmatter relationship fields",
+          "creating entities from arbitrary noun phrases",
+          "treating cached excerpts as evidence authority",
+          "inferring cross-Vault equivalence by name",
+          "silently widening default search with graph records"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Package Layout",
+        "content": "Use stable domain names, not phase names.\nRules:\nentity_extractor.py owns entity occurrences only. relationship_extractor.py owns relationship occurrences only. graph_indexer.py owns reconcile planning and applying. GraphStore remains the only graph persistence boundary. CLI and app services must not import SQLite graph tables directly. Source files and classes must not include roadmap phase labels.\nThe current Phase 3A default GraphExtractionSpec is a placeholder until graph indexing writes records. Phase 3B implementation should use behavior names such as local-deterministic-entity-extractor and local-deterministic-relationship-extractor for extractor names so graph lineage does not depend on roadmap labels. If this changes the current GraphExtractionSpec digest, the implementation must also use a new spec_version; same version with different digest remains incompatible by Phase 3A contract.",
+        "items": [
+          "entity_extractor.py owns entity occurrences only.",
+          "relationship_extractor.py owns relationship occurrences only.",
+          "graph_indexer.py owns reconcile planning and applying.",
+          "GraphStore remains the only graph persistence boundary.",
+          "CLI and app services must not import SQLite graph tables directly.",
+          "Source files and classes must not include roadmap phase labels."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "src/vault_graph/\n  extraction/\n    __init__.py\n    entity_extractor.py\n    relationship_extractor.py\n  indexing/\n    graph_indexer.py\n  app/\n    index_service.py\n  cli/\n    main.py\n\ntests/\n  test_entity_extractor.py\n  test_relationship_extractor.py\n  test_graph_indexer.py\n  test_graph_indexing_read_only_boundary.py\n  test_multi_vault_graph_indexing.py\n  test_cli_graph_indexing.py"
+          }
+        ]
+      },
+      {
+        "heading": "Architecture",
+        "content": "Phase 3B extends the existing indexing pipeline after metadata has produced the current chunk view.\nGraphIndexer depends on interfaces:\nGraphSourceStore for chunks and document snapshots GraphStore for manifest reads and reconcile writes GraphExtractionSpec for compatibility and staleness extractor protocols for deterministic occurrence extraction\nIt must not depend on:\nSQLiteGraphStore internals Chroma internals rustworkx CLI rendering Vault filesystem writes",
+        "items": [
+          "GraphSourceStore for chunks and document snapshots",
+          "GraphStore for manifest reads and reconcile writes",
+          "GraphExtractionSpec for compatibility and staleness",
+          "extractor protocols for deterministic occurrence extraction",
+          "SQLiteGraphStore internals",
+          "Chroma internals",
+          "rustworkx",
+          "CLI rendering",
+          "Vault filesystem writes"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg index\n  -> resolve requested QueryScope\n  -> expand to per-Vault actual scopes\n  -> MetadataIndexer.apply or preview\n  -> VectorIndexer.apply or plan when vector dependencies are configured\n  -> GraphIndexer.apply or plan\n       -> GraphSourceStore.list_chunks(actual_scope)\n       -> GraphSourceStore.resolve_document(vault_id, document_id)\n       -> EntityExtractor\n       -> RelationshipExtractor\n       -> GraphStore.current_manifest(actual_scopes)\n       -> GraphReconcilePlan\n       -> GraphStore.apply_reconcile_plan(plan)\n  -> report metadata, vector, and graph index state"
+          }
+        ]
+      },
+      {
+        "heading": "Indexing Flow",
+        "content": "See Indexing Flow in the source Markdown document.",
+        "items": [
+          "Review the Indexing Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.1 Dry Run",
+        "content": "vg index --dry-run must plan graph changes without creating graph files, vector files, model-cache files, projection-cache files, or Vault files.\nDry-run graph flow:\nIf the graph store is missing during dry-run, the plan treats the current graph manifest as empty and reports all desired records as planned upserts. It must not create the store just to inspect it.\nPhase 3B should extend metadata preview so dry-run exposes the same logical document and chunk view that apply would produce. A dry-run graph source should satisfy the GraphSourceStore protocol below without writing metadata state.",
+        "items": [
+          "Review the 7.1 Dry Run section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "MetadataIndexer.preview(scope)\n  -> preview chunks and document snapshots after metadata apply\n  -> VectorIndexer.plan(...)\n  -> GraphIndexer.plan(source_store=preview_graph_source, graph_store=read_only)\n  -> render planned graph upserts, tombstones, stale count, warnings, and spec"
+          }
+        ]
+      },
+      {
+        "heading": "7.2 Apply",
+        "content": "vg index applies in this order:\nmetadata vector projection when configured graph indexing\nGraph indexing may run after metadata succeeds even if vector indexing fails, because graph state depends on metadata chunks, not embeddings. The final exit code is nonzero if any enabled derived-state step fails. The output must identify which step failed and which steps were successfully applied.\nIf metadata fails, graph indexing must not run because it would not have a trusted current chunk view.",
+        "items": [
+          "metadata",
+          "vector projection when configured",
+          "graph indexing"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.3 Full Rebuild",
+        "content": "vg index --full expands graph reconcile inside the selected actual scopes only. It does not mean global all-vault rebuild unless the user selected --all-vaults.\nFull graph rebuild rules:\ndesired records are built from all current chunks in the selected actual scopes current manifest rows in those actual scopes are compared to desired records missing or stale records are upserted current records absent from desired state are tombstoned records outside the selected actual scopes are untouched",
+        "items": [
+          "desired records are built from all current chunks in the selected actual",
+          "current manifest rows in those actual scopes are compared to desired records",
+          "missing or stale records are upserted",
+          "current records absent from desired state are tombstoned",
+          "records outside the selected actual scopes are untouched"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.4 Supported Graph Scope Width",
+        "content": "Phase 3B graph indexing supports whole selected Vault scopes only:\nactive Vault one explicit --vault-id all enabled Vaults with --all-vaults\nIt must not introduce user-facing content-scope-limited graph indexing such as wiki/foo inside a broader wiki Vault scope.\nReason: the Phase 3A manifest is keyed by exact actual_scope. A broad wiki graph run and a later narrower wiki/foo graph run would otherwise have overlapping records that cannot be repaired safely by exact scope keys alone. Supporting that properly requires a separate same-or-child overlap manifest contract.\nPhase 3B implementation rule:\napp-layer graph indexing must reject mixed-width content scopes with a clear unsupported_graph_scope_width error before calling GraphIndexer metadata and vector indexing may keep their existing scope behavior graph records outside the selected exact Vault actual scopes are untouched future content-scope graph indexing must add explicit overlap-aware manifest, tombstone, and readiness tests before it is enabled\nThis is a deliberate simplicity boundary, not a permanent product limit.",
+        "items": [
+          "active Vault",
+          "one explicit --vault-id",
+          "all enabled Vaults with --all-vaults",
+          "app-layer graph indexing must reject mixed-width content scopes with a clear",
+          "metadata and vector indexing may keep their existing scope behavior",
+          "graph records outside the selected exact Vault actual scopes are untouched",
+          "future content-scope graph indexing must add explicit overlap-aware manifest,"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "7.5 Incremental Rebuild",
+        "content": "The first Phase 3B implementation may compute desired graph state from all current chunks in each selected actual scope. This is simpler and safer than an ad hoc changed-path patcher, and the scope remains bounded by the user's selection.\nFuture optimization may use changed document sets, but it must preserve the same GraphReconcilePlan contract and pass the same scope-local contract tests.",
+        "items": [
+          "Review the 7.5 Incremental Rebuild section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Deterministic Extraction Contract",
+        "content": "Extraction returns occurrences, not persisted records. GraphIndexer turns occurrences into deduped EntityRecord, RelationshipRecord, and GraphEvidenceRef values.",
+        "items": [
+          "Review the Deterministic Extraction Contract section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "2"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "8.1 GraphSourceStore",
+        "content": "GraphSourceStore is the read model that graph indexing consumes.\nImplementations:\na Vault-scoped adapter over MetadataStore satisfies this protocol during apply. MetadataIndexer.preview should expose a preview implementation during dry-run, containing a Vault-scoped document map and chunk snapshots after the planned metadata apply.\nRules:\nextractors depend on GraphSourceStore, not on Vault filesystem reads document resolution is Vault-scoped even when the current local metadata backend uses globally derived document IDs an adapter over an unscoped metadata method must assert document.vault_id == requested vault_id before returning a document the preview implementation must not write metadata, vector, graph, cache, or Vault files GraphIndexer uses GraphSourceStore for frontmatter and chunk evidence, then relies on GraphStore only for current graph state",
+        "items": [
+          "a Vault-scoped adapter over MetadataStore satisfies this protocol during",
+          "MetadataIndexer.preview should expose a preview implementation during",
+          "extractors depend on GraphSourceStore, not on Vault filesystem reads",
+          "document resolution is Vault-scoped even when the current local metadata",
+          "an adapter over an unscoped metadata method must assert",
+          "the preview implementation must not write metadata, vector, graph, cache, or",
+          "GraphIndexer uses GraphSourceStore for frontmatter and chunk evidence,"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "class GraphSourceStore(Protocol):\n    def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]: ...\n    def resolve_document(self, *, vault_id: str, document_id: str) -> DocumentSnapshot | None: ..."
+          }
+        ]
+      },
+      {
+        "heading": "8.2 GraphExtractionContext",
+        "content": "GraphExtractionContext is the read-only context that lets extractors resolve explicit local links without reading Vault files or depending on global state.\nLogical fields and operations:\nscope: QueryScope current_document_paths: tuple[str, ...] resolve_local_document_link(source_path, raw_target) -> DocumentSnapshot | None source_store: GraphSourceStore\nRules:\nGraphIndexer builds the context from the selected actual scope before invoking extractors. link resolution is same-Vault only in Phase 3B. link resolution returns a document only when the target path is present in the selected current document set. unresolved links remain visible as concept mentions and warnings. extractors must not normalize paths differently from the context resolver.",
+        "items": [
+          "scope: QueryScope",
+          "current_document_paths: tuple[str, ...]",
+          "resolve_local_document_link(source_path, raw_target) -> DocumentSnapshot | None",
+          "source_store: GraphSourceStore",
+          "GraphIndexer builds the context from the selected actual scope before",
+          "link resolution is same-Vault only in Phase 3B.",
+          "link resolution returns a document only when the target path is present in the",
+          "unresolved links remain visible as concept mentions and warnings.",
+          "extractors must not normalize paths differently from the context resolver."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md"
+          },
+          {
+            "label": "Heading Level",
+            "value": "3"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-3/2026-06-10-phase-3b-local-entity-relationship-indexing-design.md",
+            "purpose": "Canonical source text preserved in the repo."
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}
