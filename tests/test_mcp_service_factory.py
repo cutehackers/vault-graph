@@ -13,14 +13,20 @@ from vault_graph.cli.main import app
 runner = CliRunner()
 
 
-def test_mcp_factory_opens_read_only_services_without_creating_missing_state(tmp_path: Path) -> None:
-    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
-
+def initialized_state_for_factory(tmp_path: Path) -> Path:
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)
     (vault_root / "wiki" / "page.md").write_text("# Page\nBody\n", encoding="utf-8")
     state_path = tmp_path / "state"
     assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    return state_path
+
+
+def test_mcp_factory_opens_read_only_services_without_creating_missing_state(tmp_path: Path) -> None:
+    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+    state_path = initialized_state_for_factory(tmp_path)
+    vault_root = tmp_path / "vault"
     before = file_bytes(vault_root)
 
     services = McpServiceFactory(state_path=state_path).open_read_only()
@@ -114,6 +120,62 @@ McpServiceFactory(state_path=state_path).open_read_only()
 for name in ("chromadb", "fastembed", "huggingface_hub", "rustworkx"):
     if name in sys.modules:
         raise SystemExit(name)
+"""
+    completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_mcp_factory_open_retrieval_service_without_graph_is_lightweight(tmp_path: Path) -> None:
+    code = f"""
+from pathlib import Path
+import sys
+from typer.testing import CliRunner
+from vault_graph.cli.main import app
+from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+vault_root = Path({str(tmp_path / "vault")!r})
+(vault_root / "wiki").mkdir(parents=True)
+(vault_root / "wiki" / "page.md").write_text("# Page\\nBody\\n", encoding="utf-8")
+state_path = Path({str(tmp_path / "state")!r})
+runner = CliRunner()
+runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+factory = McpServiceFactory(state_path=state_path)
+service = factory.open_retrieval_service(include_graph=False)
+if service is None:
+    raise SystemExit("missing service")
+if "vault_graph.projection.rustworkx_projection" in sys.modules:
+    raise SystemExit("eager")
+"""
+    completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_mcp_factory_open_context_pack_builder_with_graph_imports_projection_lazily(tmp_path: Path) -> None:
+    code = f"""
+from pathlib import Path
+import sys
+from typer.testing import CliRunner
+from vault_graph.cli.main import app
+from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+vault_root = Path({str(tmp_path / "vault")!r})
+(vault_root / "wiki").mkdir(parents=True)
+(vault_root / "wiki" / "page.md").write_text("# Page\\nBody\\n", encoding="utf-8")
+state_path = Path({str(tmp_path / "state")!r})
+runner = CliRunner()
+runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+factory = McpServiceFactory(state_path=state_path)
+factory.open_context_pack_builder(include_graph=False)
+if "vault_graph.projection.rustworkx_projection" in sys.modules:
+    raise SystemExit("eager")
+try:
+    factory.open_context_pack_builder(include_graph=True)
+except Exception:
+    pass
+if "vault_graph.projection.rustworkx_projection" not in sys.modules:
+    raise SystemExit("missing")
 """
     completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
 

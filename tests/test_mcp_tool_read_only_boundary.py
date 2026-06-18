@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from typer.testing import CliRunner
+
+from tests.test_read_only_boundary import file_bytes
+from tests.test_sqlite_metadata_store import make_chunk, make_document
+from vault_graph.cli.main import app
+from vault_graph.mcp.mcp_errors import McpProtocolError
+from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.mcp.mcp_tools import BuildContextPackInput, SearchVaultInput
+from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+
+runner = CliRunner()
+
+
+def initialized_state(tmp_path: Path, vault_root: Path) -> Path:
+    state_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    return state_path
+
+
+def seed_search_indexes(state_path: Path) -> None:
+    document = make_document("default", "wiki/page.md", "hash")
+    chunk = make_chunk("default", document.document_id, document.path, chunk_id="chunk-1", text="Indexed body")
+    store = SQLiteMetadataStore(state_path / "metadata" / "metadata.sqlite3", initialize=True)
+    store.apply_metadata_revision(index_revision="metadata-1", documents=[document], chunks=[chunk], tombstones=[])
+
+
+def test_invalid_tool_arguments_do_not_create_missing_state_or_open_graph(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    state_path = initialized_state(tmp_path, vault_root)
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    with pytest.raises(McpProtocolError):
+        registered.tool_registry.search_vault(SearchVaultInput(query="", include_graph=True))
+
+    assert not (state_path / "metadata").exists()
+    assert not (state_path / "vector").exists()
+    assert not (state_path / "graph").exists()
+    assert not (state_path / "projection_cache").exists()
+
+
+def test_successful_context_pack_tool_does_not_mutate_vault_bytes(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    (vault_root / "wiki").mkdir(parents=True)
+    (vault_root / "wiki" / "page.md").write_text("# Page\nVault body\n", encoding="utf-8")
+    state_path = initialized_state(tmp_path, vault_root)
+    seed_search_indexes(state_path)
+    before = file_bytes(vault_root)
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    try:
+        registered.tool_registry.build_context_pack(BuildContextPackInput(goal="Build MCP context"))
+    except McpProtocolError:
+        pass
+
+    assert file_bytes(vault_root) == before

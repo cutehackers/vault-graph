@@ -3,6 +3,31 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-18 - Phase 5C Implementation Verification Corrections
+
+**Trigger:** Phase 5C implementation verification found MCP factory laziness
+tests depended on shared pytest import state, and self-review found the MCP
+status payload shortened the accepted `embedding_batch_size` terminology.
+
+**Scope:** Phase 5C MCP status serialization and factory laziness tests.
+
+**Core Values Protected:**
+
+- implementation tests remain reliable and order-independent
+- MCP payload terminology stays aligned with accepted project language
+- graph dependencies remain explicit and lazy
+
+**Changes Applied:**
+
+- Moved factory laziness checks into subprocesses with fresh interpreters.
+- Preserved `embedding_batch_size`, `embedding_parallelism`, and
+  `embedding_lazy_load` keys in the MCP status payload.
+- Added a focused assertion for the status payload embedding key.
+
+**Verification:**
+
+- Reran focused MCP tool/serialization tests after the correction.
+
 ## 2026-06-18 - Phase 5C Stenc SPEC Refresh
 
 **Trigger:** Review compared the current Phase 5C Markdown SPEC against the

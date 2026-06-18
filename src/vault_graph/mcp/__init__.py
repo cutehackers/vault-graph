@@ -5,7 +5,9 @@ from typing import Any
 __all__ = [
     "McpErrorPayload",
     "McpProtocolError",
+    "McpPromptRegistry",
     "McpResourceBody",
+    "McpResourceLink",
     "McpResourceRegistry",
     "McpResourceRequest",
     "McpResourceUri",
@@ -13,6 +15,9 @@ __all__ = [
     "McpServerConfig",
     "McpServiceFactory",
     "McpServices",
+    "McpToolBody",
+    "McpToolRegistry",
+    "PHASE_5C_PROMPT_NAMES",
     "RegisteredMcpServer",
     "CachedContextPack",
     "ContextPackResourceCache",
@@ -22,6 +27,8 @@ __all__ = [
     "encode_resource_segment",
     "map_exception_to_mcp_error",
     "parse_mcp_resource_uri",
+    "register_mcp_prompts",
+    "register_mcp_tools",
     "run_mcp_server",
     "scope_from_mcp_input",
     "serve_mcp",
@@ -82,6 +89,23 @@ def __getattr__(name: str) -> Any:
             "McpResourceRequest": McpResourceRequest,
             "McpResourceBody": McpResourceBody,
             "McpResourceRegistry": McpResourceRegistry,
+        }[name]
+    if name in {"McpPromptRegistry", "PHASE_5C_PROMPT_NAMES", "register_mcp_prompts"}:
+        from vault_graph.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES, McpPromptRegistry, register_mcp_prompts
+
+        return {
+            "McpPromptRegistry": McpPromptRegistry,
+            "PHASE_5C_PROMPT_NAMES": PHASE_5C_PROMPT_NAMES,
+            "register_mcp_prompts": register_mcp_prompts,
+        }[name]
+    if name in {"McpResourceLink", "McpToolBody", "McpToolRegistry", "register_mcp_tools"}:
+        from vault_graph.mcp.mcp_tools import McpResourceLink, McpToolBody, McpToolRegistry, register_mcp_tools
+
+        return {
+            "McpResourceLink": McpResourceLink,
+            "McpToolBody": McpToolBody,
+            "McpToolRegistry": McpToolRegistry,
+            "register_mcp_tools": register_mcp_tools,
         }[name]
     if name in {"ContextPackResourceCache", "CachedContextPack"}:
         from vault_graph.mcp.context_pack_resource_cache import CachedContextPack, ContextPackResourceCache

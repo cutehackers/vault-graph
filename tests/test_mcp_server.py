@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from vault_graph.cli.main import app
 from vault_graph.errors import CatalogError
+from vault_graph.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES
 from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
 
 runner = CliRunner()
@@ -35,6 +36,25 @@ def test_create_mcp_server_loads_services_before_stdio_run(tmp_path: Path) -> No
     assert registered.server.name == "vault-graph"
     assert registered.services.catalog.active_vault_id == "default"
     assert registered.server_version == "0.1.0"
+
+
+def test_create_mcp_server_registers_resources_tools_and_prompts(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    state_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    assert registered.resource_registry is not None
+    assert registered.tool_registry.tool_names == (
+        "search_vault",
+        "build_context_pack",
+        "find_related",
+        "get_decision_trace",
+        "check_index_status",
+    )
+    assert registered.prompt_registry.prompt_names == PHASE_5C_PROMPT_NAMES
 
 
 def test_create_mcp_server_missing_catalog_fails_before_server_object(tmp_path: Path) -> None:

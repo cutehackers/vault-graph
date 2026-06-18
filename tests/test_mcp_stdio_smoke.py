@@ -7,8 +7,17 @@ import pytest
 from typer.testing import CliRunner
 
 from vault_graph.cli.main import app
+from vault_graph.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES
 
 runner = CliRunner()
+
+EXPECTED_PHASE_5C_TOOLS = {
+    "search_vault",
+    "build_context_pack",
+    "find_related",
+    "get_decision_trace",
+    "check_index_status",
+}
 
 
 @pytest.mark.skipif(os.environ.get("VG_RUN_MCP_STDIO_SMOKE") != "1", reason="set VG_RUN_MCP_STDIO_SMOKE=1")
@@ -44,11 +53,13 @@ def test_mcp_stdio_initializes_with_official_client(tmp_path: Path) -> None:
                     resources = await session.list_resources()
                     resource_templates = await session.list_resource_templates()
                     prompts = await session.list_prompts()
+                    tool_names = {tool.name for tool in tools.tools}
+                    prompt_names = {prompt.name for prompt in prompts.prompts}
                     template_uris = {str(template.uriTemplate) for template in resource_templates.resourceTemplates}
-                    assert tools.tools == []
+                    assert tool_names == EXPECTED_PHASE_5C_TOOLS
                     assert resources.resources == []
                     assert "vault://{vault_id}/documents/{path}" in template_uris
                     assert "vault://context/packs/{pack_id}" in template_uris
-                    assert prompts.prompts == []
+                    assert prompt_names == set(PHASE_5C_PROMPT_NAMES)
 
     anyio.run(run_client)

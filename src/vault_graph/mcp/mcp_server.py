@@ -3,13 +3,17 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from vault_graph import __version__
 from vault_graph.errors import CatalogError
 from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.mcp.mcp_resources import McpResourceRegistry
 from vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices
+
+if TYPE_CHECKING:
+    from vault_graph.mcp.mcp_prompts import McpPromptRegistry
+    from vault_graph.mcp.mcp_tools import McpToolRegistry
 
 McpTransport = Literal["stdio"]
 
@@ -26,6 +30,10 @@ class McpServer(Protocol):
     async def list_resource_templates(self) -> list[Any]: ...
 
     async def read_resource(self, uri: str) -> Iterable[Any]: ...
+
+    async def list_tools(self) -> Any: ...
+
+    async def list_prompts(self) -> Any: ...
 
 
 @dataclass(frozen=True)
@@ -54,13 +62,17 @@ class RegisteredMcpServer:
     server_version: str
     context_pack_cache: ContextPackResourceCache
     resource_registry: McpResourceRegistry
+    tool_registry: McpToolRegistry
+    prompt_registry: McpPromptRegistry
 
 
 def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
     from mcp.server.fastmcp import FastMCP
 
     from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
+    from vault_graph.mcp.mcp_prompts import register_mcp_prompts
     from vault_graph.mcp.mcp_resources import register_mcp_resources
+    from vault_graph.mcp.mcp_tools import register_mcp_tools
 
     factory = McpServiceFactory(state_path=config.state_path)
     services = factory.open_read_only()
@@ -81,6 +93,13 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         service_factory=factory,
         context_pack_cache=context_pack_cache,
     )
+    tool_registry = register_mcp_tools(
+        server,
+        services=services,
+        service_factory=factory,
+        context_pack_cache=context_pack_cache,
+    )
+    prompt_registry = register_mcp_prompts(server)
     return RegisteredMcpServer(
         server=server,
         services=services,
@@ -88,6 +107,8 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         server_version=config.server_version,
         context_pack_cache=context_pack_cache,
         resource_registry=resource_registry,
+        tool_registry=tool_registry,
+        prompt_registry=prompt_registry,
     )
 
 

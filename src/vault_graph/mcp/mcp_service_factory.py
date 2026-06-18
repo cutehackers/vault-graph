@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings
     from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.retrieval_service import RetrievalService
+    from vault_graph.retrieval.search_readiness import SearchReadiness
+    from vault_graph.storage.interfaces.keyword_index import KeywordIndex
+    from vault_graph.storage.interfaces.vector_store import VectorStore
 
 
 @dataclass(frozen=True)
@@ -29,15 +32,50 @@ class McpServices:
     context_pack_renderer: ContextPackRenderer
 
 
+@dataclass(frozen=True)
+class _RetrievalComponents:
+    catalog_service: CatalogService
+    catalog: VaultCatalog
+    metadata_store: MetadataStore
+    keyword_index: KeywordIndex
+    vector_store: VectorStore
+    text_embeddings: FastEmbedTextEmbeddings
+    readiness: SearchReadiness
+
+
 class McpServiceFactory:
     def __init__(self, *, state_path: Path) -> None:
         self._state_path = state_path
 
     def open_read_only(self) -> McpServices:
-        from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
-        from vault_graph.context.context_pack_builder import MetadataContextEvidenceResolver, SearchContextPackBuilder
         from vault_graph.context.context_pack_renderer import DefaultContextPackRenderer
-        from vault_graph.retrieval.retrieval_service import RetrievalService
+
+        components = self._open_retrieval_components()
+        retrieval_service = self._build_retrieval_service(components=components, include_graph=False)
+        context_pack_builder = self._build_context_pack_builder(
+            components=components,
+            retrieval_service=retrieval_service,
+        )
+        return McpServices(
+            catalog_service=components.catalog_service,
+            catalog=components.catalog,
+            metadata_store=components.metadata_store,
+            retrieval_service=retrieval_service,
+            context_pack_builder=context_pack_builder,
+            context_pack_renderer=DefaultContextPackRenderer(),
+        )
+
+    def open_retrieval_service(self, *, include_graph: bool = False) -> RetrievalService:
+        components = self._open_retrieval_components()
+        return self._build_retrieval_service(components=components, include_graph=include_graph)
+
+    def open_context_pack_builder(self, *, include_graph: bool = False) -> ContextPackBuilder:
+        components = self._open_retrieval_components()
+        retrieval_service = self._build_retrieval_service(components=components, include_graph=include_graph)
+        return self._build_context_pack_builder(components=components, retrieval_service=retrieval_service)
+
+    def _open_retrieval_components(self) -> _RetrievalComponents:
+        from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
         from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
         from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -47,30 +85,52 @@ class McpServiceFactory:
         keyword_index = SQLiteKeywordIndex(catalog_service.metadata_path)
         vector_store = ChromaVectorStore(catalog_service.vector_path, initialize=False, read_only=True)
         text_embeddings = self._search_text_embeddings(catalog_service)
-        retrieval_service = RetrievalService(
+        readiness = ReadOnlySearchReadiness(
+            metadata_store=metadata_store,
+            keyword_index=keyword_index,
+            vector_store=vector_store,
+            text_embeddings=text_embeddings,
+        )
+        return _RetrievalComponents(
+            catalog_service=catalog_service,
             catalog=catalog,
             metadata_store=metadata_store,
             keyword_index=keyword_index,
             vector_store=vector_store,
             text_embeddings=text_embeddings,
-            readiness=ReadOnlySearchReadiness(
-                metadata_store=metadata_store,
-                keyword_index=keyword_index,
-                vector_store=vector_store,
-                text_embeddings=text_embeddings,
-            ),
+            readiness=readiness,
         )
-        return McpServices(
-            catalog_service=catalog_service,
-            catalog=catalog,
-            metadata_store=metadata_store,
+
+    def _build_retrieval_service(
+        self,
+        *,
+        components: _RetrievalComponents,
+        include_graph: bool,
+    ) -> RetrievalService:
+        from vault_graph.retrieval.retrieval_service import RetrievalService
+
+        return RetrievalService(
+            catalog=components.catalog,
+            metadata_store=components.metadata_store,
+            keyword_index=components.keyword_index,
+            vector_store=components.vector_store,
+            text_embeddings=components.text_embeddings,
+            readiness=components.readiness,
+            graph_candidate_provider=(self.open_graph_search_candidate_provider() if include_graph else None),
+        )
+
+    def _build_context_pack_builder(
+        self,
+        *,
+        components: _RetrievalComponents,
+        retrieval_service: RetrievalService,
+    ) -> ContextPackBuilder:
+        from vault_graph.context.context_pack_builder import MetadataContextEvidenceResolver, SearchContextPackBuilder
+
+        return SearchContextPackBuilder(
+            catalog=components.catalog,
             retrieval_service=retrieval_service,
-            context_pack_builder=SearchContextPackBuilder(
-                catalog=catalog,
-                retrieval_service=retrieval_service,
-                evidence_resolver=MetadataContextEvidenceResolver(metadata_store=metadata_store),
-            ),
-            context_pack_renderer=DefaultContextPackRenderer(),
+            evidence_resolver=MetadataContextEvidenceResolver(metadata_store=components.metadata_store),
         )
 
     def open_status_service(self) -> IndexService:
