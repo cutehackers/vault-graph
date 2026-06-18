@@ -3,6 +3,103 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-18 - Phase 5C Stenc SPEC Refresh
+
+**Trigger:** Review compared the current Phase 5C Markdown SPEC against the
+Stenc Phase 5C spec JSON and found the Stenc document still reflected older
+draft-level content.
+
+**Scope:** Phase 5C Stenc SPEC source and generated Stenc page.
+
+**Core Values Protected:**
+
+- Stenc JSON remains aligned with the current Markdown source of truth
+- MCP contracts stay retrievable for future implementation and RAG context
+- generated docs preserve read-only, service-backed, evidence-first Phase 5C
+  boundaries
+
+**Changes Applied:**
+
+- Refreshed the Phase 5C Stenc SPEC JSON from the current Phase 5C Markdown
+  SPEC.
+- Added current Phase 5C requirements for exact tool and prompt lists, lazy
+  graph factory methods, tool serialization, prompt registry, context-pack cache
+  handoff, read-only boundaries, and verification gates.
+- Fixed Stenc `codeBlocks` serialization so the updated JSON validates against
+  the canonical Stenc schema.
+
+**Verification:**
+
+- Validated the updated Stenc JSON source.
+- Regenerated Stenc static pages and ran rendered-page checks.
+
+## 2026-06-18 - Phase 5C Implementation Plan Review Corrections
+
+**Trigger:** Phase 5C implementation-plan review found sequencing and boundary
+risks around MCP tool DTO ownership, serialization imports, graph factory
+construction, cross-Vault argument authority, server protocol typing, and tool
+error mapping.
+
+**Scope:** Phase 5C MCP tools/prompts implementation plan.
+
+**Core Values Protected:**
+
+- MCP remains a thin adapter over application services
+- tool serialization avoids circular imports and CLI coupling
+- graph behavior stays explicit, lazy, and validation-first
+- cross-Vault output remains unambiguous and Vault-scoped
+
+**Changes Applied:**
+
+- Moved shared tool DTO creation before tool serialization so
+  `mcp_tool_serialization.py` has a stable `McpResourceLink` owner.
+- Replaced duplicate/private-field factory guidance with shared helper
+  construction for retrieval services and context-pack builders.
+- Made top-level `include_cross_vault` authoritative and added mismatch
+  validation for `scope.include_cross_vault`.
+- Added `list_tools` and `list_prompts` to the planned MCP server protocol and
+  required service exception mapping through `mcp_errors.py`.
+
+**Verification:**
+
+- Rechecked the plan against the Phase 5C SPEC success criteria, current
+  `vault_graph.mcp` code, and the existing Phase 5A/5B plan style.
+
+## 2026-06-18 - Phase 5C MCP Tool SPEC Alignment
+
+**Trigger:** Phase 5C SPEC recheck against the completed Phase 5A/5B MCP
+runtime and resource work found that the draft did not define the graph-enabled
+retrieval handoff, shared context-pack cache reuse, tool serialization boundary,
+or prompt registration contract in implementation-ready detail.
+
+**Scope:** Phase 5C MCP tools, prompts, service factory handoff, resource-link
+serialization, smoke-test expectations, and read-only boundary tests.
+
+**Core Values Protected:**
+
+- MCP remains a thin adapter over application services
+- graph behavior stays explicit and lazy
+- context-pack resources reuse generated in-process cache state
+- tool and prompt output preserves evidence, warnings, and Vault IDs
+
+**Changes Applied:**
+
+- Rewrote the Phase 5C design as an implementation-ready SPEC.
+- Added lazy `McpServiceFactory` handoff requirements for graph-enabled search
+  and context-pack building.
+- Added MCP-owned tool serialization, resource-link, tool registry, and prompt
+  registry boundaries.
+- Updated test requirements so Phase 5C changes the stdio smoke expectations
+  from empty tools/prompts to exact service-backed lists.
+
+**Verification:**
+
+- Compared the updated SPEC against `docs/SPEC.md`, `docs/DESIGN.md`,
+  `docs/FEATURES.md`, Phase 5A/5B design docs, and current `vault_graph.mcp`
+  code.
+- Verified the installed MCP SDK exposes public `FastMCP.tool(...)` and
+  `FastMCP.prompt(...)` registration APIs.
+
 ## 2026-06-17 - Phase 5B Implementation Plan Chunk Order Correction
 
 **Trigger:** Phase 5B implementation-plan review found that ordering document

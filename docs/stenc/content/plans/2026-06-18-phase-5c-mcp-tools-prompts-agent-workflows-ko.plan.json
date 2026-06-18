@@ -1,0 +1,828 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows-ko",
+  "slug": "2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows-ko",
+  "status": "canonical",
+  "title": "Phase 5C MCP Tools, Prompts, And Agent Workflows 구현 계획",
+  "description": "Phase 5C MCP tools와 prompts를 read-only service adapter로 구현하기 위한 한국어 실행 계획.",
+  "owner": "Vault Graph documentation",
+  "createdAt": "2026-06-18",
+  "updatedAt": "2026-06-18",
+  "links": {
+    "sourceOfTruth": [
+      "docs/superpowers/plans/2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows-ko.md",
+      "docs/SPEC.md",
+      "docs/FEATURES.md",
+      "docs/DESIGN.md"
+    ],
+    "relatedSpec": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+  },
+  "page": {
+    "humanSummary": "Phase 5C MCP tools/prompts 구현 순서, read-only 경계, graph lazy loading, validation gates를 한국어로 정리한 실행 계획.",
+    "agentSummary": "docs/superpowers/plans/2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows-ko.md를 source of truth로 삼아 slice 순서대로 구현하라. MCP는 application service 위의 얇은 read-only adapter로 유지한다.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "기존 Vault Graph 검색, context-pack, graph retrieval, decision trace, status 서비스를 읽기 전용 MCP tools로 노출하고, 에이전트가 bounded evidence-first workflow를 따르도록 prompt templates를 등록한다.",
+    "architecture": "vault_graph.mcp는 기존 application services 위의 얇은 adapter로 유지한다. MCP는 argument DTO, validation, tool envelope, prompt template, resource link만 소유하고 retrieval, graph traversal, context-pack assembly, status check는 service layer에 남긴다.",
+    "techStack": [
+      "Python 3.12",
+      "official MCP Python SDK FastMCP",
+      "frozen dataclasses",
+      "McpServiceFactory",
+      "ContextPackResourceCache",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "한국어 Markdown 원본의 체크박스 step을 유지하고, slice별로 테스트를 먼저 작성한 뒤 구현한다."
+    },
+    "scopeCheck": {
+      "assessment": "Phase 5C는 5개 service-backed MCP tools와 7개 prompt templates만 구현한다. MCP는 retrieval/graph/context/status service를 호출하는 adapter이며 Vault를 직접 읽거나 쓰지 않는다.",
+      "decomposition": "serialization, lazy factory, tool registry, non-graph dispatch, graph dispatch, prompt registry, server wiring, final verification의 8개 slice로 나눈다."
+    },
+    "currentState": "Phase 5A/5B 구현으로 stdio FastMCP server, resource templates, ContextPackResourceCache, mcp_uri, mcp_scope, read-only service factory가 존재한다. 현재 stdio smoke는 tools/prompts가 비어 있음을 기대한다.",
+    "targetState": "vg serve --mcp가 5개 service-backed tools와 7개 prompts를 노출하고, build_context_pack은 shared in-process context pack cache에 canonical JSON을 저장하며, 모든 tool output이 evidence/warning/Vault IDs/resource links를 보존한다.",
+    "scope": {
+      "in": [
+        "MCP tool response serialization과 resource-link generation",
+        "lazy graph-enabled retrieval/context-pack builder factory methods",
+        "search_vault, build_context_pack, find_related, get_decision_trace, check_index_status",
+        "7개 Phase 5C prompt templates",
+        "shared ContextPackResourceCache handoff",
+        "read-only, import-laziness, stdio smoke, multi-vault validation tests"
+      ],
+      "out": [
+        "ask_vault answer generation",
+        "LLM clients 또는 hosted model calls",
+        "Phase 6 memory/timeline/open-question/recent-change tools",
+        "autonomous wiki publication 또는 Vault file editing",
+        "MCP indexing/repair/state mutation tools",
+        "durable context-pack persistence",
+        "resource subscriptions",
+        "Streamable HTTP transport, authentication, remote hosting"
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Create",
+        "path": "src/vault_graph/mcp/mcp_tool_serialization.py",
+        "responsibility": "service DTO를 MCP payload, warnings, text mirror, Phase 5B resource links로 변환한다."
+      },
+      {
+        "action": "Create",
+        "path": "src/vault_graph/mcp/mcp_tools.py",
+        "responsibility": "tool input DTO, validation, McpToolBody, McpToolRegistry, FastMCP tool registration을 소유한다."
+      },
+      {
+        "action": "Create",
+        "path": "src/vault_graph/mcp/mcp_prompts.py",
+        "responsibility": "Phase 5C prompt names, templates, registry, registration을 소유한다."
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/mcp/__init__.py",
+        "responsibility": "새 MCP DTO와 registry symbols를 lazy export한다."
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/mcp/mcp_server.py",
+        "responsibility": "tools/prompts를 server creation에 연결하고 RegisteredMcpServer를 확장한다."
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/mcp/mcp_service_factory.py",
+        "responsibility": "graph-enabled retrieval/context-pack builder lazy factory methods를 추가한다."
+      },
+      {
+        "action": "Create",
+        "path": "tests/test_mcp_tool_serialization.py",
+        "responsibility": "tool serialization, warning, resource link, CLI import boundary를 검증한다."
+      },
+      {
+        "action": "Create",
+        "path": "tests/test_mcp_tools.py",
+        "responsibility": "tool registration, validation, dispatch, graph laziness를 검증한다."
+      },
+      {
+        "action": "Create",
+        "path": "tests/test_mcp_prompts.py",
+        "responsibility": "7개 prompt 등록과 prompt text boundary를 검증한다."
+      },
+      {
+        "action": "Create",
+        "path": "tests/test_mcp_tool_read_only_boundary.py",
+        "responsibility": "tool 호출이 Vault/state를 쓰지 않는지 검증한다."
+      },
+      {
+        "action": "Modify",
+        "path": "tests/test_mcp_stdio_smoke.py",
+        "responsibility": "official MCP client가 Phase 5C tools/prompts를 보는지 검증한다."
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "Tool Envelope And Serialization Contract",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_tools.py",
+          "src/vault_graph/mcp/mcp_tool_serialization.py",
+          "tests/test_mcp_tool_serialization.py"
+        ],
+        "files": [
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/mcp_tools.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/mcp_tool_serialization.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_tool_serialization.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-1-step-1",
+            "title": "failing serialization tests 작성",
+            "status": "todo",
+            "instruction": "QueryScope, ContextPack, SearchResponse resource link, CLI import boundary 테스트를 먼저 작성한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-2",
+            "title": "failure 확인",
+            "status": "todo",
+            "instruction": "serialization 테스트가 새 module 부재로 실패하는지 확인한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tool_serialization.py -q",
+            "expected": "ModuleNotFoundError 또는 정의되지 않은 symbol failure"
+          },
+          {
+            "id": "slice-1-step-3",
+            "title": "shared tool DTO 생성",
+            "status": "todo",
+            "instruction": "McpToolName, McpResourceLink, McpToolBody, _warning_to_dict를 mcp_tools.py에 만든다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-4",
+            "title": "serialization helpers 구현",
+            "status": "todo",
+            "instruction": "payload conversion, warning conversion, resource link generation, tool_text_mirror를 구현한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-1-step-5",
+            "title": "serialization tests 통과",
+            "status": "todo",
+            "instruction": "focused test를 다시 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tool_serialization.py -q",
+            "expected": "all tests pass"
+          }
+        ],
+        "doneWhen": [
+          "MCP tool DTO와 serialization boundary가 CLI import 없이 동작한다.",
+          "Phase 5B vault:// resource links가 percent-encoded로 생성된다."
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Lazy Graph Factory Methods",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_service_factory.py",
+          "tests/test_mcp_service_factory.py",
+          "tests/test_mcp_import_boundaries.py"
+        ],
+        "files": [
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/mcp_service_factory.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_service_factory.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_import_boundaries.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-2-step-1",
+            "title": "factory failing tests 작성",
+            "status": "todo",
+            "instruction": "non-graph factory가 lightweight이고 graph context builder가 lazy로 projection을 여는지 테스트한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-2",
+            "title": "failure 확인",
+            "status": "todo",
+            "instruction": "새 factory method 부재로 실패하는지 확인한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_service_factory.py -q",
+            "expected": "open_retrieval_service/open_context_pack_builder missing failure"
+          },
+          {
+            "id": "slice-2-step-3",
+            "title": "RetrievalComponents 추출",
+            "status": "todo",
+            "instruction": "open_read_only 구성 요소를 _open_retrieval_components helper로 분리한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-4",
+            "title": "public factory methods 구현",
+            "status": "todo",
+            "instruction": "open_retrieval_service와 open_context_pack_builder를 private service field 접근 없이 구현한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-2-step-5",
+            "title": "factory/import tests 통과",
+            "status": "todo",
+            "instruction": "factory와 import boundary 테스트를 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_service_factory.py tests/test_mcp_import_boundaries.py -q",
+            "expected": "all tests pass"
+          }
+        ],
+        "doneWhen": [
+          "include_graph=False 경로는 rustworkx를 import하지 않는다.",
+          "include_graph=True 경로만 graph candidate provider를 연다."
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Tool Registry And Argument Validation",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_tools.py",
+          "tests/test_mcp_tools.py"
+        ],
+        "files": [
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/mcp_tools.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_tools.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-3-step-1",
+            "title": "registry/validation failing tests 작성",
+            "status": "todo",
+            "instruction": "5개 tools만 등록되고 invalid argument가 structured MCP error로 실패하는지 테스트한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-2",
+            "title": "failure 확인",
+            "status": "todo",
+            "instruction": "registry/input DTO 부재로 실패하는지 확인한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py -q",
+            "expected": "register_mcp_tools 또는 input DTO missing failure"
+          },
+          {
+            "id": "slice-3-step-3",
+            "title": "tool module 확장",
+            "status": "todo",
+            "instruction": "McpToolServer, 5개 input DTO, McpToolRegistry, argument parser, error mapper를 추가한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-4",
+            "title": "FastMCP handlers 등록",
+            "status": "todo",
+            "instruction": "public FastMCP.tool decorator와 JSON-safe signature만 사용한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-3-step-5",
+            "title": "registry/validation tests 통과",
+            "status": "todo",
+            "instruction": "tool registration과 validation 테스트를 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py -q",
+            "expected": "registration/validation tests pass"
+          }
+        ],
+        "doneWhen": [
+          "tool list가 search_vault/build_context_pack/find_related/get_decision_trace/check_index_status만 포함한다.",
+          "validation error는 graph dependency를 열기 전에 발생한다."
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Search, Context Pack, And Status Tool Dispatch",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_tools.py",
+          "tests/test_mcp_tools.py"
+        ],
+        "files": [
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/mcp_tools.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_tools.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-4-step-1",
+            "title": "non-graph dispatch tests 작성",
+            "status": "todo",
+            "instruction": "search/context/status tool이 올바른 service와 cache를 쓰는지 테스트한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-2",
+            "title": "dispatch failure 확인",
+            "status": "todo",
+            "instruction": "registry method가 아직 service를 호출하지 않아 실패하는지 확인한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py -q",
+            "expected": "dispatch assertions fail"
+          },
+          {
+            "id": "slice-4-step-3",
+            "title": "search dispatch 구현",
+            "status": "todo",
+            "instruction": "include_graph 값에 따라 base retrieval 또는 graph-enabled retrieval을 선택한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-4",
+            "title": "context-pack dispatch 구현",
+            "status": "todo",
+            "instruction": "ContextPackRequest를 만들고 render_json 후 ContextPackResourceCache에 저장한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-5",
+            "title": "status dispatch 구현",
+            "status": "todo",
+            "instruction": "open_status_service().status(scope=selected_scope)를 호출하고 payload로 변환한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-4-step-6",
+            "title": "non-graph dispatch tests 통과",
+            "status": "todo",
+            "instruction": "tool과 serialization 테스트를 함께 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py tests/test_mcp_tool_serialization.py -q",
+            "expected": "all tests pass"
+          }
+        ],
+        "doneWhen": [
+          "search/context/status tool output이 payload/resource_links/warnings/text envelope을 반환한다.",
+          "context pack resource link는 vault://context/packs/{pack_id}이다."
+        ]
+      },
+      {
+        "id": "slice-5",
+        "title": "Graph Tool Dispatch And Cross-Vault Validation",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_tools.py",
+          "tests/test_mcp_tools.py"
+        ],
+        "files": [
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/mcp_tools.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_tools.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-5-step-1",
+            "title": "graph dispatch failing tests 작성",
+            "status": "todo",
+            "instruction": "find_related와 get_decision_trace가 validation 이후 lazy graph service를 여는지 테스트한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-2",
+            "title": "graph tests failure 확인",
+            "status": "todo",
+            "instruction": "graph dispatch 구현 전 실패를 확인한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py -q",
+            "expected": "graph dispatch assertions fail"
+          },
+          {
+            "id": "slice-5-step-3",
+            "title": "find_related dispatch 구현",
+            "status": "todo",
+            "instruction": "GraphRetrievalService.related를 호출하고 graph/evidence resource links를 보존한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-4",
+            "title": "get_decision_trace dispatch 구현",
+            "status": "todo",
+            "instruction": "GraphRetrievalService.decision_trace를 호출하고 decision/entity links를 보존한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-5-step-5",
+            "title": "graph dispatch tests 통과",
+            "status": "todo",
+            "instruction": "graph tool 테스트를 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py -q",
+            "expected": "all tests pass"
+          }
+        ],
+        "doneWhen": [
+          "cross-vault graph behavior는 명시적 scope와 include_cross_vault가 있을 때만 동작한다.",
+          "graph tool failure는 non-graph result로 조용히 downgrade되지 않는다."
+        ]
+      },
+      {
+        "id": "slice-6",
+        "title": "Prompt Registry",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/mcp_prompts.py",
+          "tests/test_mcp_prompts.py"
+        ],
+        "files": [
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/mcp_prompts.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_prompts.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-6-step-1",
+            "title": "prompt failing tests 작성",
+            "status": "todo",
+            "instruction": "7개 prompts 등록, allowed/forbidden tool references, invalid prompt error를 테스트한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-2",
+            "title": "prompt tests failure 확인",
+            "status": "todo",
+            "instruction": "mcp_prompts.py 부재로 실패하는지 확인한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_prompts.py -q",
+            "expected": "ModuleNotFoundError or missing symbols"
+          },
+          {
+            "id": "slice-6-step-3",
+            "title": "prompt registry 구현",
+            "status": "todo",
+            "instruction": "PHASE_5C_PROMPT_NAMES, McpPromptRegistry.render, register_mcp_prompts를 구현한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-6-step-4",
+            "title": "prompt tests 통과",
+            "status": "todo",
+            "instruction": "prompt 테스트를 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_prompts.py -q",
+            "expected": "all tests pass"
+          }
+        ],
+        "doneWhen": [
+          "prompt text는 Phase 5C registered tools만 언급한다.",
+          "prompt는 Vault Graph를 read-only working context로 설명한다."
+        ]
+      },
+      {
+        "id": "slice-7",
+        "title": "Server Wiring, Lazy Exports, Smoke, And Read-Only Boundary",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp/__init__.py",
+          "src/vault_graph/mcp/mcp_server.py",
+          "tests/test_mcp_server.py",
+          "tests/test_mcp_stdio_smoke.py",
+          "tests/test_mcp_tool_read_only_boundary.py"
+        ],
+        "files": [
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/__init__.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp/mcp_server.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_server.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_stdio_smoke.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests/test_mcp_tool_read_only_boundary.py",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-7-step-1",
+            "title": "server wiring tests 작성",
+            "status": "todo",
+            "instruction": "create_mcp_server가 resources/tools/prompts를 모두 등록하는지 테스트한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-2",
+            "title": "read-only boundary tests 작성",
+            "status": "todo",
+            "instruction": "invalid/successful tool calls가 Vault bytes와 missing state directories를 바꾸지 않는지 테스트한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-3",
+            "title": "wiring tests failure 확인",
+            "status": "todo",
+            "instruction": "server wiring 전 실패를 확인한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_server.py tests/test_mcp_tool_read_only_boundary.py tests/test_mcp_stdio_smoke.py -q",
+            "expected": "server tests fail or smoke skipped unless enabled"
+          },
+          {
+            "id": "slice-7-step-4",
+            "title": "server wiring 구현",
+            "status": "todo",
+            "instruction": "register_mcp_resources -> register_mcp_tools -> register_mcp_prompts 순서로 연결한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-5",
+            "title": "lazy exports 추가",
+            "status": "todo",
+            "instruction": "새 symbols를 __init__.py에서 lazy export하고 import boundary를 유지한다.",
+            "codeBlocks": []
+          },
+          {
+            "id": "slice-7-step-6",
+            "title": "focused MCP tests 통과",
+            "status": "todo",
+            "instruction": "server/tools/prompts/read-only/import 테스트를 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_server.py tests/test_mcp_tools.py tests/test_mcp_prompts.py tests/test_mcp_tool_read_only_boundary.py tests/test_mcp_import_boundaries.py -q",
+            "expected": "all tests pass"
+          }
+        ],
+        "doneWhen": [
+          "RegisteredMcpServer가 tool_registry와 prompt_registry를 가진다.",
+          "MCP package import가 SDK/graph/runtime clients를 eager import하지 않는다."
+        ]
+      },
+      {
+        "id": "slice-8",
+        "title": "Final Integration Verification",
+        "status": "todo",
+        "surfaces": [
+          "src/vault_graph/mcp",
+          "tests"
+        ],
+        "files": [
+          {
+            "action": "Work",
+            "path": "src/vault_graph/mcp",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          },
+          {
+            "action": "Work",
+            "path": "tests",
+            "role": "이 slice의 구현 또는 테스트 대상"
+          }
+        ],
+        "steps": [
+          {
+            "id": "slice-8-step-1",
+            "title": "required focused tests 실행",
+            "status": "todo",
+            "instruction": "Phase 5C focused tests를 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py tests/test_mcp_tool_serialization.py tests/test_mcp_prompts.py tests/test_mcp_tool_read_only_boundary.py tests/test_mcp_stdio_smoke.py -q",
+            "expected": "focused tests pass; stdio smoke may be skipped unless env enabled"
+          },
+          {
+            "id": "slice-8-step-2",
+            "title": "MCP/context-pack regression tests 실행",
+            "status": "todo",
+            "instruction": "MCP와 context-pack regression tests를 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest tests/test_mcp_server.py tests/test_mcp_service_factory.py tests/test_mcp_resources.py tests/test_context_pack_resource_cache.py tests/test_search_include_graph.py tests/test_multi_vault_search.py tests/test_multi_vault_graph_retrieval.py -q",
+            "expected": "all tests pass"
+          },
+          {
+            "id": "slice-8-step-3",
+            "title": "full quality gates 실행",
+            "status": "todo",
+            "instruction": "full pytest, ruff, mypy, diff hygiene를 실행한다.",
+            "codeBlocks": [],
+            "command": "uv run --python 3.12 pytest -q && uv run --python 3.12 ruff check src tests && uv run --python 3.12 mypy src tests && git diff --check",
+            "expected": "all gates pass"
+          }
+        ],
+        "doneWhen": [
+          "full quality gates가 통과한다.",
+          "남은 Open Decisions가 없다."
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4",
+      "slice-5",
+      "slice-6",
+      "slice-7",
+      "slice-8"
+    ],
+    "risks": [
+      {
+        "risk": "MCP serialization이 CLI helper를 import하면 adapter boundary가 흐려진다.",
+        "mitigation": "mcp_tool_serialization.py를 MCP 소유 module로 두고 source scan/test로 vault_graph.cli import를 금지한다."
+      },
+      {
+        "risk": "graph dependency가 non-graph path에서 eager import될 수 있다.",
+        "mitigation": "factory/import boundary tests로 rustworkx lazy loading을 검증한다."
+      },
+      {
+        "risk": "cross-vault argument authority가 scope와 top-level flag 사이에서 모호해질 수 있다.",
+        "mitigation": "top-level include_cross_vault를 authoritative로 두고 mismatch를 invalid_tool_arguments로 실패시킨다."
+      },
+      {
+        "risk": "prompt가 deferred roadmap tools를 언급하면 agent가 없는 tool을 호출할 수 있다.",
+        "mitigation": "prompt tests에서 forbidden tool references를 검사한다."
+      }
+    ],
+    "validation": [
+      {
+        "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py tests/test_mcp_tool_serialization.py tests/test_mcp_prompts.py tests/test_mcp_tool_read_only_boundary.py tests/test_mcp_stdio_smoke.py -q",
+        "purpose": "Phase 5C focused MCP tests"
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_mcp_server.py tests/test_mcp_service_factory.py tests/test_mcp_resources.py tests/test_context_pack_resource_cache.py tests/test_search_include_graph.py tests/test_multi_vault_search.py tests/test_multi_vault_graph_retrieval.py -q",
+        "purpose": "MCP/context-pack/graph regression coverage"
+      },
+      {
+        "command": "uv run --python 3.12 pytest -q",
+        "purpose": "full test suite"
+      },
+      {
+        "command": "uv run --python 3.12 ruff check src tests",
+        "purpose": "lint gate"
+      },
+      {
+        "command": "uv run --python 3.12 mypy src tests",
+        "purpose": "type gate"
+      },
+      {
+        "command": "git diff --check",
+        "purpose": "diff hygiene"
+      }
+    ],
+    "agentInstructions": [
+      "한국어 Markdown source plan을 먼저 읽고 slice 순서대로 진행한다.",
+      "MCP tools는 application services 위의 adapter로만 구현한다.",
+      "Vault files, registered Vault roots, missing derived state directories를 쓰지 않는다.",
+      "graph behavior는 explicit graph tool 또는 include_graph=True에서만 lazy로 연다.",
+      "warnings, evidence refs, Vault IDs, resource links를 structured output에서 보존한다."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Security/read-only",
+        "purpose": "tool calls가 VaultLoader, Vault writes, indexing, durable pack persistence를 하지 않는지 확인한다."
+      },
+      {
+        "name": "Performance/scalability",
+        "purpose": "non-graph path가 rustworkx와 graph projection을 eager import하지 않는지 확인한다."
+      },
+      {
+        "name": "Testability",
+        "purpose": "serialization, factory, tools, prompts, server wiring, read-only boundary가 독립 테스트되는지 확인한다."
+      },
+      {
+        "name": "Maintainability/deep module",
+        "purpose": "MCP가 adapter concern만 소유하고 domain service internals를 침범하지 않는지 확인한다."
+      },
+      {
+        "name": "Agent ergonomics",
+        "purpose": "tool names와 prompt text가 직접적이고 deferred tool을 노출하지 않는지 확인한다."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/superpowers/plans/2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows-ko.md",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "각 slice 또는 task를 별도 subagent로 실행하고 review checkpoint를 둔다.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Execution",
+          "description": "현재 세션에서 executing-plans로 단계별 구현과 검증을 진행한다.",
+          "requiredSkill": "superpowers:executing-plans"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "핵심 불변식",
+        "content": "Phase 5C는 Vault Graph의 read-only, rebuildable, evidence-first 원칙을 MCP adapter 표면에 적용한다.",
+        "items": [
+          "MCP는 durable knowledge source가 아니다.",
+          "Context pack은 working context이며 durable publication은 Vault workflow로 돌아간다.",
+          "Graph expansion은 명시적이고 lazy이다.",
+          "Resource links는 Phase 5B vault:// URI 형식을 재사용한다."
+        ],
+        "facts": [],
+        "links": [
+          {
+            "label": "Korean Markdown source",
+            "target": "docs/superpowers/plans/2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows-ko.md",
+            "purpose": "구현 계획 원본"
+          },
+          {
+            "label": "Phase 5C SPEC",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "상위 설계 계약"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Open Decisions",
+        "content": "사용자 판단이 필요한 새 결정은 없다.",
+        "items": [
+          "None"
+        ],
+        "facts": [],
+        "links": [],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

@@ -3,177 +3,623 @@
   "docType": "spec",
   "id": "spec:2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design",
   "slug": "2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design",
-  "status": "draft",
-  "title": "Phase 5C MCP Tools, Prompts, And Agent Workflows Design",
-  "description": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+  "status": "approved",
+  "title": "Phase 5C MCP Tools, Prompts, And Agent Workflows SPEC",
+  "description": "Implementation-ready Phase 5C SPEC for service-backed MCP tools, prompt templates, structured output, graph laziness, and read-only agent workflows.",
   "owner": "Vault Graph documentation",
   "createdAt": "2026-06-15",
-  "updatedAt": "2026-06-17",
+  "updatedAt": "2026-06-18",
   "links": {
     "sourceOfTruth": [
       "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-      "docs/SPEC.md"
+      "docs/SPEC.md",
+      "docs/FEATURES.md",
+      "docs/DESIGN.md"
     ],
-    "relatedPlans": [],
-    "relatedDecisions": []
+    "relatedPlans": [
+      "docs/superpowers/plans/2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows.md",
+      "docs/superpowers/plans/2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows-ko.md"
+    ],
+    "relatedDecisions": [
+      "docs/DECISIONS.md"
+    ]
   },
   "page": {
-    "humanSummary": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
-    "agentSummary": "Read docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md and this Stenc spec before changing related Vault Graph behavior.",
+    "humanSummary": "Phase 5C exposes exactly five service-backed MCP tools and seven prompts while preserving read-only, evidence-first, lazy graph behavior.",
+    "agentSummary": "Use the current Markdown SPEC as source truth. Implement MCP as a thin adapter over existing services; preserve warnings, evidence, Vault IDs, resource links, and graph laziness.",
     "styleTemplate": "task-first"
   },
   "body": {
-    "goal": "Phase 5C exposes the existing Vault Graph services as MCP tools and prompt templates. The goal is to let agents retrieve bounded, evidence-linked context without inventing answer synthesis or bypassing the CLI-tested application services.\nTools return structured data. Prompts are lightweight workflow templates that guide an agent toward the right tools and remind it that Vault Graph output is working context, not durable truth.",
-    "problem": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+    "goal": "Phase 5C exposes existing Vault Graph application services as MCP tools and prompt templates. The goal is to let agents search, build bounded context packs, inspect graph evidence, trace decisions, and check index status without scanning an entire Vault and without inventing answer synthesis. MCP remains an adapter. Tools and prompts must not become a second retrieval engine, graph engine, context-pack builder, memory service, or Vault publishing workflow. All output is working context until it is intentionally published through Vault's normal source capture, validation, release gate, and Git history workflow.",
+    "problem": "The original Phase 5C draft still points in the correct product direction, but the completed Phase 5A and Phase 5B work requires a more precise design: `McpServiceFactory`, `McpScopeInput`, and MCP error mapping. Phase 5C must register tools and prompts on the same server wrapper instead of creating a second MCP runtime. `ContextPackResourceCache`, `mcp_uri.py`, metadata readers, graph resource readers, and current-context availability. Phase 5C must reuse the same cache and URI format when returning resource links. and a non-graph context-pack builder. Phase 5C tools that accept `include_graph=True` need an explicit lazy factory path that constructs a graph-enabled retrieval service or context-pack builder. Phase 5C must update that expectation to the exact service-backed tool and prompt lists. `FastMCP.tool(..., structured_output=True)` and `FastMCP.prompt(...)`. The implementation must not use SDK-private attributes. No top-level product decision changes are required. The correct...",
     "scope": {
       "in": [
-        "Register service-backed tools for search, context packs, related entities,",
-        "Return structured output plus a text mirror for compatibility.",
-        "Preserve all warnings, evidence refs, backend use, store revisions, and",
-        "Return MCP resource links where Phase 5B resources exist.",
-        "Register prompt templates for repeatable agent workflows.",
-        "Add tests for tool schemas, prompt text, read-only behavior, and multi-vault"
+        "FastMCP tool registration on the Phase 5A server.",
+        "FastMCP prompt registration on the same server.",
+        "MCP-owned tool input parsing and validation for JSON-safe arguments.",
+        "`McpScopeInput` reuse for all scoped tools.",
+        "service-backed tools for search, context-pack building, related entities, decision traces, and index status.",
+        "graph-enabled search and context-pack construction through lazy service factory methods.",
+        "canonical MCP tool response envelopes with structured payloads, warnings, resource links, and text mirrors.",
+        "resource-link helpers that use Phase 5B `vault://` URI encoding.",
+        "tests for schemas, registration, read-only safety, graph laziness, multi-Vault identity, prompt wording, and stdio smoke behavior."
       ],
       "out": [
-        "ask_vault answer generation.",
-        "LLM clients or hosted model calls.",
-        "Phase 6 project memory, open-question, and recent-change projections.",
-        "Autonomous wiki publication.",
-        "Tools that index or mutate derived state.",
-        "Streaming partial tool output."
+        "`ask_vault` answer generation",
+        "LLM clients, hosted model calls, or answer synthesis",
+        "Phase 6 project-memory, timeline, open-question, and recent-change projections",
+        "autonomous wiki publication or Vault file editing",
+        "indexing, repairing, or mutating derived state from MCP tools",
+        "resource subscriptions or notifications",
+        "durable context-pack persistence",
+        "streaming partial tool output",
+        "Streamable HTTP transport, authentication, or remote hosting"
       ]
     },
     "architecture": {
-      "summary": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+      "summary": "Phase 5C registers tools and prompts on the existing Phase 5A FastMCP server, reuses Phase 5B resources and context-pack cache, adds MCP-owned serialization and prompt boundaries, and opens graph dependencies only through explicit graph behavior.",
       "flow": [
-        "Markdown source -> Stenc JSON -> generated fixed web page"
+        "vg serve --mcp --state PATH -> create_mcp_server(config) -> open_read_only services -> ContextPackResourceCache(max_entries=32) -> register resources -> register tools -> register prompts -> stdio transport",
+        "search_vault -> SearchVaultInput -> scope_from_mcp_input -> RetrievalService.search -> search_response_to_payload -> resource_links_for_search -> McpToolBody",
+        "build_context_pack -> BuildContextPackInput -> ContextPackRequest -> ContextPackBuilder.build -> render_context_pack_json -> ContextPackResourceCache.put -> vault://context/packs/{pack_id}",
+        "find_related/get_decision_trace -> graph input DTO -> validated QueryScope -> open_graph_retrieval_service -> GraphRetrievalService -> MCP payload and resource links",
+        "check_index_status -> CheckIndexStatusInput -> open_status_service -> IndexService.status -> status_report_to_payload"
       ]
     },
     "requirements": [
       {
         "id": "REQ-1",
-        "title": "In Scope",
-        "detail": "Register service-backed tools for search, context packs, related entities, decision traces, and index status. Return structured output plus a text mirror for compatibility. Preserve all warnings, evidence refs, backend use, store revisions, and Vault IDs. Return MCP resource links where Phase 5B resources exist. Register prompt templates for repeatable agent workflows. Add tests for tool schemas, prompt text, read-only behavior, and multi-vault scope handling.",
+        "title": "Reuse Phase 5A/5B MCP runtime and resources",
+        "detail": "Phase 5C must register tools and prompts on the existing Phase 5A FastMCP server wrapper, reuse Phase 5B resource templates, ContextPackResourceCache, mcp_uri encoding, and current resource registry instead of creating a second MCP runtime.",
         "acceptanceCriteria": [
-          "Register service-backed tools for search, context packs, related entities,",
-          "Return structured output plus a text mirror for compatibility.",
-          "Preserve all warnings, evidence refs, backend use, store revisions, and",
-          "Return MCP resource links where Phase 5B resources exist.",
-          "Register prompt templates for repeatable agent workflows.",
-          "Add tests for tool schemas, prompt text, read-only behavior, and multi-vault"
+          "RegisteredMcpServer exposes resource_registry, tool_registry, and prompt_registry.",
+          "build_context_pack stores rendered canonical JSON in RegisteredMcpServer.context_pack_cache.",
+          "Resource links use Phase 5B vault:// URI encoding."
         ]
       },
       {
         "id": "REQ-2",
-        "title": "Out Of Scope",
-        "detail": "ask_vault answer generation. LLM clients or hosted model calls. Phase 6 project memory, open-question, and recent-change projections. Autonomous wiki publication. Tools that index or mutate derived state. Streaming partial tool output.",
+        "title": "Expose exactly five service-backed MCP tools",
+        "detail": "vg serve --mcp lists search_vault, build_context_pack, find_related, get_decision_trace, and check_index_status only. Deferred roadmap tools remain absent until backing services exist.",
         "acceptanceCriteria": [
-          "ask_vault answer generation.",
-          "LLM clients or hosted model calls.",
-          "Phase 6 project memory, open-question, and recent-change projections.",
-          "Autonomous wiki publication.",
-          "Tools that index or mutate derived state.",
-          "Streaming partial tool output."
+          "Tool listing contains exactly search_vault, build_context_pack, find_related, get_decision_trace, check_index_status.",
+          "ask_vault, memory summaries, open-question tools, recent-change tools, and explain_result are not listed.",
+          "Every tool delegates to existing application services or ContextPackBuilder."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "Expose exactly seven prompt templates",
+        "detail": "Phase 5C registers seven transparent prompt templates for common agent workflows. Prompts are user-controlled templates, not autonomous operations.",
+        "acceptanceCriteria": [
+          "Prompt listing contains generate_codex_brief, prepare_implementation_context, review_architecture_decision, summarize_feature_history, analyze_project_risk, prepare_wiki_update_context, trace_decision_history.",
+          "Prompt text mentions only registered Phase 5C tools.",
+          "Prompt text instructs agents to treat Vault Graph output as read-only working context."
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "Keep graph behavior explicit, lazy, and validation-first",
+        "detail": "Normal search, context, status, resource listing, and prompt listing must not import rustworkx. Graph dependencies open only for graph tools or include_graph=True after argument and scope validation succeeds.",
+        "acceptanceCriteria": [
+          "open_retrieval_service(include_graph=True) constructs graph-enabled retrieval lazily.",
+          "open_context_pack_builder(include_graph=True) uses graph-enabled retrieval lazily.",
+          "Invalid arguments, invalid scope widening, unknown Vault IDs, and invalid cross-Vault combinations fail before graph dependencies open."
+        ]
+      },
+      {
+        "id": "REQ-5",
+        "title": "Return structured evidence-first tool envelopes",
+        "detail": "Every tool returns a canonical JSON envelope with payload, resource_links, warnings, and a compact text mirror derived from the same structured payload.",
+        "acceptanceCriteria": [
+          "Responses preserve Vault IDs, evidence refs, warnings, store revisions, backend use, and scope data.",
+          "Text mirrors contain no facts or warnings absent from structured output.",
+          "Warnings remain first-class top-level fields as well as payload data where relevant."
+        ]
+      },
+      {
+        "id": "REQ-6",
+        "title": "Preserve read-only and rebuildable Vault boundary",
+        "detail": "MCP tools never mutate Vault files, run indexing, create missing derived state, or turn generated context into durable knowledge.",
+        "acceptanceCriteria": [
+          "Tool calls do not create metadata, vector, graph, projection, model, cache, or Vault files.",
+          "Tools never call VaultLoader or accept raw filesystem roots.",
+          "Durable knowledge changes are routed back through Vault workflow, not through Vault Graph."
+        ]
+      },
+      {
+        "id": "REQ-7",
+        "title": "Provide focused tests and final verification gates",
+        "detail": "Implementation must include focused tests for tools, serialization, prompts, read-only behavior, stdio smoke behavior, and regression coverage for existing MCP and graph search contracts.",
+        "acceptanceCriteria": [
+          "tests/test_mcp_tools.py covers exact tool registration, validation, dispatch, warnings, and graph laziness.",
+          "tests/test_mcp_tool_serialization.py covers DTO serialization and resource links without CLI imports.",
+          "tests/test_mcp_prompts.py covers exact prompt list and wording boundaries.",
+          "tests/test_mcp_tool_read_only_boundary.py covers Vault byte stability, missing-state avoidance, and graph import timing.",
+          "Final verification includes pytest, ruff, mypy, and git diff --check."
         ]
       }
     ],
     "approaches": [
       {
-        "name": "Structured Stenc conversion",
+        "name": "Thin MCP adapter over existing services",
         "tradeoffs": [
-          "Keeps the original Markdown as source evidence.",
-          "Adds generated JSON and styled pages for scanning and agent use."
+          "Pros: preserves CLI-tested service behavior and keeps MCP from becoming a second retrieval or graph engine.",
+          "Pros: simpler to test, easier to scale, and consistent with Vault Graph read-only boundaries.",
+          "Cons: requires explicit serialization adapters for MCP instead of reusing CLI helpers directly."
         ],
-        "recommendation": "Use the Stenc JSON/page as a navigable view, and preserve the Markdown as the original document."
+        "recommendation": "Use MCP-owned input DTOs, tool envelopes, prompt registry, and serialization helpers while delegating domain behavior to existing services."
+      },
+      {
+        "name": "Lazy graph-enabled factory methods",
+        "tradeoffs": [
+          "Pros: non-graph startup, prompt listing, status, and ordinary search avoid rustworkx and graph projection imports.",
+          "Pros: graph work stays explicit and validation-first.",
+          "Cons: factory construction needs a small internal component helper to avoid reading RetrievalService private fields."
+        ],
+        "recommendation": "Add open_retrieval_service(include_graph=False) and open_context_pack_builder(include_graph=False) to McpServiceFactory."
       }
     ],
     "components": [
       {
-        "name": "Overview",
-        "responsibility": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+        "name": "src/vault_graph/mcp/mcp_tools.py",
+        "responsibility": "Own Phase 5C tool names, JSON-safe handler signatures, input DTO parsing/validation, McpToolBody, McpToolRegistry, and FastMCP tool registration.",
         "interfaces": [
-          "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          "McpToolName",
+          "McpResourceLink",
+          "McpToolBody",
+          "McpToolRegistry",
+          "register_mcp_tools(...)"
         ],
         "dependencies": [
-          "docs/SPEC.md"
+          "McpServices",
+          "McpServiceFactory",
+          "McpScopeInput",
+          "ContextPackResourceCache",
+          "mcp_tool_serialization"
+        ]
+      },
+      {
+        "name": "src/vault_graph/mcp/mcp_tool_serialization.py",
+        "responsibility": "Render service DTOs to JSON-compatible MCP payloads, top-level warnings, text mirrors, and Phase 5B resource links without importing CLI helpers.",
+        "interfaces": [
+          "search_response_to_payload(...)",
+          "context_pack_to_payload(...)",
+          "related_response_to_payload(...)",
+          "decision_trace_response_to_payload(...)",
+          "status_report_to_payload(...)",
+          "resource_links_for_*",
+          "tool_text_mirror(...)"
+        ],
+        "dependencies": [
+          "SearchResponse",
+          "ContextPack",
+          "RelatedResponse",
+          "DecisionTraceResponse",
+          "StatusReport",
+          "mcp_uri.encode_resource_segment"
+        ]
+      },
+      {
+        "name": "src/vault_graph/mcp/mcp_prompts.py",
+        "responsibility": "Own seven Phase 5C prompt templates and register them through public FastMCP.prompt APIs.",
+        "interfaces": [
+          "PHASE_5C_PROMPT_NAMES",
+          "McpPromptRegistry.render(...)",
+          "register_mcp_prompts(...)"
+        ],
+        "dependencies": [
+          "FastMCP.prompt public decorator surface"
+        ]
+      },
+      {
+        "name": "src/vault_graph/mcp/mcp_service_factory.py",
+        "responsibility": "Add lazy graph-enabled retrieval and context-pack builder factory paths while keeping open_read_only cheap and non-graph.",
+        "interfaces": [
+          "open_retrieval_service(include_graph=False)",
+          "open_context_pack_builder(include_graph=False)",
+          "open_graph_retrieval_service()",
+          "open_graph_search_candidate_provider()"
+        ],
+        "dependencies": [
+          "RetrievalService",
+          "SearchContextPackBuilder",
+          "GraphSearchCandidateProvider",
+          "ReadOnlySearchReadiness"
+        ]
+      },
+      {
+        "name": "src/vault_graph/mcp/mcp_server.py",
+        "responsibility": "Construct one FastMCP server, one shared ContextPackResourceCache, resources, tools, and prompts, then return an expanded RegisteredMcpServer.",
+        "interfaces": [
+          "McpServer.list_tools()",
+          "McpServer.list_prompts()",
+          "RegisteredMcpServer.tool_registry",
+          "RegisteredMcpServer.prompt_registry",
+          "create_mcp_server(...)"
+        ],
+        "dependencies": [
+          "register_mcp_resources(...)",
+          "register_mcp_tools(...)",
+          "register_mcp_prompts(...)"
+        ]
+      },
+      {
+        "name": "ContextPackResourceCache and mcp_uri helpers",
+        "responsibility": "Reuse the Phase 5B generated context-pack in-process cache and vault:// resource URI encoding for tool resource links.",
+        "interfaces": [
+          "ContextPackResourceCache.put(...)",
+          "ContextPackResourceCache.get(...)",
+          "encode_resource_segment(...)"
+        ],
+        "dependencies": [
+          "ContextPack",
+          "Phase 5B resource templates"
         ]
       }
     ],
     "dataFlow": [
-      "search_vault:\nbuild_context_pack:\nfind_related:\nget_decision_trace:\ncheck_index_status:"
+      "Server startup: create_mcp_server -> open_read_only -> shared ContextPackResourceCache -> register_mcp_resources -> register_mcp_tools -> register_mcp_prompts -> stdio.",
+      "Non-graph search uses services.retrieval_service and keyword/vector search only.",
+      "Graph search uses service_factory.open_retrieval_service(include_graph=True), lazy GraphRetrievalService, and GraphSearchCandidateProvider.",
+      "Context pack tool builds a ContextPack, renders canonical JSON, stores it in ContextPackResourceCache, and returns vault://context/packs/{pack_id}.",
+      "Prompt listing reads registered FastMCP prompt metadata only and does not read stores or import graph dependencies."
     ],
     "errorHandling": [
       {
-        "case": "Conversion drift",
-        "behavior": "Treat the original Markdown and docs/SPEC.md as the source of truth if generated Stenc content is ambiguous."
+        "case": "Invalid tool arguments",
+        "behavior": "Return invalid-parameter MCP errors with payload code invalid_tool_arguments before graph services open."
+      },
+      {
+        "case": "Catalog or scope errors",
+        "behavior": "CatalogError and invalid scope errors remain invalid-parameter MCP errors with existing catalog error mapping."
+      },
+      {
+        "case": "Missing or unhealthy indexes",
+        "behavior": "Become execution errors unless the underlying service returns warning-backed degraded results."
+      },
+      {
+        "case": "Vector query failure",
+        "behavior": "May degrade to keyword-only search when RetrievalService returns warnings."
+      },
+      {
+        "case": "Graph tool failure",
+        "behavior": "Does not silently degrade to non-graph results."
+      },
+      {
+        "case": "Search/context graph expansion failure",
+        "behavior": "Appears as graph warnings when a valid partial response is still available."
+      },
+      {
+        "case": "Unexpected exception",
+        "behavior": "Map to internal MCP errors with local paths redacted by mcp_errors.py."
       }
     ],
     "contracts": [
       {
-        "name": "Security And Agent Ergonomics",
+        "name": "Tool registration contract",
         "rules": [
-          "Tool names should be concrete and unsurprising.",
-          "Tool descriptions must not contain hidden instructions that conflict with the",
-          "Tool descriptions must state read-only behavior and scope defaults.",
-          "Prompts must not ask agents to bypass warnings.",
-          "Prompt and tool outputs must avoid local absolute paths unless they are",
-          "Tool calls must be bounded by limit, max_tokens, and graph depth.",
-          "Expensive graph behavior is opt-in."
+          "register only through the public `FastMCP.tool(...)` decorator.",
+          "set `structured_output=True` for every tool.",
+          "tool handler signatures use JSON-safe arguments (`str`, `int`, `bool`, `dict[str, object] | None`, and `list[str] | None`) so generated MCP schemas stay predictable.",
+          "handlers convert raw arguments into typed input dataclasses before dispatch.",
+          "handlers return `McpToolBody.to_json_dict()`.",
+          "do not use FastMCP private attributes to inspect, patch, or emit tool results.",
+          "do not import CLI helper functions from `vault_graph.cli.main`. server: McpServer services: McpServices service_factory: McpServiceFactory server_version: str context_pack_cache: ContextPackResourceCache resource_registry: McpResourceRegistry tool_registry: McpToolRegistry prompt_registry: McpPromptRegistry"
+        ]
+      },
+      {
+        "name": "Tool input DTO and validation contract",
+        "rules": [
+          "required strings are stripped and must remain non-empty.",
+          "`limit` must be `1 <= limit <= MAX_MCP_TOOL_LIMIT`.",
+          "context `max_tokens`, when provided, must be positive and use Phase 4 context budget semantics.",
+          "`FindRelatedInput.depth` must be between `1` and `MAX_GRAPH_PROJECTION_DEPTH`.",
+          "`kinds` maps to graph `relationship_types`; empty means no relationship-type filter.",
+          "`scope.all_vaults` and `scope.vault_ids` are mutually exclusive.",
+          "`scope.content_scopes` may narrow configured content scopes, never widen them.",
+          "`include_cross_vault=True` requires explicit graph behavior and a multi-Vault requested scope.",
+          "`SearchVaultInput.include_cross_vault=True` requires `include_graph=True`.",
+          "`BuildContextPackInput.include_cross_vault=True` requires `include_graph=True`.",
+          "`FindRelatedInput` and `DecisionTraceInput` are graph tools, so they allow `include_cross_vault=True` only when the requested scope contains more than one Vault.",
+          "validation errors map to `invalid_tool_arguments` or existing catalog error codes before graph services are opened."
+        ]
+      },
+      {
+        "name": "Tool response envelope contract",
+        "rules": [
+          "`payload` is the service DTO rendered to JSON-compatible values.",
+          "`resource_links` are follow-up Phase 5B URIs, never direct filesystem paths.",
+          "`warnings` is a normalized top-level copy of relevant warnings for agent ergonomics; the original warning data also remains in `payload`.",
+          "`text` is a compact JSON or short Markdown mirror generated from the same structured data.",
+          "the text mirror must not add facts, omit warnings, or hide degraded state.",
+          "local absolute paths are omitted or redacted unless they are the explicit user-provided `--state` path already allowed by `mcp_errors.py`.",
+          "`isError` is controlled by the MCP SDK error path. Warning-backed degraded results are successful tool responses with warnings."
+        ]
+      },
+      {
+        "name": "Tool serialization and resource-link contract",
+        "rules": [
+          "preserve `vault_id`, `document_id`, and `chunk_id` for every evidence-bearing item.",
+          "preserve `requested_scope`, `actual_scopes`, store revisions, generated time, backend use, graph projection version, and graph build IDs where available.",
+          "keep float scores JSON-safe and deterministic.",
+          "convert tuples to lists, dataclasses to objects, and unsupported values to explicit serialization errors.",
+          "do not serialize backend-native objects directly.",
+          "keep `context_pack_to_payload(pack)` identical to `context_pack_to_dict(pack)` except for MCP envelope additions.",
+          "evidence-bearing documents always get a document resource link: `vault://{vault_id}/documents/{encoded_path}`.",
+          "wiki paths under `wiki/` also get a page resource link: `vault://{vault_id}/pages/{encoded_path}`.",
+          "source-like paths under `raw/`, `docs/`, or `scratch/reports/` may get a source resource link by `document_id`: `vault://{vault_id}/sources/{encoded_document_id}`.",
+          "decision-like paths under `wiki/decisions/` may get: `vault://{vault_id}/decisions/{encoded_document_id}`.",
+          "issue-like paths under `wiki/issues/` may get: `vault://{vault_id}/issues/{encoded_document_id}`.",
+          "graph entities get: `vault://{vault_id}/graph/entities/{encoded_entity_id}`.",
+          "context packs get: `vault://context/packs/{encoded_pack_id}`.",
+          "all encoding uses `encode_resource_segment(...)` from `mcp_uri.py`."
+        ]
+      },
+      {
+        "name": "Prompt registration and wording contract",
+        "rules": [
+          "register only through the public `FastMCP.prompt(...)` decorator.",
+          "prompt functions accept only simple JSON-safe arguments.",
+          "prompts return plain text templates.",
+          "prompt text must mention only registered Phase 5C tools.",
+          "prompts must not include hidden instructions that conflict with the user's request.",
+          "prompts must not instruct agents to edit Vault files through Vault Graph.",
+          "prompts must tell agents to preserve warnings and evidence references.",
+          "prompts that suggest durable follow-up must route work back through Vault's validation workflow.",
+          "\"Use Vault Graph as read-only working context.\"",
+          "\"Do not read the whole Vault when a scoped context pack is enough.\"",
+          "\"Inspect warnings before relying on evidence.\"",
+          "\"Preserve `vault_id`, document IDs, chunk IDs, and resource links.\"",
+          "\"If durable knowledge should change, propose the Vault source capture, validation, release gate, and Git workflow. Do not publish through Vault Graph.\""
+        ]
+      },
+      {
+        "name": "Security and read-only contract",
+        "rules": [
+          "tools never execute shell commands.",
+          "tools never accept raw filesystem roots.",
+          "tools never call `VaultLoader`.",
+          "tools never edit, rename, delete, rewrite, or publish Vault files.",
+          "tools never create missing metadata, vector, graph, projection, model, cache, or Vault files.",
+          "tools do not expose local absolute paths except the explicit configured `--state` path when already permitted by error mapping.",
+          "all tool reads are scoped through `VaultCatalog` and `QueryScope`.",
+          "graph dependencies are opened only for explicit graph tool calls or `include_graph=True`.",
+          "stdout remains MCP protocol-only; diagnostics go to stderr.",
+          "prompt content is transparent workflow guidance, not hidden policy injection."
+        ]
+      },
+      {
+        "name": "Multi-vault contract",
+        "rules": [
+          "`scope=None` uses the active Vault.",
+          "`scope.vault_ids` selects explicit Vault IDs.",
+          "`scope.all_vaults=true` expands to all enabled Vault IDs.",
+          "`scope.content_scopes` narrows the selected Vault scope only.",
+          "`include_cross_vault=true` requires explicit graph behavior and at least two selected Vault IDs.",
+          "every evidence-bearing result preserves `vault_id`.",
+          "resource links include `vault_id` for Vault-derived resources.",
+          "generated context-pack resources record requested and actual scopes inside the pack payload.",
+          "identical paths, document IDs, chunk IDs, entity names, or warning codes from different Vaults must not collide in MCP output."
+        ]
+      },
+      {
+        "name": "Agent ergonomics contract",
+        "rules": [
+          "use `search_vault` for evidence search.",
+          "use `build_context_pack` for bounded task context.",
+          "use `find_related` for graph neighborhood evidence.",
+          "use `get_decision_trace` for decision/topic history.",
+          "use `check_index_status` before assuming missing evidence is a content problem.",
+          "read-only behavior",
+          "active-Vault default scope",
+          "explicit multi-Vault and cross-Vault requirements",
+          "warning preservation",
+          "context is not durable truth"
         ]
       }
     ],
     "surfaces": [
       {
-        "path": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-        "role": "Original Markdown source",
-        "owner": "Vault Graph documentation"
+        "path": "src/vault_graph/mcp/mcp_tools.py",
+        "role": "Create",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_tool_serialization.py",
+        "role": "Create",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_prompts.py",
+        "role": "Create",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_mcp_tools.py",
+        "role": "Create",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_mcp_tool_serialization.py",
+        "role": "Create",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_mcp_prompts.py",
+        "role": "Create",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_mcp_tool_read_only_boundary.py",
+        "role": "Create",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "src/vault_graph/mcp/__init__.py",
+        "role": "Modify",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_server.py",
+        "role": "Modify",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_service_factory.py",
+        "role": "Modify",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_mcp_stdio_smoke.py",
+        "role": "Modify",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_mcp_import_boundaries.py",
+        "role": "Regression",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_mcp_service_factory.py",
+        "role": "Regression",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_mcp_resources.py",
+        "role": "Regression",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_context_pack_resource_cache.py",
+        "role": "Regression",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_search_include_graph.py",
+        "role": "Regression",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_multi_vault_search.py",
+        "role": "Regression",
+        "owner": "Vault Graph MCP / tests"
+      },
+      {
+        "path": "tests/test_multi_vault_graph_retrieval.py",
+        "role": "Regression",
+        "owner": "Vault Graph MCP / tests"
       }
     ],
     "testingStrategy": [
       {
-        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.spec.json",
-        "expected": "Stenc validation passed."
+        "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py tests/test_mcp_tool_serialization.py tests/test_mcp_prompts.py tests/test_mcp_tool_read_only_boundary.py tests/test_mcp_stdio_smoke.py -q",
+        "expected": "Phase 5C focused MCP tests"
+      },
+      {
+        "command": "uv run --python 3.12 pytest -q",
+        "expected": "Full test suite"
+      },
+      {
+        "command": "uv run --python 3.12 ruff check src tests",
+        "expected": "Lint gate"
+      },
+      {
+        "command": "uv run --python 3.12 mypy src tests",
+        "expected": "Type gate"
+      },
+      {
+        "command": "git diff --check",
+        "expected": "Diff hygiene"
       }
     ],
     "validation": [
       {
+        "command": "uv run --python 3.12 pytest tests/test_mcp_tools.py tests/test_mcp_tool_serialization.py tests/test_mcp_prompts.py tests/test_mcp_tool_read_only_boundary.py tests/test_mcp_stdio_smoke.py -q",
+        "purpose": "Phase 5C focused MCP tests"
+      },
+      {
+        "command": "uv run --python 3.12 pytest -q",
+        "purpose": "Full test suite"
+      },
+      {
+        "command": "uv run --python 3.12 ruff check src tests",
+        "purpose": "Lint gate"
+      },
+      {
+        "command": "uv run --python 3.12 mypy src tests",
+        "purpose": "Type gate"
+      },
+      {
+        "command": "git diff --check",
+        "purpose": "Diff hygiene"
+      },
+      {
         "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.spec.json",
-        "purpose": "Validate the generated Stenc JSON source."
+        "purpose": "Validate the Stenc JSON source for this Phase 5C spec."
+      },
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/check-rendered-pages.js docs/stenc",
+        "purpose": "Confirm the generated styled Stenc page exists."
       }
     ],
     "agentInstructions": [
-      "Use docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md as the original spec text; this JSON is a structured Stenc view.",
-      "Preserve Vault Graph as read-only and rebuildable over Vault.",
-      "Read docs/SPEC.md before changing architecture, indexing, retrieval, graph, or context-pack behavior."
+      "Read docs/SPEC.md and the current Phase 5C Markdown SPEC before changing MCP behavior.",
+      "Keep MCP as an adapter over application services; do not implement a second retrieval, graph, context-pack, memory, or Vault publishing engine.",
+      "Register only service-backed tools in Phase 5C.",
+      "Preserve Vault IDs, evidence references, resource links, warnings, store revisions, backend use, and scope data in structured output.",
+      "Keep graph behavior explicit and lazy; validate arguments and scope before opening graph dependencies.",
+      "Do not write, rename, rewrite, delete, index, repair, or publish Vault content from MCP tools."
     ],
     "reviewChecklist": [
-      "Original Markdown source remains present and unchanged.",
-      "Stenc JSON validates with validate-stenc-doc.js.",
-      "Generated page exists under docs/stenc/specs/<slug>/index.html."
+      "Stenc updatedAt matches the latest Markdown update date 2026-06-18.",
+      "Success criteria include exactly five tools and seven prompts.",
+      "Deferred roadmap tools are explicitly out of scope and not listed as registered tools.",
+      "McpServiceFactory lazy graph factory methods are represented.",
+      "mcp_tool_serialization.py, mcp_tools.py, and mcp_prompts.py are represented.",
+      "ContextPackResourceCache handoff and vault://context/packs/{pack_id} are represented.",
+      "Required tests and final verification commands are represented."
     ],
     "selfReviewChecks": [
       {
-        "name": "Source fidelity",
-        "purpose": "Confirm major headings, commands, code fences, and referenced files remain visible in Stenc fields."
+        "name": "Spec coverage",
+        "purpose": "Confirm every current Phase 5C SPEC success criterion maps to Stenc requirements, contracts, or validation."
       },
       {
-        "name": "Repo boundary",
-        "purpose": "Confirm generated docs do not change Vault Graph runtime behavior or Vault content."
+        "name": "Source fidelity",
+        "purpose": "Confirm the Stenc JSON reflects the current Markdown, not the older draft Stenc conversion."
+      },
+      {
+        "name": "Read-only boundary",
+        "purpose": "Confirm MCP tools remain read-only and rebuildable over Vault."
+      },
+      {
+        "name": "Graph laziness",
+        "purpose": "Confirm normal MCP startup/listing/status/non-graph paths avoid rustworkx imports."
+      },
+      {
+        "name": "Agent ergonomics",
+        "purpose": "Confirm prompts and tool names expose only service-backed Phase 5C behavior."
       }
     ],
     "implementationHandoff": {
-      "planLocation": "docs/superpowers/plans/",
-      "requiredSkill": "superpowers:writing-plans",
+      "planLocation": "docs/superpowers/plans/2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows.md",
+      "requiredSkill": "vg-plan",
       "notes": [
-        "Use the original Markdown source plus this Stenc page when preparing implementation work."
+        "Use the Phase 5C implementation plan after this SPEC review gate is satisfied.",
+        "Korean companion plan exists at docs/superpowers/plans/2026-06-18-phase-5c-mcp-tools-prompts-agent-workflows-ko.md."
       ]
     },
     "supportingSections": [
       {
-        "heading": "Overview",
-        "content": "Status: Draft for implementation planning\nDate: 2026-06-15\nScope: Phase 5C",
+        "heading": "Post-5A And 5B Recheck",
+        "content": "The original Phase 5C draft still points in the correct product direction, but the completed Phase 5A and Phase 5B work requires a more precise design: `McpServiceFactory`, `McpScopeInput`, and MCP error mapping. Phase 5C must register tools and prompts on the same server wrapper instead of creating a second MCP runtime. `ContextPackResourceCache`, `mcp_uri.py`, metadata readers, graph resource readers, and current-context availability. Phase 5C must reuse the same cache and URI format when returning resource links. and a non-graph context-pack builder. Phase 5C tools that accept `include_graph=True` need an explicit lazy factory path that constructs a graph-enabled retrieval service or context-pack builder. Phase 5C must update that expectation to the exact service-backed tool and prompt lists. `FastMCP.tool(..., structured_output=True)` and `FastMCP.prompt(...)`. The implementation must not use SDK-private attributes. No top-level product decision changes are required. The correction is a design detail: Phase 5C must be explicit about service reuse, graph laziness, output serialization, and prompt registration.",
         "items": [
-          "Review the Overview section in the source Markdown."
+          "Phase 5A created the stdio FastMCP boundary, `RegisteredMcpServer`, `McpServiceFactory`, `McpScopeInput`, and MCP error mapping. Phase 5C must register tools and prompts on the same server wrapper instead of creating a second MCP runtime.",
+          "Phase 5B created resource templates, `McpResourceRegistry`, `ContextPackResourceCache`, `mcp_uri.py`, metadata readers, graph resource readers, and current-context availability. Phase 5C must reuse the same cache and URI format when returning resource links.",
+          "`McpServiceFactory.open_read_only()` currently exposes non-graph retrieval and a non-graph context-pack builder. Phase 5C tools that accept `include_graph=True` need an explicit lazy factory path that constructs a graph-enabled retrieval service or context-pack builder.",
+          "The current MCP smoke test intentionally expects no tools and no prompts. Phase 5C must update that expectation to the exact service-backed tool and prompt lists.",
+          "FastMCP's public registration surface is enough for this slice: `FastMCP.tool(..., structured_output=True)` and `FastMCP.prompt(...)`. The implementation must not use SDK-private attributes."
         ],
         "facts": [
           {
@@ -181,15 +627,15 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "0"
+            "label": "Source Heading",
+            "value": "2. Post-5A And 5B Recheck"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
@@ -198,10 +644,21 @@
         "codeBlocks": []
       },
       {
-        "heading": "Purpose",
-        "content": "Phase 5C exposes the existing Vault Graph services as MCP tools and prompt templates. The goal is to let agents retrieve bounded, evidence-linked context without inventing answer synthesis or bypassing the CLI-tested application services.\nTools return structured data. Prompts are lightweight workflow templates that guide an agent toward the right tools and remind it that Vault Graph output is working context, not durable truth.",
+        "heading": "Success Criteria",
+        "content": "Phase 5C is complete when: `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, and `check_index_status`. tools, recent-change tools, and result explanation are not listed. does not query SQLite, Chroma, rustworkx, or Vault files directly when a service boundary exists. `RegisteredMcpServer.context_pack_cache` and returns `vault://context/packs/{pack_id}`. `build_context_pack` return Phase 5B resource links where useful. status, resource listing, and prompt listing do not import rustworkx. cross-Vault combinations fail before graph dependencies are opened. files. backend use, and scope data in structured JSON. to treat Vault Graph output as read-only working context.",
         "items": [
-          "Review the Purpose section in the source Markdown."
+          "`vg serve --mcp` lists only the five service-backed MCP tools: `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, and `check_index_status`.",
+          "deferred roadmap tools such as `ask_vault`, memory summaries, open-question tools, recent-change tools, and result explanation are not listed.",
+          "`vg serve --mcp` lists the seven prompt templates defined in this document.",
+          "each tool delegates to an existing application service or context builder and does not query SQLite, Chroma, rustworkx, or Vault files directly when a service boundary exists.",
+          "`build_context_pack` stores the rendered canonical JSON in the existing `RegisteredMcpServer.context_pack_cache` and returns `vault://context/packs/{pack_id}`.",
+          "`search_vault`, `find_related`, `get_decision_trace`, and `build_context_pack` return Phase 5B resource links where useful.",
+          "`include_graph=True` opens graph dependencies lazily; normal search, context, status, resource listing, and prompt listing do not import rustworkx.",
+          "invalid arguments, unknown Vault IDs, invalid scope widening, and invalid cross-Vault combinations fail before graph dependencies are opened.",
+          "tool calls do not create metadata, vector, graph, cache, model, or Vault files.",
+          "all responses preserve Vault IDs, evidence refs, warnings, store revisions, backend use, and scope data in structured JSON.",
+          "text mirrors contain no facts or warnings absent from structured output.",
+          "prompts mention only currently registered Phase 5C tools and instruct agents to treat Vault Graph output as read-only working context."
         ],
         "facts": [
           {
@@ -209,15 +666,15 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "3. Success Criteria"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
@@ -226,15 +683,10 @@
         "codeBlocks": []
       },
       {
-        "heading": "In Scope",
-        "content": "Register service-backed tools for search, context packs, related entities, decision traces, and index status. Return structured output plus a text mirror for compatibility. Preserve all warnings, evidence refs, backend use, store revisions, and Vault IDs. Return MCP resource links where Phase 5B resources exist. Register prompt templates for repeatable agent workflows. Add tests for tool schemas, prompt text, read-only behavior, and multi-vault scope handling.",
+        "heading": "Files To Add Or Modify",
+        "content": "Add: Modify: Add tests: Use existing tests as regression coverage:",
         "items": [
-          "Register service-backed tools for search, context packs, related entities,",
-          "Return structured output plus a text mirror for compatibility.",
-          "Preserve all warnings, evidence refs, backend use, store revisions, and",
-          "Return MCP resource links where Phase 5B resources exist.",
-          "Register prompt templates for repeatable agent workflows.",
-          "Add tests for tool schemas, prompt text, read-only behavior, and multi-vault"
+          "Review the Files To Add Or Modify section in the source Markdown."
         ],
         "facts": [
           {
@@ -242,76 +694,15 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "6. Files To Add Or Modify"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
-          }
-        ],
-        "steps": [],
-        "blocks": [],
-        "subSections": [],
-        "codeBlocks": []
-      },
-      {
-        "heading": "Out Of Scope",
-        "content": "ask_vault answer generation. LLM clients or hosted model calls. Phase 6 project memory, open-question, and recent-change projections. Autonomous wiki publication. Tools that index or mutate derived state. Streaming partial tool output.",
-        "items": [
-          "ask_vault answer generation.",
-          "LLM clients or hosted model calls.",
-          "Phase 6 project memory, open-question, and recent-change projections.",
-          "Autonomous wiki publication.",
-          "Tools that index or mutate derived state.",
-          "Streaming partial tool output."
-        ],
-        "facts": [
-          {
-            "label": "Source Markdown",
-            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
-          },
-          {
-            "label": "Heading Level",
-            "value": "2"
-          }
-        ],
-        "links": [
-          {
-            "label": "Original Markdown",
-            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
-          }
-        ],
-        "steps": [],
-        "blocks": [],
-        "subSections": [],
-        "codeBlocks": []
-      },
-      {
-        "heading": "Registered Tools",
-        "content": "Phase 5C registers only tools backed by existing services:\nDeferred tools:\nDeferred tools are not listed in MCP until their backing application services exist. Listing a tool before it can do useful work is worse for agents than omitting it because it teaches the model an unusable path.",
-        "items": [
-          "Review the Registered Tools section in the source Markdown."
-        ],
-        "facts": [
-          {
-            "label": "Source Markdown",
-            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
-          },
-          {
-            "label": "Heading Level",
-            "value": "2"
-          }
-        ],
-        "links": [
-          {
-            "label": "Original Markdown",
-            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
@@ -320,24 +711,32 @@
         "codeBlocks": [
           {
             "language": "text",
-            "content": "search_vault(query, scope=None, limit=10, include_graph=False, include_cross_vault=False)\nbuild_context_pack(goal, scope=None, max_tokens=None, limit=10, include_graph=False, include_cross_vault=False)\nfind_related(target, scope=None, depth=1, kinds=None)\nget_decision_trace(decision_or_topic, scope=None)\ncheck_index_status(scope=None)"
+            "content": "src/vault_graph/mcp/mcp_tools.py\nsrc/vault_graph/mcp/mcp_tool_serialization.py\nsrc/vault_graph/mcp/mcp_prompts.py"
           },
           {
             "language": "text",
-            "content": "ask_vault(question, mode=\"evidence-first\", scope=None)\nsummarize_project_memory(scope=None)\nget_open_questions(scope=None)\nget_recent_changes(since=None, scope=None)\nexplain_result(result_id)"
+            "content": "src/vault_graph/mcp/__init__.py\nsrc/vault_graph/mcp/mcp_server.py\nsrc/vault_graph/mcp/mcp_service_factory.py\ntests/test_mcp_stdio_smoke.py"
+          },
+          {
+            "language": "text",
+            "content": "tests/test_mcp_tools.py\ntests/test_mcp_tool_serialization.py\ntests/test_mcp_prompts.py\ntests/test_mcp_tool_read_only_boundary.py"
+          },
+          {
+            "language": "text",
+            "content": "tests/test_mcp_import_boundaries.py\ntests/test_mcp_service_factory.py\ntests/test_mcp_resources.py\ntests/test_context_pack_resource_cache.py\ntests/test_search_include_graph.py\ntests/test_multi_vault_search.py\ntests/test_multi_vault_graph_retrieval.py"
           }
         ]
       },
       {
-        "heading": "Tool DTOs",
-        "content": "All tools share McpScopeInput from Phase 5A.\nSearch input:\nContext input:\nRelated input:\nDecision trace input:\nStatus input:\nValidation rules:\nRequired strings must be non-empty after trimming. limit must be positive and bounded by the existing service cap. max_tokens must follow Phase 4 context budget rules. depth must be positive and bounded; Phase 5C default is 1. include_cross_vault requires explicit graph behavior and multi-vault scope. Unknown kinds values are invalid arguments.",
+        "heading": "Existing Service Dependency Contract",
+        "content": "Phase 5C must reuse these current services and DTOs: Phase 5C adds two factory methods because the current `McpServices` object is intentionally non-graph by default: Factory rules: the base retrieval service without opening graph dependencies. with `GraphSearchCandidateProvider` from `open_graph_search_candidate_provider()`. `SearchContextPackBuilder` over a graph-enabled retrieval service. explicitly requests graph behavior. indexing, or writes model caches. Tool routing uses the base `McpServices` object for the common non-graph path and calls the factory only for status or explicit graph behavior.",
         "items": [
-          "Required strings must be non-empty after trimming.",
-          "limit must be positive and bounded by the existing service cap.",
-          "max_tokens must follow Phase 4 context budget rules.",
-          "depth must be positive and bounded; Phase 5C default is 1.",
-          "include_cross_vault requires explicit graph behavior and multi-vault scope.",
-          "Unknown kinds values are invalid arguments."
+          "`open_read_only()` remains the cheap base service bundle used at startup.",
+          "`open_retrieval_service(include_graph=False)` returns the same behavior as the base retrieval service without opening graph dependencies.",
+          "`open_retrieval_service(include_graph=True)` constructs a retrieval service with `GraphSearchCandidateProvider` from `open_graph_search_candidate_provider()`.",
+          "`open_context_pack_builder(include_graph=True)` constructs a `SearchContextPackBuilder` over a graph-enabled retrieval service.",
+          "graph-enabled methods remain lazy and may import rustworkx only after a tool explicitly requests graph behavior.",
+          "no factory method initializes missing stores, creates state directories, runs indexing, or writes model caches."
         ],
         "facts": [
           {
@@ -345,15 +744,58 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "7. Existing Service Dependency Contract"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "McpServiceFactory.open_read_only()\nMcpServiceFactory.open_status_service()\nMcpServiceFactory.open_graph_retrieval_service()\nMcpServiceFactory.open_graph_resource_service()\nMcpServiceFactory.open_graph_search_candidate_provider()\n\nRetrievalService.search(...)\nSearchContextPackBuilder.build(...)\nContextPackResourceCache.put(...)\nContextPackResourceCache.get(...)\nGraphRetrievalService.related(...)\nGraphRetrievalService.decision_trace(...)\nIndexService.status(...)"
+          },
+          {
+            "language": "python",
+            "content": "class McpServiceFactory:\n    def open_retrieval_service(self, *, include_graph: bool = False) -> RetrievalService: ...\n\n    def open_context_pack_builder(self, *, include_graph: bool = False) -> ContextPackBuilder: ..."
+          }
+        ]
+      },
+      {
+        "heading": "Tool Registration Boundary",
+        "content": "`src/vault_graph/mcp/mcp_tools.py` owns tool registration and dispatch. It is the only MCP module that should know FastMCP tool names. Registration rules: `dict[str, object] | None`, and `list[str] | None`) so generated MCP schemas stay predictable. results. `mcp_server.py` changes: `create_mcp_server(...)` constructs the resource cache once, registers resources, registers tools with the same cache, registers prompts, and returns the expanded wrapper.",
+        "items": [
+          "register only through the public `FastMCP.tool(...)` decorator.",
+          "set `structured_output=True` for every tool.",
+          "tool handler signatures use JSON-safe arguments (`str`, `int`, `bool`, `dict[str, object] | None`, and `list[str] | None`) so generated MCP schemas stay predictable.",
+          "handlers convert raw arguments into typed input dataclasses before dispatch.",
+          "handlers return `McpToolBody.to_json_dict()`.",
+          "do not use FastMCP private attributes to inspect, patch, or emit tool results.",
+          "do not import CLI helper functions from `vault_graph.cli.main`. server: McpServer services: McpServices service_factory: McpServiceFactory server_version: str context_pack_cache: ContextPackResourceCache resource_registry: McpResourceRegistry tool_registry: McpToolRegistry prompt_registry: McpPromptRegistry"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "8. Tool Registration Boundary"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
@@ -362,39 +804,30 @@
         "codeBlocks": [
           {
             "language": "python",
-            "content": "@dataclass(frozen=True)\nclass SearchVaultInput:\n    query: str\n    scope: McpScopeInput | None = None\n    limit: int = 10\n    include_graph: bool = False\n    include_cross_vault: bool = False"
+            "content": "from collections.abc import Callable\nfrom dataclasses import dataclass\nfrom typing import Any, Literal, Protocol\n\nMcpToolName = Literal[\n    \"search_vault\",\n    \"build_context_pack\",\n    \"find_related\",\n    \"get_decision_trace\",\n    \"check_index_status\",\n]\n\nclass McpToolServer(Protocol):\n    def tool(\n        self,\n        name: str | None = None,\n        title: str | None = None,\n        description: str | None = None,\n        annotations: object | None = None,\n        icons: list[object] | None = None,\n        meta: dict[str, Any] | None = None,\n        structured_output: bool | None = None,\n    ) -> Callable[[Callable[..., object]], Callable[..., object]]: ...\n\n@dataclass(frozen=True)\nclass McpResourceLink:\n    rel: str\n    uri: str\n    title: str | None = None\n    vault_id: str | None = None\n    document_id: str | None = None\n    chunk_id: str | None = None\n\n@dataclass(frozen=True)\nclass McpToolBody:\n    tool_name: McpToolName\n    payload: dict[str, object]\n    resource_links: tuple[McpResourceLink, ...]\n    warnings: tuple[McpErrorPayload, ...]\n    text: str\n\n    def to_json_dict(self) -> dict[str, object]: ...\n\nclass McpToolRegistry:\n    def __init__(\n        self,\n        *,\n        services: McpServices,\n        service_factory: McpServiceFactory,\n        context_pack_cache: ContextPackResourceCache,\n    ) -> None: ...\n\n    def search_vault(self, request: SearchVaultInput) -> McpToolBody: ...\n    def build_context_pack(self, request: BuildContextPackInput) -> McpToolBody: ...\n    def find_related(self, request: FindRelatedInput) -> McpToolBody: ...\n    def get_decision_trace(self, request: DecisionTraceInput) -> McpToolBody: ...\n    def check_index_status(self, request: CheckIndexStatusInput) -> McpToolBody: ...\n\ndef register_mcp_tools(\n    server: McpToolServer,\n    *,\n    services: McpServices,\n    service_factory: McpServiceFactory,\n    context_pack_cache: ContextPackResourceCache,\n) -> McpToolRegistry: ..."
           },
           {
             "language": "python",
-            "content": "@dataclass(frozen=True)\nclass BuildContextPackInput:\n    goal: str\n    scope: McpScopeInput | None = None\n    max_tokens: int | None = None\n    limit: int = 10\n    include_graph: bool = False\n    include_cross_vault: bool = False"
-          },
-          {
-            "language": "python",
-            "content": "@dataclass(frozen=True)\nclass FindRelatedInput:\n    target: str\n    scope: McpScopeInput | None = None\n    depth: int = 1\n    kinds: tuple[str, ...] | None = None"
-          },
-          {
-            "language": "python",
-            "content": "@dataclass(frozen=True)\nclass DecisionTraceInput:\n    decision_or_topic: str\n    scope: McpScopeInput | None = None"
+            "content": "@dataclass(frozen=True)\nclass RegisteredMcpServer:\n    server: McpServer\n    services: McpServices\n    service_factory: McpServiceFactory\n    server_version: str\n    context_pack_cache: ContextPackResourceCache\n    resource_registry: McpResourceRegistry\n    tool_registry: McpToolRegistry\n    prompt_registry: McpPromptRegistry"
           }
         ]
       },
       {
-        "heading": "Tool Output Policy",
-        "content": "Each tool returns:\nstructuredContent: canonical JSON-compatible response content: a text mirror containing compact JSON or short Markdown isError: true only for tool execution failures, not warning-backed degradation\nStructured output rules:\nUse existing response DTOs where possible. Do not expose backend-native records. Include vault_id on every evidence-bearing item. Include requested_scope and actual_scopes when available. Include store revisions and backend use when available. Preserve top-level and item-level warnings. Include resource links for generated packs and graph entities when available.\nText mirror rules:\nIt may be JSON text for machine consumption or Markdown for readability. It must not omit warnings that exist in structured output. It must not add facts that are absent from structured output.",
+        "heading": "Tool Input DTOs",
+        "content": "All tools share `McpScopeInput` from Phase 5A. Raw MCP JSON scope objects are converted to `McpScopeInput` before `scope_from_mcp_input(...)` is called. Validation rules: budget semantics. `MAX_GRAPH_PROJECTION_DEPTH`. filter. them. requested scope. `include_graph=True`. `include_graph=True`. `include_cross_vault=True` only when the requested scope contains more than one Vault. codes before graph services are opened.",
         "items": [
-          "structuredContent: canonical JSON-compatible response",
-          "content: a text mirror containing compact JSON or short Markdown",
-          "isError: true only for tool execution failures, not warning-backed",
-          "Use existing response DTOs where possible.",
-          "Do not expose backend-native records.",
-          "Include vault_id on every evidence-bearing item.",
-          "Include requested_scope and actual_scopes when available.",
-          "Include store revisions and backend use when available.",
-          "Preserve top-level and item-level warnings.",
-          "Include resource links for generated packs and graph entities when available.",
-          "It may be JSON text for machine consumption or Markdown for readability.",
-          "It must not omit warnings that exist in structured output.",
-          "It must not add facts that are absent from structured output."
+          "required strings are stripped and must remain non-empty.",
+          "`limit` must be `1 <= limit <= MAX_MCP_TOOL_LIMIT`.",
+          "context `max_tokens`, when provided, must be positive and use Phase 4 context budget semantics.",
+          "`FindRelatedInput.depth` must be between `1` and `MAX_GRAPH_PROJECTION_DEPTH`.",
+          "`kinds` maps to graph `relationship_types`; empty means no relationship-type filter.",
+          "`scope.all_vaults` and `scope.vault_ids` are mutually exclusive.",
+          "`scope.content_scopes` may narrow configured content scopes, never widen them.",
+          "`include_cross_vault=True` requires explicit graph behavior and a multi-Vault requested scope.",
+          "`SearchVaultInput.include_cross_vault=True` requires `include_graph=True`.",
+          "`BuildContextPackInput.include_cross_vault=True` requires `include_graph=True`.",
+          "`FindRelatedInput` and `DecisionTraceInput` are graph tools, so they allow `include_cross_vault=True` only when the requested scope contains more than one Vault.",
+          "validation errors map to `invalid_tool_arguments` or existing catalog error codes before graph services are opened."
         ],
         "facts": [
           {
@@ -402,27 +835,134 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "9. Tool Input DTOs"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
         "blocks": [],
         "subSections": [],
-        "codeBlocks": []
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "MAX_MCP_TOOL_LIMIT = 50\n\n@dataclass(frozen=True)\nclass SearchVaultInput:\n    query: str\n    scope: McpScopeInput | None = None\n    limit: int = 10\n    include_graph: bool = False\n    include_cross_vault: bool = False\n\n@dataclass(frozen=True)\nclass BuildContextPackInput:\n    goal: str\n    scope: McpScopeInput | None = None\n    max_tokens: int | None = None\n    limit: int = DEFAULT_CONTEXT_RETRIEVAL_LIMIT\n    include_graph: bool = False\n    include_cross_vault: bool = False\n\n@dataclass(frozen=True)\nclass FindRelatedInput:\n    target: str\n    scope: McpScopeInput | None = None\n    depth: int = DEFAULT_GRAPH_RELATED_DEPTH\n    kinds: tuple[str, ...] = ()\n    limit: int = DEFAULT_GRAPH_RESULT_LIMIT\n    include_cross_vault: bool = False\n\n@dataclass(frozen=True)\nclass DecisionTraceInput:\n    decision_or_topic: str\n    scope: McpScopeInput | None = None\n    limit: int = DEFAULT_GRAPH_RESULT_LIMIT\n    include_cross_vault: bool = False\n\n@dataclass(frozen=True)\nclass CheckIndexStatusInput:\n    scope: McpScopeInput | None = None"
+          }
+        ]
+      },
+      {
+        "heading": "Tool Response Contract",
+        "content": "Every tool returns one canonical JSON envelope: Rules: ergonomics; the original warning data also remains in `payload`. structured data. user-provided `--state` path already allowed by `mcp_errors.py`. results are successful tool responses with warnings.",
+        "items": [
+          "`payload` is the service DTO rendered to JSON-compatible values.",
+          "`resource_links` are follow-up Phase 5B URIs, never direct filesystem paths.",
+          "`warnings` is a normalized top-level copy of relevant warnings for agent ergonomics; the original warning data also remains in `payload`.",
+          "`text` is a compact JSON or short Markdown mirror generated from the same structured data.",
+          "the text mirror must not add facts, omit warnings, or hide degraded state.",
+          "local absolute paths are omitted or redacted unless they are the explicit user-provided `--state` path already allowed by `mcp_errors.py`.",
+          "`isError` is controlled by the MCP SDK error path. Warning-backed degraded results are successful tool responses with warnings."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "10. Tool Response Contract"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "json",
+            "content": "{\n  \"tool_name\": \"search_vault\",\n  \"payload\": {},\n  \"resource_links\": [],\n  \"warnings\": [],\n  \"text\": \"compact mirror generated from the same payload\"\n}"
+          }
+        ]
+      },
+      {
+        "heading": "Tool Serialization Boundary",
+        "content": "`src/vault_graph/mcp/mcp_tool_serialization.py` owns JSON-compatible rendering for service DTOs and resource links. MCP tools must not import CLI JSON helper functions. Required functions: Serialization rules: item. backend use, graph projection version, and graph build IDs where available. explicit serialization errors. `context_pack_to_dict(pack)` except for MCP envelope additions. Resource-link rules: `vault://{vault_id}/documents/{encoded_path}`. `vault://{vault_id}/pages/{encoded_path}`. source resource link by `document_id`: `vault://{vault_id}/sources/{encoded_document_id}`. `vault://{vault_id}/decisions/{encoded_document_id}`. `vault://{vault_id}/issues/{encoded_document_id}`. `vault://{vault_id}/graph/entities/{encoded_entity_id}`. `vault://context/packs/{encoded_pack_id}`.",
+        "items": [
+          "preserve `vault_id`, `document_id`, and `chunk_id` for every evidence-bearing item.",
+          "preserve `requested_scope`, `actual_scopes`, store revisions, generated time, backend use, graph projection version, and graph build IDs where available.",
+          "keep float scores JSON-safe and deterministic.",
+          "convert tuples to lists, dataclasses to objects, and unsupported values to explicit serialization errors.",
+          "do not serialize backend-native objects directly.",
+          "keep `context_pack_to_payload(pack)` identical to `context_pack_to_dict(pack)` except for MCP envelope additions.",
+          "evidence-bearing documents always get a document resource link: `vault://{vault_id}/documents/{encoded_path}`.",
+          "wiki paths under `wiki/` also get a page resource link: `vault://{vault_id}/pages/{encoded_path}`.",
+          "source-like paths under `raw/`, `docs/`, or `scratch/reports/` may get a source resource link by `document_id`: `vault://{vault_id}/sources/{encoded_document_id}`.",
+          "decision-like paths under `wiki/decisions/` may get: `vault://{vault_id}/decisions/{encoded_document_id}`.",
+          "issue-like paths under `wiki/issues/` may get: `vault://{vault_id}/issues/{encoded_document_id}`.",
+          "graph entities get: `vault://{vault_id}/graph/entities/{encoded_entity_id}`.",
+          "context packs get: `vault://context/packs/{encoded_pack_id}`.",
+          "all encoding uses `encode_resource_segment(...)` from `mcp_uri.py`."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "11. Tool Serialization Boundary"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "def query_scope_to_dict(scope: QueryScope) -> dict[str, object]: ...\n\ndef search_response_to_payload(response: SearchResponse) -> dict[str, object]: ...\n\ndef context_pack_to_payload(pack: ContextPack) -> dict[str, object]: ...\n\ndef related_response_to_payload(response: RelatedResponse) -> dict[str, object]: ...\n\ndef decision_trace_response_to_payload(\n    response: DecisionTraceResponse,\n) -> dict[str, object]: ...\n\ndef status_report_to_payload(\n    report: StatusReport,\n    *,\n    selected_scope: QueryScope,\n) -> dict[str, object]: ...\n\ndef resource_links_for_search(response: SearchResponse) -> tuple[McpResourceLink, ...]: ...\n\ndef resource_links_for_context_pack(pack: ContextPack) -> tuple[McpResourceLink, ...]: ...\n\ndef resource_links_for_related(response: RelatedResponse) -> tuple[McpResourceLink, ...]: ...\n\ndef resource_links_for_decision_trace(\n    response: DecisionTraceResponse,\n) -> tuple[McpResourceLink, ...]: ...\n\ndef tool_text_mirror(payload: dict[str, object]) -> str: ..."
+          }
+        ]
       },
       {
         "heading": "Tool Flows",
-        "content": "search_vault:\nbuild_context_pack:\nfind_related:\nget_decision_trace:\ncheck_index_status:",
+        "content": "MCP signature: Flow: Graph behavior: and `include_cross_vault=True`. the existing retrieval-service behavior. MCP signature: Flow: Rules: is in-process only. graph links derived from pack content. MCP signature: Flow: Rules: status data as provided by graph services. `GraphRetrievalService` warnings/errors. MCP signature: Flow: Rules: `topic_not_durable_decision` warning. where evidence exists. MCP signature: Flow: Rules: metadata state, but it must not apply indexing or create missing stores. readiness report, not a compact availability resource.",
         "items": [
-          "Review the Tool Flows section in the source Markdown."
+          "default search is keyword/vector only.",
+          "graph candidates are included only when `include_graph=True`.",
+          "cross-Vault graph expansion is included only when both `include_graph=True` and `include_cross_vault=True`.",
+          "graph lookup warnings are preserved; vector-to-keyword degradation remains the existing retrieval-service behavior. goal: str, scope: dict[str, object] | None = None, max_tokens: int | None = None, limit: int = DEFAULT_CONTEXT_RETRIEVAL_LIMIT, include_graph: bool = False, include_cross_vault: bool = False, -> BuildContextPackInput -> scope_from_mcp_input(..., allow_graph_cross_vault=include_graph) -> ContextPackBudget(max_tokens=max_tokens or DEFAULT_CONTEXT_MAX_TOKENS) -> ContextPackRequest(...) -> choose builder: include_graph false: services.context_pack_builder include_graph true: service_factory.open_context_pack_builder(include_graph=True) -> ContextPackBuilder.build(...) -> render_context_pack_json(pack) -> context_pack_cache.put(pack, rendered_json=...) -> return pack payload plus vault://context/packs/{pack_id}",
+          "cache insertion is the only write-like operation in this tool, and the cache is in-process only.",
+          "the tool must not create durable pack files.",
+          "`resource_links` includes the generated context-pack URI plus evidence and graph links derived from pack content.",
+          "the returned payload includes the canonical context-pack JSON fields. target: str, scope: dict[str, object] | None = None, depth: int = DEFAULT_GRAPH_RELATED_DEPTH, kinds: list[str] | None = None, limit: int = DEFAULT_GRAPH_RESULT_LIMIT, include_cross_vault: bool = False, -> FindRelatedInput -> scope_from_mcp_input(..., allow_graph_cross_vault=True) -> service_factory.open_graph_retrieval_service() -> GraphRetrievalService.related(output_format=\"json\", ...) -> related_response_to_payload(...) -> resource_links_for_related(...) -> McpToolBody.to_json_dict()",
+          "graph dependencies open only after raw validation and scope validation pass.",
+          "`kinds` maps to graph relationship type filters.",
+          "relationships preserve `stated`, `inferred`, `contested`, and `deprecated` status data as provided by graph services.",
+          "target ambiguity and missing graph readiness follow existing `GraphRetrievalService` warnings/errors. decision_or_topic: str, scope: dict[str, object] | None = None, limit: int = DEFAULT_GRAPH_RESULT_LIMIT, include_cross_vault: bool = False, -> DecisionTraceInput -> scope_from_mcp_input(..., allow_graph_cross_vault=True) -> service_factory.open_graph_retrieval_service() -> GraphRetrievalService.decision_trace(output_format=\"json\", ...) -> decision_trace_response_to_payload(...) -> resource_links_for_decision_trace(...) -> McpToolBody.to_json_dict()",
+          "durable decision evidence is preferred by the graph service when available.",
+          "topic traces are allowed but must preserve the existing `topic_not_durable_decision` warning.",
+          "returned resource links include decision document links and graph entity links where evidence exists. scope: dict[str, object] | None = None, -> CheckIndexStatusInput -> scope_from_mcp_input(...) -> service_factory.open_status_service() -> IndexService.status(scope=...) -> status_report_to_payload(...) -> McpToolBody.to_json_dict()",
+          "status is read-only. It may compute freshness by planning against current metadata state, but it must not apply indexing or create missing stores.",
+          "output includes metadata, vector, embedding, and graph readiness data.",
+          "unlike `vault://{vault_id}/context/current`, this tool is a detailed agent readiness report, not a compact availability resource."
         ],
         "facts": [
           {
@@ -430,15 +970,15 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "12. Tool Flows"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
@@ -446,33 +986,88 @@
         "subSections": [],
         "codeBlocks": [
           {
-            "language": "text",
-            "content": "SearchVaultInput\n  -> McpScopeInput to QueryScope\n  -> RetrievalService.search(...)\n  -> structured SearchResponse\n  -> optional resource links for evidence documents"
+            "language": "python",
+            "content": "def search_vault(\n    query: str,\n    scope: dict[str, object] | None = None,\n    limit: int = 10,\n    include_graph: bool = False,\n    include_cross_vault: bool = False,\n) -> dict[str, object]: ..."
           },
           {
             "language": "text",
-            "content": "BuildContextPackInput\n  -> ContextPackRequest\n  -> ContextPackBuilder.build(...)\n  -> ContextPack JSON\n  -> ContextPackResourceCache.put(...)\n  -> return pack JSON plus vault://context/packs/{pack_id}"
+            "content": "raw args\n  -> SearchVaultInput\n  -> scope_from_mcp_input(..., allow_graph_cross_vault=include_graph)\n  -> choose retrieval service:\n       include_graph false: services.retrieval_service\n       include_graph true: service_factory.open_retrieval_service(include_graph=True)\n  -> RetrievalService.search(output_format=\"json\", ...)\n  -> search_response_to_payload(...)\n  -> resource_links_for_search(...)\n  -> McpToolBody.to_json_dict()"
+          },
+          {
+            "language": "python",
+            "content": "def build_context_pack(\n    goal: str,\n    scope: dict[str, object] | None = None,\n    max_tokens: int | None = None,\n    limit: int = DEFAULT_CONTEXT_RETRIEVAL_LIMIT,\n    include_graph: bool = False,\n    include_cross_vault: bool = False,\n) -> dict[str, object]: ..."
           },
           {
             "language": "text",
-            "content": "FindRelatedInput\n  -> graph scope validation\n  -> GraphRetrievalService.related(...)\n  -> evidence resolution through MetadataStore\n  -> structured graph response plus graph entity resource links"
+            "content": "raw args\n  -> BuildContextPackInput\n  -> scope_from_mcp_input(..., allow_graph_cross_vault=include_graph)\n  -> ContextPackBudget(max_tokens=max_tokens or DEFAULT_CONTEXT_MAX_TOKENS)\n  -> ContextPackRequest(...)\n  -> choose builder:\n       include_graph false: services.context_pack_builder\n       include_graph true: service_factory.open_context_pack_builder(include_graph=True)\n  -> ContextPackBuilder.build(...)\n  -> render_context_pack_json(pack)\n  -> context_pack_cache.put(pack, rendered_json=...)\n  -> return pack payload plus vault://context/packs/{pack_id}"
+          },
+          {
+            "language": "python",
+            "content": "def find_related(\n    target: str,\n    scope: dict[str, object] | None = None,\n    depth: int = DEFAULT_GRAPH_RELATED_DEPTH,\n    kinds: list[str] | None = None,\n    limit: int = DEFAULT_GRAPH_RESULT_LIMIT,\n    include_cross_vault: bool = False,\n) -> dict[str, object]: ..."
           },
           {
             "language": "text",
-            "content": "DecisionTraceInput\n  -> GraphRetrievalService.decision_trace(...)\n  -> durable decision evidence preferred\n  -> warnings for inferred, stale, missing, contested, or deprecated links"
+            "content": "raw args\n  -> FindRelatedInput\n  -> scope_from_mcp_input(..., allow_graph_cross_vault=True)\n  -> service_factory.open_graph_retrieval_service()\n  -> GraphRetrievalService.related(output_format=\"json\", ...)\n  -> related_response_to_payload(...)\n  -> resource_links_for_related(...)\n  -> McpToolBody.to_json_dict()"
+          },
+          {
+            "language": "python",
+            "content": "def get_decision_trace(\n    decision_or_topic: str,\n    scope: dict[str, object] | None = None,\n    limit: int = DEFAULT_GRAPH_RESULT_LIMIT,\n    include_cross_vault: bool = False,\n) -> dict[str, object]: ..."
+          },
+          {
+            "language": "text",
+            "content": "raw args\n  -> DecisionTraceInput\n  -> scope_from_mcp_input(..., allow_graph_cross_vault=True)\n  -> service_factory.open_graph_retrieval_service()\n  -> GraphRetrievalService.decision_trace(output_format=\"json\", ...)\n  -> decision_trace_response_to_payload(...)\n  -> resource_links_for_decision_trace(...)\n  -> McpToolBody.to_json_dict()"
+          }
+        ]
+      },
+      {
+        "heading": "Prompt Registration Boundary",
+        "content": "`src/vault_graph/mcp/mcp_prompts.py` owns prompt templates. Prompts are user-controlled templates, not autonomous operations. Registration rules: request. validation workflow.",
+        "items": [
+          "register only through the public `FastMCP.prompt(...)` decorator.",
+          "prompt functions accept only simple JSON-safe arguments.",
+          "prompts return plain text templates.",
+          "prompt text must mention only registered Phase 5C tools.",
+          "prompts must not include hidden instructions that conflict with the user's request.",
+          "prompts must not instruct agents to edit Vault files through Vault Graph.",
+          "prompts must tell agents to preserve warnings and evidence references.",
+          "prompts that suggest durable follow-up must route work back through Vault's validation workflow."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "13. Prompt Registration Boundary"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "python",
+            "content": "from collections.abc import Callable\nfrom dataclasses import dataclass\nfrom typing import Protocol\n\nclass McpPromptServer(Protocol):\n    def prompt(\n        self,\n        name: str | None = None,\n        title: str | None = None,\n        description: str | None = None,\n        icons: list[object] | None = None,\n    ) -> Callable[[Callable[..., object]], Callable[..., object]]: ...\n\n@dataclass(frozen=True)\nclass McpPromptRegistry:\n    prompt_names: tuple[str, ...]\n\n    def render(self, name: str, arguments: dict[str, object]) -> str: ...\n\ndef register_mcp_prompts(server: McpPromptServer) -> McpPromptRegistry: ..."
           }
         ]
       },
       {
         "heading": "Prompt Templates",
-        "content": "Phase 5C registers these prompts:\nPrompt rules:\nPrompts are user-controlled templates, not autonomous operations. Prompts must tell the agent to call the appropriate Vault Graph MCP tools instead of reading the whole Vault. Prompts must state that Vault Graph output is working context. Prompts must tell the agent not to edit Vault files through Vault Graph. Prompts must preserve evidence and warnings in the final answer. Prompts that suggest durable follow-up must route it back through Vault's source capture, validation, release gate, and Git workflow.\nExample prompt skeleton:",
+        "content": "Phase 5C registers exactly these prompts: Required prompt language: validation, release gate, and Git workflow. Do not publish through Vault Graph.\" Tool guidance per prompt:",
         "items": [
-          "Prompts are user-controlled templates, not autonomous operations.",
-          "Prompts must tell the agent to call the appropriate Vault Graph MCP tools",
-          "Prompts must state that Vault Graph output is working context.",
-          "Prompts must tell the agent not to edit Vault files through Vault Graph.",
-          "Prompts must preserve evidence and warnings in the final answer.",
-          "Prompts that suggest durable follow-up must route it back through Vault's"
+          "\"Use Vault Graph as read-only working context.\"",
+          "\"Do not read the whole Vault when a scoped context pack is enough.\"",
+          "\"Inspect warnings before relying on evidence.\"",
+          "\"Preserve `vault_id`, document IDs, chunk IDs, and resource links.\"",
+          "\"If durable knowledge should change, propose the Vault source capture, validation, release gate, and Git workflow. Do not publish through Vault Graph.\""
         ],
         "facts": [
           {
@@ -480,15 +1075,15 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "14. Prompt Templates"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
@@ -498,24 +1093,33 @@
           {
             "language": "text",
             "content": "generate_codex_brief(goal, scope=None)\nprepare_implementation_context(goal, scope=None)\nreview_architecture_decision(topic, scope=None)\nsummarize_feature_history(topic, scope=None)\nanalyze_project_risk(topic_or_goal, scope=None)\nprepare_wiki_update_context(topic, scope=None)\ntrace_decision_history(topic, scope=None)"
-          },
-          {
-            "language": "text",
-            "content": "Use Vault Graph as read-only working context for: {goal}\n\n1. Call build_context_pack with the provided scope.\n2. Inspect warnings before using evidence.\n3. Cite evidence refs from the context pack.\n4. If durable knowledge should be added or changed, propose a Vault workflow\n   follow-up. Do not publish through Vault Graph."
           }
         ]
       },
       {
-        "heading": "Security And Agent Ergonomics",
-        "content": "Tool names should be concrete and unsurprising. Tool descriptions must not contain hidden instructions that conflict with the user's prompt. Tool descriptions must state read-only behavior and scope defaults. Prompts must not ask agents to bypass warnings. Prompt and tool outputs must avoid local absolute paths unless they are already part of explicit configuration output. Tool calls must be bounded by limit, max_tokens, and graph depth. Expensive graph behavior is opt-in.",
+        "heading": "Error And Warning Policy",
+        "content": "Tool error payload codes: Policy: `invalid_tool_arguments`. service returns a warning-backed degraded result. `RetrievalService` returns warnings. underlying service can still produce a valid partial response. `mcp_errors.py`.",
         "items": [
-          "Tool names should be concrete and unsurprising.",
-          "Tool descriptions must not contain hidden instructions that conflict with the",
-          "Tool descriptions must state read-only behavior and scope defaults.",
-          "Prompts must not ask agents to bypass warnings.",
-          "Prompt and tool outputs must avoid local absolute paths unless they are",
-          "Tool calls must be bounded by limit, max_tokens, and graph depth.",
-          "Expensive graph behavior is opt-in."
+          "`invalid_tool_arguments`",
+          "`catalog_error`",
+          "`keyword_index_unavailable`",
+          "`vector_store_error`",
+          "`text_embeddings_error`",
+          "`search_error`",
+          "`context_pack_error`",
+          "`graph_unavailable`",
+          "`resource_not_found`",
+          "`metadata_unavailable`",
+          "`read_only_boundary_error`",
+          "`internal_error`",
+          "argument parsing errors become invalid-parameter MCP errors with `invalid_tool_arguments`.",
+          "`CatalogError` and invalid scope errors remain invalid-parameter MCP errors.",
+          "missing or unhealthy indexes become execution errors unless the underlying service returns a warning-backed degraded result.",
+          "vector query failures may degrade to keyword-only search when `RetrievalService` returns warnings.",
+          "graph tool failures do not silently degrade to non-graph results.",
+          "search/context graph expansion failures appear as graph warnings when the underlying service can still produce a valid partial response.",
+          "unexpected exceptions become internal MCP errors with local paths redacted by `mcp_errors.py`.",
+          "warnings are first-class fields; prompts and text mirrors must not hide them."
         ],
         "facts": [
           {
@@ -523,38 +1127,215 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "15. Error And Warning Policy"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
         "blocks": [],
         "subSections": [],
         "codeBlocks": []
+      },
+      {
+        "heading": "Security And Read-Only Requirements",
+        "content": "or Vault files. `--state` path when already permitted by error mapping. `include_graph=True`.",
+        "items": [
+          "tools never execute shell commands.",
+          "tools never accept raw filesystem roots.",
+          "tools never call `VaultLoader`.",
+          "tools never edit, rename, delete, rewrite, or publish Vault files.",
+          "tools never create missing metadata, vector, graph, projection, model, cache, or Vault files.",
+          "tools do not expose local absolute paths except the explicit configured `--state` path when already permitted by error mapping.",
+          "all tool reads are scoped through `VaultCatalog` and `QueryScope`.",
+          "graph dependencies are opened only for explicit graph tool calls or `include_graph=True`.",
+          "stdout remains MCP protocol-only; diagnostics go to stderr.",
+          "prompt content is transparent workflow guidance, not hidden policy injection."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "16. Security And Read-Only Requirements"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Multi-Vault Requirements",
+        "content": "selected Vault IDs. pack payload. different Vaults must not collide in MCP output.",
+        "items": [
+          "`scope=None` uses the active Vault.",
+          "`scope.vault_ids` selects explicit Vault IDs.",
+          "`scope.all_vaults=true` expands to all enabled Vault IDs.",
+          "`scope.content_scopes` narrows the selected Vault scope only.",
+          "`include_cross_vault=true` requires explicit graph behavior and at least two selected Vault IDs.",
+          "every evidence-bearing result preserves `vault_id`.",
+          "resource links include `vault_id` for Vault-derived resources.",
+          "generated context-pack resources record requested and actual scopes inside the pack payload.",
+          "identical paths, document IDs, chunk IDs, entity names, or warning codes from different Vaults must not collide in MCP output."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "17. Multi-Vault Requirements"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Agent Ergonomics",
+        "content": "Tool names are intentionally boring and direct. They should be easy for an agent to infer: problem. Tool descriptions must state: Do not add convenience aliases in Phase 5C. Aliases multiply the MCP surface and teach agents multiple ways to do the same thing.",
+        "items": [
+          "use `search_vault` for evidence search.",
+          "use `build_context_pack` for bounded task context.",
+          "use `find_related` for graph neighborhood evidence.",
+          "use `get_decision_trace` for decision/topic history.",
+          "use `check_index_status` before assuming missing evidence is a content problem.",
+          "read-only behavior",
+          "active-Vault default scope",
+          "explicit multi-Vault and cross-Vault requirements",
+          "warning preservation",
+          "context is not durable truth"
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "18. Agent Ergonomics"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Implementation Flow",
+        "content": "Server startup: Non-graph search: Graph search: Context pack resource handoff: Prompt listing:",
+        "items": [
+          "Review the Implementation Flow section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "19. Implementation Flow"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "text",
+            "content": "vg serve --mcp --state PATH\n  -> create_mcp_server(config)\n  -> McpServiceFactory.open_read_only()\n  -> create ContextPackResourceCache(max_entries=32)\n  -> register_mcp_resources(...)\n  -> register_mcp_tools(...)\n  -> register_mcp_prompts(...)\n  -> run stdio transport"
+          },
+          {
+            "language": "text",
+            "content": "search_vault(query=\"...\", include_graph=false)\n  -> base services.retrieval_service\n  -> keyword/vector search\n  -> evidence resource links"
+          },
+          {
+            "language": "text",
+            "content": "search_vault(query=\"...\", include_graph=true)\n  -> service_factory.open_retrieval_service(include_graph=true)\n  -> lazy GraphRetrievalService and GraphSearchCandidateProvider\n  -> keyword/vector/graph search\n  -> evidence and graph resource links"
+          },
+          {
+            "language": "text",
+            "content": "build_context_pack(goal=\"...\")\n  -> ContextPackBuilder.build(...)\n  -> render_context_pack_json(pack)\n  -> ContextPackResourceCache.put(pack, rendered_json=...)\n  -> return vault://context/packs/{pack_id}"
+          },
+          {
+            "language": "text",
+            "content": "list_prompts()\n  -> registered FastMCP prompt metadata\n  -> no store reads\n  -> no graph imports"
+          }
+        ]
       },
       {
         "heading": "Tests Required Before Implementation",
-        "content": "Phase 5C implementation must include tests for:\nregistered tool list contains only service-backed tools. deferred tools are not listed. each tool input schema includes required fields, defaults, and bounds. invalid scope, invalid limit, invalid max tokens, and invalid cross-Vault graph combinations fail before opening graph dependencies. search tool delegates to RetrievalService and preserves warnings. context tool delegates to ContextPackBuilder, preserves JSON schema, and returns a context-pack resource link. related and decision-trace tools open graph services only when called. status tool reports metadata/vector/graph freshness without mutating state. all tool calls leave registered Vault file hashes unchanged. structured output and text mirror contain the same warnings. prompt templates include read-only, evidence-first, warning, and durable follow-up language. prompt templates reference only registered Phase 5C tools.",
+        "content": "Required focused tests: values fail with structured MCP errors. warnings, revisions, scopes, evidence, and resource links. canonical JSON, stores it in the shared in-process cache, and returns `vault://context/packs/{pack_id}`. preserve graph warnings, entity IDs, relationship statuses, and resource links. without applying indexes. without importing CLI helpers. follow-up language. Required final verification:",
         "items": [
-          "registered tool list contains only service-backed tools.",
-          "deferred tools are not listed.",
-          "each tool input schema includes required fields, defaults, and bounds.",
-          "invalid scope, invalid limit, invalid max tokens, and invalid cross-Vault graph",
-          "search tool delegates to RetrievalService and preserves warnings.",
-          "context tool delegates to ContextPackBuilder, preserves JSON schema, and",
-          "related and decision-trace tools open graph services only when called.",
-          "status tool reports metadata/vector/graph freshness without mutating state.",
-          "all tool calls leave registered Vault file hashes unchanged.",
-          "structured output and text mirror contain the same warnings.",
-          "prompt templates include read-only, evidence-first, warning, and durable",
-          "prompt templates reference only registered Phase 5C tools."
+          "`tests/test_mcp_tools.py`",
+          "registers exactly the five Phase 5C tools.",
+          "does not list deferred tools.",
+          "each handler has JSON-safe arguments and `structured_output=True`.",
+          "invalid query, goal, target, topic, limit, max tokens, depth, and scope values fail with structured MCP errors.",
+          "`search_vault` delegates to `RetrievalService.search(...)` and preserves warnings, revisions, scopes, evidence, and resource links.",
+          "`build_context_pack` delegates to `ContextPackBuilder.build(...)`, renders canonical JSON, stores it in the shared in-process cache, and returns `vault://context/packs/{pack_id}`.",
+          "`find_related` and `get_decision_trace` open graph retrieval lazily and preserve graph warnings, entity IDs, relationship statuses, and resource links.",
+          "`check_index_status` returns metadata/vector/embedding/graph readiness without applying indexes.",
+          "`tests/test_mcp_tool_serialization.py`",
+          "serializes search, context-pack, related, decision-trace, and status DTOs without importing CLI helpers.",
+          "preserves every `vault_id`, `document_id`, and `chunk_id` in evidence.",
+          "emits Phase 5B resource links with percent-encoded URI segments.",
+          "keeps text mirrors derived from structured payloads and warning-complete.",
+          "`tests/test_mcp_prompts.py`",
+          "registers exactly the seven Phase 5C prompts.",
+          "prompt text mentions only registered tools.",
+          "prompt text includes read-only, evidence-first, warning, and durable follow-up language.",
+          "prompt listing does not read stores or import graph dependencies.",
+          "`tests/test_mcp_tool_read_only_boundary.py`",
+          "all tool calls leave registered Vault file bytes unchanged.",
+          "all tool calls avoid creating missing state directories.",
+          "invalid argument calls fail before graph dependencies are opened.",
+          "`include_graph=False` search and context calls do not import rustworkx.",
+          "`include_graph=True` calls import graph dependencies only after validation.",
+          "update `tests/test_mcp_stdio_smoke.py`",
+          "official MCP client sees the five tools.",
+          "official MCP client sees resource templates from Phase 5B.",
+          "official MCP client sees the seven prompts.",
+          "stdout contains only protocol messages."
         ],
         "facts": [
           {
@@ -562,15 +1343,48 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "20. Tests Required Before Implementation"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": [
+          {
+            "language": "bash",
+            "content": "uv run --python 3.12 pytest tests/test_mcp_tools.py tests/test_mcp_tool_serialization.py tests/test_mcp_prompts.py tests/test_mcp_tool_read_only_boundary.py tests/test_mcp_stdio_smoke.py -q\nuv run --python 3.12 pytest -q\nuv run --python 3.12 ruff check src tests\nuv run --python 3.12 mypy src tests\ngit diff --check"
+          }
+        ]
+      },
+      {
+        "heading": "Handoff To Implementation Plan",
+        "content": "The implementation plan should proceed in this order: 1. Add tool serialization helpers and tests. 2. Add lazy graph-enabled retrieval/context-pack factory methods. 3. Add `McpToolRegistry` and register the five tools. 4. Add prompt registry and register the seven prompts. 5. Wire tools/prompts into `create_mcp_server(...)`. 6. Update stdio smoke tests and read-only boundary tests. Do not implement `ask_vault`, timeline summaries, memory projections, or Vault publication helpers as part of Phase 5C.",
+        "items": [
+          "Review the Handoff To Implementation Plan section in the source Markdown."
+        ],
+        "facts": [
+          {
+            "label": "Source Markdown",
+            "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
+          },
+          {
+            "label": "Source Heading",
+            "value": "21. Handoff To Implementation Plan"
+          }
+        ],
+        "links": [
+          {
+            "label": "Original Markdown",
+            "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
@@ -579,10 +1393,14 @@
         "codeBlocks": []
       },
       {
-        "heading": "Handoff To Phase 6",
-        "content": "Phase 6 may add summarize_project_memory, get_open_questions, get_recent_changes, and richer explain_result only after memory and explorer projection services exist. Phase 5C should leave clean extension points but no listed tools without backing services.",
+        "heading": "Open Decisions",
+        "content": "None. The design uses existing accepted project decisions: durable pack store is explicitly designed.",
         "items": [
-          "Review the Handoff To Phase 6 section in the source Markdown."
+          "Vault remains the source of truth.",
+          "Vault Graph is a read-only, rebuildable, evidence-first access layer.",
+          "MCP is an adapter over application services.",
+          "Phase 5 registers only service-backed behavior.",
+          "generated context packs are working context and remain in-process until a durable pack store is explicitly designed."
         ],
         "facts": [
           {
@@ -590,15 +1408,15 @@
             "value": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md"
           },
           {
-            "label": "Heading Level",
-            "value": "2"
+            "label": "Source Heading",
+            "value": "23. Open Decisions"
           }
         ],
         "links": [
           {
             "label": "Original Markdown",
             "target": "docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md",
-            "purpose": "Canonical source text preserved in the repo."
+            "purpose": "Canonical Phase 5C SPEC source text"
           }
         ],
         "steps": [],
