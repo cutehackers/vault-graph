@@ -33,6 +33,7 @@ _SHARED_LINES = (
     "Do not read the whole Vault when a scoped context pack is enough.",
     "Inspect warnings before relying on evidence.",
     "Preserve vault_id, document IDs, chunk IDs, and resource links.",
+    "Use explain_result for result_id or context item_id values you plan to rely on.",
     (
         "If durable knowledge should change, propose the Vault source capture, validation, release gate, "
         "and Git workflow. Do not publish through Vault Graph."

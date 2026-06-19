@@ -49,3 +49,23 @@ for name in (
     completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_result_explanation_module_import_is_mcp_free() -> None:
+    code = """
+import sys
+import vault_graph.memory.result_explanation
+for name in (
+    'mcp',
+    'mcp.server.fastmcp',
+    'chromadb',
+    'fastembed',
+    'mem0',
+    'memmachine',
+):
+    if name in sys.modules:
+        raise SystemExit(name)
+"""
+    completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout

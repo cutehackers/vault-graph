@@ -38,18 +38,23 @@ def test_register_mcp_prompts_registers_exact_phase_5c_prompts() -> None:
     assert tuple(server.prompts) == PHASE_5C_PROMPT_NAMES
 
 
-def test_prompt_text_mentions_only_registered_phase_5c_tools() -> None:
+def test_prompt_text_mentions_only_registered_tools_after_phase_6a() -> None:
     registry = McpPromptRegistry()
     text = registry.render("generate_codex_brief", {"goal": "Implement tools", "scope": "main"})
 
-    for required in ("build_context_pack", "read-only working context", "Inspect warnings", "resource links"):
+    for required in (
+        "build_context_pack",
+        "read-only working context",
+        "Inspect warnings",
+        "resource links",
+        "explain_result",
+    ):
         assert required in text
     for forbidden in (
         "ask_vault",
         "summarize_project_memory",
         "get_open_questions",
         "get_recent_changes",
-        "explain_result",
     ):
         assert forbidden not in text
 

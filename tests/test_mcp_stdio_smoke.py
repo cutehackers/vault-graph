@@ -11,12 +11,13 @@ from vault_graph.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES
 
 runner = CliRunner()
 
-EXPECTED_PHASE_5C_TOOLS = {
+EXPECTED_PHASE_6A_TOOLS = {
     "search_vault",
     "build_context_pack",
     "find_related",
     "get_decision_trace",
     "check_index_status",
+    "explain_result",
 }
 
 
@@ -56,7 +57,7 @@ def test_mcp_stdio_initializes_with_official_client(tmp_path: Path) -> None:
                     tool_names = {tool.name for tool in tools.tools}
                     prompt_names = {prompt.name for prompt in prompts.prompts}
                     template_uris = {str(template.uriTemplate) for template in resource_templates.resourceTemplates}
-                    assert tool_names == EXPECTED_PHASE_5C_TOOLS
+                    assert tool_names == EXPECTED_PHASE_6A_TOOLS
                     assert resources.resources == []
                     assert "vault://{vault_id}/documents/{path}" in template_uris
                     assert "vault://context/packs/{pack_id}" in template_uris

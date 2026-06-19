@@ -1860,13 +1860,62 @@ Phase 5 invariants:
 
 ### Phase 6: Memory And Explorer Views
 
-- project memory projection
-- decision explorer
-- timeline explorer
-- issue explorer
-- storage backend health view
-- projection freshness view
-- scale-up backend adapter readiness checks
+Phase 6 turns the existing search, graph, context-pack, MCP, and status
+services into memory and explorer projections. These projections help users and
+agents understand current project state, unresolved questions, recent changes,
+and why prior Vault Graph results were returned.
+
+Memory is still derived working context. Phase 6 must not create a second
+knowledge base, publish durable wiki pages, edit Vault files, or use summaries
+as evidence authority. Durable knowledge still flows back through Vault's
+source capture, validation, release gate, and Git history workflow.
+
+Phase 6 may borrow memory-layer terminology from systems such as Mem0 and
+MemMachine, but Vault Graph uses those ideas only as read-only projections over
+Vault-derived evidence. It must not add a generic writable `MemoryStore`,
+`Memory.create`, `Memory.query`, `Memory.upsert`, `Memory.link`,
+`Memory.audit`, hidden episode log, or user-profile memory database in the core
+product.
+
+Detailed Phase 6 contracts live under `docs/superpowers/specs/phase-6/`:
+
+- `2026-06-18-phase-6-memory-and-explorer-views-overview-design.md`:
+  cross-slice roadmap, invariants, and handoff map
+- `2026-06-18-phase-6a-result-explanation-contract-design.md`: Phase 6A result
+  explanation records, explanation cache boundary, and `explain_result`
+  service contract
+- `2026-06-18-phase-6b-project-decision-issue-memory-design.md`: Phase 6B
+  project memory, decision memory, and issue/open-question projections
+- `2026-06-18-phase-6c-timeline-health-explorer-design.md`: Phase 6C timeline,
+  projection freshness, backend health, and scale-up adapter readiness views
+
+Phase 6 slices:
+
+| Slice | Contract | Detailed Design | Explicitly Not Included |
+| --- | --- | --- | --- |
+| Phase 6A | Add a result explanation contract that can explain search, context-pack, graph, and decision-trace results returned by the current MCP session | `docs/superpowers/specs/phase-6/2026-06-18-phase-6a-result-explanation-contract-design.md` | durable result history, answer synthesis, full project memory summaries |
+| Phase 6B | Add deterministic project, decision, and issue memory projections over indexed Vault evidence | `docs/superpowers/specs/phase-6/2026-06-18-phase-6b-project-decision-issue-memory-design.md` | LLM-written summaries, automatic wiki updates, hidden Vault writes |
+| Phase 6C | Add recent timeline, freshness, backend health, and scale-up adapter readiness explorer views | `docs/superpowers/specs/phase-6/2026-06-18-phase-6c-timeline-health-explorer-design.md` | remote backend migrations, hosted monitoring, UI dashboards |
+
+Phase 6 invariants:
+
+- Memory projections are query products over existing Vault-derived indexes.
+- Evidence chunks remain the authority unit for user-visible claims.
+- Project, decision, issue, and timeline outputs carry Vault IDs, evidence
+  references, warnings, store revisions, and freshness status.
+- Missing or stale projection state must be visible as warnings or structured
+  errors with a safe next command.
+- No generic writable memory API is introduced in Phase 6. External memory
+  systems remain future adapters or export targets over evidence-linked
+  projections, not new authorities inside Vault Graph.
+- `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, and
+  `explain_result` become MCP tools only after their backing application
+  services exist.
+- `vault://{vault_id}/context/current` and `vault://{vault_id}/timeline/recent`
+  move from availability placeholders to read-only projection resources as
+  Phase 6 services land.
+- `ask_vault` remains out of scope until answer synthesis, LLM adapter policy,
+  and citation guarantees are explicitly designed.
 
 ### Phase 7: Optional UI
 
@@ -2302,3 +2351,71 @@ Chunking and retrieval evolution must follow these guardrails:
 - Record enough run metadata to explain whether a stale result came from source
   text, parser version, chunker version, embedding model spec, store schema, or
   retrieval policy.
+
+## TODO: External Memory Layer Adapter And Export Target
+
+External memory systems such as Mem0, MemMachine, or an MCP memory server may be
+useful later for agent personalization, cross-session recall, or shared memory
+between multiple agent runtimes. This is a future adapter/export direction only.
+It does not change Phase 6 and must not make Vault Graph a writable memory
+system.
+
+The accepted boundary is:
+
+```text
+Vault
+  -> Vault Graph derived indexes
+  -> evidence-linked memory projections
+  -> optional external memory adapter or export target
+```
+
+The adapter direction should preserve these rules:
+
+- Vault remains the durable source of truth.
+- Vault Graph memory projections remain read-only, disposable, and rebuildable.
+- External memory systems consume projection exports; they do not become
+  `MetadataStore`, `VectorStore`, `GraphStore`, or `vault_graph.memory`
+  replacements.
+- No external adapter may write, rename, rewrite, delete, publish, or validate
+  Vault content.
+- No external adapter may feed agent-generated memories back into Vault Graph as
+  facts unless those memories are captured in Vault and re-indexed through the
+  normal Vault workflow.
+- Outbound records must include `vault_id`, evidence references, store
+  revisions, generated timestamps, freshness status, warnings, and export
+  schema version.
+- Profile, preference, procedural, and raw episode memories stay outside Vault
+  Graph core. If the user wants them, they must live in Vault as durable notes or
+  in an explicitly configured external adapter.
+
+Recommended future adapter shape:
+
+```python
+class MemoryProjectionExporter(Protocol):
+    def export_project_memory(
+        self,
+        projection: ProjectMemoryProjection,
+    ) -> tuple[MemoryExportRecord, ...]: ...
+
+    def export_recent_changes(
+        self,
+        projection: RecentChangesProjection,
+    ) -> tuple[MemoryExportRecord, ...]: ...
+```
+
+`MemoryExportRecord` should be an outbound DTO, not a writable memory entity. It
+should contain only projection metadata, evidence refs, labels, warnings, and a
+compact summary already present in structured Vault Graph output.
+
+Do not implement this TODO until Phase 6A, 6B, and 6C are complete and stable.
+Required validation before implementation:
+
+- prove exported records are reproducible from the same Vault-derived state
+- prove disabling or deleting the external memory adapter loses no Vault Graph
+  truth
+- prove no external-memory dependency is imported by default
+- prove adapter failures produce warnings or export errors without breaking
+  search, context-pack, graph, or Phase 6 memory projections
+- prove cross-Vault exports preserve Vault IDs and never merge by title alone
+- document whether the adapter is push export, pull resource, or MCP tool
+  integration before adding any code

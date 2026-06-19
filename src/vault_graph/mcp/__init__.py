@@ -20,13 +20,17 @@ __all__ = [
     "PHASE_5C_PROMPT_NAMES",
     "RegisteredMcpServer",
     "CachedContextPack",
+    "CachedExplanation",
     "ContextPackResourceCache",
+    "ExplainResultInput",
+    "ResultExplanationCache",
     "codex_stdio_config_json",
     "create_mcp_server",
     "decode_resource_segment",
     "encode_resource_segment",
     "map_exception_to_mcp_error",
     "parse_mcp_resource_uri",
+    "parse_explain_result_input",
     "register_mcp_prompts",
     "register_mcp_tools",
     "run_mcp_server",
@@ -98,19 +102,42 @@ def __getattr__(name: str) -> Any:
             "PHASE_5C_PROMPT_NAMES": PHASE_5C_PROMPT_NAMES,
             "register_mcp_prompts": register_mcp_prompts,
         }[name]
-    if name in {"McpResourceLink", "McpToolBody", "McpToolRegistry", "register_mcp_tools"}:
-        from vault_graph.mcp.mcp_tools import McpResourceLink, McpToolBody, McpToolRegistry, register_mcp_tools
+    if name in {
+        "ExplainResultInput",
+        "McpResourceLink",
+        "McpToolBody",
+        "McpToolRegistry",
+        "parse_explain_result_input",
+        "register_mcp_tools",
+    }:
+        from vault_graph.mcp.mcp_tools import (
+            ExplainResultInput,
+            McpResourceLink,
+            McpToolBody,
+            McpToolRegistry,
+            parse_explain_result_input,
+            register_mcp_tools,
+        )
 
         return {
+            "ExplainResultInput": ExplainResultInput,
             "McpResourceLink": McpResourceLink,
             "McpToolBody": McpToolBody,
             "McpToolRegistry": McpToolRegistry,
+            "parse_explain_result_input": parse_explain_result_input,
             "register_mcp_tools": register_mcp_tools,
         }[name]
     if name in {"ContextPackResourceCache", "CachedContextPack"}:
         from vault_graph.mcp.context_pack_resource_cache import CachedContextPack, ContextPackResourceCache
 
         return {"ContextPackResourceCache": ContextPackResourceCache, "CachedContextPack": CachedContextPack}[name]
+    if name in {"CachedExplanation", "ResultExplanationCache"}:
+        from vault_graph.mcp.result_explanation_cache import CachedExplanation, ResultExplanationCache
+
+        return {
+            "CachedExplanation": CachedExplanation,
+            "ResultExplanationCache": ResultExplanationCache,
+        }[name]
     if name == "codex_stdio_config_json":
         from vault_graph.mcp.mcp_config_examples import codex_stdio_config_json
 

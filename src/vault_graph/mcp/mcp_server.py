@@ -10,6 +10,7 @@ from vault_graph.errors import CatalogError
 from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.mcp.mcp_resources import McpResourceRegistry
 from vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices
+from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
 
 if TYPE_CHECKING:
     from vault_graph.mcp.mcp_prompts import McpPromptRegistry
@@ -61,6 +62,7 @@ class RegisteredMcpServer:
     service_factory: McpServiceFactory
     server_version: str
     context_pack_cache: ContextPackResourceCache
+    result_explanation_cache: ResultExplanationCache
     resource_registry: McpResourceRegistry
     tool_registry: McpToolRegistry
     prompt_registry: McpPromptRegistry
@@ -73,6 +75,7 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
     from vault_graph.mcp.mcp_prompts import register_mcp_prompts
     from vault_graph.mcp.mcp_resources import register_mcp_resources
     from vault_graph.mcp.mcp_tools import register_mcp_tools
+    from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
 
     factory = McpServiceFactory(state_path=config.state_path)
     services = factory.open_read_only()
@@ -87,6 +90,7 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         log_level="WARNING",
     )
     context_pack_cache = ContextPackResourceCache(max_entries=32)
+    result_explanation_cache = ResultExplanationCache(max_entries=256)
     resource_registry = register_mcp_resources(
         server,
         services=services,
@@ -98,6 +102,7 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         services=services,
         service_factory=factory,
         context_pack_cache=context_pack_cache,
+        result_explanation_cache=result_explanation_cache,
     )
     prompt_registry = register_mcp_prompts(server)
     return RegisteredMcpServer(
@@ -106,6 +111,7 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         service_factory=factory,
         server_version=config.server_version,
         context_pack_cache=context_pack_cache,
+        result_explanation_cache=result_explanation_cache,
         resource_registry=resource_registry,
         tool_registry=tool_registry,
         prompt_registry=prompt_registry,

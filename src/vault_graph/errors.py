@@ -38,6 +38,10 @@ class ContextPackError(VaultGraphError):
     """Raised when context pack contracts are violated."""
 
 
+class ResultExplanationError(VaultGraphError):
+    """Raised when result explanation contracts are violated or unavailable."""
+
+
 class GraphStoreError(VaultGraphError):
     """Raised when graph store contracts are violated."""
 

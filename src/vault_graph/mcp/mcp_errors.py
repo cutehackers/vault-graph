@@ -11,6 +11,7 @@ from vault_graph.errors import (
     GraphStoreError,
     KeywordIndexError,
     ReadOnlyBoundaryError,
+    ResultExplanationError,
     SearchError,
     TextEmbeddingsError,
     VaultGraphError,
@@ -80,6 +81,19 @@ def map_exception_to_mcp_error(
             _sanitize_error_message(str(exc), user_state_path=user_state_path),
             affected_vault_ids,
         )
+    if isinstance(exc, ResultExplanationError):
+        code = _code_for_domain_error(exc)
+        return _error(
+            _kind_for_domain_code(code),
+            code,
+            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            affected_vault_ids,
+            recovery_hint=(
+                "Rerun the original MCP tool and pass a result_id from the new response."
+                if code == "result_explanation_not_found"
+                else None
+            ),
+        )
     if isinstance(exc, VaultGraphError):
         return _error(
             "execution",
@@ -125,6 +139,8 @@ def _code_for_domain_error(exc: Exception) -> str:
             "ambiguous_resource",
             "metadata_unavailable",
             "resource_not_available",
+            "result_explanation_not_found",
+            "invalid_result_id",
         }:
             return prefix
     name = exc.__class__.__name__
@@ -139,7 +155,11 @@ def _code_for_domain_error(exc: Exception) -> str:
 def _kind_for_domain_code(code: str) -> McpProtocolErrorKind:
     if code == "resource_not_found":
         return "not_found"
+    if code == "result_explanation_not_found":
+        return "not_found"
     if code == "ambiguous_resource":
+        return "invalid_parameter"
+    if code == "invalid_result_id":
         return "invalid_parameter"
     return "execution"
 

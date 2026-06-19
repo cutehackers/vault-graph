@@ -3,6 +3,98 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-19 - Phase 6A Result Explanation Review Corrections
+
+**Trigger:** Phase 6A code-quality review found result explanation records could
+be cached before a tool response was successfully returned, graph result IDs
+were raw delimiter-based strings, and context-pack warnings could be dropped for
+later evidence from another Vault.
+
+**Scope:** Phase 6A result explanation implementation, detailed SPEC, and
+implementation plan.
+
+**Core Values Protected:**
+
+- explainability reflects only results actually returned to the caller
+- runtime handles stay bounded and current-session scoped
+- evidence warnings remain visible across multi-vault context-pack items
+
+**Changes Applied:**
+
+- Moved result explanation cache writes after payload, resource link, warning,
+  and text mirror assembly succeeds.
+- Replaced raw related/decision-trace result IDs with fixed-length canonical
+  hash runtime handles.
+- Matched context-pack warnings against all record evidence Vault IDs, not just
+  the first evidence item.
+- Added regression tests for failed tool serialization, unbounded graph inputs,
+  and multi-vault context-pack warnings.
+
+**Verification:**
+
+- Added failing regression tests first, implemented fixes, and reran the focused
+  Phase 6A/MCP suites before final full verification.
+
+## 2026-06-19 - Phase 6 External Memory Boundary Clarification
+
+**Trigger:** External memory-layer review found Phase 6 used memory terminology
+without explicitly separating Vault Graph projections from writable systems such
+as Mem0, MemMachine, or MCP memory servers.
+
+**Scope:** Phase 6 top-level SPEC, Phase 6 README/overview, Phase 6A/6B/6C
+detailed SPEC documents, Phase 6A implementation plan, and decision log.
+
+**Core Values Protected:**
+
+- Vault remains the durable source of truth
+- memory output stays read-only, evidence-linked, disposable, and rebuildable
+- Phase 6 implementation remains simple and production-ready without hidden
+  writable memory stores
+
+**Changes Applied:**
+
+- Added Phase 6 memory taxonomy for working, semantic/project, episodic/timeline,
+  profile/preference, and procedural memory.
+- Explicitly prohibited generic writable `MemoryStore` APIs, hidden episode
+  logs, profile memory databases, and direct external memory-server dependencies
+  in Phase 6 core.
+- Added a SPEC TODO for future Mem0, MemMachine, or MCP memory-server adapters as
+  export targets over evidence-linked projections.
+- Updated the Phase 6A plan with tests and risk mitigations that prevent the new
+  `vault_graph.memory` package from drifting into a writable memory layer.
+
+**Verification:**
+
+- Rechecked Phase 6 SPEC, detailed SPECs, and the Phase 6A plan for matching
+  external-memory boundaries, read-only projection language, and future-adapter
+  scope.
+
+## 2026-06-18 - Phase 6 SPEC Self-Grill Corrections
+
+**Trigger:** Phase 6 SPEC self-grill found the Phase 6B source-reader contract
+said unresolved evidence should return warnings, but the planned
+`evidence_for_document(...)` signature returned only evidence records.
+
+**Scope:** Phase 6B project, decision, and issue memory SPEC documents.
+
+**Core Values Protected:**
+
+- memory projections keep evidence gaps visible
+- implementation handoff stays unambiguous
+- source-reader boundary remains a deep module instead of leaking warning policy
+
+**Changes Applied:**
+
+- Replaced the evidence-only source-reader method with `MemoryDocumentRead`.
+- Added `read_document(...)` and `read_documents(...)` contracts that return
+  evidence plus warnings together.
+- Updated the Korean Phase 6B copy with the same contract.
+
+**Verification:**
+
+- Rechecked Phase 6 docs for references to Phase 6 MCP tools, read-only
+  boundaries, and source-reader warning behavior.
+
 ## 2026-06-18 - Phase 5C Implementation Verification Corrections
 
 **Trigger:** Phase 5C implementation verification found MCP factory laziness

@@ -16,6 +16,8 @@ from vault_graph.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_ex
 from vault_graph.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input
 from vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices
 from vault_graph.mcp.mcp_uri import encode_resource_segment
+from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.memory.result_explanation import ExplainResultService
 from vault_graph.projection.graph_projection import (
     DEFAULT_GRAPH_RELATED_DEPTH,
     DEFAULT_GRAPH_RESULT_LIMIT,
@@ -28,6 +30,7 @@ McpToolName = Literal[
     "find_related",
     "get_decision_trace",
     "check_index_status",
+    "explain_result",
 ]
 MAX_MCP_TOOL_LIMIT = 50
 
@@ -136,6 +139,11 @@ class CheckIndexStatusInput:
     scope: McpScopeInput | None = None
 
 
+@dataclass(frozen=True)
+class ExplainResultInput:
+    result_id: str
+
+
 class McpToolRegistry:
     tool_names: tuple[McpToolName, ...]
 
@@ -145,16 +153,20 @@ class McpToolRegistry:
         services: McpServices,
         service_factory: McpServiceFactory,
         context_pack_cache: ContextPackResourceCache,
+        result_explanation_cache: ResultExplanationCache,
     ) -> None:
         self._services = services
         self._service_factory = service_factory
         self._context_pack_cache = context_pack_cache
+        self._result_explanation_cache = result_explanation_cache
+        self._explain_result_service = ExplainResultService(cache=result_explanation_cache)
         self.tool_names = (
             "search_vault",
             "build_context_pack",
             "find_related",
             "get_decision_trace",
             "check_index_status",
+            "explain_result",
         )
 
     def search_vault(self, request: SearchVaultInput) -> McpToolBody:
@@ -180,17 +192,21 @@ class McpToolRegistry:
                 include_cross_vault=request.include_cross_vault,
             )
             from vault_graph.mcp.mcp_tool_serialization import (
+                explanation_records_for_search,
                 mcp_warning_from_search,
                 resource_links_for_search,
                 search_response_to_payload,
             )
 
-            return _tool_body(
+            records = explanation_records_for_search(response)
+            body = _tool_body(
                 tool_name="search_vault",
                 payload=search_response_to_payload(response),
                 resource_links=resource_links_for_search(response),
                 warnings=tuple(mcp_warning_from_search(warning) for warning in response.warnings),
             )
+            self._result_explanation_cache.put_many(records)
+            return body
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
@@ -221,11 +237,13 @@ class McpToolRegistry:
             self._context_pack_cache.put(pack, rendered_json=rendered_json)
             from vault_graph.mcp.mcp_tool_serialization import (
                 context_pack_to_payload,
+                explanation_records_for_context_pack,
                 mcp_warning_from_context,
                 resource_links_for_context_pack,
             )
 
-            return _tool_body(
+            records = explanation_records_for_context_pack(pack)
+            body = _tool_body(
                 tool_name="build_context_pack",
                 payload=context_pack_to_payload(pack),
                 resource_links=(
@@ -238,6 +256,8 @@ class McpToolRegistry:
                 ),
                 warnings=tuple(mcp_warning_from_context(warning) for warning in pack.warnings),
             )
+            self._result_explanation_cache.put_many(records)
+            return body
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
@@ -260,17 +280,21 @@ class McpToolRegistry:
                 output_format="json",
             )
             from vault_graph.mcp.mcp_tool_serialization import (
+                explanation_records_for_related,
                 mcp_warning_from_graph,
                 related_response_to_payload,
                 resource_links_for_related,
             )
 
-            return _tool_body(
+            records = explanation_records_for_related(response)
+            body = _tool_body(
                 tool_name="find_related",
                 payload=related_response_to_payload(response),
                 resource_links=resource_links_for_related(response),
                 warnings=tuple(mcp_warning_from_graph(warning) for warning in response.warnings),
             )
+            self._result_explanation_cache.put_many(records)
+            return body
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
@@ -292,16 +316,20 @@ class McpToolRegistry:
             )
             from vault_graph.mcp.mcp_tool_serialization import (
                 decision_trace_response_to_payload,
+                explanation_records_for_decision_trace,
                 mcp_warning_from_graph,
                 resource_links_for_decision_trace,
             )
 
-            return _tool_body(
+            records = explanation_records_for_decision_trace(response)
+            body = _tool_body(
                 tool_name="get_decision_trace",
                 payload=decision_trace_response_to_payload(response),
                 resource_links=resource_links_for_decision_trace(response),
                 warnings=tuple(mcp_warning_from_graph(warning) for warning in response.warnings),
             )
+            self._result_explanation_cache.put_many(records)
+            return body
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
@@ -320,6 +348,32 @@ class McpToolRegistry:
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
+    def explain_result(self, request: ExplainResultInput) -> McpToolBody:
+        try:
+            _validate_explain_result_request(request)
+            record = self._explain_result_service.explain(result_id=request.result_id)
+            from vault_graph.mcp.mcp_tool_serialization import explanation_payload_to_resource_links
+            from vault_graph.memory.result_explanation import explanation_record_to_dict
+
+            payload = explanation_record_to_dict(record)
+            return _tool_body(
+                tool_name="explain_result",
+                payload=payload,
+                resource_links=explanation_payload_to_resource_links(payload),
+                warnings=tuple(
+                    McpErrorPayload(
+                        code=warning.code,
+                        message=warning.message,
+                        severity=warning.severity,
+                        affected_vault_ids=warning.affected_vault_ids,
+                        recovery_hint=warning.recovery_hint,
+                    )
+                    for warning in record.warnings
+                ),
+            )
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
 
 def register_mcp_tools(
     server: McpToolServer,
@@ -327,11 +381,13 @@ def register_mcp_tools(
     services: McpServices,
     service_factory: McpServiceFactory,
     context_pack_cache: ContextPackResourceCache,
+    result_explanation_cache: ResultExplanationCache,
 ) -> McpToolRegistry:
     registry = McpToolRegistry(
         services=services,
         service_factory=service_factory,
         context_pack_cache=context_pack_cache,
+        result_explanation_cache=result_explanation_cache,
     )
 
     @server.tool("search_vault", structured_output=True)
@@ -408,6 +464,11 @@ def register_mcp_tools(
     def check_index_status(scope: dict[str, object] | None = None) -> dict[str, object]:
         request = parse_check_index_status_input(scope=scope)
         return registry.check_index_status(request).to_json_dict()
+
+    @server.tool("explain_result", structured_output=True)
+    def explain_result(result_id: str) -> dict[str, object]:
+        request = parse_explain_result_input(result_id=result_id)
+        return registry.explain_result(request).to_json_dict()
 
     return registry
 
@@ -526,6 +587,12 @@ def parse_check_index_status_input(*, scope: dict[str, object] | None = None) ->
     return CheckIndexStatusInput(scope=mcp_scope_input_from_raw(scope))
 
 
+def parse_explain_result_input(*, result_id: str) -> ExplainResultInput:
+    request = ExplainResultInput(result_id=_required_string(result_id, "result_id"))
+    _validate_explain_result_request(request)
+    return request
+
+
 def _validate_search_vault_request(request: SearchVaultInput) -> None:
     _required_string(request.query, "query")
     _limit(request.limit)
@@ -549,6 +616,10 @@ def _validate_find_related_request(request: FindRelatedInput) -> None:
 def _validate_decision_trace_request(request: DecisionTraceInput) -> None:
     _required_string(request.decision_or_topic, "decision_or_topic")
     _limit(request.limit)
+
+
+def _validate_explain_result_request(request: ExplainResultInput) -> None:
+    _required_string(request.result_id, "result_id")
 
 
 def _scope_for_tool(

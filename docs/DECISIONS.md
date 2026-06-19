@@ -17,6 +17,29 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-19 - Keep External Memory Systems As Future Adapters
+
+**Question:** Should Vault Graph adopt Mem0, MemMachine, or a similar external
+memory layer as part of the Phase 6 core?
+
+**Decision:** No. Keep Phase 6 memory as read-only, evidence-linked projections
+over Vault-derived state. Record Mem0, MemMachine, and MCP memory servers as
+future adapter or export targets only.
+
+**Reason:** Vault must remain the durable source of truth. A writable memory
+core would create a second authority and make project knowledge harder to audit
+or rebuild.
+
+**Implications:**
+
+- Phase 6 must not add generic `MemoryStore`, `Memory.create`,
+  `Memory.query`, `Memory.upsert`, `Memory.link`, `Memory.audit`, hidden
+  episode logs, or profile memory databases.
+- Future external memory integration must consume exported projections and must
+  not write Vault content or Vault Graph stores.
+- Agent-generated memories become durable only after they enter Vault through
+  the normal validation and Git workflow.
+
 ## 2026-06-12 - Use JSON-Canonical Opt-In Graph Context Packs
 
 **Question:** What should Phase 4 context packs treat as canonical, and should

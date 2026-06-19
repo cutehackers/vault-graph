@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vault_graph.errors import CatalogError, VectorStoreError
+from vault_graph.errors import CatalogError, ResultExplanationError, VectorStoreError
 from vault_graph.mcp.mcp_errors import McpProtocolError, map_exception_to_mcp_error
 
 
@@ -22,6 +22,16 @@ def test_backend_error_maps_to_execution_error() -> None:
     assert error.kind == "execution"
     assert error.payload.code == "vector_store_error"
     assert error.payload.message == "vector search unavailable: not initialized"
+
+
+def test_result_explanation_not_found_maps_to_mcp_not_found() -> None:
+    error = map_exception_to_mcp_error(
+        ResultExplanationError("result_explanation_not_found: missing result explanation")
+    )
+
+    assert error.kind == "not_found"
+    assert error.payload.code == "result_explanation_not_found"
+    assert "Rerun the original MCP tool" in (error.payload.recovery_hint or "")
 
 
 def test_domain_error_redacts_absolute_paths(tmp_path: Path) -> None:

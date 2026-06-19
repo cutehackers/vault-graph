@@ -38,7 +38,7 @@ def test_create_mcp_server_loads_services_before_stdio_run(tmp_path: Path) -> No
     assert registered.server_version == "0.1.0"
 
 
-def test_create_mcp_server_registers_resources_tools_and_prompts(tmp_path: Path) -> None:
+def test_create_mcp_server_registers_resources_tools_prompts_and_explanation_cache(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
     state_path = tmp_path / "state"
@@ -47,12 +47,14 @@ def test_create_mcp_server_registers_resources_tools_and_prompts(tmp_path: Path)
     registered = create_mcp_server(McpServerConfig(state_path=state_path))
 
     assert registered.resource_registry is not None
+    assert registered.result_explanation_cache.max_entries == 256
     assert registered.tool_registry.tool_names == (
         "search_vault",
         "build_context_pack",
         "find_related",
         "get_decision_trace",
         "check_index_status",
+        "explain_result",
     )
     assert registered.prompt_registry.prompt_names == PHASE_5C_PROMPT_NAMES
 

@@ -27,6 +27,7 @@ from vault_graph.mcp.mcp_tools import (
     SearchVaultInput,
     register_mcp_tools,
 )
+from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
 from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
 from vault_graph.retrieval.graph_retrieval import (
     DecisionTraceResponse,
@@ -159,6 +160,7 @@ def test_register_mcp_tools_registers_exact_phase_5c_tools(tmp_path: Path) -> No
         services=fake_services(tmp_path),
         service_factory=cast(Any, fake_factory()),
         context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
     )
 
     assert registry.tool_names == (
@@ -167,6 +169,7 @@ def test_register_mcp_tools_registers_exact_phase_5c_tools(tmp_path: Path) -> No
         "find_related",
         "get_decision_trace",
         "check_index_status",
+        "explain_result",
     )
     assert tuple(server.tools) == registry.tool_names
     assert all(server.structured_output[name] is True for name in registry.tool_names)
@@ -196,6 +199,7 @@ def test_tool_validation_errors_are_structured(
         services=fake_services(tmp_path),
         service_factory=cast(Any, fake_factory()),
         context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
     )
 
     with pytest.raises(McpProtocolError) as exc_info:
@@ -213,6 +217,7 @@ def test_search_vault_uses_base_retrieval_service_when_graph_false(tmp_path: Pat
         services=services,
         service_factory=cast(Any, fake_factory()),
         context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
     )
 
     body = registry.search_vault(SearchVaultInput(query="GraphRAG", limit=3))
@@ -234,6 +239,7 @@ def test_build_context_pack_renders_and_caches_pack_json(tmp_path: Path) -> None
         services=services,
         service_factory=cast(Any, fake_factory()),
         context_pack_cache=cache,
+        result_explanation_cache=ResultExplanationCache(),
     )
 
     body = registry.build_context_pack(BuildContextPackInput(goal="Implement MCP tools"))
@@ -249,6 +255,7 @@ def test_check_index_status_uses_status_service_without_indexing(tmp_path: Path)
         services=fake_services(tmp_path),
         service_factory=cast(Any, factory),
         context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
     )
 
     body = registry.check_index_status(CheckIndexStatusInput())
@@ -267,6 +274,7 @@ def test_find_related_opens_graph_service_after_validation(tmp_path: Path) -> No
         services=fake_services(tmp_path),
         service_factory=cast(Any, factory),
         context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
     )
 
     body = registry.find_related(FindRelatedInput(target="GraphRAG", depth=1, kinds=("depends_on",), limit=5))
@@ -285,6 +293,7 @@ def test_decision_trace_opens_graph_service_after_validation(tmp_path: Path) -> 
         services=fake_services(tmp_path),
         service_factory=cast(Any, factory),
         context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
     )
 
     body = registry.get_decision_trace(DecisionTraceInput(decision_or_topic="Phase 5"))
@@ -300,6 +309,7 @@ def test_invalid_graph_tool_arguments_fail_before_opening_graph_service(tmp_path
         services=fake_services(tmp_path),
         service_factory=cast(Any, factory),
         context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
     )
 
     with pytest.raises(McpProtocolError):
