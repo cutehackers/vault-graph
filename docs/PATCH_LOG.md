@@ -3,6 +3,39 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-22 - Phase 6C Implementation Review Corrections
+
+**Trigger:** Final implementation review found Phase 6C could under-report
+vector-not-configured timeline warnings and could let multi-Vault scale-up
+readiness depend on the last backend record inspected.
+
+**Scope:** Phase 6C timeline memory, health explorer, and focused regression
+tests.
+
+**Core Values Protected:**
+
+- timeline trust signals stay visible when vector state is missing or
+  unavailable
+- multi-Vault health output remains namespace-safe and does not hide a degraded
+  Vault behind a healthy one
+- Phase 6C stays read-only and does not add durable memory state
+
+**Changes Applied:**
+
+- Emitted vector status timeline warning items for not-configured or unavailable
+  vector state instead of suppressing them.
+- Aggregated scale-up adapter readiness across all actual Vault backend records
+  instead of using only one record per backend kind.
+- Added focused regression tests for vector-unavailable timeline warnings and
+  multi-Vault scale-up readiness degradation.
+
+**Verification:**
+
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src tests`
+- `uv run --python 3.12 pytest -q`
+- `VG_RUN_MCP_STDIO_SMOKE=1 uv run --python 3.12 pytest tests/test_mcp_stdio_smoke.py -q`
+
 ## 2026-06-22 - Phase 6C Bounded Timeline Plan Corrections
 
 **Trigger:** Goal completion audit and subagent review found remaining Phase 6C
