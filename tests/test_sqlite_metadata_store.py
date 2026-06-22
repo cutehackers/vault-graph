@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 
@@ -242,3 +243,102 @@ def test_list_document_chunks_preserves_indexed_document_order(tmp_path: Path) -
     chunks = store.list_document_chunks(vault_id="default", document_id=document.document_id)
 
     assert [chunk.text for chunk in chunks] == ["First", "Second"]
+
+
+def test_list_documents_returns_non_tombstoned_documents_for_scope(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    current = make_document("default", "wiki/current.md", "current")
+    tombstoned = make_document("default", "wiki/tombstoned.md", "tombstoned")
+    store.apply_metadata_revision(index_revision="rev-1", documents=[current, tombstoned], chunks=[], tombstones=[])
+    store.apply_metadata_revision(
+        index_revision="rev-2",
+        documents=[],
+        chunks=[],
+        tombstones=[("default", tombstoned.path)],
+    )
+
+    documents = store.list_documents(QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+
+    assert len(documents) == 1
+    assert documents[0].document_id == current.document_id
+    assert documents[0].path == current.path
+
+
+def test_list_documents_preserves_document_snapshot_fields(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    document = DocumentSnapshot(
+        vault_id="default",
+        document_id="doc-1",
+        path="wiki/page.md",
+        kind="wiki",
+        frontmatter={"type": "decision", "status": "accepted"},
+        frontmatter_hash="frontmatter-hash",
+        content_hash="content-hash",
+        raw_sha256="raw-sha",
+        parser_version="parser-v1",
+        last_seen_at="2026-06-05T00:00:00+00:00",
+        last_indexed_at="will-be-overwritten",
+        vault_revision="vault-rev",
+        index_revision="old-index",
+    )
+    store.apply_metadata_revision(index_revision="metadata-1", documents=[document], chunks=[], tombstones=[])
+
+    listed = store.list_documents(QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+
+    assert len(listed) == 1
+    assert listed[0].vault_id == document.vault_id
+    assert listed[0].document_id == document.document_id
+    assert listed[0].path == document.path
+    assert listed[0].kind == document.kind
+    assert listed[0].frontmatter == document.frontmatter
+    assert listed[0].frontmatter_hash == document.frontmatter_hash
+    assert listed[0].content_hash == document.content_hash
+    assert listed[0].raw_sha256 == document.raw_sha256
+    assert listed[0].parser_version == document.parser_version
+    assert listed[0].last_seen_at == document.last_seen_at
+    assert listed[0].last_indexed_at is not None
+    assert listed[0].vault_revision == document.vault_revision
+    assert listed[0].index_revision == "metadata-1"
+
+
+def test_list_documents_filters_by_vault_id_and_content_scope(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    main_wiki = make_document("main", "wiki/page.md", "main-wiki")
+    main_docs = make_document("main", "docs/page.md", "main-docs")
+    work_wiki = make_document("work", "wiki/page.md", "work-wiki")
+    store.apply_metadata_revision(
+        index_revision="rev-1",
+        documents=[main_wiki, main_docs, work_wiki],
+        chunks=[],
+        tombstones=[],
+    )
+
+    documents = store.list_documents(QueryScope(vault_ids=("main",), content_scopes=("wiki",)))
+
+    assert len(documents) == 1
+    assert documents[0].document_id == main_wiki.document_id
+    assert documents[0].path == main_wiki.path
+
+
+def test_list_documents_orders_by_vault_path_and_document_id(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    b_doc = make_document("work", "wiki/b.md", "b")
+    a_doc = make_document("main", "wiki/a.md", "a")
+    c_doc = make_document("main", "wiki/c.md", "c")
+    store.apply_metadata_revision(index_revision="rev-1", documents=[b_doc, c_doc, a_doc], chunks=[], tombstones=[])
+
+    documents = store.list_documents(QueryScope(vault_ids=("work", "main"), content_scopes=("wiki",)))
+
+    assert [(document.vault_id, document.path, document.document_id) for document in documents] == [
+        ("main", "wiki/a.md", a_doc.document_id),
+        ("main", "wiki/c.md", c_doc.document_id),
+        ("work", "wiki/b.md", b_doc.document_id),
+    ]
+
+
+def test_list_documents_returns_empty_for_missing_database_without_creating_file(tmp_path: Path) -> None:
+    database_path = tmp_path / "metadata.sqlite3"
+    store = SQLiteMetadataStore(database_path)
+
+    assert store.list_documents(QueryScope(vault_ids=("default",), content_scopes=("wiki",))) == ()
+    assert not database_path.exists()

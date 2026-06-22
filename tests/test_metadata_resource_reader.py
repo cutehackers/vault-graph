@@ -113,6 +113,9 @@ class FakeMetadataStore:
     def list_document_states(self, vault_ids: tuple[str, ...]) -> tuple[DocumentState, ...]:
         raise AssertionError("not used by metadata resource reader tests")
 
+    def list_documents(self, scope: QueryScope) -> tuple[DocumentSnapshot, ...]:
+        raise AssertionError("not used by metadata resource reader tests")
+
     def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]:
         raise AssertionError("not used by metadata resource reader tests")
 

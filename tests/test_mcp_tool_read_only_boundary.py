@@ -13,7 +13,13 @@ from tests.test_sqlite_metadata_store import make_chunk, make_document
 from vault_graph.cli.main import app
 from vault_graph.mcp.mcp_errors import McpProtocolError
 from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
-from vault_graph.mcp.mcp_tools import BuildContextPackInput, ExplainResultInput, SearchVaultInput
+from vault_graph.mcp.mcp_tools import (
+    BuildContextPackInput,
+    ExplainResultInput,
+    GetOpenQuestionsInput,
+    SearchVaultInput,
+    SummarizeProjectMemoryInput,
+)
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 runner = CliRunner()
@@ -117,3 +123,31 @@ def test_explain_result_cache_miss_does_not_create_state_paths(tmp_path: Path) -
     assert not (state_path / "vector").exists()
     assert not (state_path / "graph").exists()
     assert not (state_path / "projection_cache").exists()
+
+
+def test_memory_tools_do_not_mutate_vault_bytes(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    (vault_root / "docs").mkdir(parents=True)
+    (vault_root / "docs" / "status.md").write_text("# Status\nVault body\n", encoding="utf-8")
+    state_path = initialized_state(tmp_path, vault_root)
+    seed_search_indexes(state_path)
+    before = file_bytes(vault_root)
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    registered.tool_registry.summarize_project_memory(SummarizeProjectMemoryInput())
+    registered.tool_registry.get_open_questions(GetOpenQuestionsInput())
+
+    assert file_bytes(vault_root) == before
+
+
+def test_memory_tool_metadata_error_does_not_create_memory_state(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    state_path = initialized_state(tmp_path, vault_root)
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    with pytest.raises(McpProtocolError):
+        registered.tool_registry.summarize_project_memory(SummarizeProjectMemoryInput())
+
+    assert not (state_path / "memory").exists()
+    assert not (state_path / "data" / "memory").exists()

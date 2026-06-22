@@ -15,6 +15,10 @@ if TYPE_CHECKING:
     from vault_graph.context.context_pack_builder import ContextPackBuilder
     from vault_graph.context.context_pack_renderer import ContextPackRenderer
     from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings
+    from vault_graph.memory.decision_memory import DecisionMemoryService
+    from vault_graph.memory.issue_memory import IssueMemoryService
+    from vault_graph.memory.memory_source_reader import MemorySourceReader
+    from vault_graph.memory.project_memory import ProjectMemoryService
     from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.retrieval_service import RetrievalService
     from vault_graph.retrieval.search_readiness import SearchReadiness
@@ -216,6 +220,63 @@ class McpServiceFactory:
         from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider
 
         return GraphSearchCandidateProvider(graph_retrieval_service=self.open_graph_retrieval_service())
+
+    def open_memory_source_reader(self) -> MemorySourceReader:
+        from vault_graph.memory.memory_source_reader import MemorySourceReader
+        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+
+        catalog_service, _ = self._catalog()
+        return MemorySourceReader(
+            metadata_store=SQLiteMetadataStore(catalog_service.metadata_path, initialize=False),
+        )
+
+    def open_decision_memory_service(self) -> DecisionMemoryService:
+        from vault_graph.memory.decision_memory import DecisionMemoryService
+
+        _, catalog = self._catalog()
+        return DecisionMemoryService(
+            catalog=catalog,
+            source_reader=self.open_memory_source_reader(),
+            status_service=self.open_status_service(),
+            decision_trace_provider_factory=self.open_graph_retrieval_service,
+        )
+
+    def open_issue_memory_service(self) -> IssueMemoryService:
+        from vault_graph.memory.issue_memory import IssueMemoryService
+
+        _, catalog = self._catalog()
+        return IssueMemoryService(
+            catalog=catalog,
+            source_reader=self.open_memory_source_reader(),
+            status_service=self.open_status_service(),
+        )
+
+    def open_project_memory_service(self) -> ProjectMemoryService:
+        from vault_graph.memory.decision_memory import DecisionMemoryService
+        from vault_graph.memory.issue_memory import IssueMemoryService
+        from vault_graph.memory.project_memory import ProjectMemoryService
+
+        _, catalog = self._catalog()
+        source_reader = self.open_memory_source_reader()
+        status_service = self.open_status_service()
+        decision_service = DecisionMemoryService(
+            catalog=catalog,
+            source_reader=source_reader,
+            status_service=status_service,
+            decision_trace_provider_factory=self.open_graph_retrieval_service,
+        )
+        issue_service = IssueMemoryService(
+            catalog=catalog,
+            source_reader=source_reader,
+            status_service=status_service,
+        )
+        return ProjectMemoryService(
+            catalog=catalog,
+            source_reader=source_reader,
+            decision_service=decision_service,
+            issue_service=issue_service,
+            status_service=status_service,
+        )
 
     def _catalog(self) -> tuple[CatalogService, VaultCatalog]:
         catalog_service = CatalogService(state_path=self._state_path)

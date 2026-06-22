@@ -3,6 +3,41 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-22 - Phase 6B Implementation Review Corrections
+
+**Trigger:** Phase 6B implementation review found issue-memory candidate caps
+could be consumed by resolved items, project-memory group scans needed tighter
+bounded chunk reads, ambiguous project classifications were not surfaced, DTO
+validation was too permissive, and memory service imports crossed the
+`IndexService` boundary too eagerly.
+
+**Scope:** Phase 6B memory projection services, MCP memory import boundaries,
+memory DTO validation, and regression tests.
+
+**Core Values Protected:**
+
+- memory projections stay evidence-first, bounded, and explicit about
+  heuristic ambiguity
+- open-question recall does not hide active work behind resolved documents
+- MCP memory modules remain lightweight and free of local backend side effects
+- DTOs reject invalid memory shapes before serialization
+
+**Changes Applied:**
+
+- Excluded resolved issue statuses before applying candidate caps.
+- Added project-memory ambiguous-classification warnings and bounded chunk-read
+  behavior for large candidate sets.
+- Tightened `MemoryItem` validation for signals, resource kinds, evidence, and
+  warnings.
+- Replaced direct memory-service `IndexService` imports with a minimal
+  status-service protocol.
+- Added focused regression coverage for the corrected behavior.
+
+**Verification:**
+
+- `uv run --python 3.12 pytest tests/test_project_memory_service.py tests/test_memory_models.py tests/test_mcp_import_boundaries.py -q`
+- `uv run --python 3.12 pytest tests/test_decision_memory_service.py tests/test_issue_memory_service.py tests/test_project_memory_service.py tests/test_memory_models.py tests/test_memory_request_context.py tests/test_memory_source_reader.py tests/test_mcp_memory_tools.py tests/test_mcp_current_context_resource.py tests/test_mcp_service_factory.py tests/test_mcp_tools.py tests/test_mcp_resources.py tests/test_mcp_server.py tests/test_mcp_prompts.py tests/test_mcp_errors.py tests/test_mcp_tool_read_only_boundary.py tests/test_mcp_resource_read_only_boundary.py tests/test_mcp_import_boundaries.py tests/test_metadata_resource_reader.py tests/test_sqlite_metadata_store.py -q`
+
 ## 2026-06-19 - Phase 6B Implementation Plan Review Corrections
 
 **Trigger:** Phase 6B implementation-plan subagent reviews found public MCP

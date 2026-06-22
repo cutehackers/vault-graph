@@ -55,6 +55,8 @@ def test_create_mcp_server_registers_resources_tools_prompts_and_explanation_cac
         "get_decision_trace",
         "check_index_status",
         "explain_result",
+        "summarize_project_memory",
+        "get_open_questions",
     )
     assert registered.prompt_registry.prompt_names == PHASE_5C_PROMPT_NAMES
 

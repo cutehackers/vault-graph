@@ -85,6 +85,96 @@ def test_mcp_factory_uses_read_only_store_constructors(tmp_path: Path, monkeypat
     assert calls["vector"] == (state_path / "vector" / "chroma", False, True)
 
 
+def test_mcp_factory_opens_memory_source_reader_with_read_only_metadata_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    state_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    calls: dict[str, object] = {}
+
+    class FakeMetadataStore:
+        def __init__(self, path: Path, *, initialize: bool = False) -> None:
+            calls["metadata"] = (path, initialize)
+
+    monkeypatch.setattr("vault_graph.storage.local.sqlite_metadata_store.SQLiteMetadataStore", FakeMetadataStore)
+
+    reader = McpServiceFactory(state_path=state_path).open_memory_source_reader()
+
+    assert reader is not None
+    assert calls["metadata"] == (state_path / "metadata" / "metadata.sqlite3", False)
+
+
+def test_mcp_factory_opens_project_memory_service_without_creating_memory_state(tmp_path: Path) -> None:
+    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+    state_path = initialized_state_for_factory(tmp_path)
+
+    service = McpServiceFactory(state_path=state_path).open_project_memory_service()
+
+    assert service is not None
+    assert not (state_path / "memory").exists()
+    assert not (state_path / "data" / "memory").exists()
+
+
+def test_mcp_factory_memory_services_do_not_import_rustworkx_until_graph_enrichment(tmp_path: Path) -> None:
+    code = f"""
+from pathlib import Path
+import sys
+from typer.testing import CliRunner
+from vault_graph.cli.main import app
+from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+vault_root = Path({str(tmp_path / "vault")!r})
+vault_root.mkdir()
+state_path = Path({str(tmp_path / "state")!r})
+runner = CliRunner()
+runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+factory = McpServiceFactory(state_path=state_path)
+factory.open_project_memory_service()
+factory.open_issue_memory_service()
+factory.open_decision_memory_service()
+for name in ("vault_graph.projection.rustworkx_projection", "rustworkx"):
+    if name in sys.modules:
+        raise SystemExit(name)
+"""
+    completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
+def test_mcp_factory_decision_memory_graph_provider_is_lazy(tmp_path: Path) -> None:
+    code = f"""
+from pathlib import Path
+import sys
+from typer.testing import CliRunner
+from vault_graph.cli.main import app
+from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+vault_root = Path({str(tmp_path / "vault")!r})
+vault_root.mkdir()
+state_path = Path({str(tmp_path / "state")!r})
+runner = CliRunner()
+runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+service = McpServiceFactory(state_path=state_path).open_decision_memory_service()
+if "vault_graph.projection.rustworkx_projection" in sys.modules:
+    raise SystemExit("eager")
+try:
+    service._decision_trace_provider_factory()
+except Exception:
+    pass
+if "vault_graph.projection.rustworkx_projection" not in sys.modules:
+    raise SystemExit("missing")
+"""
+    completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+
+
 def test_mcp_factory_open_read_only_does_not_import_rustworkx_projection() -> None:
     code = """
 from pathlib import Path

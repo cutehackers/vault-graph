@@ -23,7 +23,9 @@ __all__ = [
     "CachedExplanation",
     "ContextPackResourceCache",
     "ExplainResultInput",
+    "GetOpenQuestionsInput",
     "ResultExplanationCache",
+    "SummarizeProjectMemoryInput",
     "codex_stdio_config_json",
     "create_mcp_server",
     "decode_resource_segment",
@@ -31,6 +33,8 @@ __all__ = [
     "map_exception_to_mcp_error",
     "parse_mcp_resource_uri",
     "parse_explain_result_input",
+    "parse_get_open_questions_input",
+    "parse_summarize_project_memory_input",
     "register_mcp_prompts",
     "register_mcp_tools",
     "run_mcp_server",
@@ -104,27 +108,39 @@ def __getattr__(name: str) -> Any:
         }[name]
     if name in {
         "ExplainResultInput",
+        "GetOpenQuestionsInput",
         "McpResourceLink",
         "McpToolBody",
         "McpToolRegistry",
+        "SummarizeProjectMemoryInput",
         "parse_explain_result_input",
+        "parse_get_open_questions_input",
+        "parse_summarize_project_memory_input",
         "register_mcp_tools",
     }:
         from vault_graph.mcp.mcp_tools import (
             ExplainResultInput,
+            GetOpenQuestionsInput,
             McpResourceLink,
             McpToolBody,
             McpToolRegistry,
+            SummarizeProjectMemoryInput,
             parse_explain_result_input,
+            parse_get_open_questions_input,
+            parse_summarize_project_memory_input,
             register_mcp_tools,
         )
 
         return {
             "ExplainResultInput": ExplainResultInput,
+            "GetOpenQuestionsInput": GetOpenQuestionsInput,
             "McpResourceLink": McpResourceLink,
             "McpToolBody": McpToolBody,
             "McpToolRegistry": McpToolRegistry,
+            "SummarizeProjectMemoryInput": SummarizeProjectMemoryInput,
             "parse_explain_result_input": parse_explain_result_input,
+            "parse_get_open_questions_input": parse_get_open_questions_input,
+            "parse_summarize_project_memory_input": parse_summarize_project_memory_input,
             "register_mcp_tools": register_mcp_tools,
         }[name]
     if name in {"ContextPackResourceCache", "CachedContextPack"}:

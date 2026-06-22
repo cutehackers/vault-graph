@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vault_graph.errors import CatalogError, ResultExplanationError, VectorStoreError
+from vault_graph.errors import CatalogError, MemoryProjectionError, ResultExplanationError, VectorStoreError
 from vault_graph.mcp.mcp_errors import McpProtocolError, map_exception_to_mcp_error
 
 
@@ -32,6 +32,20 @@ def test_result_explanation_not_found_maps_to_mcp_not_found() -> None:
     assert error.kind == "not_found"
     assert error.payload.code == "result_explanation_not_found"
     assert "Rerun the original MCP tool" in (error.payload.recovery_hint or "")
+
+
+def test_memory_projection_error_maps_to_execution_error() -> None:
+    error = map_exception_to_mcp_error(MemoryProjectionError("metadata_unavailable: not initialized"))
+
+    assert error.kind == "execution"
+    assert error.payload.code == "metadata_unavailable"
+
+
+def test_invalid_memory_limit_prefix_is_preserved() -> None:
+    error = map_exception_to_mcp_error(MemoryProjectionError("invalid_memory_limit: limit must be 1..50"))
+
+    assert error.kind == "execution"
+    assert error.payload.code == "invalid_memory_limit"
 
 
 def test_domain_error_redacts_absolute_paths(tmp_path: Path) -> None:

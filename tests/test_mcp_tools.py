@@ -10,9 +10,11 @@ import pytest
 from tests.test_context_pack_contract import make_pack
 from tests.test_graph_retrieval_contract import make_metadata_evidence_from_graph_ref
 from tests.test_graph_store_contract import make_entity, make_relationship
+from tests.test_mcp_memory_tools import make_open_questions_projection, make_project_projection
 from tests.test_mcp_tool_serialization import make_search_response
 from vault_graph.app.index_service import StatusReport
 from vault_graph.context import ContextPack, ContextPackRequest, DefaultContextPackRenderer
+from vault_graph.errors import MemoryProjectionError
 from vault_graph.graph.graph_readiness import GraphReadiness
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
@@ -23,8 +25,10 @@ from vault_graph.mcp.mcp_tools import (
     CheckIndexStatusInput,
     DecisionTraceInput,
     FindRelatedInput,
+    GetOpenQuestionsInput,
     McpToolRegistry,
     SearchVaultInput,
+    SummarizeProjectMemoryInput,
     register_mcp_tools,
 )
 from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
@@ -115,6 +119,26 @@ class RecordingGraphRetrievalService:
         return self.decision_trace_response
 
 
+class RecordingProjectMemoryService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+        self.response = make_project_projection()
+
+    def summarize(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.response
+
+
+class RecordingIssueMemoryService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+        self.response = make_open_questions_projection()
+
+    def open_questions(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.response
+
+
 class RecordingFactory:
     def __init__(
         self,
@@ -128,10 +152,14 @@ class RecordingFactory:
         self.graph_retrieval_service = graph_retrieval_service or RecordingGraphRetrievalService()
         self.retrieval_service = retrieval_service or RecordingRetrievalService(make_search_response())
         self.context_pack_builder = context_pack_builder or RecordingContextPackBuilder(make_pack())
+        self.project_memory_service = RecordingProjectMemoryService()
+        self.issue_memory_service = RecordingIssueMemoryService()
         self.status_calls = 0
         self.graph_calls = 0
         self.retrieval_calls = 0
         self.context_builder_calls = 0
+        self.project_memory_calls = 0
+        self.issue_memory_calls = 0
 
     def open_status_service(self) -> RecordingStatusService:
         self.status_calls += 1
@@ -151,8 +179,16 @@ class RecordingFactory:
         self.context_builder_calls += 1
         return self.context_pack_builder
 
+    def open_project_memory_service(self) -> RecordingProjectMemoryService:
+        self.project_memory_calls += 1
+        return self.project_memory_service
 
-def test_register_mcp_tools_registers_exact_phase_5c_tools(tmp_path: Path) -> None:
+    def open_issue_memory_service(self) -> RecordingIssueMemoryService:
+        self.issue_memory_calls += 1
+        return self.issue_memory_service
+
+
+def test_register_mcp_tools_registers_exact_phase_6b_tools(tmp_path: Path) -> None:
     server = RecordingToolServer()
 
     registry = register_mcp_tools(
@@ -170,10 +206,13 @@ def test_register_mcp_tools_registers_exact_phase_5c_tools(tmp_path: Path) -> No
         "get_decision_trace",
         "check_index_status",
         "explain_result",
+        "summarize_project_memory",
+        "get_open_questions",
     )
     assert tuple(server.tools) == registry.tool_names
     assert all(server.structured_output[name] is True for name in registry.tool_names)
     assert "ask_vault" not in server.tools
+    assert "get_recent_changes" not in server.tools
 
 
 @pytest.mark.parametrize(
@@ -183,6 +222,8 @@ def test_register_mcp_tools_registers_exact_phase_5c_tools(tmp_path: Path) -> No
         ("build_context_pack", {"goal": ""}),
         ("find_related", {"target": "", "depth": 1}),
         ("get_decision_trace", {"decision_or_topic": ""}),
+        ("summarize_project_memory", {"limit": 0}),
+        ("get_open_questions", {"limit": 51}),
         ("search_vault", {"query": "q", "limit": 51}),
         ("build_context_pack", {"goal": "g", "max_tokens": 0}),
         ("search_vault", {"query": "q", "include_cross_vault": True, "scope": {"include_cross_vault": False}}),
@@ -301,6 +342,96 @@ def test_decision_trace_opens_graph_service_after_validation(tmp_path: Path) -> 
     assert factory.graph_calls == 1
     assert graph_service.decision_trace_calls[0]["topic"] == "Phase 5"
     assert body.tool_name == "get_decision_trace"
+
+
+def test_summarize_project_memory_uses_project_memory_service(tmp_path: Path) -> None:
+    factory = fake_factory()
+    registry = McpToolRegistry(
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, factory),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    body = registry.summarize_project_memory(SummarizeProjectMemoryInput(limit=7))
+
+    assert factory.project_memory_calls == 1
+    assert factory.project_memory_service.calls[0]["limit"] == 7
+    assert body.tool_name == "summarize_project_memory"
+    assert body.payload["vaults"]
+
+
+def test_get_open_questions_uses_issue_memory_service(tmp_path: Path) -> None:
+    factory = fake_factory()
+    registry = McpToolRegistry(
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, factory),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    body = registry.get_open_questions(GetOpenQuestionsInput(limit=11))
+
+    assert factory.issue_memory_calls == 1
+    assert factory.issue_memory_service.calls[0]["limit"] == 11
+    assert body.tool_name == "get_open_questions"
+    assert body.payload["vaults"]
+
+
+def test_memory_tools_support_active_vault_explicit_vault_ids_and_all_vaults(tmp_path: Path) -> None:
+    server = RecordingToolServer()
+    factory = fake_factory()
+    register_mcp_tools(
+        server,
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, factory),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    server.tools["summarize_project_memory"]()
+    server.tools["summarize_project_memory"](scope={"vault_ids": ["main"]})
+    server.tools["summarize_project_memory"](scope={"all_vaults": True})
+
+    assert factory.project_memory_calls == 3
+
+
+def test_memory_tools_reject_include_cross_vault_scope(tmp_path: Path) -> None:
+    server = RecordingToolServer()
+    register_mcp_tools(
+        server,
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, fake_factory()),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    with pytest.raises(McpProtocolError) as exc_info:
+        server.tools["summarize_project_memory"](scope={"include_cross_vault": True})
+
+    assert exc_info.value.kind == "invalid_parameter"
+
+
+def test_memory_tool_errors_map_memory_projection_error(tmp_path: Path) -> None:
+    class FailingProjectMemoryService:
+        def summarize(self, **kwargs: object) -> object:
+            del kwargs
+            raise MemoryProjectionError("metadata_unavailable: not initialized")
+
+    factory = fake_factory()
+    factory.project_memory_service = cast(Any, FailingProjectMemoryService())
+    registry = McpToolRegistry(
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, factory),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    with pytest.raises(McpProtocolError) as exc_info:
+        registry.summarize_project_memory(SummarizeProjectMemoryInput())
+
+    assert exc_info.value.kind == "execution"
+    assert exc_info.value.payload.code == "metadata_unavailable"
 
 
 def test_invalid_graph_tool_arguments_fail_before_opening_graph_service(tmp_path: Path) -> None:

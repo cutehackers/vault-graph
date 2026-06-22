@@ -153,14 +153,25 @@ def test_missing_context_pack_resource_raises_not_found(tmp_path: Path) -> None:
 
 def test_current_context_resource_is_per_vault_not_all_vault_summary(tmp_path: Path) -> None:
     registered = initialized_multi_vault_registered_server(tmp_path)
+    state_path = tmp_path / "state"
+    main_doc = make_document("main", "docs/status.md", "main")
+    work_doc = make_document("work", "docs/status.md", "work")
+    store = SQLiteMetadataStore(state_path / "metadata" / "metadata.sqlite3", initialize=True)
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[main_doc, work_doc],
+        chunks=[
+            make_chunk("main", main_doc.document_id, main_doc.path, chunk_id="main-chunk", text="Main status"),
+            make_chunk("work", work_doc.document_id, work_doc.path, chunk_id="work-chunk", text="Work status"),
+        ],
+        tombstones=[],
+    )
 
     main = registered.resource_registry.read(McpResourceRequest(uri="vault://main/context/current"))
     work = registered.resource_registry.read(McpResourceRequest(uri="vault://work/context/current"))
 
-    assert main.metadata["vault_id"] == "main"
-    assert main.metadata["display_name"] == "Main"
-    assert main.metadata["active"] is True
-    assert work.metadata["vault_id"] == "work"
-    assert work.metadata["display_name"] == "Work"
-    assert work.metadata["active"] is False
+    assert main.metadata["requested_scope"]["vault_ids"] == ["main"]  # type: ignore[index]
+    assert work.metadata["requested_scope"]["vault_ids"] == ["work"]  # type: ignore[index]
+    assert main.metadata["vaults"][0]["vault_id"] == "main"  # type: ignore[index]
+    assert work.metadata["vaults"][0]["vault_id"] == "work"  # type: ignore[index]
     assert "recent decisions" not in main.text.casefold()

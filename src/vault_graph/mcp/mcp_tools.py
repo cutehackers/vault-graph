@@ -17,6 +17,7 @@ from vault_graph.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input
 from vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices
 from vault_graph.mcp.mcp_uri import encode_resource_segment
 from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.memory.memory_models import MemoryWarning, OpenQuestionsProjection, ProjectMemoryProjection
 from vault_graph.memory.result_explanation import ExplainResultService
 from vault_graph.projection.graph_projection import (
     DEFAULT_GRAPH_RELATED_DEPTH,
@@ -31,6 +32,8 @@ McpToolName = Literal[
     "get_decision_trace",
     "check_index_status",
     "explain_result",
+    "summarize_project_memory",
+    "get_open_questions",
 ]
 MAX_MCP_TOOL_LIMIT = 50
 
@@ -144,6 +147,18 @@ class ExplainResultInput:
     result_id: str
 
 
+@dataclass(frozen=True)
+class SummarizeProjectMemoryInput:
+    scope: McpScopeInput | None = None
+    limit: int = 10
+
+
+@dataclass(frozen=True)
+class GetOpenQuestionsInput:
+    scope: McpScopeInput | None = None
+    limit: int = 20
+
+
 class McpToolRegistry:
     tool_names: tuple[McpToolName, ...]
 
@@ -167,6 +182,8 @@ class McpToolRegistry:
             "get_decision_trace",
             "check_index_status",
             "explain_result",
+            "summarize_project_memory",
+            "get_open_questions",
         )
 
     def search_vault(self, request: SearchVaultInput) -> McpToolBody:
@@ -374,6 +391,54 @@ class McpToolRegistry:
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
+    def summarize_project_memory(self, request: SummarizeProjectMemoryInput) -> McpToolBody:
+        try:
+            _validate_summarize_project_memory_request(request)
+            selected_scope = _scope_for_tool(request.scope, catalog=self._services.catalog)
+            projection = self._service_factory.open_project_memory_service().summarize(
+                requested_scope=selected_scope,
+                limit=request.limit,
+            )
+            from vault_graph.mcp.mcp_memory_serialization import (
+                memory_warning_to_mcp_error,
+                project_memory_projection_to_payload,
+                resource_links_for_memory_projection,
+            )
+
+            warnings = tuple(memory_warning_to_mcp_error(warning) for warning in _project_memory_warnings(projection))
+            return _tool_body(
+                tool_name="summarize_project_memory",
+                payload=project_memory_projection_to_payload(projection),
+                resource_links=resource_links_for_memory_projection(projection),
+                warnings=warnings,
+            )
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
+    def get_open_questions(self, request: GetOpenQuestionsInput) -> McpToolBody:
+        try:
+            _validate_get_open_questions_request(request)
+            selected_scope = _scope_for_tool(request.scope, catalog=self._services.catalog)
+            projection = self._service_factory.open_issue_memory_service().open_questions(
+                requested_scope=selected_scope,
+                limit=request.limit,
+            )
+            from vault_graph.mcp.mcp_memory_serialization import (
+                memory_warning_to_mcp_error,
+                open_questions_projection_to_payload,
+                resource_links_for_memory_projection,
+            )
+
+            warnings = tuple(memory_warning_to_mcp_error(warning) for warning in _open_questions_warnings(projection))
+            return _tool_body(
+                tool_name="get_open_questions",
+                payload=open_questions_projection_to_payload(projection),
+                resource_links=resource_links_for_memory_projection(projection),
+                warnings=warnings,
+            )
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
 
 def register_mcp_tools(
     server: McpToolServer,
@@ -469,6 +534,22 @@ def register_mcp_tools(
     def explain_result(result_id: str) -> dict[str, object]:
         request = parse_explain_result_input(result_id=result_id)
         return registry.explain_result(request).to_json_dict()
+
+    @server.tool("summarize_project_memory", structured_output=True)
+    def summarize_project_memory(
+        scope: dict[str, object] | None = None,
+        limit: int = 10,
+    ) -> dict[str, object]:
+        request = parse_summarize_project_memory_input(scope=scope, limit=limit)
+        return registry.summarize_project_memory(request).to_json_dict()
+
+    @server.tool("get_open_questions", structured_output=True)
+    def get_open_questions(
+        scope: dict[str, object] | None = None,
+        limit: int = 20,
+    ) -> dict[str, object]:
+        request = parse_get_open_questions_input(scope=scope, limit=limit)
+        return registry.get_open_questions(request).to_json_dict()
 
     return registry
 
@@ -593,6 +674,26 @@ def parse_explain_result_input(*, result_id: str) -> ExplainResultInput:
     return request
 
 
+def parse_summarize_project_memory_input(
+    *,
+    scope: dict[str, object] | None = None,
+    limit: int = 10,
+) -> SummarizeProjectMemoryInput:
+    request = SummarizeProjectMemoryInput(scope=mcp_scope_input_from_raw(scope), limit=_limit(limit))
+    _validate_summarize_project_memory_request(request)
+    return request
+
+
+def parse_get_open_questions_input(
+    *,
+    scope: dict[str, object] | None = None,
+    limit: int = 20,
+) -> GetOpenQuestionsInput:
+    request = GetOpenQuestionsInput(scope=mcp_scope_input_from_raw(scope), limit=_limit(limit))
+    _validate_get_open_questions_request(request)
+    return request
+
+
 def _validate_search_vault_request(request: SearchVaultInput) -> None:
     _required_string(request.query, "query")
     _limit(request.limit)
@@ -620,6 +721,14 @@ def _validate_decision_trace_request(request: DecisionTraceInput) -> None:
 
 def _validate_explain_result_request(request: ExplainResultInput) -> None:
     _required_string(request.result_id, "result_id")
+
+
+def _validate_summarize_project_memory_request(request: SummarizeProjectMemoryInput) -> None:
+    _limit(request.limit)
+
+
+def _validate_get_open_questions_request(request: GetOpenQuestionsInput) -> None:
+    _limit(request.limit)
 
 
 def _scope_for_tool(
@@ -656,6 +765,31 @@ def _tool_body(
         resource_links=resource_links,
         warnings=warnings,
         text=tool_text_mirror(payload),
+    )
+
+
+def _project_memory_warnings(projection: ProjectMemoryProjection) -> tuple[MemoryWarning, ...]:
+    return tuple(
+        (
+            *projection.warnings,
+            *(warning for vault in projection.vaults for warning in vault.warnings),
+            *(warning for vault in projection.vaults for item in vault.current_state for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.decisions for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.open_questions for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.constraints for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.next_priorities for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.stale_areas for warning in item.warnings),
+        )
+    )
+
+
+def _open_questions_warnings(projection: OpenQuestionsProjection) -> tuple[MemoryWarning, ...]:
+    return tuple(
+        (
+            *projection.warnings,
+            *(warning for vault in projection.vaults for warning in vault.warnings),
+            *(warning for vault in projection.vaults for item in vault.questions for warning in item.warnings),
+        )
     )
 
 

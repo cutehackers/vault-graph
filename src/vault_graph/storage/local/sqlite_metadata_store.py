@@ -201,6 +201,31 @@ class SQLiteMetadataStore:
             ).fetchall()
         return tuple(_document_state_from_row(row) for row in rows)
 
+    def list_documents(self, scope: QueryScope) -> tuple[DocumentSnapshot, ...]:
+        if not scope.vault_ids:
+            return ()
+        if not self._database_path.exists():
+            return ()
+        vault_placeholders = ", ".join("?" for _ in scope.vault_ids)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
+                       content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
+                       vault_revision, index_revision
+                FROM documents
+                WHERE vault_id IN ({vault_placeholders})
+                  AND is_tombstoned = 0
+                ORDER BY vault_id, path, document_id
+                """,
+                scope.vault_ids,
+            ).fetchall()
+        return tuple(
+            _document_snapshot_from_row(row)
+            for row in rows
+            if _path_in_content_scope(path=str(row["path"]), content_scopes=scope.content_scopes)
+        )
+
     def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]:
         if not scope.vault_ids:
             return ()

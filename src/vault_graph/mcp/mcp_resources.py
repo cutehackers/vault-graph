@@ -5,11 +5,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, NoReturn, Protocol
 
+from vault_graph.errors import MemoryProjectionError
 from vault_graph.ingestion.vault_catalog import VaultCatalog
 from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
 from vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices
 from vault_graph.mcp.mcp_uri import McpResourceUri, parse_mcp_resource_uri
+from vault_graph.memory.memory_models import MemoryWarning, ProjectMemoryProjection
 
 if TYPE_CHECKING:
     from vault_graph.mcp.graph_resource_reader import GraphResourceReader
@@ -156,63 +158,52 @@ class CurrentContextResourceReader:
 
     def read_current_context(self, uri: McpResourceUri) -> McpResourceBody:
         vault_id = _required_value(uri.vault_id)
-        entry = self._catalog.resolve(vault_id)
-        warnings: list[McpErrorPayload] = []
-        metadata_health: dict[str, object] = {"ok": False, "message": "unavailable"}
-        search_health: dict[str, object] = {"ok": False, "message": "unavailable"}
-        graph_health: dict[str, object] = {"ok": False, "message": "unavailable"}
         try:
-            report = self._service_factory.open_status_service().status(
-                scope=self._catalog.scope_for_vault_ids((vault_id,)),
+            projection = self._service_factory.open_project_memory_service().summarize(
+                requested_scope=self._catalog.scope_for_vault_ids((vault_id,)),
+                limit=10,
             )
-            metadata_health = {
-                "ok": report.metadata_ok,
-                "schema_compatible": report.metadata_schema_compatible,
-                "message": report.metadata_message,
-            }
-            search_health = {
-                "vector_ok": report.vector_ok,
-                "vector_backend": report.vector_backend,
-                "vector_schema_compatible": report.vector_schema_compatible,
-                "vector_message": report.vector_message,
-            }
-            graph_health = {
-                "backend_available": report.graph_readiness.backend_available,
-                "schema_compatible": report.graph_readiness.schema_compatible,
-                "freshness": report.graph_readiness.freshness,
-                "message": report.graph_readiness.recovery_hint,
-            }
-        except Exception as exc:
-            warnings.append(
-                McpErrorPayload(
-                    code="resource_not_available",
+        except MemoryProjectionError as exc:
+            raise McpProtocolError(
+                kind="execution",
+                payload=McpErrorPayload(
+                    code=_domain_error_code(exc),
                     message=str(exc),
-                    severity="warning",
+                    severity="error",
                     affected_vault_ids=(vault_id,),
-                    recovery_hint="Run vg status for detailed backend readiness.",
-                )
-            )
-        payload: dict[str, object] = {
-            "vault_id": entry.vault_id,
-            "display_name": entry.display_name,
-            "active": entry.vault_id == self._catalog.active_vault_id,
-            "content_scopes": list(entry.content_scopes),
-            "state_namespace": entry.state_namespace,
-            "metadata_health": metadata_health,
-            "search_health": search_health,
-            "graph_health": graph_health,
-            "context_pack_cache": {
-                "size": len(self._context_pack_cache),
-                "max_entries": self._context_pack_cache.max_entries,
-            },
-            "warnings": [_warning_to_dict(warning) for warning in warnings],
-        }
+                    recovery_hint="Run vg index, then vg status for the selected Vault.",
+                ),
+            ) from exc
+        from vault_graph.mcp.mcp_memory_serialization import (
+            memory_warning_to_dict,
+            memory_warning_to_mcp_error,
+            project_memory_projection_to_payload,
+        )
+
+        payload = project_memory_projection_to_payload(projection)
+        memory_warnings = tuple(
+            memory_warning_to_mcp_error(warning) for warning in _project_memory_warnings(projection)
+        )
+        recent_warning = McpErrorPayload(
+            code="recent_changes_unavailable_until_phase_6c",
+            message="recent-change context is unavailable until Phase 6C timeline resources are implemented",
+            severity="info",
+            affected_vault_ids=(vault_id,),
+            recovery_hint="Use project memory evidence and decision traces until timeline/recent is available.",
+        )
+        raw_payload_warnings = payload.get("warnings")
+        payload_warnings: list[object] = list(raw_payload_warnings) if isinstance(raw_payload_warnings, list) else []
+        payload_warnings.extend(
+            memory_warning_to_dict(warning) for warning in _project_vault_and_item_warnings(projection)
+        )
+        payload_warnings.append(_warning_to_dict(recent_warning))
+        payload["warnings"] = payload_warnings
         return McpResourceBody(
             uri=uri.normalized_uri,
             content_mime_type="application/json",
             text=json.dumps(payload, sort_keys=True, ensure_ascii=False, indent=2) + "\n",
             metadata=payload,
-            warnings=tuple(warnings),
+            warnings=(*memory_warnings, recent_warning),
         )
 
     def read_recent_timeline(self, uri: McpResourceUri) -> McpResourceBody:
@@ -385,3 +376,28 @@ def _warning_to_dict(warning: McpErrorPayload) -> dict[str, object]:
         "affected_vault_ids": list(warning.affected_vault_ids),
         "recovery_hint": warning.recovery_hint,
     }
+
+
+def _domain_error_code(exc: Exception) -> str:
+    message = str(exc)
+    if ":" in message:
+        return message.split(":", 1)[0].strip()
+    return "memory_projection_unavailable"
+
+
+def _project_memory_warnings(projection: ProjectMemoryProjection) -> tuple[MemoryWarning, ...]:
+    return (*projection.warnings, *_project_vault_and_item_warnings(projection))
+
+
+def _project_vault_and_item_warnings(projection: ProjectMemoryProjection) -> tuple[MemoryWarning, ...]:
+    return tuple(
+        (
+            *(warning for vault in projection.vaults for warning in vault.warnings),
+            *(warning for vault in projection.vaults for item in vault.current_state for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.decisions for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.open_questions for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.constraints for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.next_priorities for warning in item.warnings),
+            *(warning for vault in projection.vaults for item in vault.stale_areas for warning in item.warnings),
+        )
+    )

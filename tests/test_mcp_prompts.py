@@ -38,25 +38,36 @@ def test_register_mcp_prompts_registers_exact_phase_5c_prompts() -> None:
     assert tuple(server.prompts) == PHASE_5C_PROMPT_NAMES
 
 
-def test_prompt_text_mentions_only_registered_tools_after_phase_6a() -> None:
+def test_prompt_text_mentions_registered_phase_6b_memory_tools() -> None:
     registry = McpPromptRegistry()
-    text = registry.render("generate_codex_brief", {"goal": "Implement tools", "scope": "main"})
+    codex = registry.render("generate_codex_brief", {"goal": "Implement tools", "scope": "main"})
+    implementation = registry.render("prepare_implementation_context", {"task": "Implement tools", "scope": "main"})
+    risk = registry.render("analyze_project_risk", {"goal": "Implement tools", "scope": "main"})
+    wiki = registry.render("prepare_wiki_update_context", {"topic": "MCP", "scope": "main"})
 
     for required in (
         "build_context_pack",
+        "summarize_project_memory",
         "read-only working context",
         "Inspect warnings",
         "resource links",
         "explain_result",
     ):
-        assert required in text
-    for forbidden in (
-        "ask_vault",
-        "summarize_project_memory",
-        "get_open_questions",
-        "get_recent_changes",
-    ):
-        assert forbidden not in text
+        assert required in codex
+    assert "summarize_project_memory" in implementation
+    assert "get_open_questions" in risk
+    assert "get_open_questions" in wiki
+
+
+def test_prompt_text_still_omits_unregistered_future_tools() -> None:
+    registry = McpPromptRegistry()
+    text = "\n".join(
+        registry.render(name, {"goal": "G", "task": "T", "topic": "P", "feature": "F", "decision_or_topic": "D"})
+        for name in registry.prompt_names
+    )
+
+    assert "ask_vault" not in text
+    assert "get_recent_changes" not in text
 
 
 def test_unknown_prompt_name_raises_invalid_parameter() -> None:

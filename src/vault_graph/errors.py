@@ -42,6 +42,10 @@ class ResultExplanationError(VaultGraphError):
     """Raised when result explanation contracts are violated or unavailable."""
 
 
+class MemoryProjectionError(VaultGraphError):
+    """Raised when read-only memory projections cannot be assembled safely."""
+
+
 class GraphStoreError(VaultGraphError):
     """Raised when graph store contracts are violated."""
 

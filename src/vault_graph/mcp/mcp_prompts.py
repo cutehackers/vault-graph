@@ -119,7 +119,7 @@ def _generate_codex_brief(goal: str, scope: str | None) -> str:
     return _join_prompt_lines(
         *_prompt_header("Codex Brief", scope),
         f"Goal: {goal}",
-        "Call build_context_pack first. Use returned resource links for follow-up evidence.",
+        "Call summarize_project_memory, then build_context_pack. Use returned resource links for follow-up evidence.",
         "Use search_vault only when the context pack leaves a specific gap.",
         *_SHARED_LINES,
     )
@@ -129,7 +129,10 @@ def _prepare_implementation_context(task: str, scope: str | None) -> str:
     return _join_prompt_lines(
         *_prompt_header("Implementation Context", scope),
         f"Task: {task}",
-        "Call check_index_status, then build_context_pack for the bounded implementation scope.",
+        (
+            "Call check_index_status, summarize_project_memory, then build_context_pack "
+            "for the bounded implementation scope."
+        ),
         "Use find_related only when graph context is needed for named entities or relationships.",
         *_SHARED_LINES,
     )
@@ -159,7 +162,10 @@ def _analyze_project_risk(goal: str, scope: str | None) -> str:
     return _join_prompt_lines(
         *_prompt_header("Project Risk", scope),
         f"Goal: {goal}",
-        "Call build_context_pack, inspect warnings, then use search_vault for unresolved risk evidence.",
+        (
+            "Call get_open_questions, build_context_pack, inspect warnings, then use search_vault "
+            "for unresolved risk evidence."
+        ),
         "Use check_index_status when stale or missing indexes could affect confidence.",
         *_SHARED_LINES,
     )
@@ -169,7 +175,7 @@ def _prepare_wiki_update_context(topic: str, scope: str | None) -> str:
     return _join_prompt_lines(
         *_prompt_header("Wiki Update Context", scope),
         f"Topic: {topic}",
-        "Call build_context_pack for read-only source context.",
+        "Call get_open_questions, then build_context_pack for read-only source context.",
         "Use get_decision_trace when the update depends on prior decisions.",
         "Propose the external Vault validation workflow for durable edits.",
         *_SHARED_LINES,
