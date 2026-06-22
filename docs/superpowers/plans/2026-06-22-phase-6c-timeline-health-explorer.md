@@ -34,6 +34,9 @@ Current repo facts to preserve:
 - `src/vault_graph/memory/memory_models.py` already owns `MemoryWarning` and `MemoryBackendRevision`; Phase 6C should reuse them instead of creating a second warning vocabulary.
 - `src/vault_graph/memory/memory_request_context.py` already uses a protocol to avoid importing `IndexService` at memory-module import time; Phase 6C timeline service should follow the same pattern.
 - `src/vault_graph/storage/interfaces/metadata_store.py` already exposes `list_documents(scope)`. Phase 6C adds a bounded recent-document listing method over the same metadata snapshots so timeline output does not require materializing every document in a large Vault.
+- `src/vault_graph/memory/memory_request_context.py` already defines the neutral
+  `MemoryStatusService` protocol for read-only status access; Phase 6C services
+  should reuse it instead of creating timeline-specific status protocols.
 - `src/vault_graph/storage/local/vector_status_store.py` and `src/vault_graph/storage/local/graph_status_store.py` already persist `last_success_at` and `last_error_at`, but `StatusReport` does not expose them yet.
 - `src/vault_graph/mcp/mcp_tools.py` currently registers Phase 6B tools only and intentionally excludes `get_recent_changes`.
 - `src/vault_graph/mcp/mcp_resources.py` currently returns an availability error for `vault://{vault_id}/timeline/recent`.
@@ -187,7 +190,11 @@ Contract:
 
 - returns current non-tombstoned documents only;
 - returns `()` when the database is missing and must not create files;
-- filters by `scope.vault_ids` and `scope.content_scopes`;
+- raises `MetadataStoreError("invalid_metadata_scope: ...")` unless
+  `scope.vault_ids` contains exactly one Vault ID;
+- requires exactly one actual Vault scope; callers that need all-Vault output
+  must split with `actual_query_scopes(...)` first;
+- filters by that one `scope.vault_ids[0]` and `scope.content_scopes`;
 - uses `last_indexed_at or last_seen_at` as the observed timestamp;
 - when `since` is provided, returns only documents with observed timestamp at
   or after `since`;
@@ -195,7 +202,7 @@ Contract:
   snapshot changes always have an observed timestamp in Phase 6C;
 - orders by observed timestamp descending, then `vault_id`, `path`, and
   `document_id`;
-- applies `limit` before returning rows for each actual one-Vault scope;
+- applies `limit` before returning rows for the actual one-Vault scope;
 - preserves all `DocumentSnapshot` fields exactly;
 - does not run schema creation, migrations, tombstone writes, keyword updates,
   vector calls, graph calls, or status writes.
@@ -212,7 +219,9 @@ def list_recent_documents(
 ) -> tuple[DocumentSnapshot, ...]:
     if limit < 1:
         raise MetadataStoreError("invalid_metadata_limit: limit must be positive")
-    if not scope.vault_ids or not self._database_path.exists():
+    if len(scope.vault_ids) != 1:
+        raise MetadataStoreError("invalid_metadata_scope: list_recent_documents requires one Vault")
+    if not self._database_path.exists():
         return ()
     # Build a bounded SELECT over documents with path predicates for each
     # content scope. Use COALESCE(last_indexed_at, last_seen_at) as observed_at.
@@ -220,7 +229,9 @@ def list_recent_documents(
 
 The implementation should push content-scope filtering into SQL rather than
 fetching all rows and filtering in Python. Reuse the same-or-child content-scope
-rule used by `list_documents(...)`.
+rule used by `list_documents(...)` without unescaped `LIKE`; content scopes may
+contain `_` or `%`, so use exact equality plus a literal child-prefix test such
+as `substr(path, 1, ?) = ?`.
 
 ### `src/vault_graph/memory/timeline_memory.py`
 
@@ -234,12 +245,13 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal, Protocol, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
-from vault_graph.memory.memory_models import MemoryBackendRevision, MemoryWarning
+from vault_graph.memory.memory_request_context import MemoryStatusService
+from vault_graph.memory.memory_models import MemoryBackendRevision, MemoryWarning, MemoryWarningSeverity
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 if TYPE_CHECKING:
@@ -248,10 +260,6 @@ if TYPE_CHECKING:
 TimelineOrigin = Literal["document_snapshot_change", "index_change", "projection_change", "warning"]
 TimelineSourceKind = Literal["document", "metadata_status", "vector_status", "graph_status"]
 TimelineFreshness = Literal["fresh", "stale", "degraded", "unavailable", "unknown"]
-
-
-class TimelineStatusService(Protocol):
-    def status(self, *, scope: QueryScope | None = None) -> StatusReport: ...
 
 
 @dataclass(frozen=True)
@@ -311,7 +319,7 @@ class TimelineMemoryService:
         *,
         catalog: VaultCatalog,
         metadata_store: MetadataStore,
-        status_service: TimelineStatusService,
+        status_service: MemoryStatusService,
         clock: Callable[[], datetime] | None = None,
     ) -> None: ...
 
@@ -391,6 +399,44 @@ Timeline item rules:
 - Per-Vault limit is applied after grouping and ordering.
 - Ordering is descending `occurred_at`, then `vault_id`, then normalized path/backend kind, then `item_id`.
 
+Status/projection item mapping:
+
+| Source | Emit When | Origin | `occurred_at` | `TimelineEvidenceRef` | Revision | Warning Code |
+| --- | --- | --- | --- | --- | --- | --- |
+| Metadata | Always, unless metadata is fatal-unavailable before item building | `index_change` | `None` | `source_kind="metadata_status"`, `vault_id`, `backend_kind="metadata"`, `scope_key` | none until a real metadata revision field is available | `metadata_schema_incompatible` when schema is incompatible |
+| Vector success/error | When vector backend is configured, unavailable, stale, schema-incompatible, or has timestamp/error evidence | `index_change` | `vector_last_success_at or vector_last_error_at` | `source_kind="vector_status"`, `vault_id`, `backend_kind="vector"`, `backend_revision=vector_revision`, `scope_key=vector_status_scope` | `MemoryBackendRevision(kind="vector", revision=vector_revision, vault_id, scope_key=vector_status_scope)` when revision exists | `vector_unavailable`, `vector_schema_incompatible`, `vector_stale`, or `vector_last_error` |
+| Graph readiness | When graph readiness is not `fresh`/ready or has timestamp/error evidence | `projection_change` | `graph_last_success_at or graph_last_error_at` | `source_kind="graph_status"`, `vault_id`, `backend_kind="graph"`, `backend_revision=graph_last_success_revision`, `scope_key=graph_status_scope` | `MemoryBackendRevision(kind="graph", revision=graph_last_success_revision, vault_id, scope_key=graph_status_scope)` when revision exists | `graph_unavailable`, `graph_schema_incompatible`, `graph_stale`, or `graph_last_error` |
+| Timestamp gap | When a status/projection item has no `occurred_at` and `since` is unset | `warning` or item-level warning | `None` | same source evidence as affected item | none | `missing_timeline_timestamp` |
+| Since exclusion | When `since` is set and one or more status/projection items have no `occurred_at` | top-level warning only | `None` | no item evidence | none | `timeline_items_without_timestamps_excluded` |
+
+Private builders:
+
+```python
+def _status_timeline_items(*, report: StatusReport, actual_scope: QueryScope) -> tuple[TimelineItem, ...]: ...
+def _warning_timeline_item(
+    *,
+    code: str,
+    severity: MemoryWarningSeverity,
+    vault_id: str,
+    scope_key: str,
+    title: str,
+    summary: str,
+    recovery_hint: str,
+    evidence: tuple[TimelineEvidenceRef, ...],
+) -> TimelineItem: ...
+def _timeline_vault_freshness(items: tuple[TimelineItem, ...]) -> TimelineFreshness: ...
+```
+
+Freshness calculation:
+
+- `unavailable` if any item warning has `metadata_unavailable`,
+  `vector_unavailable`, or `graph_unavailable`;
+- `degraded` if any item warning has schema-incompatible or last-error codes;
+- `stale` if any item warning has `vector_stale`, `graph_stale`, or
+  `missing_timeline_timestamp`;
+- `fresh` if timestamped document items exist and no warning affects the Vault;
+- `unknown` when there are no items and no warnings.
+
 ### `src/vault_graph/memory/health_explorer.py`
 
 Public API:
@@ -406,8 +452,8 @@ from typing import Literal, TYPE_CHECKING
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
+from vault_graph.memory.memory_request_context import MemoryStatusService
 from vault_graph.memory.memory_models import MemoryWarning
-from vault_graph.memory.timeline_memory import TimelineStatusService
 
 if TYPE_CHECKING:
     from vault_graph.app.index_service import StatusReport
@@ -471,7 +517,7 @@ class HealthExplorerService:
         self,
         *,
         catalog: VaultCatalog,
-        status_service: TimelineStatusService,
+        status_service: MemoryStatusService,
         clock: Callable[[], datetime] | None = None,
     ) -> None: ...
 
@@ -486,7 +532,11 @@ class HealthExplorerService:
 
 Service rules:
 
-- Use `status_report` when supplied; otherwise request one aggregate status report for the requested scope.
+- Use `status_report` when supplied; otherwise resolve actual scopes and call
+  `status_service.status(scope=actual_scope)` once per actual Vault scope.
+- Supplied `status_report` is treated as an aggregate report for
+  `check_index_status(...)`; per-backend `vault_id` is `None` unless the
+  requested scope resolves to exactly one actual Vault.
 - Convert metadata, keyword, vector, and graph fields from `StatusReport` into `BackendReadinessRecord` values.
 - Treat keyword as metadata-coupled in Phase 6C and state that in `message`.
 - Append runtime-cache records supplied by the MCP layer; do not import MCP cache classes.
@@ -987,10 +1037,11 @@ from pathlib import Path
 from typing import Any, cast
 
 from vault_graph.app.index_service import StatusReport
+from vault_graph.graph.graph_readiness import GraphScopeReadiness
 from vault_graph.ingestion.document_normalizer import DocumentSnapshot
 from tests.test_mcp_tools import make_status_report
 from tests.test_sqlite_metadata_store import make_document
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.memory.timeline_memory import TimelineMemoryService
 
 
@@ -1194,15 +1245,35 @@ def test_recent_changes_reads_status_per_actual_vault_scope(tmp_path: Path) -> N
         "main": (document("main", "wiki/main.md", "main", last_seen_at="2026-06-18T00:00:00+00:00", last_indexed_at=None),),
         "work": (document("work", "wiki/work.md", "work", last_seen_at="2026-06-18T00:00:00+00:00", last_indexed_at=None),),
     }
+    work_report = status_report_without_timeline_timestamps()
     status_service = PerVaultStatusService(
         {
             "main": status_report_without_timeline_timestamps(),
             "work": replace(
-                status_report_without_timeline_timestamps(),
+                work_report,
                 vector_ok=False,
                 vector_backend="none",
                 vector_schema_compatible=False,
                 vector_message="not configured",
+                vector_status_scope="work:wiki",
+                graph_status_scope="work:wiki",
+                graph_readiness=replace(
+                    work_report.graph_readiness,
+                    backend_available=False,
+                    freshness="missing",
+                    affected_vault_ids=("work",),
+                    scope_readiness=(
+                        GraphScopeReadiness(
+                            vault_id="work",
+                            actual_scope="work:wiki",
+                            freshness="missing",
+                            stale_count=0,
+                            tombstone_count=0,
+                            last_graph_revision=None,
+                            warnings=("graph missing",),
+                        ),
+                    ),
+                ),
             ),
         }
     )
@@ -1222,6 +1293,8 @@ def test_recent_changes_reads_status_per_actual_vault_scope(tmp_path: Path) -> N
     work_warning_codes = [warning.code for item in projection.vaults[1].items for warning in item.warnings]
     assert "vector_unavailable" not in main_warning_codes
     assert "vector_unavailable" in work_warning_codes
+    work_evidence = [evidence for item in projection.vaults[1].items for evidence in item.evidence]
+    assert any(evidence.vault_id == "work" and evidence.scope_key == "work:wiki" for evidence in work_evidence)
 
 
 def test_recent_changes_metadata_unavailable_is_fatal(tmp_path: Path) -> None:
@@ -1265,13 +1338,14 @@ def list_recent_documents(
 ) -> tuple[DocumentSnapshot, ...]:
     if limit < 1:
         raise MetadataStoreError("invalid_metadata_limit: limit must be positive")
-    if not scope.vault_ids or not self._database_path.exists():
+    if len(scope.vault_ids) != 1:
+        raise MetadataStoreError("invalid_metadata_scope: list_recent_documents requires one Vault")
+    if not self._database_path.exists():
         return ()
     observed_at = "COALESCE(last_indexed_at, last_seen_at)"
     path_clause, path_params = _content_scope_sql_clause(scope.content_scopes)
     since_clause = f"AND {observed_at} >= ?" if since is not None else ""
-    params = (*scope.vault_ids, *path_params, *((since,) if since is not None else ()), limit)
-    vault_placeholders = ", ".join("?" for _ in scope.vault_ids)
+    params = (scope.vault_ids[0], *path_params, *((since,) if since is not None else ()), limit)
     with self._connect() as connection:
         rows = connection.execute(
             f"""
@@ -1279,7 +1353,7 @@ def list_recent_documents(
                    content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
                    vault_revision, index_revision, {observed_at} AS observed_at
             FROM documents
-            WHERE vault_id IN ({vault_placeholders})
+            WHERE vault_id = ?
               AND is_tombstoned = 0
               AND {path_clause}
               {since_clause}
@@ -1291,16 +1365,18 @@ def list_recent_documents(
     return tuple(_document_snapshot_from_row(row) for row in rows)
 ```
 
-Add a small private `_content_scope_sql_clause(content_scopes)` helper that returns:
+Add a small private `_content_scope_sql_clause(content_scopes)` helper that returns
+SQL equivalent to:
 
 ```sql
-(path = ? OR path LIKE ? OR ...)
+path = ? OR substr(path, 1, ?) = ?
 ```
 
-with parameters such as `("wiki", "wiki/%")`. Keep `_path_in_content_scope(...)`
-for existing callers.
+with parameters such as `("wiki", len("wiki/"), "wiki/")`. Keep
+`_path_in_content_scope(...)` for existing callers.
 
-Add tests to `tests/test_sqlite_metadata_store.py`:
+Add tests to `tests/test_sqlite_metadata_store.py`; import `pytest` and
+`MetadataStoreError` if they are not already present:
 
 ```python
 def test_list_recent_documents_filters_orders_and_limits_in_sqlite(tmp_path: Path) -> None:
@@ -1319,6 +1395,36 @@ def test_list_recent_documents_filters_orders_and_limits_in_sqlite(tmp_path: Pat
     )
 
     assert [document.path for document in recent] == ["wiki/new.md"]
+
+
+def test_list_recent_documents_rejects_multi_vault_scope(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+
+    with pytest.raises(MetadataStoreError, match="one Vault"):
+        store.list_recent_documents(QueryScope(vault_ids=("main", "work"), content_scopes=("wiki",)))
+
+
+def test_list_recent_documents_rejects_multi_vault_scope_when_database_is_missing(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "missing.sqlite3", initialize=False)
+
+    with pytest.raises(MetadataStoreError, match="one Vault"):
+        store.list_recent_documents(QueryScope(vault_ids=("main", "work"), content_scopes=("wiki",)))
+
+
+def test_list_recent_documents_content_scope_uses_literal_prefixes(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    docs = [
+        replace(make_document("main", "wiki/foo_bar/page.md", "match"), last_seen_at="2026-06-19T00:00:00+00:00"),
+        replace(make_document("main", "wiki/fooXbar/page.md", "miss"), last_seen_at="2026-06-20T00:00:00+00:00"),
+    ]
+    store.apply_metadata_revision(index_revision="metadata-1", documents=docs, chunks=[], tombstones=[])
+
+    recent = store.list_recent_documents(
+        QueryScope(vault_ids=("main",), content_scopes=("wiki/foo_bar",)),
+        limit=20,
+    )
+
+    assert [document.path for document in recent] == ["wiki/foo_bar/page.md"]
 ```
 
 - [ ] **Step 4: Implement service flow**
@@ -1391,6 +1497,17 @@ Add tests where `vector_ok=False` and graph readiness freshness is `"missing"`. 
 assert any(item.origin == "warning" and item.vault_id == "main" for item in projection.vaults[0].items)
 ```
 
+Also add focused tests for:
+
+- vector schema-incompatible emits `vector_schema_incompatible`;
+- vector `vector_stale_count > 0` emits `vector_stale`;
+- vector `vector_last_error` emits `vector_last_error`;
+- graph readiness `freshness="missing"` emits `graph_unavailable`;
+- graph readiness `freshness="stale"` emits `graph_stale`;
+- graph `graph_last_error` emits `graph_last_error`;
+- status/projection items with `occurred_at=None` are excluded by `since` and
+  represented by top-level `timeline_items_without_timestamps_excluded`.
+
 - [ ] **Step 7: Run verification**
 
 Run:
@@ -1437,11 +1554,28 @@ class FakeStatusService:
         return self.report
 
 
-def catalog(tmp_path: Path) -> VaultCatalog:
-    vault_root = tmp_path / "main"
-    vault_root.mkdir()
+class PerVaultStatusService:
+    def __init__(self, reports: dict[str, object]) -> None:
+        self.reports = reports
+        self.calls: list[QueryScope | None] = []
+
+    def status(self, *, scope: QueryScope | None = None) -> object:
+        self.calls.append(scope)
+        if scope is None or not scope.vault_ids:
+            raise AssertionError("HealthExplorerService must request explicit actual Vault scopes")
+        return self.reports[scope.vault_ids[0]]
+
+
+def catalog(tmp_path: Path, *, include_work: bool = False) -> VaultCatalog:
+    main_root = tmp_path / "main"
+    main_root.mkdir()
+    entries = [VaultCatalogEntry.from_root(vault_id="main", root_path=main_root, display_name="Main")]
+    if include_work:
+        work_root = tmp_path / "work"
+        work_root.mkdir()
+        entries.append(VaultCatalogEntry.from_root(vault_id="work", root_path=work_root, display_name="Work"))
     return VaultCatalog.from_entries(
-        entries=(VaultCatalogEntry.from_root(vault_id="main", root_path=vault_root, display_name="Main"),),
+        entries=tuple(entries),
         active_vault_id="main",
     )
 
@@ -1453,7 +1587,9 @@ def test_health_explorer_maps_backend_readiness_and_scale_up_records(tmp_path: P
         clock=lambda: datetime(2026, 6, 18, 4, tzinfo=UTC),
     )
 
-    report = service.inspect(requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)))
+    report = service.inspect(
+        requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+    )
 
     kinds = [record.backend_kind for record in report.backends]
     assert kinds == ["metadata", "keyword", "vector", "graph"]
@@ -1466,7 +1602,10 @@ def test_health_explorer_maps_backend_readiness_and_scale_up_records(tmp_path: P
 
 def test_health_explorer_uses_supplied_status_report_without_second_status_call(tmp_path: Path) -> None:
     fake_status = FakeStatusService(make_status_report())
-    service = HealthExplorerService(catalog=catalog(tmp_path), status_service=cast(Any, fake_status))
+    service = HealthExplorerService(
+        catalog=catalog(tmp_path),
+        status_service=cast(Any, fake_status),
+    )
 
     service.inspect(
         requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
@@ -1474,6 +1613,39 @@ def test_health_explorer_uses_supplied_status_report_without_second_status_call(
     )
 
     assert fake_status.calls == []
+
+
+def test_health_explorer_reads_status_per_actual_vault_scope_without_supplied_report(tmp_path: Path) -> None:
+    status_service = PerVaultStatusService(
+        {
+            "main": make_status_report(),
+            "work": replace(
+                make_status_report(),
+                vector_ok=False,
+                vector_backend="none",
+                vector_schema_compatible=False,
+                vector_message="not configured",
+                vector_status_scope="work:wiki",
+            ),
+        }
+    )
+    service = HealthExplorerService(
+        catalog=catalog(tmp_path, include_work=True),
+        status_service=cast(Any, status_service),
+    )
+
+    report = service.inspect(
+        requested_scope=QueryScope(vault_ids=("main", "work"), content_scopes=("wiki",)),
+    )
+
+    assert [call.vault_ids for call in status_service.calls if call is not None] == [("main",), ("work",)]
+    work_vector = next(
+        record
+        for record in report.backends
+        if record.backend_kind == "vector" and record.vault_id == "work"
+    )
+    assert work_vector.status == "unavailable"
+    assert work_vector.scope_key == "work:wiki"
 
 
 def test_health_explorer_marks_runtime_cache_at_capacity_as_degraded(tmp_path: Path) -> None:
@@ -1824,10 +1996,20 @@ Rules:
 In `mcp_memory_serialization.py`, add:
 
 ```python
+from typing import Protocol
+
+
+class RuntimeCacheSnapshot(Protocol):
+    @property
+    def max_entries(self) -> int: ...
+
+    def __len__(self) -> int: ...
+
+
 def runtime_cache_records_for_mcp(
     *,
-    context_pack_cache: object,
-    result_explanation_cache: object,
+    context_pack_cache: RuntimeCacheSnapshot,
+    result_explanation_cache: RuntimeCacheSnapshot,
 ) -> tuple[McpRuntimeCacheRecord, ...]:
     return (
         _runtime_cache_record("context_pack", context_pack_cache),
@@ -1835,7 +2017,9 @@ def runtime_cache_records_for_mcp(
     )
 ```
 
-Implementation reads only `len(cache)` and `cache.max_entries`. It sets `oldest_cached_at=None` and `newest_cached_at=None` because cache payload timestamps are intentionally not exposed.
+Implementation reads only `len(cache)` and `cache.max_entries`. It sets
+`oldest_cached_at=None` and `newest_cached_at=None` because cache payload
+timestamps are intentionally not exposed.
 
 - [ ] **Step 5: Extend `status_report_to_payload(...)` with optional health payload**
 
@@ -2679,7 +2863,7 @@ Expected: PASS.
 Run:
 
 ```bash
-uv run --python 3.12 pytest tests/test_timeline_memory_service.py tests/test_health_explorer_service.py tests/test_mcp_recent_changes_tool.py tests/test_mcp_timeline_resource.py -q
+uv run --python 3.12 pytest tests/test_timeline_memory_service.py tests/test_health_explorer_service.py tests/test_mcp_recent_changes_tool.py tests/test_mcp_timeline_resource.py tests/test_sqlite_metadata_store.py -q
 ```
 
 Expected: PASS.
@@ -2735,23 +2919,31 @@ uv run --python 3.12 mypy src tests
 
 Expected: PASS.
 
-- [ ] **Step 7: Search for forbidden drift**
+- [ ] **Step 7: Run the full regression suite**
 
 Run:
 
 ```bash
-rg -n "MemoryStore|Memory\\.create|Memory\\.query|Memory\\.upsert|Memory\\.link|Memory\\.audit|episode_log|profile_memory|preference_memory|procedural_memory|mem0|memmachine" src/vault_graph
-rg -n -g '!docs/superpowers/plans/2026-06-22-phase-6c-timeline-health-explorer.md' "vault_change|durable Vault change|--include-graph for the selected scope" docs README.md src tests
-rg -n -g '!docs/superpowers/plans/2026-06-22-phase-6c-timeline-health-explorer.md' "get_recent_changes\\(since=None, scope=None\\)$|check_index_status\\(\\)$" docs README.md src tests
+uv run --python 3.12 pytest -q
+```
+
+Expected: PASS.
+
+- [ ] **Step 8: Search for forbidden drift**
+
+Run:
+
+```bash
+if rg -n "MemoryStore|Memory\\.create|Memory\\.query|Memory\\.upsert|Memory\\.link|Memory\\.audit|episode_log|profile_memory|preference_memory|procedural_memory|mem0|memmachine" src/vault_graph; then exit 1; fi
+if rg -n -g '!docs/superpowers/plans/2026-06-22-phase-6c-timeline-health-explorer.md' "vault_change|durable Vault change|--include-graph for the selected scope" docs README.md src tests; then exit 1; fi
+if rg -n -g '!docs/superpowers/plans/2026-06-22-phase-6c-timeline-health-explorer.md' "get_recent_changes\\(since=None, scope=None\\)$|check_index_status\\(\\)$" docs README.md src tests; then exit 1; fi
 ```
 
 Expected:
 
-- first command has no source-code matches except test guard definitions;
-- second command has no matches;
-- third command has no matches.
+- each command exits successfully only when the nested `rg` finds no matches.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 After all required verification passes:
 

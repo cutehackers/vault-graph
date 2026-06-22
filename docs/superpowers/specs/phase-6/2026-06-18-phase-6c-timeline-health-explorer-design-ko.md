@@ -37,8 +37,9 @@ Phase 6C는 다음 조건을 만족할 때 완료됩니다.
   grouped `RecentChangesProjection`을 반환합니다.
 - timeline item은 `document_snapshot_change`, `index_change`, `projection_change`,
   `warning` origin을 구분합니다.
-- document-level recent changes는 `MetadataStore.list_documents`에서
-  파생되며, service는 Vault files를 직접 읽지 않습니다.
+- document-level recent changes는 bounded
+  `MetadataStore.list_recent_documents`에서 파생되며, service는 Vault files를
+  직접 읽지 않습니다.
 - index/projection change timestamp는 indexed document snapshot 또는 명시적
   status field에서만 가져오며 timestamp를 만들어내지 않습니다.
 - `IndexService.status(...)`는 vector/graph timeline item에 필요한 최소
@@ -131,7 +132,9 @@ memory dependency를 추가하지 않습니다.
 Phase 6C는 현재 계약 위에 올라갑니다.
 
 - `QueryScope`, `VaultCatalog`, `actual_query_scopes(...)`
-- Phase 6B의 `MetadataStore.list_documents(scope)`
+- Phase 6B의 `MetadataStore.list_documents(scope)`와 Phase 6C에서 추가하는
+  bounded `MetadataStore.list_recent_documents(scope, since, limit)`
+- `memory_request_context.py`의 기존 `MemoryStatusService` protocol
 - `DocumentSnapshot.last_seen_at`, `last_indexed_at`, `content_hash`,
   `raw_sha256`, `vault_revision`, `index_revision`
 - `vault_graph.app.index_service`의 `StatusReport`
@@ -270,7 +273,8 @@ Model rules:
 
 `document_snapshot_change` items:
 
-- `MetadataStore.list_documents(scope)`가 반환한 `DocumentSnapshot`에서 파생됩니다.
+- `MetadataStore.list_recent_documents(scope, since, limit)`가 반환한
+  `DocumentSnapshot`에서 파생됩니다.
 - `occurred_at = last_indexed_at or last_seen_at`을 사용하되, durable business
   event timestamp가 아니라 index observation timestamp로 표시합니다.
 - title은 `Indexed document: <path>` 형식입니다.
@@ -321,19 +325,17 @@ Rules:
 
 ## 11. Timeline Service
 
-Memory module은 `IndexService`를 직접 import하지 않고 protocol을 사용합니다.
+Memory module은 `IndexService`를 직접 import하지 않고 기존 neutral memory
+status protocol을 사용합니다.
 
 ```python
-class TimelineStatusService(Protocol):
-    def status(self, *, scope: QueryScope | None = None) -> StatusReport: ...
-
 class TimelineMemoryService:
     def __init__(
         self,
         *,
         catalog: VaultCatalog,
         metadata_store: MetadataStore,
-        status_service: TimelineStatusService,
+        status_service: MemoryStatusService,
         clock: Callable[[], datetime] | None = None,
     ) -> None: ...
 
@@ -353,8 +355,10 @@ Service flow:
 3. actual Vault scope마다 `status_service.status(scope=actual_scope)` 1회 호출
 4. metadata health가 unavailable 또는 schema-incompatible이면
    `MemoryProjectionError("metadata_unavailable: ...")`
-5. actual Vault scope마다
-   `MetadataStore.list_recent_documents(actual_scope, since, limit)` 1회 호출
+5. actual one-Vault scope마다
+   `MetadataStore.list_recent_documents(actual_scope, since, limit)` 1회 호출.
+   `list_recent_documents(...)`는 multi-Vault scope를 거부하므로 all-Vault
+   timeline은 `actual_query_scopes(...)`로 먼저 분리합니다.
 6. document, index, projection, warning items 생성
 7. `since`와 per-Vault limit 적용
 8. top-level, Vault-level, item-level warnings를 포함한 grouped output 반환
@@ -452,7 +456,7 @@ class HealthExplorerService:
         self,
         *,
         catalog: VaultCatalog,
-        status_service: TimelineStatusService,
+        status_service: MemoryStatusService,
         clock: Callable[[], datetime] | None = None,
     ) -> None: ...
 
@@ -468,8 +472,8 @@ class HealthExplorerService:
 Service flow:
 
 1. actual scopes resolution
-2. `status_report`가 주어지면 그것을 사용하고, 없으면 requested scope에 대한
-   aggregate status report를 1회 요청
+2. `check_index_status(...)`가 `status_report`를 제공하면 그것을 사용하고,
+   없으면 actual Vault scope마다 `status_service.status(scope=actual_scope)` 1회 호출
 3. metadata, keyword, vector, graph status를 backend readiness records로 변환
 4. MCP layer가 제공한 runtime-cache records 추가
 5. known backend contracts에 대한 static scale-up readiness records 추가
@@ -810,7 +814,7 @@ Phase 6C 구현 순서:
    tests를 갱신합니다.
 2. timeline DTOs, stable timeline item IDs, timestamp parsing, model tests를
    추가합니다.
-3. `MetadataStore.list_documents(...)`와 status-service protocol 위에
+3. `MetadataStore.list_recent_documents(...)`와 status-service protocol 위에
    `TimelineMemoryService`를 추가합니다.
 4. health explorer DTOs와 `HealthExplorerService`를 추가합니다.
 5. recent changes와 health explorer report용 MCP serializers를 추가합니다.

@@ -38,8 +38,8 @@ Phase 6C is complete when:
   `RecentChangesProjection` for the requested `QueryScope`.
 - timeline items distinguish `document_snapshot_change`, `index_change`,
   `projection_change`, and `warning` origins.
-- document-level recent changes are derived from `MetadataStore.list_documents`;
-  no service reads Vault files directly.
+- document-level recent changes are derived from bounded
+  `MetadataStore.list_recent_documents`; no service reads Vault files directly.
 - index/projection change timestamps come only from indexed document snapshots
   or explicit status fields. The service must not invent timestamps.
 - `IndexService.status(...)` exposes the minimal timestamp fields needed for
@@ -131,7 +131,9 @@ external memory dependencies in Phase 6C.
 Phase 6C builds on these current contracts:
 
 - `QueryScope`, `VaultCatalog`, and `actual_query_scopes(...)`;
-- `MetadataStore.list_documents(scope)` from Phase 6B;
+- `MetadataStore.list_documents(scope)` from Phase 6B, plus the Phase 6C
+  bounded `MetadataStore.list_recent_documents(scope, since, limit)` extension;
+- existing `MemoryStatusService` protocol from `memory_request_context.py`;
 - `DocumentSnapshot.last_seen_at`, `last_indexed_at`, `content_hash`,
   `raw_sha256`, `vault_revision`, and `index_revision`;
 - `StatusReport` from `vault_graph.app.index_service`;
@@ -272,7 +274,7 @@ Model rules:
 `document_snapshot_change` items:
 
 - are derived from `DocumentSnapshot` records returned by
-  `MetadataStore.list_documents(scope)`;
+  `MetadataStore.list_recent_documents(scope, since, limit)`;
 - use `occurred_at = last_indexed_at or last_seen_at` and label it as an index
   observation timestamp, not a durable business-event timestamp;
 - use title `Indexed document: <path>`;
@@ -326,19 +328,17 @@ Rules:
 
 ## 11. Timeline Service
 
-Use a protocol rather than importing `IndexService` in the memory module:
+Use the existing neutral memory status protocol rather than importing
+`IndexService` in the memory module:
 
 ```python
-class TimelineStatusService(Protocol):
-    def status(self, *, scope: QueryScope | None = None) -> StatusReport: ...
-
 class TimelineMemoryService:
     def __init__(
         self,
         *,
         catalog: VaultCatalog,
         metadata_store: MetadataStore,
-        status_service: TimelineStatusService,
+        status_service: MemoryStatusService,
         clock: Callable[[], datetime] | None = None,
     ) -> None: ...
 
@@ -360,7 +360,8 @@ Service flow:
 4. fail with `MemoryProjectionError("metadata_unavailable: ...")` if metadata
    health is unavailable or schema-incompatible;
 5. call `MetadataStore.list_recent_documents(actual_scope, since, limit)` once
-   per actual Vault scope;
+   per actual one-Vault scope. `list_recent_documents(...)` rejects multi-Vault
+   scopes so all-Vault timelines must split through `actual_query_scopes(...)`;
 6. build document, index, projection, and warning items;
 7. apply `since` and per-Vault limits;
 8. return grouped output with top-level, Vault-level, and item-level warnings.
@@ -456,7 +457,7 @@ class HealthExplorerService:
         self,
         *,
         catalog: VaultCatalog,
-        status_service: TimelineStatusService,
+        status_service: MemoryStatusService,
         clock: Callable[[], datetime] | None = None,
     ) -> None: ...
 
@@ -472,8 +473,8 @@ class HealthExplorerService:
 Service flow:
 
 1. resolve actual scopes;
-2. use `status_report` when supplied, otherwise request one aggregate status
-   report for the requested scope;
+2. use `status_report` when supplied by `check_index_status(...)`; otherwise call
+   `status_service.status(scope=actual_scope)` once per actual Vault scope;
 3. convert metadata, keyword, vector, and graph status into backend readiness
    records;
 4. append runtime-cache records supplied by the MCP layer;
@@ -828,8 +829,8 @@ Implement Phase 6C in this order:
    serialization tests.
 2. Add timeline DTOs, stable timeline item IDs, timestamp parsing, and model
    tests.
-3. Add `TimelineMemoryService` over `MetadataStore.list_documents(...)` and the
-   status-service protocol.
+3. Add `TimelineMemoryService` over
+   `MetadataStore.list_recent_documents(...)` and the status-service protocol.
 4. Add health explorer DTOs and `HealthExplorerService`.
 5. Add MCP serializers for recent changes and health explorer reports.
 6. Add `McpServiceFactory.open_timeline_memory_service()` and

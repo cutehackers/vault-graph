@@ -3,6 +3,51 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-22 - Phase 6C Bounded Timeline Plan Corrections
+
+**Trigger:** Goal completion audit and subagent review found remaining Phase 6C
+SPEC references to `MetadataStore.list_documents(...)`, a wildcard-prone
+content-scope SQL sketch, a timeline-specific status protocol, underspecified
+status/projection timeline items, and missing strict-typing/full-regression
+plan gates.
+
+**Scope:** Phase 6C detailed SPEC documents, Phase 6C implementation plan, and
+PATCH_LOG.
+
+**Core Values Protected:**
+
+- timeline reads stay bounded for large Vaults
+- source SPEC and implementation plan use one consistent metadata contract
+- Phase 6C remains scalable without adding durable timeline storage
+- strict typing, multi-Vault health, and timeline trust signals are explicit
+
+**Changes Applied:**
+
+- Replaced completion, origin-rule, dependency, and implementation-order wording
+  with `MetadataStore.list_recent_documents(scope, since, limit)`.
+- Kept `list_documents(scope)` only as the Phase 6B baseline that Phase 6C
+  extends.
+- Reused the existing `MemoryStatusService` protocol instead of adding a
+  timeline-specific status protocol.
+- Required `list_recent_documents(...)` to receive exactly one actual Vault scope
+  and avoid unescaped SQL wildcard matching.
+- Aligned health explorer SPEC flow with per-actual-Vault status reads when no
+  aggregate `check_index_status(...)` report is supplied.
+- Removed fake metadata revision construction from status/projection timeline
+  item mapping.
+- Added exact status/projection timeline item mapping, strict runtime-cache
+  snapshot typing, stronger multi-Vault health/timeline tests, and full
+  regression verification.
+- Tightened strict typing details for `StatusReport` type-only imports and
+  `MemoryWarningSeverity` helper signatures, runtime-cache capacity protocols,
+  and made one-Vault metadata scope validation run before missing-database
+  fallback.
+
+**Verification:**
+
+- Re-ran targeted scans for stale `list_documents(...)`, requested-scope status
+  reads, placeholders, and strict-typing serialization hazards.
+
 ## 2026-06-22 - Phase 6C SPEC Review Corrections
 
 **Trigger:** Phase 6C SPEC subagent reviews found timeline origin wording could
