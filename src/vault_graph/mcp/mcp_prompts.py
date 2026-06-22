@@ -130,7 +130,7 @@ def _prepare_implementation_context(task: str, scope: str | None) -> str:
         *_prompt_header("Implementation Context", scope),
         f"Task: {task}",
         (
-            "Call check_index_status, summarize_project_memory, then build_context_pack "
+            "Call check_index_status, get_recent_changes, summarize_project_memory, then build_context_pack "
             "for the bounded implementation scope."
         ),
         "Use find_related only when graph context is needed for named entities or relationships.",
@@ -152,7 +152,7 @@ def _summarize_feature_history(feature: str, scope: str | None) -> str:
     return _join_prompt_lines(
         *_prompt_header("Feature History", scope),
         f"Feature: {feature}",
-        "Call build_context_pack with the feature as the goal.",
+        "Call get_recent_changes, then build_context_pack with the feature as the goal.",
         "Use find_related for graph-backed dependencies and get_decision_trace for durable decisions.",
         *_SHARED_LINES,
     )
@@ -163,8 +163,8 @@ def _analyze_project_risk(goal: str, scope: str | None) -> str:
         *_prompt_header("Project Risk", scope),
         f"Goal: {goal}",
         (
-            "Call get_open_questions, build_context_pack, inspect warnings, then use search_vault "
-            "for unresolved risk evidence."
+            "Call check_index_status, get_open_questions, get_recent_changes, build_context_pack, "
+            "inspect warnings, then use search_vault for unresolved risk evidence."
         ),
         "Use check_index_status when stale or missing indexes could affect confidence.",
         *_SHARED_LINES,

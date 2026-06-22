@@ -10,6 +10,7 @@ from vault_graph.context.context_pack import (
     ContextPackBudget,
     ContextPackRequest,
 )
+from vault_graph.errors import MemoryProjectionError
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
@@ -34,6 +35,7 @@ McpToolName = Literal[
     "explain_result",
     "summarize_project_memory",
     "get_open_questions",
+    "get_recent_changes",
 ]
 MAX_MCP_TOOL_LIMIT = 50
 
@@ -159,6 +161,13 @@ class GetOpenQuestionsInput:
     limit: int = 20
 
 
+@dataclass(frozen=True)
+class GetRecentChangesInput:
+    since: str | None = None
+    scope: McpScopeInput | None = None
+    limit: int = 20
+
+
 class McpToolRegistry:
     tool_names: tuple[McpToolName, ...]
 
@@ -184,6 +193,7 @@ class McpToolRegistry:
             "explain_result",
             "summarize_project_memory",
             "get_open_questions",
+            "get_recent_changes",
         )
 
     def search_vault(self, request: SearchVaultInput) -> McpToolBody:
@@ -354,13 +364,32 @@ class McpToolRegistry:
         try:
             selected_scope = _scope_for_tool(request.scope, catalog=self._services.catalog)
             report = self._service_factory.open_status_service().status(scope=selected_scope)
+            from vault_graph.mcp.mcp_memory_serialization import (
+                health_explorer_report_to_payload,
+                memory_warning_to_mcp_error,
+                runtime_cache_records_for_mcp,
+            )
             from vault_graph.mcp.mcp_tool_serialization import status_report_to_payload
+
+            runtime_caches = runtime_cache_records_for_mcp(
+                context_pack_cache=self._context_pack_cache,
+                result_explanation_cache=self._result_explanation_cache,
+            )
+            health_report = self._service_factory.open_health_explorer_service().inspect(
+                requested_scope=selected_scope,
+                runtime_caches=runtime_caches,
+                status_report=report,
+            )
 
             return _tool_body(
                 tool_name="check_index_status",
-                payload=status_report_to_payload(report, selected_scope=selected_scope),
+                payload=status_report_to_payload(
+                    report,
+                    selected_scope=selected_scope,
+                    health_explorer=health_explorer_report_to_payload(health_report),
+                ),
                 resource_links=(),
-                warnings=(),
+                warnings=tuple(memory_warning_to_mcp_error(warning) for warning in health_report.warnings),
             )
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
@@ -435,6 +464,34 @@ class McpToolRegistry:
                 payload=open_questions_projection_to_payload(projection),
                 resource_links=resource_links_for_memory_projection(projection),
                 warnings=warnings,
+            )
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
+    def get_recent_changes(self, request: GetRecentChangesInput) -> McpToolBody:
+        try:
+            _validate_get_recent_changes_request(request)
+            selected_scope = _scope_for_tool(request.scope, catalog=self._services.catalog)
+            try:
+                projection = self._service_factory.open_timeline_memory_service().recent_changes(
+                    requested_scope=selected_scope,
+                    since=request.since,
+                    limit=request.limit,
+                )
+            except MemoryProjectionError as exc:
+                raise _memory_projection_error_to_mcp_error(exc, affected_vault_ids=selected_scope.vault_ids) from exc
+            from vault_graph.mcp.mcp_memory_serialization import (
+                memory_warning_to_mcp_error,
+                recent_changes_projection_to_payload,
+                resource_links_for_recent_changes,
+                timeline_warnings,
+            )
+
+            return _tool_body(
+                tool_name="get_recent_changes",
+                payload=recent_changes_projection_to_payload(projection),
+                resource_links=resource_links_for_recent_changes(projection),
+                warnings=tuple(memory_warning_to_mcp_error(warning) for warning in timeline_warnings(projection)),
             )
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
@@ -550,6 +607,15 @@ def register_mcp_tools(
     ) -> dict[str, object]:
         request = parse_get_open_questions_input(scope=scope, limit=limit)
         return registry.get_open_questions(request).to_json_dict()
+
+    @server.tool("get_recent_changes", structured_output=True)
+    def get_recent_changes(
+        since: str | None = None,
+        scope: dict[str, object] | None = None,
+        limit: int = 20,
+    ) -> dict[str, object]:
+        request = parse_get_recent_changes_input(since=since, scope=scope, limit=limit)
+        return registry.get_recent_changes(request).to_json_dict()
 
     return registry
 
@@ -694,6 +760,27 @@ def parse_get_open_questions_input(
     return request
 
 
+def parse_get_recent_changes_input(
+    *,
+    since: str | None = None,
+    scope: dict[str, object] | None = None,
+    limit: int = 20,
+) -> GetRecentChangesInput:
+    from vault_graph.memory.timeline_memory import parse_timeline_since
+
+    try:
+        parsed_since = parse_timeline_since(since)
+    except MemoryProjectionError as exc:
+        raise _invalid_arguments(str(exc)) from exc
+    request = GetRecentChangesInput(
+        since=parsed_since,
+        scope=mcp_scope_input_from_raw(scope),
+        limit=_limit(limit),
+    )
+    _validate_get_recent_changes_request(request)
+    return request
+
+
 def _validate_search_vault_request(request: SearchVaultInput) -> None:
     _required_string(request.query, "query")
     _limit(request.limit)
@@ -729,6 +816,12 @@ def _validate_summarize_project_memory_request(request: SummarizeProjectMemoryIn
 
 def _validate_get_open_questions_request(request: GetOpenQuestionsInput) -> None:
     _limit(request.limit)
+
+
+def _validate_get_recent_changes_request(request: GetRecentChangesInput) -> None:
+    _limit(request.limit)
+    if request.scope is not None and request.scope.include_cross_vault:
+        raise _invalid_arguments("get_recent_changes does not support include_cross_vault")
 
 
 def _scope_for_tool(
@@ -790,6 +883,28 @@ def _open_questions_warnings(projection: OpenQuestionsProjection) -> tuple[Memor
             *(warning for vault in projection.vaults for warning in vault.warnings),
             *(warning for vault in projection.vaults for item in vault.questions for warning in item.warnings),
         )
+    )
+
+
+def _memory_projection_error_to_mcp_error(
+    exc: MemoryProjectionError,
+    *,
+    affected_vault_ids: tuple[str, ...],
+) -> McpProtocolError:
+    code = str(exc).split(":", 1)[0].strip() if ":" in str(exc) else "memory_projection_unavailable"
+    kind: Literal["invalid_parameter", "execution"] = (
+        "invalid_parameter" if code == "invalid_timeline_since" else "execution"
+    )
+    recovery_hint = "Run vg index, then vg status for the selected Vault." if code == "metadata_unavailable" else None
+    return McpProtocolError(
+        kind=kind,
+        payload=McpErrorPayload(
+            code=code,
+            message=str(exc),
+            severity="error",
+            affected_vault_ids=affected_vault_ids,
+            recovery_hint=recovery_hint,
+        ),
     )
 
 

@@ -48,6 +48,16 @@ def test_invalid_memory_limit_prefix_is_preserved() -> None:
     assert error.payload.code == "invalid_memory_limit"
 
 
+def test_phase_6c_memory_projection_error_prefixes_are_preserved() -> None:
+    invalid_since = map_exception_to_mcp_error(MemoryProjectionError("invalid_timeline_since: bad timestamp"))
+    unavailable = map_exception_to_mcp_error(MemoryProjectionError("timeline_projection_unavailable: stale status"))
+
+    assert invalid_since.kind == "invalid_parameter"
+    assert invalid_since.payload.code == "invalid_timeline_since"
+    assert unavailable.kind == "execution"
+    assert unavailable.payload.code == "timeline_projection_unavailable"
+
+
 def test_domain_error_redacts_absolute_paths(tmp_path: Path) -> None:
     vault_file = tmp_path / "vault" / "wiki" / "page.md"
     error = map_exception_to_mcp_error(CatalogError(f"vault root does not exist: {vault_file}"))

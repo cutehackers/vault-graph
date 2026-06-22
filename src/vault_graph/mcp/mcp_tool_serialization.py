@@ -95,8 +95,13 @@ def decision_trace_response_to_payload(response: DecisionTraceResponse) -> dict[
     }
 
 
-def status_report_to_payload(report: StatusReport, *, selected_scope: QueryScope) -> dict[str, object]:
-    return {
+def status_report_to_payload(
+    report: StatusReport,
+    *,
+    selected_scope: QueryScope,
+    health_explorer: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
         "selected_scope": query_scope_to_dict(selected_scope),
         "active_vault_id": report.active_vault_id,
         "vaults": [{"vault_id": vault_id, "root_path": root_path} for vault_id, root_path in report.vaults],
@@ -111,6 +116,8 @@ def status_report_to_payload(report: StatusReport, *, selected_scope: QueryScope
             "schema_compatible": report.vector_schema_compatible,
             "message": report.vector_message,
             "revision": report.vector_revision,
+            "last_success_at": report.vector_last_success_at,
+            "last_error_at": report.vector_last_error_at,
             "stale_count": report.vector_stale_count,
             "last_error": report.vector_last_error,
             "status_scope": report.vector_status_scope,
@@ -127,9 +134,15 @@ def status_report_to_payload(report: StatusReport, *, selected_scope: QueryScope
         "graph": {
             "readiness": _json_value(report.graph_readiness),
             "status_scope": report.graph_status_scope,
+            "last_success_revision": report.graph_last_success_revision,
+            "last_success_at": report.graph_last_success_at,
+            "last_error_at": report.graph_last_error_at,
             "last_error": report.graph_last_error,
         },
     }
+    if health_explorer is not None:
+        payload["health_explorer"] = health_explorer
+    return payload
 
 
 def resource_links_for_search(response: SearchResponse) -> tuple[McpResourceLink, ...]:

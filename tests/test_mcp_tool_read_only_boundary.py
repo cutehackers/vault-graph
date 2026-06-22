@@ -15,8 +15,10 @@ from vault_graph.mcp.mcp_errors import McpProtocolError
 from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
 from vault_graph.mcp.mcp_tools import (
     BuildContextPackInput,
+    CheckIndexStatusInput,
     ExplainResultInput,
     GetOpenQuestionsInput,
+    GetRecentChangesInput,
     SearchVaultInput,
     SummarizeProjectMemoryInput,
 )
@@ -149,5 +151,40 @@ def test_memory_tool_metadata_error_does_not_create_memory_state(tmp_path: Path)
     with pytest.raises(McpProtocolError):
         registered.tool_registry.summarize_project_memory(SummarizeProjectMemoryInput())
 
+    assert not (state_path / "memory").exists()
+    assert not (state_path / "data" / "memory").exists()
+
+
+def test_get_recent_changes_does_not_mutate_vault_or_create_memory_state(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    (vault_root / "wiki").mkdir(parents=True)
+    (vault_root / "wiki" / "page.md").write_text("# Page\nVault body\n", encoding="utf-8")
+    state_path = initialized_state(tmp_path, vault_root)
+    seed_search_indexes(state_path)
+    before = file_bytes(vault_root)
+    missing_status_paths = (
+        state_path / "vector" / "status.json",
+        state_path / "graph" / "status.json",
+    )
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    registered.tool_registry.get_recent_changes(GetRecentChangesInput())
+
+    assert file_bytes(vault_root) == before
+    assert not (state_path / "memory").exists()
+    assert not (state_path / "data" / "memory").exists()
+    assert all(not path.exists() for path in missing_status_paths)
+
+
+def test_check_index_status_health_explorer_does_not_create_status_or_memory_state(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    state_path = initialized_state(tmp_path, vault_root)
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    registered.tool_registry.check_index_status(CheckIndexStatusInput())
+
+    assert not (state_path / "vector" / "status.json").exists()
+    assert not (state_path / "graph" / "status.json").exists()
     assert not (state_path / "memory").exists()
     assert not (state_path / "data" / "memory").exists()

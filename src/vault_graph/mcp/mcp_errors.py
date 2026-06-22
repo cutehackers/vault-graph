@@ -10,6 +10,7 @@ from vault_graph.errors import (
     ContextPackError,
     GraphStoreError,
     KeywordIndexError,
+    MemoryProjectionError,
     ReadOnlyBoundaryError,
     ResultExplanationError,
     SearchError,
@@ -94,6 +95,14 @@ def map_exception_to_mcp_error(
                 else None
             ),
         )
+    if isinstance(exc, MemoryProjectionError):
+        code = _code_for_domain_error(exc)
+        return _error(
+            _kind_for_domain_code(code),
+            code,
+            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            affected_vault_ids,
+        )
     if isinstance(exc, VaultGraphError):
         return _error(
             "execution",
@@ -142,6 +151,8 @@ def _code_for_domain_error(exc: Exception) -> str:
             "memory_evidence_unresolved",
             "invalid_memory_evidence_limit",
             "invalid_memory_limit",
+            "invalid_timeline_since",
+            "timeline_projection_unavailable",
             "resource_not_available",
             "result_explanation_not_found",
             "invalid_result_id",
@@ -163,7 +174,7 @@ def _kind_for_domain_code(code: str) -> McpProtocolErrorKind:
         return "not_found"
     if code == "ambiguous_resource":
         return "invalid_parameter"
-    if code == "invalid_result_id":
+    if code in {"invalid_result_id", "invalid_timeline_since"}:
         return "invalid_parameter"
     return "execution"
 

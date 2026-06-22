@@ -625,6 +625,8 @@ def status(
     typer.echo(f"embedding_parallelism: {report.embedding_parallelism}")
     typer.echo(f"embedding_lazy_load: {report.embedding_lazy_load}")
     typer.echo(f"vector_revision: {report.vector_revision}")
+    typer.echo(f"vector_last_success_at: {report.vector_last_success_at}")
+    typer.echo(f"vector_last_error_at: {report.vector_last_error_at}")
     typer.echo(f"vector_stale_count: {report.vector_stale_count}")
     typer.echo(f"vector_last_error: {report.vector_last_error}")
     typer.echo(f"vector_status_scope: {report.vector_status_scope}")
@@ -641,6 +643,9 @@ def status(
     typer.echo(f"graph_tombstone_count: {graph.tombstone_count}")
     typer.echo(f"graph_last_revision: {graph.last_graph_revision}")
     typer.echo(f"graph_status_scope: {report.graph_status_scope}")
+    typer.echo(f"graph_last_success_revision: {report.graph_last_success_revision}")
+    typer.echo(f"graph_last_success_at: {report.graph_last_success_at}")
+    typer.echo(f"graph_last_error_at: {report.graph_last_error_at}")
     typer.echo(f"graph_last_error: {report.graph_last_error}")
     for row in graph.scope_readiness:
         typer.echo(f"graph_scope: {row.actual_scope} {row.freshness} {row.last_graph_revision}")
@@ -867,6 +872,8 @@ def _status_report_json(
             "embedding_parallelism": report.embedding_parallelism,
             "embedding_lazy_load": report.embedding_lazy_load,
             "revision": report.vector_revision,
+            "last_success_at": report.vector_last_success_at,
+            "last_error_at": report.vector_last_error_at,
             "stale_count": report.vector_stale_count,
             "last_error": report.vector_last_error,
             "status_scope": report.vector_status_scope,
@@ -884,6 +891,9 @@ def _status_report_json(
             "tombstone_count": graph.tombstone_count,
             "last_graph_revision": graph.last_graph_revision,
             "status_scope": report.graph_status_scope,
+            "last_success_revision": report.graph_last_success_revision,
+            "last_success_at": report.graph_last_success_at,
+            "last_error_at": report.graph_last_error_at,
             "last_error": report.graph_last_error,
             "affected_vault_ids": list(graph.affected_vault_ids),
             "scope_readiness": [

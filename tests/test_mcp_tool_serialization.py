@@ -29,6 +29,7 @@ from vault_graph.mcp.mcp_tool_serialization import (
     query_scope_to_dict,
     related_response_to_payload,
     resource_links_for_search,
+    status_report_to_payload,
 )
 from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
 from vault_graph.retrieval import RetrievalResult
@@ -245,6 +246,42 @@ def test_query_scope_to_dict_preserves_cross_vault_state() -> None:
         "content_scopes": ["wiki"],
         "include_cross_vault": True,
     }
+
+
+def test_status_report_payload_includes_vector_and_graph_run_timestamps() -> None:
+    from tests.test_mcp_tools import make_status_report
+
+    payload = status_report_to_payload(
+        make_status_report(),
+        selected_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+    )
+    vector = cast(dict[str, object], payload["vector"])
+    graph = cast(dict[str, object], payload["graph"])
+
+    assert vector["last_success_at"] == "2026-06-18T01:00:00+00:00"
+    assert vector["last_error_at"] is None
+    assert graph["last_success_revision"] == "graph-1"
+    assert graph["last_success_at"] == "2026-06-18T02:00:00+00:00"
+    assert graph["last_error_at"] is None
+
+
+def test_status_payload_accepts_compact_health_explorer_section() -> None:
+    from tests.test_mcp_tools import make_status_report
+
+    payload = status_report_to_payload(
+        make_status_report(),
+        selected_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+        health_explorer={
+            "backends": [],
+            "runtime_caches": [],
+            "scale_up_adapters": [],
+            "warnings": [],
+            "generated_at": "now",
+        },
+    )
+
+    health = cast(dict[str, object], payload["health_explorer"])
+    assert health["backends"] == []
 
 
 def test_context_pack_payload_matches_canonical_context_pack_dict() -> None:

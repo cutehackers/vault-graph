@@ -108,3 +108,24 @@ def test_resource_reads_do_not_call_vault_loader(tmp_path: Path, monkeypatch: py
     body = registered.resource_registry.read(McpResourceRequest(uri="vault://default/documents/wiki%2Fpage.md"))
 
     assert body.text == "Indexed body"
+
+
+def test_timeline_recent_resource_does_not_mutate_vault_or_create_memory_state(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    (vault_root / "wiki").mkdir(parents=True)
+    (vault_root / "wiki" / "page.md").write_text("# Page\nVault body\n", encoding="utf-8")
+    state_path = initialized_state(tmp_path, vault_root)
+    seed_metadata(state_path)
+    before = file_bytes(vault_root)
+    missing_status_paths = (
+        state_path / "vector" / "status.json",
+        state_path / "graph" / "status.json",
+    )
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    registered.resource_registry.read(McpResourceRequest(uri="vault://default/timeline/recent"))
+
+    assert file_bytes(vault_root) == before
+    assert not (state_path / "memory").exists()
+    assert not (state_path / "data" / "memory").exists()
+    assert all(not path.exists() for path in missing_status_paths)

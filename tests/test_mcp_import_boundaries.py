@@ -128,6 +128,8 @@ import sys
 import vault_graph.memory.decision_memory
 import vault_graph.memory.issue_memory
 import vault_graph.memory.project_memory
+import vault_graph.memory.timeline_memory
+import vault_graph.memory.health_explorer
 for name in (
     'vault_graph.app.index_service',
     'vault_graph.indexing.metadata_indexer',
@@ -146,7 +148,7 @@ for name in (
     assert completed.returncode == 0, completed.stderr or completed.stdout
 
 
-def test_phase_6b_memory_files_do_not_introduce_writable_memory_surfaces() -> None:
+def test_phase_6_memory_files_do_not_introduce_writable_memory_surfaces() -> None:
     forbidden = (
         "MemoryStore",
         "Memory.create",
@@ -156,6 +158,8 @@ def test_phase_6b_memory_files_do_not_introduce_writable_memory_surfaces() -> No
         "Memory.audit",
         "episode_log",
         "profile_memory",
+        "preference_memory",
+        "procedural_memory",
         "mem0",
         "memmachine",
     )

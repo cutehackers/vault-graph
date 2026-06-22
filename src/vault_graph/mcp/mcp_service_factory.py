@@ -16,9 +16,11 @@ if TYPE_CHECKING:
     from vault_graph.context.context_pack_renderer import ContextPackRenderer
     from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings
     from vault_graph.memory.decision_memory import DecisionMemoryService
+    from vault_graph.memory.health_explorer import HealthExplorerService
     from vault_graph.memory.issue_memory import IssueMemoryService
     from vault_graph.memory.memory_source_reader import MemorySourceReader
     from vault_graph.memory.project_memory import ProjectMemoryService
+    from vault_graph.memory.timeline_memory import TimelineMemoryService
     from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.retrieval_service import RetrievalService
     from vault_graph.retrieval.search_readiness import SearchReadiness
@@ -276,6 +278,26 @@ class McpServiceFactory:
             decision_service=decision_service,
             issue_service=issue_service,
             status_service=status_service,
+        )
+
+    def open_timeline_memory_service(self) -> TimelineMemoryService:
+        from vault_graph.memory.timeline_memory import TimelineMemoryService
+        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+
+        catalog_service, catalog = self._catalog()
+        return TimelineMemoryService(
+            catalog=catalog,
+            metadata_store=SQLiteMetadataStore(catalog_service.metadata_path, initialize=False),
+            status_service=self.open_status_service(),
+        )
+
+    def open_health_explorer_service(self) -> HealthExplorerService:
+        from vault_graph.memory.health_explorer import HealthExplorerService
+
+        _, catalog = self._catalog()
+        return HealthExplorerService(
+            catalog=catalog,
+            status_service=self.open_status_service(),
         )
 
     def _catalog(self) -> tuple[CatalogService, VaultCatalog]:

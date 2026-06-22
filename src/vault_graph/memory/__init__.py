@@ -32,14 +32,31 @@ __all__ = [
     "MemoryWarningSeverity",
     "OpenQuestionsProjection",
     "OpenQuestionsVault",
+    "RecentChangesProjection",
+    "TimelineEvidenceRef",
+    "TimelineFreshness",
+    "TimelineItem",
+    "TimelineMemoryService",
+    "TimelineOrigin",
+    "TimelineSourceKind",
+    "TimelineVault",
     "IssueMemoryService",
     "ProjectMemoryProjection",
     "ProjectMemoryService",
     "ProjectMemoryVault",
+    "BackendReadinessRecord",
+    "HealthBackendKind",
+    "HealthExplorerReport",
+    "HealthExplorerService",
+    "McpRuntimeCacheRecord",
+    "ReadinessStatus",
+    "ScaleUpAdapterReadiness",
     "build_memory_request_context",
     "document_resource_kinds_for_document",
     "explanation_record_to_dict",
     "stable_memory_item_id",
+    "stable_timeline_item_id",
+    "parse_timeline_since",
 ]
 
 
@@ -119,6 +136,71 @@ def __getattr__(name: str) -> Any:
         from vault_graph.memory.project_memory import ProjectMemoryService
 
         return ProjectMemoryService
+    if name in {
+        "RecentChangesProjection",
+        "TimelineEvidenceRef",
+        "TimelineFreshness",
+        "TimelineItem",
+        "TimelineMemoryService",
+        "TimelineOrigin",
+        "TimelineSourceKind",
+        "TimelineVault",
+        "stable_timeline_item_id",
+        "parse_timeline_since",
+    }:
+        from vault_graph.memory.timeline_memory import (
+            RecentChangesProjection,
+            TimelineEvidenceRef,
+            TimelineFreshness,
+            TimelineItem,
+            TimelineMemoryService,
+            TimelineOrigin,
+            TimelineSourceKind,
+            TimelineVault,
+            parse_timeline_since,
+            stable_timeline_item_id,
+        )
+
+        return {
+            "RecentChangesProjection": RecentChangesProjection,
+            "TimelineEvidenceRef": TimelineEvidenceRef,
+            "TimelineFreshness": TimelineFreshness,
+            "TimelineItem": TimelineItem,
+            "TimelineMemoryService": TimelineMemoryService,
+            "TimelineOrigin": TimelineOrigin,
+            "TimelineSourceKind": TimelineSourceKind,
+            "TimelineVault": TimelineVault,
+            "stable_timeline_item_id": stable_timeline_item_id,
+            "parse_timeline_since": parse_timeline_since,
+        }[name]
+    if name in {
+        "BackendReadinessRecord",
+        "HealthBackendKind",
+        "HealthExplorerReport",
+        "HealthExplorerService",
+        "McpRuntimeCacheRecord",
+        "ReadinessStatus",
+        "ScaleUpAdapterReadiness",
+    }:
+        from vault_graph.memory.health_explorer import (
+            BackendReadinessRecord,
+            HealthBackendKind,
+            HealthExplorerReport,
+            HealthExplorerService,
+            McpRuntimeCacheRecord,
+            ReadinessStatus,
+            ScaleUpAdapterReadiness,
+        )
+
+        return {
+            "BackendReadinessRecord": BackendReadinessRecord,
+            "HealthBackendKind": HealthBackendKind,
+            "HealthExplorerReport": HealthExplorerReport,
+            "HealthExplorerService": HealthExplorerService,
+            "McpRuntimeCacheRecord": McpRuntimeCacheRecord,
+            "ReadinessStatus": ReadinessStatus,
+            "ScaleUpAdapterReadiness": ScaleUpAdapterReadiness,
+        }[name]
     if name in {
         "DecisionMemoryProjection",
         "DecisionMemoryVault",

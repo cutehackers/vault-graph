@@ -53,11 +53,16 @@ class StatusReport:
     embedding_parallelism: int | None
     embedding_lazy_load: bool
     vector_revision: str | None
+    vector_last_success_at: str | None
+    vector_last_error_at: str | None
     vector_stale_count: int
     vector_last_error: str | None
     vector_status_scope: str
     graph_readiness: GraphReadiness
     graph_status_scope: str
+    graph_last_success_revision: str | None
+    graph_last_success_at: str | None
+    graph_last_error_at: str | None
     graph_last_error: str | None
 
 
@@ -210,11 +215,18 @@ class IndexService:
                 self._embedding_lazy_load,
             ),
             vector_revision=run_status.last_success_revision if run_status is not None else None,
+            vector_last_success_at=run_status.last_success_at if run_status is not None else None,
+            vector_last_error_at=run_status.last_error_at if run_status is not None else None,
             vector_stale_count=vector_stale_count,
             vector_last_error=run_status.last_error if run_status is not None else None,
             vector_status_scope=vector_status_scope,
             graph_readiness=graph_readiness,
             graph_status_scope=graph_scope_status_key(resolved_scope),
+            graph_last_success_revision=graph_run_status.last_success_revision
+            if graph_run_status is not None
+            else None,
+            graph_last_success_at=graph_run_status.last_success_at if graph_run_status is not None else None,
+            graph_last_error_at=graph_run_status.last_error_at if graph_run_status is not None else None,
             graph_last_error=graph_run_status.last_error if graph_run_status is not None else None,
         )
 

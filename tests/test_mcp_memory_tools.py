@@ -5,12 +5,22 @@ from typing import cast
 
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.mcp.mcp_memory_serialization import (
+    health_explorer_report_to_payload,
     memory_warning_to_mcp_error,
     open_questions_projection_to_payload,
     project_memory_projection_to_payload,
+    recent_changes_projection_to_payload,
     resource_links_for_memory_projection,
+    resource_links_for_recent_changes,
+    timeline_warnings,
 )
 from vault_graph.mcp.mcp_tool_serialization import tool_text_mirror
+from vault_graph.memory.health_explorer import (
+    BackendReadinessRecord,
+    HealthExplorerReport,
+    McpRuntimeCacheRecord,
+    ScaleUpAdapterReadiness,
+)
 from vault_graph.memory.memory_models import (
     MemoryBackendRevision,
     MemoryEvidenceRef,
@@ -21,6 +31,7 @@ from vault_graph.memory.memory_models import (
     ProjectMemoryProjection,
     ProjectMemoryVault,
 )
+from vault_graph.memory.timeline_memory import RecentChangesProjection, TimelineEvidenceRef, TimelineItem, TimelineVault
 
 
 def test_project_memory_projection_payload_preserves_claim_status_signals_evidence_and_warnings() -> None:
@@ -121,6 +132,89 @@ def test_memory_text_mirror_contains_no_fields_outside_structured_payload() -> N
     assert mirrored == payload
 
 
+def test_recent_changes_payload_preserves_origins_evidence_revisions_and_warnings() -> None:
+    payload = recent_changes_projection_to_payload(make_recent_changes_projection())
+    vaults = cast(list[dict[str, object]], payload["vaults"])
+    vault = vaults[0]
+    items = cast(list[dict[str, object]], vault["items"])
+    item = items[0]
+    evidence = cast(list[dict[str, object]], item["evidence"])
+    revisions = cast(list[dict[str, object]], item["store_revisions"])
+    item_warnings = cast(list[dict[str, object]], item["warnings"])
+    payload_warnings = cast(list[dict[str, object]], payload["warnings"])
+
+    assert item["origin"] == "document_snapshot_change"
+    assert evidence[0]["source_kind"] == "document"
+    assert revisions[0]["kind"] == "metadata"
+    assert item_warnings[0]["code"] == "candidate_decision"
+    assert payload_warnings[0]["code"] == "candidate_decision"
+
+
+def test_recent_changes_links_only_document_backed_items() -> None:
+    links = resource_links_for_recent_changes(make_recent_changes_projection())
+
+    assert [link.uri for link in links] == ["vault://main/documents/wiki%2Fpage.md"]
+    assert links[0].rel == "document"
+
+
+def test_timeline_warnings_collect_projection_vault_and_item_warnings() -> None:
+    assert len(timeline_warnings(make_recent_changes_projection())) == 3
+
+
+def test_health_explorer_payload_preserves_backend_runtime_and_scale_up_records() -> None:
+    report = HealthExplorerReport(
+        requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+        actual_scopes=(QueryScope(vault_ids=("main",), content_scopes=("wiki",)),),
+        backends=(
+            BackendReadinessRecord(
+                backend_kind="metadata",
+                backend_name="sqlite",
+                vault_id="main",
+                scope_key="main:wiki",
+                status="ready",
+                schema_compatible=True,
+                freshness="fresh",
+                revision="metadata-1",
+                last_success_at=None,
+                last_error_at=None,
+                message="metadata ready",
+                recovery_hint=None,
+            ),
+        ),
+        runtime_caches=(
+            McpRuntimeCacheRecord(
+                cache_name="context_pack",
+                current_entries=1,
+                max_entries=32,
+                status="ready",
+                message="cache ready",
+            ),
+        ),
+        scale_up_adapters=(
+            ScaleUpAdapterReadiness(
+                adapter_kind="metadata",
+                target_backend="postgres",
+                configured=False,
+                contract_ready=True,
+                migration_required=True,
+                depends_on_backend_kind="metadata",
+                message="metadata contract ready; no record-level migration audit was performed",
+            ),
+        ),
+        warnings=(),
+        generated_at="2026-06-18T00:00:00+00:00",
+    )
+
+    payload = health_explorer_report_to_payload(report)
+    backends = cast(list[dict[str, object]], payload["backends"])
+    runtime_caches = cast(list[dict[str, object]], payload["runtime_caches"])
+    scale_up_adapters = cast(list[dict[str, object]], payload["scale_up_adapters"])
+
+    assert backends[0]["backend_kind"] == "metadata"
+    assert runtime_caches[0]["cache_name"] == "context_pack"
+    assert scale_up_adapters[0]["target_backend"] == "postgres"
+
+
 def make_project_projection(
     *,
     decisions: tuple[MemoryItem, ...] | None = None,
@@ -186,6 +280,50 @@ def make_open_questions_projection() -> OpenQuestionsProjection:
             ),
         ),
         warnings=(),
+        generated_at="2026-06-18T00:00:00+00:00",
+    )
+
+
+def make_recent_changes_projection() -> RecentChangesProjection:
+    warning = make_warning()
+    item = TimelineItem(
+        item_id="timeline:document_snapshot_change:0123456789abcdef01234567",
+        origin="document_snapshot_change",
+        title="Indexed document: wiki/page.md",
+        summary="Indexed document state changed.",
+        vault_id="main",
+        occurred_at="2026-06-18T00:00:00+00:00",
+        sort_key="2026-06-18T00:00:00+00:00",
+        evidence=(
+            TimelineEvidenceRef(
+                source_kind="document",
+                vault_id="main",
+                document_id="doc-1",
+                path="wiki/page.md",
+                content_hash="hash",
+            ),
+        ),
+        store_revisions=(
+            MemoryBackendRevision(kind="metadata", revision="metadata-1", vault_id="main", scope_key="main:wiki"),
+        ),
+        warnings=(warning,),
+    )
+    return RecentChangesProjection(
+        requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+        actual_scopes=(QueryScope(vault_ids=("main",), content_scopes=("wiki",)),),
+        since=None,
+        limit=20,
+        vaults=(
+            TimelineVault(
+                vault_id="main",
+                display_name="Main",
+                items=(item,),
+                warnings=(warning,),
+                store_revisions=(),
+                freshness="fresh",
+            ),
+        ),
+        warnings=(warning,),
         generated_at="2026-06-18T00:00:00+00:00",
     )
 

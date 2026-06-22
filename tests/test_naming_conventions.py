@@ -29,3 +29,23 @@ def test_forbidden_prefix_is_not_used_in_project_language() -> None:
                 offenders.append(str(path.relative_to(PROJECT_ROOT)))
 
     assert offenders == []
+
+
+def test_forbidden_memory_store_paths_are_not_introduced() -> None:
+    forbidden_path_parts = (
+        "memory_store",
+        "episode_log",
+        "profile_memory",
+        "preference_memory",
+        "procedural_memory",
+        "external_memory",
+        "memory_server",
+    )
+    offenders = [
+        str(path.relative_to(PROJECT_ROOT))
+        for path in (PROJECT_ROOT / "src" / "vault_graph").rglob("*")
+        if any(part in path.as_posix().casefold() for part in forbidden_path_parts)
+    ]
+
+    assert offenders == []
+    assert not (PROJECT_ROOT / "data" / "memory").exists()

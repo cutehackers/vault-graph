@@ -207,10 +207,38 @@ class CurrentContextResourceReader:
         )
 
     def read_recent_timeline(self, uri: McpResourceUri) -> McpResourceBody:
-        _raise_resource_not_available(
-            affected_vault_ids=(uri.vault_id,) if uri.vault_id else (),
-            message="Timeline projection resources are not available in Phase 5B.",
-            recovery_hint="Timeline projection resources are planned for Phase 6.",
+        vault_id = _required_value(uri.vault_id)
+        try:
+            projection = self._service_factory.open_timeline_memory_service().recent_changes(
+                requested_scope=self._catalog.scope_for_vault_ids((vault_id,)),
+                since=None,
+                limit=20,
+            )
+        except MemoryProjectionError as exc:
+            raise McpProtocolError(
+                kind="execution",
+                payload=McpErrorPayload(
+                    code=_domain_error_code(exc),
+                    message=str(exc),
+                    severity="error",
+                    affected_vault_ids=(vault_id,),
+                    recovery_hint="Run vg index, then vg status for the selected Vault.",
+                ),
+            ) from exc
+        from vault_graph.mcp.mcp_memory_serialization import (
+            memory_warning_to_mcp_error,
+            recent_changes_projection_to_payload,
+            timeline_warnings,
+        )
+
+        payload = recent_changes_projection_to_payload(projection)
+        warnings = tuple(memory_warning_to_mcp_error(warning) for warning in timeline_warnings(projection))
+        return McpResourceBody(
+            uri=uri.normalized_uri,
+            content_mime_type="application/json",
+            text=json.dumps(payload, sort_keys=True, ensure_ascii=False, indent=2) + "\n",
+            metadata=payload,
+            warnings=warnings,
         )
 
 

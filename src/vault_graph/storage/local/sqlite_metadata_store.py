@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from vault_graph.errors import MetadataStoreError
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference
@@ -225,6 +226,44 @@ class SQLiteMetadataStore:
             for row in rows
             if _path_in_content_scope(path=str(row["path"]), content_scopes=scope.content_scopes)
         )
+
+    def list_recent_documents(
+        self,
+        scope: QueryScope,
+        *,
+        since: str | None = None,
+        limit: int = 20,
+    ) -> tuple[DocumentSnapshot, ...]:
+        if len(scope.vault_ids) != 1:
+            raise MetadataStoreError("invalid_metadata_scope: list_recent_documents requires exactly one vault_id")
+        if limit < 1:
+            return ()
+        if not self._database_path.exists():
+            return ()
+        path_clause, path_params = _content_scope_sql_filter(scope.content_scopes)
+        params: list[object] = [scope.vault_ids[0], *path_params]
+        since_clause = ""
+        if since is not None:
+            since_clause = "AND COALESCE(last_indexed_at, last_seen_at) > ?"
+            params.append(since)
+        params.append(limit)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
+                       content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
+                       vault_revision, index_revision
+                FROM documents
+                WHERE vault_id = ?
+                  AND is_tombstoned = 0
+                  AND ({path_clause})
+                  {since_clause}
+                ORDER BY COALESCE(last_indexed_at, last_seen_at) DESC, vault_id, path, document_id
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
+        return tuple(_document_snapshot_from_row(row) for row in rows)
 
     def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]:
         if not scope.vault_ids:
@@ -477,6 +516,18 @@ def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
 
 def _path_in_content_scope(*, path: str, content_scopes: tuple[str, ...]) -> bool:
     return any(path == content_scope or path.startswith(f"{content_scope}/") for content_scope in content_scopes)
+
+
+def _content_scope_sql_filter(content_scopes: tuple[str, ...]) -> tuple[str, tuple[object, ...]]:
+    clauses: list[str] = []
+    params: list[object] = []
+    for content_scope in content_scopes:
+        prefix = f"{content_scope}/"
+        clauses.append("(path = ? OR substr(path, 1, ?) = ?)")
+        params.extend((content_scope, len(prefix), prefix))
+    if not clauses:
+        return "0", ()
+    return " OR ".join(clauses), tuple(params)
 
 
 def _evidence_reference_from_row(row: sqlite3.Row) -> EvidenceReference:

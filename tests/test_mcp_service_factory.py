@@ -121,6 +121,21 @@ def test_mcp_factory_opens_project_memory_service_without_creating_memory_state(
     assert not (state_path / "data" / "memory").exists()
 
 
+def test_mcp_factory_opens_timeline_and_health_services_without_creating_memory_state(tmp_path: Path) -> None:
+    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+
+    state_path = initialized_state_for_factory(tmp_path)
+    factory = McpServiceFactory(state_path=state_path)
+
+    timeline = factory.open_timeline_memory_service()
+    health = factory.open_health_explorer_service()
+
+    assert timeline is not None
+    assert health is not None
+    assert not (state_path / "memory").exists()
+    assert not (state_path / "data" / "memory").exists()
+
+
 def test_mcp_factory_memory_services_do_not_import_rustworkx_until_graph_enrichment(tmp_path: Path) -> None:
     code = f"""
 from pathlib import Path

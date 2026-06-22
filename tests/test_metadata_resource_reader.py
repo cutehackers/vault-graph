@@ -116,6 +116,15 @@ class FakeMetadataStore:
     def list_documents(self, scope: QueryScope) -> tuple[DocumentSnapshot, ...]:
         raise AssertionError("not used by metadata resource reader tests")
 
+    def list_recent_documents(
+        self,
+        scope: QueryScope,
+        *,
+        since: str | None = None,
+        limit: int = 20,
+    ) -> tuple[DocumentSnapshot, ...]:
+        raise AssertionError("not used by metadata resource reader tests")
+
     def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]:
         raise AssertionError("not used by metadata resource reader tests")
 

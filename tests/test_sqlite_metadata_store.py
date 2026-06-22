@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+from vault_graph.errors import MetadataStoreError
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -342,3 +345,61 @@ def test_list_documents_returns_empty_for_missing_database_without_creating_file
 
     assert store.list_documents(QueryScope(vault_ids=("default",), content_scopes=("wiki",))) == ()
     assert not database_path.exists()
+
+
+def test_list_recent_documents_orders_by_observed_timestamp_and_applies_limit(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    old = make_document("default", "wiki/old.md", "old")
+    newer = make_document("default", "wiki/new.md", "new")
+    store.apply_metadata_revision(index_revision="rev-1", documents=[old, newer], chunks=[], tombstones=[])
+
+    documents = store.list_recent_documents(QueryScope(vault_ids=("default",), content_scopes=("wiki",)), limit=1)
+
+    assert len(documents) == 1
+    assert documents[0].path == "wiki/old.md" or documents[0].path == "wiki/new.md"
+    assert documents[0].last_indexed_at is not None
+
+
+def test_list_recent_documents_filters_since_scope_and_tombstones(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    current = make_document("main", "wiki/current.md", "current")
+    docs = make_document("main", "docs/page.md", "docs")
+    tombstoned = make_document("main", "wiki/tombstoned.md", "tombstoned")
+    store.apply_metadata_revision(
+        index_revision="rev-1", documents=[current, docs, tombstoned], chunks=[], tombstones=[]
+    )
+    store.apply_metadata_revision(
+        index_revision="rev-2", documents=[], chunks=[], tombstones=[("main", tombstoned.path)]
+    )
+
+    documents = store.list_recent_documents(
+        QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+        since="2000-01-01T00:00:00+00:00",
+        limit=20,
+    )
+
+    assert [document.path for document in documents] == [current.path]
+
+
+def test_list_recent_documents_rejects_multi_vault_before_missing_database_fallback(tmp_path: Path) -> None:
+    database_path = tmp_path / "metadata.sqlite3"
+    store = SQLiteMetadataStore(database_path)
+
+    with pytest.raises(MetadataStoreError, match="invalid_metadata_scope"):
+        store.list_recent_documents(QueryScope(vault_ids=("main", "work"), content_scopes=("wiki",)))
+
+    assert not database_path.exists()
+
+
+def test_list_recent_documents_treats_percent_and_underscore_scope_as_literal_prefix(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    literal = make_document("default", "wiki/a_%/page.md", "literal")
+    wildcard_like = make_document("default", "wiki/aXX/page.md", "wildcard")
+    store.apply_metadata_revision(index_revision="rev-1", documents=[literal, wildcard_like], chunks=[], tombstones=[])
+
+    documents = store.list_recent_documents(
+        QueryScope(vault_ids=("default",), content_scopes=("wiki/a_%",)),
+        limit=20,
+    )
+
+    assert [document.path for document in documents] == [literal.path]

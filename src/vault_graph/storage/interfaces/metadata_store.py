@@ -51,6 +51,14 @@ class MetadataStore(Protocol):
 
     def list_documents(self, scope: QueryScope) -> tuple[DocumentSnapshot, ...]: ...
 
+    def list_recent_documents(
+        self,
+        scope: QueryScope,
+        *,
+        since: str | None = None,
+        limit: int = 20,
+    ) -> tuple[DocumentSnapshot, ...]: ...
+
     def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]: ...
 
     def list_document_chunks(

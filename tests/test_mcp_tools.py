@@ -139,6 +139,16 @@ class RecordingIssueMemoryService:
         return self.response
 
 
+class RecordingHealthExplorerService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+        self.response = make_health_explorer_report()
+
+    def inspect(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.response
+
+
 class RecordingFactory:
     def __init__(
         self,
@@ -154,12 +164,14 @@ class RecordingFactory:
         self.context_pack_builder = context_pack_builder or RecordingContextPackBuilder(make_pack())
         self.project_memory_service = RecordingProjectMemoryService()
         self.issue_memory_service = RecordingIssueMemoryService()
+        self.health_explorer_service = RecordingHealthExplorerService()
         self.status_calls = 0
         self.graph_calls = 0
         self.retrieval_calls = 0
         self.context_builder_calls = 0
         self.project_memory_calls = 0
         self.issue_memory_calls = 0
+        self.health_calls = 0
 
     def open_status_service(self) -> RecordingStatusService:
         self.status_calls += 1
@@ -187,8 +199,12 @@ class RecordingFactory:
         self.issue_memory_calls += 1
         return self.issue_memory_service
 
+    def open_health_explorer_service(self) -> RecordingHealthExplorerService:
+        self.health_calls += 1
+        return self.health_explorer_service
 
-def test_register_mcp_tools_registers_exact_phase_6b_tools(tmp_path: Path) -> None:
+
+def test_register_mcp_tools_registers_exact_phase_6c_tools(tmp_path: Path) -> None:
     server = RecordingToolServer()
 
     registry = register_mcp_tools(
@@ -208,11 +224,11 @@ def test_register_mcp_tools_registers_exact_phase_6b_tools(tmp_path: Path) -> No
         "explain_result",
         "summarize_project_memory",
         "get_open_questions",
+        "get_recent_changes",
     )
     assert tuple(server.tools) == registry.tool_names
     assert all(server.structured_output[name] is True for name in registry.tool_names)
     assert "ask_vault" not in server.tools
-    assert "get_recent_changes" not in server.tools
 
 
 @pytest.mark.parametrize(
@@ -224,6 +240,7 @@ def test_register_mcp_tools_registers_exact_phase_6b_tools(tmp_path: Path) -> No
         ("get_decision_trace", {"decision_or_topic": ""}),
         ("summarize_project_memory", {"limit": 0}),
         ("get_open_questions", {"limit": 51}),
+        ("get_recent_changes", {"limit": 51}),
         ("search_vault", {"query": "q", "limit": 51}),
         ("build_context_pack", {"goal": "g", "max_tokens": 0}),
         ("search_vault", {"query": "q", "include_cross_vault": True, "scope": {"include_cross_vault": False}}),
@@ -302,10 +319,13 @@ def test_check_index_status_uses_status_service_without_indexing(tmp_path: Path)
     body = registry.check_index_status(CheckIndexStatusInput())
 
     assert factory.status_calls == 1
+    assert factory.health_calls == 1
+    assert factory.health_explorer_service.calls[0]["status_report"] is factory.status_service.report
     metadata = cast(dict[str, object], body.payload["metadata"])
     embedding = cast(dict[str, object], body.payload["embedding"])
     assert metadata["ok"] is True
     assert embedding["embedding_batch_size"] == 8
+    assert "health_explorer" in body.payload
 
 
 def test_find_related_opens_graph_service_after_validation(tmp_path: Path) -> None:
@@ -557,6 +577,8 @@ def make_status_report() -> StatusReport:
         embedding_parallelism=None,
         embedding_lazy_load=True,
         vector_revision="vector-1",
+        vector_last_success_at="2026-06-18T01:00:00+00:00",
+        vector_last_error_at=None,
         vector_stale_count=0,
         vector_last_error=None,
         vector_status_scope="main:wiki",
@@ -578,5 +600,22 @@ def make_status_report() -> StatusReport:
             recovery_hint="",
         ),
         graph_status_scope="main:wiki",
+        graph_last_success_revision="graph-1",
+        graph_last_success_at="2026-06-18T02:00:00+00:00",
+        graph_last_error_at=None,
         graph_last_error=None,
+    )
+
+
+def make_health_explorer_report() -> object:
+    from vault_graph.memory.health_explorer import HealthExplorerReport
+
+    return HealthExplorerReport(
+        requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),
+        actual_scopes=(QueryScope(vault_ids=("main",), content_scopes=("wiki",)),),
+        backends=(),
+        runtime_caches=(),
+        scale_up_adapters=(),
+        warnings=(),
+        generated_at="2026-06-18T00:00:00+00:00",
     )
