@@ -164,12 +164,14 @@ heading, graph entity type, existing retrieval signal로 분류할 수 있지만
 초기 project memory projection은 다음 구조화된 group을 반환합니다.
 
 - current state
-- recent decisions
+- decision highlights with evidence
 - open questions and follow-ups
 - constraints
 - next likely priorities
 - warnings and stale areas
 - evidence links
+
+Timeline-based recent durable changes는 Phase 6C의 책임입니다.
 
 group에 evidence가 없으면 group은 비어 있고, gap을 설명하는 warning이 있어야
 합니다.

@@ -3,6 +3,85 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-19 - Phase 6B Implementation Plan Review Corrections
+
+**Trigger:** Phase 6B implementation-plan subagent reviews found public MCP
+tool signatures lagged behind the detailed SPEC, `recent` wording implied
+unsupported recency evidence, memory resource-link rules lacked enough DTO data,
+and `context/current` error handling could lose Vault-specific recovery hints.
+
+**Scope:** Phase 6B implementation plan, Phase 6 overview/SPEC documents,
+top-level SPEC/FEATURES/DESIGN MCP memory signatures, Phase 4 context-pack
+selection wording, and current-context wording.
+
+**Core Values Protected:**
+
+- memory projections remain evidence-first and avoid unsupported recency claims
+- MCP contracts stay bounded, canonical, and implementation-ready
+- resource links remain valid existing Vault Graph resources instead of broken
+  memory-specific URIs
+- metadata failures stay explicit with safe recovery guidance
+
+**Changes Applied:**
+
+- Added bounded `limit` arguments for Phase 6B memory tools in top-level docs.
+- Changed project memory wording from recent decisions to decision highlights
+  and kept recent-change claims in the Phase 6C timeline boundary.
+- Clarified Phase 4 context-pack selection wording so durable change evidence
+  does not imply Phase 6B provides timeline-backed recency.
+- Added `document_resource_kinds` to memory items so serializers can build valid
+  decision/issue/source/page links.
+- Added direct `MemoryProjectionError` handling guidance for `context/current`.
+- Added `MemoryRequestContext` to the Phase 6B SPEC/plan so project memory can
+  reuse one metadata status and document listing pass.
+- Added import-cycle, lazy-export, and `invalid_memory_limit` checks to the
+  Phase 6B implementation plan.
+
+**Verification:**
+
+- Rechecked Phase 6B SPEC/plan terminology, top-level MCP signatures, resource
+  link rules, and Markdown formatting against review findings.
+
+## 2026-06-19 - Phase 6B Memory SPEC Review Corrections
+
+**Trigger:** Phase 6B subagent review found that heuristic memory items could
+look like stated Vault facts, open-question rules could include resolved issues,
+memory item IDs could collide within one document, graph enrichment was not
+fully lazy, and large-scope document reads needed a clearer bounded policy.
+
+**Scope:** Phase 6B project, decision, and issue memory SPEC documents.
+
+**Core Values Protected:**
+
+- memory projections remain evidence-first and distinguish stated facts from
+  inferred or heuristic candidates
+- Phase 6B stays read-only, rebuildable, multi-vault-safe, and bounded for
+  large Vaults
+- graph behavior remains explicit and lazy instead of opening graph projection
+  paths during ordinary project-memory reads
+
+**Changes Applied:**
+
+- Added `claim_status` and `matched_signals` to memory items.
+- Kept graph enrichment in `matched_signals` instead of a separate claim status.
+- Tightened open-question status rules and excluded resolved/closed items.
+- Included primary evidence chunk and claim status in stable item IDs.
+- Added metadata-first candidate narrowing, chunk-read caps, and truncation
+  warnings.
+- Limited heading-only matches to metadata-selected documents so Phase 6B does
+  not drift into unbounded chunk mining.
+- Removed scope-level bulk document reads from the source-reader contract so
+  services own candidate narrowing before evidence loading.
+- Replaced eager graph-service injection with a lazy decision-trace provider
+  factory and moved backend stale state to freshness/warnings.
+- Aligned the decision-trace provider protocol with the current
+  `GraphRetrievalService.decision_trace(...)` signature.
+
+**Verification:**
+
+- Rechecked English/Korean Phase 6B SPEC parity, Markdown formatting, and review
+  findings against the current Phase 6 docs and MCP/code boundaries.
+
 ## 2026-06-19 - Phase 6A Result Explanation Review Corrections
 
 **Trigger:** Phase 6A code-quality review found result explanation records could

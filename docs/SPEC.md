@@ -391,8 +391,8 @@ Question:
 Response shape:
 
 - Current goal
-- Recent decisions
-- Recent durable changes
+- Decision highlights with evidence
+- Recent durable changes through the Phase 6C timeline view when available
 - Open issues
 - Next likely priorities
 - Evidence links
@@ -1054,8 +1054,8 @@ Full roadmap tools:
 - `find_related(target, scope=None, depth=1, kinds=None)`
 - `get_decision_trace(decision_or_topic, scope=None)`
 - `build_context_pack(goal, scope=None, max_tokens=None)`
-- `summarize_project_memory(scope=None)`
-- `get_open_questions(scope=None)`
+- `summarize_project_memory(scope=None, limit=10)`
+- `get_open_questions(scope=None, limit=20)`
 - `get_recent_changes(since=None, scope=None)`
 - `explain_result(result_id)`
 - `check_index_status()`

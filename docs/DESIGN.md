@@ -1248,9 +1248,11 @@ The builder should prioritize:
 2. current durable specs and architecture pages
 3. durable decisions
 4. relevant concepts, systems, and workflows
-5. recent durable changes
+5. available durable change evidence
 6. open questions and unresolved warnings
 7. raw evidence when it explains a durable page
+
+Timeline-backed recent-change projection remains a Phase 6C responsibility.
 
 The builder should avoid:
 
@@ -1349,8 +1351,8 @@ Project memory answers "what is the current state?" for a project or scope.
 Output:
 
 - current goal
-- recent decisions
-- recent durable changes
+- decision highlights with evidence
+- recent-change handoff to the Phase 6C timeline view
 - open issues
 - next likely priorities
 - evidence links
@@ -1417,8 +1419,8 @@ Full roadmap tools:
 - `find_related(target, scope=None, depth=1, kinds=None)`
 - `get_decision_trace(decision_or_topic, scope=None)`
 - `build_context_pack(goal, scope=None, max_tokens=None)`
-- `summarize_project_memory(scope=None)`
-- `get_open_questions(scope=None)`
+- `summarize_project_memory(scope=None, limit=10)`
+- `get_open_questions(scope=None, limit=20)`
 - `get_recent_changes(since=None, scope=None)`
 - `explain_result(result_id)`
 - `check_index_status()`

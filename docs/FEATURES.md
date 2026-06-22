@@ -55,8 +55,8 @@ phase exposes only the CLI.
 | Find Related Items | `vg related TARGET` | `find_related(target, scope=None, depth=1, kinds=None)` | `vault://{vault_id}/graph/entities/{id}` | Related entities, paths, evidence |
 | Trace Decision | `vg decision-trace TOPIC` | `get_decision_trace(decision_or_topic, scope=None)` | `vault://{vault_id}/decisions/{id}` | Decision, context, alternatives, tradeoffs |
 | Build Context Pack | `vg context "goal"` | `build_context_pack(goal, scope=None, max_tokens=None)` | `vault://context/packs/{id}` | JSON or Markdown agent brief |
-| Summarize Project Memory | - | `summarize_project_memory(scope=None)` | `vault://{vault_id}/context/current` | Current state, recent decisions, open issues |
-| Get Open Questions | - | `get_open_questions(scope=None)` | `vault://{vault_id}/issues/{id}` | Open questions and unresolved follow-ups |
+| Summarize Project Memory | - | `summarize_project_memory(scope=None, limit=10)` | `vault://{vault_id}/context/current` | Current state, decision highlights, open issues |
+| Get Open Questions | - | `get_open_questions(scope=None, limit=20)` | `vault://{vault_id}/issues/{id}` | Open questions and unresolved follow-ups |
 | Get Recent Changes | - | `get_recent_changes(since=None, scope=None)` | `vault://{vault_id}/timeline/recent` | Recent durable and indexed changes |
 | Explain Result | - | `explain_result(result_id)` | - | Retrieval reason, evidence, scores, warnings |
 | Serve MCP | `vg serve --mcp` | - | all MCP resources | MCP server for agents |
@@ -437,21 +437,21 @@ Required fields:
 - `evidence`
 - `generated_at`
 
-### `summarize_project_memory(scope=None)`
+### `summarize_project_memory(scope=None, limit=10)`
 
 Summarizes the current project memory projection.
 
 The response should include:
 
 - current goal
-- recent decisions
-- recent durable changes
+- decision highlights with evidence
+- recent-change handoff to `get_recent_changes` when Phase 6C is available
 - open issues
 - next likely priorities
 - evidence links
 - warnings or stale areas
 
-### `get_open_questions(scope=None)`
+### `get_open_questions(scope=None, limit=20)`
 
 Returns unresolved questions, incomplete follow-ups, missing evidence warnings,
 or items that should be revisited.

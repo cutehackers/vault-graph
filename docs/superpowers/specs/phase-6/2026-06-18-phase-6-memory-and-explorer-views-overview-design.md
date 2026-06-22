@@ -167,12 +167,14 @@ must not invent missing project state.
 The initial project memory projection should return structured groups:
 
 - current state
-- recent decisions
+- decision highlights with evidence
 - open questions and follow-ups
 - constraints
 - next likely priorities
 - warnings and stale areas
 - evidence links
+
+Timeline-based recent durable changes belong to Phase 6C.
 
 If a group has no evidence, the group is empty and a warning explains the gap.
 
