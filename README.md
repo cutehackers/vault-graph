@@ -155,11 +155,11 @@ Initial MCP tools:
 - `find_related(target, scope=None, depth=1, kinds=None)`
 - `get_decision_trace(decision_or_topic, scope=None)`
 - `build_context_pack(goal, scope=None, max_tokens=None)`
-- `summarize_project_memory(scope=None)`
-- `get_open_questions(scope=None)`
-- `get_recent_changes(since=None, scope=None)`
+- `summarize_project_memory(scope=None, limit=10)`
+- `get_open_questions(scope=None, limit=20)`
+- `get_recent_changes(since=None, scope=None, limit=20)`
 - `explain_result(result_id)`
-- `check_index_status()`
+- `check_index_status(scope=None)`
 
 Initial MCP resources:
 

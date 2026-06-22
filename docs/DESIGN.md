@@ -1370,9 +1370,9 @@ revisit triggers.
 
 ### 14.4 Timeline Memory
 
-Timeline memory groups durable changes and derived index changes. It must label
-whether an item is a durable Vault change, an indexed projection change, or a
-warning.
+Timeline memory groups indexed document snapshot changes and derived index
+changes. It must label whether an item is a document snapshot change, an indexed
+projection change, or a warning.
 
 ## 15. MCP Design
 
@@ -1421,9 +1421,9 @@ Full roadmap tools:
 - `build_context_pack(goal, scope=None, max_tokens=None)`
 - `summarize_project_memory(scope=None, limit=10)`
 - `get_open_questions(scope=None, limit=20)`
-- `get_recent_changes(since=None, scope=None)`
+- `get_recent_changes(since=None, scope=None, limit=20)`
 - `explain_result(result_id)`
-- `check_index_status()`
+- `check_index_status(scope=None)`
 
 Tools call application services and return structured, evidence-linked data.
 They must not write to Vault.

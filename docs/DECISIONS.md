@@ -34,7 +34,8 @@ or rebuild.
 
 - Phase 6 must not add generic `MemoryStore`, `Memory.create`,
   `Memory.query`, `Memory.upsert`, `Memory.link`, `Memory.audit`, hidden
-  episode logs, or profile memory databases.
+  episode logs, profile memory databases, preference memory databases, or
+  procedural memory databases.
 - Future external memory integration must consume exported projections and must
   not write Vault content or Vault Graph stores.
 - Agent-generated memories become durable only after they enter Vault through

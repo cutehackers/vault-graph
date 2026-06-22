@@ -392,7 +392,8 @@ Response shape:
 
 - Current goal
 - Decision highlights with evidence
-- Recent durable changes through the Phase 6C timeline view when available
+- Recent indexed document snapshot changes through the Phase 6C timeline view
+  when available
 - Open issues
 - Next likely priorities
 - Evidence links
@@ -1056,9 +1057,9 @@ Full roadmap tools:
 - `build_context_pack(goal, scope=None, max_tokens=None)`
 - `summarize_project_memory(scope=None, limit=10)`
 - `get_open_questions(scope=None, limit=20)`
-- `get_recent_changes(since=None, scope=None)`
+- `get_recent_changes(since=None, scope=None, limit=20)`
 - `explain_result(result_id)`
-- `check_index_status()`
+- `check_index_status(scope=None)`
 
 Tool responses must separate:
 
@@ -1874,8 +1875,8 @@ Phase 6 may borrow memory-layer terminology from systems such as Mem0 and
 MemMachine, but Vault Graph uses those ideas only as read-only projections over
 Vault-derived evidence. It must not add a generic writable `MemoryStore`,
 `Memory.create`, `Memory.query`, `Memory.upsert`, `Memory.link`,
-`Memory.audit`, hidden episode log, or user-profile memory database in the core
-product.
+`Memory.audit`, hidden episode log, user-profile memory database, preference
+memory database, or procedural memory database in the core product.
 
 Detailed Phase 6 contracts live under `docs/superpowers/specs/phase-6/`:
 

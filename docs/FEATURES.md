@@ -49,7 +49,7 @@ phase exposes only the CLI.
 | Register Vault | `vg vault add ID --path /path/to/vault`, `vg vault list` | - | - | Vault catalog entries |
 | Index Vault | `vg index`, `vg index --vault-id ID`, `vg index --all-vaults`, `vg index --full`, `vg index --dry-run` | - | - | Index revision, change plan, warnings |
 | Watch Vault | `vg watch` | - | - | Continuous index refresh |
-| Check Status | `vg status` | `check_index_status()` | - | Vault IDs/paths, backend health, schema compatibility, freshness, warnings |
+| Check Status | `vg status` | `check_index_status(scope=None)` | - | Vault IDs/paths, backend health, schema compatibility, freshness, warnings |
 | Ask Vault | `vg ask "question"` | `ask_vault(question, mode="evidence-first", scope=None)` | - | Answer, evidence, inferred links, warnings |
 | Search Vault | `vg search "query"` | `search_vault(query, scope=None, limit=10)` | document/page/source resources | Ranked evidence-linked results |
 | Find Related Items | `vg related TARGET` | `find_related(target, scope=None, depth=1, kinds=None)` | `vault://{vault_id}/graph/entities/{id}` | Related entities, paths, evidence |
@@ -57,7 +57,7 @@ phase exposes only the CLI.
 | Build Context Pack | `vg context "goal"` | `build_context_pack(goal, scope=None, max_tokens=None)` | `vault://context/packs/{id}` | JSON or Markdown agent brief |
 | Summarize Project Memory | - | `summarize_project_memory(scope=None, limit=10)` | `vault://{vault_id}/context/current` | Current state, decision highlights, open issues |
 | Get Open Questions | - | `get_open_questions(scope=None, limit=20)` | `vault://{vault_id}/issues/{id}` | Open questions and unresolved follow-ups |
-| Get Recent Changes | - | `get_recent_changes(since=None, scope=None)` | `vault://{vault_id}/timeline/recent` | Recent durable and indexed changes |
+| Get Recent Changes | - | `get_recent_changes(since=None, scope=None, limit=20)` | `vault://{vault_id}/timeline/recent` | Recent indexed document snapshot and projection changes |
 | Explain Result | - | `explain_result(result_id)` | - | Retrieval reason, evidence, scores, warnings |
 | Serve MCP | `vg serve --mcp` | - | all MCP resources | MCP server for agents |
 | Serve HTTP | `vg serve --http` | - | - | HTTP access surface |
@@ -456,12 +456,14 @@ The response should include:
 Returns unresolved questions, incomplete follow-ups, missing evidence warnings,
 or items that should be revisited.
 
-### `get_recent_changes(since=None, scope=None)`
+### `get_recent_changes(since=None, scope=None, limit=20)`
 
-Returns recent changes from Vault-derived metadata and revision state.
+Returns recent indexed document snapshot and projection changes from
+Vault-derived metadata and revision state.
 
-The response should identify whether each item is a durable Vault change, an
-indexed projection change, or a warning.
+The response should identify whether each item is an indexed document snapshot
+change, an indexed projection change, or a warning. `limit` defaults to `20`,
+is validated as `1..50`, and applies per Vault group.
 
 ### `explain_result(result_id)`
 
@@ -470,9 +472,10 @@ Explains why a search, answer, context-pack item, or graph result was returned.
 The explanation should include retrieval reason, evidence path, relationship
 status, confidence, scores when available, and warnings.
 
-### `check_index_status()`
+### `check_index_status(scope=None)`
 
-Reports index and backend status for agents.
+Reports index and backend status for agents. `scope=None` uses the active
+Vault; explicit scope selects one or more Vaults.
 
 The response should include backend name, schema version, index revision,
 freshness, projection cache status, and health warnings.

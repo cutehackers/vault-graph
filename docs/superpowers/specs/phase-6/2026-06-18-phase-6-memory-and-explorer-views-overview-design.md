@@ -126,8 +126,8 @@ Phase 6 adopts useful memory-layer taxonomy without adopting a new memory store:
   `MetadataStore`, retrieval signals, graph traces, frontmatter, paths, and
   headings. It is regenerated from Vault-derived indexes.
 - Episodic or timeline memory maps to Phase 6C timeline projections over
-  durable Vault-derived document changes and derived projection changes. It is
-  not a hidden transcript or raw session log store.
+  indexed document snapshot changes and derived projection changes. It is not a
+  hidden transcript, raw session log store, or durable business-event ledger.
 - Profile and preference memory are out of scope for Vault Graph core. If they
   become useful, they should live either as durable Vault notes or in an
   explicitly configured external adapter.
@@ -174,16 +174,16 @@ The initial project memory projection should return structured groups:
 - warnings and stale areas
 - evidence links
 
-Timeline-based recent durable changes belong to Phase 6C.
+Timeline-based recent indexed document snapshot changes belong to Phase 6C.
 
 If a group has no evidence, the group is empty and a warning explains the gap.
 
 ## 10. Timeline And Health Position
 
-Phase 6C timeline output combines durable Vault-derived document changes and
-derived projection changes. Each timeline item must label its origin:
+Phase 6C timeline output combines indexed document snapshot changes and derived
+projection changes. Each timeline item must label its origin:
 
-- `vault_change`
+- `document_snapshot_change`
 - `index_change`
 - `projection_change`
 - `warning`

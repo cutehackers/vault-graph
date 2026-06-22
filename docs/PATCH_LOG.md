@@ -3,6 +3,49 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-22 - Phase 6C SPEC Review Corrections
+
+**Trigger:** Phase 6C SPEC subagent reviews found timeline origin wording could
+make index-observation timestamps look like durable Vault business events,
+public MCP tool signatures diverged from top-level docs, recovery hints used an
+unsupported CLI flag, and health/readiness boundaries were too broad or
+ambiguous.
+
+**Scope:** Phase 6C detailed SPEC documents, Phase 6 overview documents,
+top-level SPEC/FEATURES/DESIGN/README MCP signatures, external-memory decision
+guardrails, and related terminology.
+
+**Core Values Protected:**
+
+- timeline output stays evidence-first and does not claim durable events that
+  Vault Graph only observed through indexing
+- MCP contracts remain consistent across detailed and top-level docs
+- recovery guidance stays executable against the current CLI
+- Phase 6 remains read-only, rebuildable, and free of writable memory drift
+
+**Changes Applied:**
+
+- Replaced the old Vault-change-style origin label with
+  `document_snapshot_change` and clarified that timeline timestamps are index
+  observation timestamps.
+- Added `limit=20` to `get_recent_changes(...)` and `scope=None` to
+  `check_index_status(...)` across public docs.
+- Replaced unsupported graph recovery guidance with `vg index` plus
+  `vg status`.
+- Clarified that timeline output is regenerated from metadata snapshots and
+  status reports, while runtime-cache visibility belongs to health explorer.
+- Narrowed scale-up readiness to status/schema-derived contract checks, not
+  record-level migration audits.
+- Extended memory-boundary guardrails to preference and procedural memory.
+
+**Verification:**
+
+- Rechecked Phase 6C detailed SPECs against Phase 6 overview, top-level MCP
+  signatures, current CLI flags, and subagent findings.
+- Searched for stale timeline origin labels, unsupported Phase 6C recovery
+  hints, and mismatched `get_recent_changes` / `check_index_status`
+  signatures.
+
 ## 2026-06-22 - Phase 6B Implementation Review Corrections
 
 **Trigger:** Phase 6B implementation review found issue-memory candidate caps
