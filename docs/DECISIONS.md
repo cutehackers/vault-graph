@@ -17,6 +17,30 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-23 - Keep Phase 7 As Read-Only Explorer UI
+
+**Question:** Should the current Phase 7 design scope include local HTTP serving
+and `Ask Project`, or focus only on optional read-only explorer views?
+
+**Decision:** Keep the current Phase 7 detailed-design scope limited to Timeline
+and Health UI, Decision Explorer, and Agent Workspace. Move local HTTP serving,
+`Ask Project`, `ask_vault`, and answer synthesis to future phases.
+
+**Reason:** Phase 7 should make existing evidence-linked projections easier to
+inspect without introducing a weak search wrapper or premature LLM answer
+surface. HTTP serving can be designed separately as an adapter boundary, and
+`ask_vault` still needs explicit answer synthesis, LLM adapter, and citation
+guarantee design.
+
+**Implications:**
+
+- Phase 7 UI surfaces existing CLI/MCP-backed application services visually.
+- The UI must remain read-only, local-first, evidence-first, and Vault-scoped.
+- UI view contracts must not query storage backends directly or create a new
+  durable knowledge source.
+- Future HTTP serving must remain an adapter over application services.
+- Future answer generation requires a separate accepted design.
+
 ## 2026-06-19 - Keep External Memory Systems As Future Adapters
 
 **Question:** Should Vault Graph adopt Mem0, MemMachine, or a similar external

@@ -605,13 +605,16 @@ The optional UI can expose the same capabilities visually.
 
 Planned views:
 
-- Ask Project
+- Timeline and Health View
 - Decision Explorer
 - Agent Workspace
-- Timeline View
 
 These views should not create a second source of truth. They should display
 Vault-derived context, evidence, warnings, and durable follow-up suggestions.
+Local HTTP serving is a future adapter task and is not required to define the
+Phase 7B and 7C view contracts.
+`Ask Project` and answer synthesis move to a future phase after `ask_vault`,
+LLM adapter policy, and citation guarantees are explicitly designed.
 
 ## User-Visible Guarantees
 

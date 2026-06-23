@@ -1920,10 +1920,52 @@ Phase 6 invariants:
 
 ### Phase 7: Optional UI
 
-- Ask Project
-- Decision Explorer
-- Agent Workspace
-- Timeline View
+Phase 7 adds an optional local HTTP and browser UI layer over existing Vault
+Graph application services. It is an adapter and view layer, not a new
+retrieval engine, reasoning engine, memory store, index backend, or Vault
+publication workflow.
+
+The UI exists to make Phase 6 projections easier to inspect. It should show
+Vault-derived evidence, warnings, freshness, backend health, decisions, open
+questions, and generated context in a browser without changing the source of
+truth. CLI and MCP remain first-class interfaces; the UI is optional.
+
+`Ask Project` is moved from Phase 7 to a future phase. `ask_vault` remains out
+of scope until answer synthesis, LLM adapter policy, and citation guarantees are
+explicitly designed. Phase 7 may provide a query workspace that links search,
+project memory, open questions, and context packs, but it must not present that
+workspace as generated answers.
+
+Detailed Phase 7B and 7C contracts live under
+`docs/superpowers/specs/phase-7/`. Phase 7A local HTTP serving and future answer
+synthesis are intentionally not part of the current detailed-design scope.
+
+Phase 7 slices:
+
+| Slice | Contract | Detailed Design | Explicitly Not Included |
+| --- | --- | --- | --- |
+| Future 7A | Add a local read-only HTTP JSON adapter for existing application services and enable `vg serve --http` | Future detailed design | hosted HTTP, authentication, remote sharing, browser UI, answer synthesis, direct store access |
+| Phase 7B | Add a minimal Timeline and Health UI over recent changes, projection freshness, backend health, and scale-up adapter readiness | `docs/superpowers/specs/phase-7/2026-06-23-phase-7b-timeline-health-ui-design.md` | decision workspace, context-pack editing, LLM answers, hosted monitoring |
+| Phase 7C | Add Decision Explorer and Agent Workspace views over decision traces, project memory, open questions, context-pack previews, evidence links, and durable follow-up suggestions | `docs/superpowers/specs/phase-7/2026-06-23-phase-7c-decision-agent-workspace-design.md` | `Ask Project`, `ask_vault`, automatic wiki publication, Vault edits, durable context-pack storage |
+
+Phase 7 invariants:
+
+- HTTP and UI adapters call application services only. They must not query
+  SQLite, Chroma, graph stores, or projection internals directly.
+- The HTTP server is local-first. The default bind address is `127.0.0.1`;
+  remote serving requires a later security design.
+- The first UI should be a small static browser surface served by the local HTTP
+  adapter. A separate frontend build system requires an explicit later design.
+- Every UI view preserves evidence links, Vault IDs, warnings, store revisions,
+  and freshness state when those fields exist in the service response.
+- Multi-vault behavior follows `QueryScope`: active Vault by default, explicit
+  Vault IDs or all-Vault scope only when requested, and visible Vault identity in
+  output.
+- The UI must not create, edit, rename, delete, or publish Vault content.
+- Generated context packs, memory projections, and timeline views remain
+  derived working context, not durable knowledge.
+- `Ask Project` and answer synthesis belong to a future phase after LLM adapter
+  policy and citation guarantees are designed.
 
 ## 20. Success Criteria
 
