@@ -315,7 +315,10 @@ def index(
     else:
         scope = _exit_on_domain_error(catalog.default_scope)
     config, catalog, service = _exit_on_domain_error(lambda: _service(state, initialize_store=not dry_run))
-    report = service.run_plan(scope=scope, full=full) if dry_run else service.run_apply(scope=scope, full=full)
+    try:
+        report = service.run_plan(scope=scope, full=full) if dry_run else service.run_apply(scope=scope, full=full)
+    finally:
+        service.close()
     metadata = report.metadata
     typer.echo(f"mode: {metadata.mode}")
     typer.echo(f"vault_ids: {', '.join(metadata.vault_ids)}")
@@ -601,7 +604,10 @@ def status(
         scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids([selected_vault_id]))
     else:
         scope = _exit_on_domain_error(catalog.default_scope)
-    report = service.status(scope=scope)
+    try:
+        report = service.status(scope=scope)
+    finally:
+        service.close()
     if output_format == "json":
         payload = _status_report_json(report, config=config, selected_scope=scope)
         typer.echo(json.dumps(payload, sort_keys=True, indent=2))

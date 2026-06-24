@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import sqlite3
+import struct
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,7 @@ from vault_graph.storage.interfaces.vector_store import (
 CHROMA_VECTOR_SCHEMA_VERSION = "chroma-vector-v1"
 CHROMA_BACKEND = "chroma"
 COLLECTION_PREFIX = "vault_graph"
+SQLITE_VECTOR_ID_BATCH_SIZE = 500
 
 
 class ChromaVectorStore(VectorStore):
@@ -67,6 +70,8 @@ class ChromaVectorStore(VectorStore):
     def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:
         if self._read_only and not self._database_path.exists():
             return ()
+        if self._read_only:
+            return self._search_readonly_sqlite(query)
         if not self._path.exists() and not self._initialize:
             return ()
         try:
@@ -251,10 +256,82 @@ class ChromaVectorStore(VectorStore):
             )
         )
 
+    def close(self) -> None:
+        client = self._client
+        self._client = None
+        close = getattr(client, "close", None) if client is not None else None
+        if callable(close):
+            close()
+
     def _connect_readonly(self) -> sqlite3.Connection:
         connection = sqlite3.connect(f"file:{self._database_path}?mode=ro", uri=True)
         connection.row_factory = sqlite3.Row
         return connection
+
+    def _search_readonly_sqlite(self, query: VectorQuery) -> tuple[VectorHit, ...]:
+        health = self._sqlite_health()
+        if not health.ok or not health.schema_compatible:
+            raise VectorStoreError(f"vector search unavailable: {health.message}")
+        manifest = tuple(
+            row for row in self._export_manifest_sqlite(query.scope) if row.embedding_spec == query.embedding_spec
+        )
+        if not manifest:
+            return ()
+        vector_ids = tuple(row.vector_id for row in manifest)
+        vectors = self._active_vectors_by_id(vector_ids)
+        scored: list[tuple[float, VectorManifestRecord]] = []
+        for row in manifest:
+            values = vectors.get(row.vector_id)
+            if values is None:
+                raise VectorStoreError(f"vector search unavailable: missing vector payload for {row.vector_id}")
+            scored.append((_cosine_similarity(query.query_vector.values, values), row))
+        ranked = sorted(scored, key=lambda item: (-item[0], item[1].vault_id, item[1].chunk_id, item[1].vector_id))
+        return tuple(
+            VectorHit(
+                vector_id=row.vector_id,
+                vault_id=row.vault_id,
+                document_id=row.document_id,
+                chunk_id=row.chunk_id,
+                content_scope=row.content_scope,
+                score=score,
+                rank=rank,
+                embedding_spec=row.embedding_spec,
+                metadata_index_revision=row.metadata_index_revision,
+                vector_index_revision=row.vector_index_revision,
+                backend=CHROMA_BACKEND,
+            )
+            for rank, (score, row) in enumerate(ranked[: query.limit], start=1)
+        )
+
+    def _active_vectors_by_id(self, vector_ids: tuple[str, ...]) -> dict[str, tuple[float, ...]]:
+        if not vector_ids:
+            return {}
+        vectors: dict[str, tuple[float, ...]] = {}
+        try:
+            with self._connect_readonly() as connection:
+                for batch in _batched(vector_ids, SQLITE_VECTOR_ID_BATCH_SIZE):
+                    placeholders = ", ".join("?" for _ in batch)
+                    rows = connection.execute(
+                        f"""
+                        SELECT q.id, q.vector, q.encoding
+                        FROM embeddings e
+                        INNER JOIN embeddings_queue q ON q.id = e.embedding_id
+                        INNER JOIN (
+                          SELECT id, MAX(seq_id) AS seq_id
+                          FROM embeddings_queue
+                          WHERE id IN ({placeholders})
+                          GROUP BY id
+                        ) latest ON latest.id = q.id AND latest.seq_id = q.seq_id
+                        WHERE e.embedding_id IN ({placeholders})
+                        """,
+                        (*batch, *batch),
+                    ).fetchall()
+                    vectors.update(
+                        {str(row["id"]): _decode_vector_blob(row["vector"], str(row["encoding"])) for row in rows}
+                    )
+        except sqlite3.Error as exc:
+            raise VectorStoreError(f"vector search unavailable: {exc}") from exc
+        return vectors
 
     def _client_or_none(self) -> Any | None:
         try:
@@ -426,3 +503,29 @@ def _metadata_value(row: sqlite3.Row) -> object:
         if key in row.keys() and row[key] is not None:
             return row[key]
     return None
+
+
+def _batched(values: tuple[str, ...], size: int) -> tuple[tuple[str, ...], ...]:
+    return tuple(values[index : index + size] for index in range(0, len(values), size))
+
+
+def _decode_vector_blob(value: object, encoding: str) -> tuple[float, ...]:
+    if encoding != "FLOAT32":
+        raise VectorStoreError(f"vector search unavailable: unsupported vector encoding {encoding}")
+    if not isinstance(value, bytes):
+        raise VectorStoreError("vector search unavailable: vector payload must be bytes")
+    if len(value) % 4:
+        raise VectorStoreError("vector search unavailable: invalid FLOAT32 vector payload")
+    return tuple(float(item) for item in struct.unpack(f"<{len(value) // 4}f", value))
+
+
+def _cosine_similarity(left: tuple[float, ...], right: tuple[float, ...]) -> float:
+    if len(left) != len(right):
+        raise VectorStoreError(f"embedding dimension mismatch: expected {len(left)}, got {len(right)}")
+    left_norm = math.sqrt(sum(value * value for value in left))
+    right_norm = math.sqrt(sum(value * value for value in right))
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True)) / (
+        left_norm * right_norm
+    )

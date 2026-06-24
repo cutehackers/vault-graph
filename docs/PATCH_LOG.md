@@ -3,6 +3,47 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-24 - Acceptance Review Release-Readiness Corrections
+
+**Trigger:** Implementation success criteria acceptance review found three
+remaining acceptance gaps and one Chroma read-only/rebuild stability issue.
+
+**Scope:** Success-criteria acceptance tests, Chroma vector read-only search,
+index-service cleanup, `SPEC.md` CLI documentation, review docs, and decision
+log.
+
+**Core Values Protected:**
+
+- Vault remains read-only and cannot be mutated by indexing, search, or MCP
+  resources
+- Vault Graph internal index state remains rebuildable from Vault
+- multi-Vault identity stays explicit across MCP resource URIs
+- local-first search degrades visibly without network or model downloads
+
+**Changes Applied:**
+
+- Added acceptance tests for MCP same-relative-path resource isolation,
+  delete→rebuild from Vault Graph internal index state, and deterministic
+  offline keyword-only degradation.
+- Added explicit Chroma client cleanup after indexing/status operations so
+  same-process delete→rebuild does not reuse stale Chroma handles.
+- Made Chroma read-only search use SQLite read-only access instead of opening a
+  mutating Chroma client.
+- Recorded accepted reset, offline, and CLI-documentation decisions.
+- Split `SPEC.md` §17 into implemented CLI commands and CLI TODO
+  commands.
+- Updated the acceptance review documents from `PARTIAL` gaps to verified
+  `PASS` evidence.
+
+**Verification:**
+
+- `uv run --python 3.12 pytest tests/test_acceptance_success_criteria.py -q`
+- `uv run --python 3.12 pytest tests/test_chroma_vector_store.py tests/test_search_read_only_boundary.py tests/test_acceptance_success_criteria.py -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src tests`
+- `uv run --python 3.12 pytest`
+- `VG_RUN_MCP_STDIO_SMOKE=1 uv run --python 3.12 pytest tests/test_mcp_stdio_smoke.py -q`
+
 ## 2026-06-22 - Phase 6C Implementation Review Corrections
 
 **Trigger:** Final implementation review found Phase 6C could under-report

@@ -17,6 +17,68 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-24 - Use Documented Index-State Rebuild Before Reset CLI
+
+**Question:** Should Vault Graph add a user-facing `vg reset-index` command
+before public release?
+
+**Decision:** Not now. Document and test deletion of Vault Graph internal index
+state followed by `vg index` / `vg index --vault-id`. Add `vg reset-index` only
+after a real user-facing gap appears.
+
+**Reason:** The smallest safe surface preserves the rebuildable-state value
+without adding a destructive command prematurely.
+
+**Implications:**
+
+- Acceptance must prove metadata, keyword, vector, and graph state rebuild from
+  Vault while Vault file hashes stay unchanged.
+- Any manual deletion guidance is limited to Vault Graph state directories, not
+  registered Vault roots or Vault content.
+- A future reset command must call an application service with path-safety
+  checks, not delete backend files directly.
+
+## 2026-06-24 - Use Deterministic Offline Smoke As Local-First Acceptance
+
+**Question:** What is sufficient proof that local-first search works without
+internet access?
+
+**Decision:** Use a deterministic offline smoke test that disables or fakes
+network/download paths and proves visible keyword-only degradation. Keep real
+cached-model plus OS-level network-blocking checks as optional manual release
+checks.
+
+**Reason:** CI should verify the local-only boundary without depending on a
+specific laptop cache, hosted service, or network state.
+
+**Implications:**
+
+- Offline acceptance must show the embedding model is unavailable locally,
+  vector embedding is not attempted, keyword results still return, and warnings
+  are visible.
+- Tests must not download model artifacts or mutate embedding caches.
+- The default embedding implementation remains local-first and may still use a
+  cached model when available.
+
+## 2026-06-24 - Split Implemented And Future CLI Documentation
+
+**Question:** How should `docs/SPEC.md` present CLI commands after the first
+implementation is complete?
+
+**Decision:** Replace the old "Initial CLI" wording with implemented CLI
+commands and a separate CLI TODO block.
+
+**Reason:** The SPEC should not imply that `vg watch`, `vg ask`, or
+`vg serve --http` are available product features.
+
+**Implications:**
+
+- Future commands must be marked TODO until implemented and covered by
+  acceptance tests.
+- `vg serve --http` remains a reserved unsupported transport until the future
+  HTTP adapter is designed and built.
+- Current CLI acceptance is evaluated only against implemented commands.
+
 ## 2026-06-23 - Keep Phase 7 As Read-Only Explorer UI
 
 **Question:** Should the current Phase 7 design scope include local HTTP serving

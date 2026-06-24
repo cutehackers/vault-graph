@@ -1090,7 +1090,7 @@ Prompts should instruct agents to treat Vault Graph output as working context an
 
 ## 17. CLI
 
-Initial CLI:
+Implemented CLI after the first product implementation:
 
 ```bash
 vg init --vault /path/to/vault
@@ -1102,10 +1102,7 @@ vg index --vault-id main
 vg index --all-vaults
 vg index --full
 vg index --dry-run
-vg watch
 vg status
-vg ask "왜 GraphRAG를 도입했지?"
-vg ask --vault-id main "왜 GraphRAG를 도입했지?"
 vg related GraphRAG
 vg related --vault-id main GraphRAG
 vg context "GraphRAG MVP 구현"
@@ -1113,13 +1110,24 @@ vg context --vault-id main "GraphRAG MVP 구현"
 vg decision-trace GraphRAG
 vg decision-trace --vault-id main GraphRAG
 vg serve --mcp
-vg serve --http
+```
+
+CLI TODO:
+
+```bash
+vg watch                           # TODO: file watching and incremental auto-indexing
+vg ask "왜 GraphRAG를 도입했지?"   # TODO: answer synthesis with citation guarantees
+vg ask --vault-id main "..."       # TODO: scoped answer synthesis
+vg serve --http                    # TODO: local read-only HTTP JSON adapter
 ```
 
 CLI commands should be explicit about which Vault ID, Vault path, and index state
 path they use. Commands that accept `--vault-id` operate on one registered Vault.
 Commands that accept `--all-vaults` must expand to visible selected Vault IDs in
-their output. Commands without either option use the active Vault.
+their output. Commands without either option use the active Vault. TODO commands
+must stay documented as future work until their behavior is implemented and
+covered by acceptance tests; `vg serve --http` is currently a reserved transport
+that returns an unsupported-transport error.
 
 ## 18. Context Pack Contract
 

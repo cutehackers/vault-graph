@@ -230,6 +230,11 @@ class IndexService:
             graph_last_error=graph_run_status.last_error if graph_run_status is not None else None,
         )
 
+    def close(self) -> None:
+        close = getattr(self._vector_store, "close", None)
+        if callable(close):
+            close()
+
     def _vector_plan(self, *, chunk_store: object, scope: QueryScope, full: bool) -> VectorRevisionPlan | None:
         if self._vector_store is None or self._text_embeddings is None:
             return None

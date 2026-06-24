@@ -1,11 +1,14 @@
+import sqlite3
 from pathlib import Path
 
 import chromadb
+from pytest import MonkeyPatch
 
 from tests.test_vector_store_contract import SECOND_SPEC, make_query, make_record
 from vault_graph.errors import VectorStoreError
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.vector_store import VectorTombstone
+from vault_graph.storage.local import chroma_vector_store
 from vault_graph.storage.local.chroma_vector_store import CHROMA_VECTOR_SCHEMA_VERSION, ChromaVectorStore
 
 
@@ -141,6 +144,7 @@ def test_read_only_search_can_query_existing_chroma_state(tmp_path: Path) -> Non
     writable = ChromaVectorStore(path, initialize=True)
     record = make_record(vault_id="default", path="wiki/page.md", text="alpha", content_scope="wiki")
     writable.apply_vector_revision(vector_index_revision="vector-1", records=(record,), tombstones=())
+    writable.close()
     before = _tree_snapshot(path)
     readonly = ChromaVectorStore(path, initialize=False, read_only=True)
 
@@ -150,38 +154,55 @@ def test_read_only_search_can_query_existing_chroma_state(tmp_path: Path) -> Non
     assert _tree_snapshot(path) == before
 
 
-def test_existing_read_only_search_surfaces_chroma_client_failure(tmp_path: Path) -> None:
+def test_read_only_search_batches_sqlite_vector_payload_lookup(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chroma_vector_store, "SQLITE_VECTOR_ID_BATCH_SIZE", 1)
+    path = tmp_path / "chroma"
+    writable = ChromaVectorStore(path, initialize=True)
+    records = tuple(
+        make_record(vault_id="default", path=f"wiki/page-{index}.md", text="alpha", content_scope="wiki")
+        for index in range(3)
+    )
+    writable.apply_vector_revision(vector_index_revision="vector-1", records=records, tombstones=())
+    writable.close()
+    readonly = ChromaVectorStore(path, initialize=False, read_only=True)
+
+    hits = readonly.search(
+        make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)), limit=3)
+    )
+
+    assert sorted(hit.chunk_id for hit in hits) == sorted(record.chunk_id for record in records)
+
+
+def test_existing_read_only_search_surfaces_invalid_sqlite_failure(tmp_path: Path) -> None:
     path = tmp_path / "chroma"
     path.mkdir()
     (path / "chroma.sqlite3").write_bytes(b"not a real sqlite db")
     store = ChromaVectorStore(path, initialize=False, read_only=True)
-    store._require_client = lambda: (_ for _ in ()).throw(RuntimeError("client failed"))  # type: ignore[method-assign]
 
     try:
         store.search(make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",))))
     except VectorStoreError as exc:
-        assert "client failed" in str(exc)
+        assert "file is not a database" in str(exc)
     else:
-        raise AssertionError("existing Chroma client failures must be visible to retrieval")
+        raise AssertionError("invalid read-only Chroma sqlite state must be visible to retrieval")
 
 
-def test_existing_read_only_search_surfaces_collection_lookup_failure(tmp_path: Path) -> None:
-    class Client:
-        def list_collections(self) -> tuple[object, ...]:
-            raise RuntimeError("list failed")
-
+def test_existing_read_only_search_surfaces_schema_failure(tmp_path: Path) -> None:
     path = tmp_path / "chroma"
     path.mkdir()
-    (path / "chroma.sqlite3").write_bytes(b"placeholder")
+    with sqlite3.connect(path / "chroma.sqlite3") as connection:
+        connection.execute("CREATE TABLE collections(id TEXT)")
     store = ChromaVectorStore(path, initialize=False, read_only=True)
-    store._require_client = lambda: Client()  # type: ignore[method-assign]
 
     try:
         store.search(make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",))))
     except VectorStoreError as exc:
-        assert "list failed" in str(exc)
+        assert "schema incompatible" in str(exc)
     else:
-        raise AssertionError("Chroma collection lookup failures must be visible to retrieval")
+        raise AssertionError("incompatible read-only Chroma schema must be visible to retrieval")
 
 
 def test_chroma_readonly_existing_empty_path_does_not_create_sqlite(tmp_path: Path) -> None:
