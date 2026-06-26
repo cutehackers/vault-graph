@@ -49,6 +49,7 @@ def test_create_mcp_server_registers_resources_tools_prompts_and_explanation_cac
     assert registered.resource_registry is not None
     assert registered.result_explanation_cache.max_entries == 256
     assert registered.tool_registry.tool_names == (
+        "ask_vault",
         "search_vault",
         "build_context_pack",
         "find_related",

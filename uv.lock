@@ -552,6 +552,22 @@ wheels = [
 ]
 
 [[package]]
+name = "fastapi"
+version = "0.138.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "pydantic" },
+    { name = "starlette" },
+    { name = "typing-extensions" },
+    { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/c9/5e8defe249899c0dc900643695fc07829a67fc88b4ff2cdb03fcbdbf5a4b/fastapi-0.138.1.tar.gz", hash = "sha256:96e3702dce09ee0dce48856135620d3d865ca684a79fe7513fd7b13a12f82862", size = 419646, upload-time = "2026-06-25T15:40:42.115Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/a9/69a6924f645eb4dd8cd625bf255b3625990eb3e14e073438a53c405dcd3e/fastapi-0.138.1-py3-none-any.whl", hash = "sha256:b994cae7ba8b82c976a728b544244de31333fa5f7d261f9a1dffe526444cae23", size = 129182, upload-time = "2026-06-25T15:40:40.771Z" },
+]
+
+[[package]]
 name = "fastembed"
 version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2592,12 +2608,14 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },
+    { name = "fastapi" },
     { name = "fastembed" },
     { name = "huggingface-hub" },
     { name = "mcp" },
     { name = "pyyaml" },
     { name = "rustworkx" },
     { name = "typer" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -2611,12 +2629,14 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "chromadb", specifier = ">=1.5.9,<2.0" },
+    { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "fastembed", specifier = ">=0.8.0,<1.0" },
     { name = "huggingface-hub", specifier = ">=0.31,<1.0" },
     { name = "mcp", specifier = ">=1.27,<2" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "rustworkx", specifier = ">=0.17,<1.0" },
     { name = "typer", specifier = ">=0.12.5" },
+    { name = "uvicorn", specifier = ">=0.30,<1" },
 ]
 
 [package.metadata.requires-dev]

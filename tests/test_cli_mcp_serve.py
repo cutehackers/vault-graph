@@ -22,14 +22,25 @@ def test_serve_requires_selected_transport(tmp_path: Path) -> None:
     result = runner.invoke(app, ["serve", "--state", str(tmp_path / "state")])
 
     assert result.exit_code == 1
-    assert "select one server transport: --mcp" in result.stderr
+    assert "select one server transport: --mcp or --http" in result.stderr
 
 
-def test_serve_rejects_http_transport(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["serve", "--http", "--state", str(tmp_path / "state")])
+def test_serve_http_delegates_to_local_http_server(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    seen: tuple[Path, str, int] | None = None
 
-    assert result.exit_code == 1
-    assert "http_transport_not_supported_in_phase_5a" in result.stderr
+    def fake_run(config: object) -> None:
+        nonlocal seen
+        seen = (config.state_path, config.host, config.port)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr("vault_graph.http.http_server.run_http_server", fake_run)
+
+    result = runner.invoke(
+        app,
+        ["serve", "--http", "--state", str(tmp_path / "state"), "--host", "127.0.0.1", "--port", "9876"],
+    )
+
+    assert result.exit_code == 0
+    assert seen == ((tmp_path / "state").resolve(), "127.0.0.1", 9876)
 
 
 def test_serve_rejects_multiple_transports(tmp_path: Path) -> None:

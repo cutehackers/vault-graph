@@ -17,6 +17,58 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-25 - Make Evidence-First Ask The Next Core Implementation
+
+**Question:** After the first product implementation, should Vault Graph keep
+`ask_vault` as future work or make cited question answering the next core
+implementation target?
+
+**Decision:** Make evidence-first ask and reasoning the next implementation
+target. Implement `vg ask` and `ask_vault` as service-backed answer planning,
+answer composition, and citation validation over existing Vault-derived search,
+graph, context-pack, decision-trace, and memory projection services.
+
+**Reason:** The first implementation can find, explain, and package Vault
+context, but users still need a direct way to ask questions and receive
+reasoned answers grounded in original Vault evidence.
+
+**Implications:**
+
+- `ask_vault` is not an external memory system and must not add a writable
+  `MemoryStore`, hidden episode log, profile memory, preference memory, or
+  procedural memory.
+- Every major answer claim must be cited, explicitly labeled as inferred or
+  partial, or rejected as insufficiently supported.
+- The default implementation must preserve read-only, rebuildable, local-first,
+  and evidence-first behavior.
+- Optional LLM-backed composition may be added only behind the same
+  `AnswerComposer` contract and citation guard.
+- External memory systems remain adapter/export targets, not Vault Graph core.
+
+## 2026-06-24 - Use Setup And MCP Registration As Onboarding Target
+
+**Question:** Does Vault Graph need PyPI before documenting easy install and
+agent setup?
+
+**Decision:** Not for the current source-checkout workflow. Keep source checkout
+and `uv tool install -e .` as the current install paths. Treat PyPI as required
+only before promising `uv tool install vault-graph` as the public install path.
+Use `vg setup --vault PATH --agent AGENT` as the accepted future happy path, and
+separate it from lower-level MCP registration commands.
+
+**Reason:** Users need a simple path now without pretending an unpublished PyPI
+package or unimplemented setup command exists.
+
+**Implications:**
+
+- README must distinguish current commands from CLI TODO commands.
+- Future `vg setup` should default omitted `--state` to `~/.vault-graph`.
+- Future MCP registration commands should configure agents to run
+  `vg serve --mcp`; they must not describe MCP registration as MCP server
+  installation.
+- PyPI publication can be handled as a release task, not as a blocker for local
+  source-checkout usage.
+
 ## 2026-06-24 - Use Documented Index-State Rebuild Before Reset CLI
 
 **Question:** Should Vault Graph add a user-facing `vg reset-index` command
@@ -85,8 +137,13 @@ commands and a separate CLI TODO block.
 and `Ask Project`, or focus only on optional read-only explorer views?
 
 **Decision:** Keep the current Phase 7 detailed-design scope limited to Timeline
-and Health UI, Decision Explorer, and Agent Workspace. Move local HTTP serving,
-`Ask Project`, `ask_vault`, and answer synthesis to future phases.
+and Health UI, Decision Explorer, and Agent Workspace. Move local HTTP serving
+and `Ask Project` out of Phase 7. At the time of this decision, `ask_vault` and
+answer synthesis were also outside the Phase 7 UI scope.
+
+**Current note:** This remains the UI scope decision. The `ask_vault` timing was
+superseded by `2026-06-25 - Make Evidence-First Ask The Next Core
+Implementation`.
 
 **Reason:** Phase 7 should make existing evidence-linked projections easier to
 inspect without introducing a weak search wrapper or premature LLM answer

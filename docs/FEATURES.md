@@ -1,6 +1,6 @@
 # Vault Graph User-Facing Features
 
-Status: Draft
+Status: Active feature contract
 
 This document lists the features and interfaces exposed to Vault Graph users. It
 focuses on what a user or agent can invoke directly through CLI, MCP resources,
@@ -9,9 +9,9 @@ MCP tools, MCP prompts, and HTTP serving.
 For architecture, storage contracts, indexing internals, and roadmap details,
 see `docs/SPEC.md`.
 
-The feature matrix is the intended product surface across the full roadmap. The
-phase slice sections below define what is in scope for each implementation
-phase.
+The feature matrix describes the product surface. Sections below distinguish
+implemented capabilities, historical slice boundaries, and explicitly deferred
+adapters.
 
 ## Product Boundary
 
@@ -38,10 +38,8 @@ normal source capture, draft, validation, release gate, and Git history workflow
 
 ## Feature Matrix
 
-This matrix describes the intended product surface across phases. The Phase 2
-slice table below defines when search-related surfaces become available. A
-matrix entry can describe a future MCP or HTTP binding even when the current
-phase exposes only the CLI.
+This matrix includes implemented user-facing capabilities covered by CLI, MCP,
+or local HTTP acceptance tests.
 
 | Feature | CLI | MCP Tool | MCP Resource | Output |
 | --- | --- | --- | --- | --- |
@@ -50,7 +48,7 @@ phase exposes only the CLI.
 | Index Vault | `vg index`, `vg index --vault-id ID`, `vg index --all-vaults`, `vg index --full`, `vg index --dry-run` | - | - | Index revision, change plan, warnings |
 | Watch Vault | `vg watch` | - | - | Continuous index refresh |
 | Check Status | `vg status` | `check_index_status(scope=None)` | - | Vault IDs/paths, backend health, schema compatibility, freshness, warnings |
-| Ask Vault | `vg ask "question"` | `ask_vault(question, mode="evidence-first", scope=None)` | - | Answer, evidence, inferred links, warnings |
+| Ask Vault | `vg ask "question"` | `ask_vault(question, mode="evidence-first", scope=None)` | - | Answer, claims, evidence, reasoning trace, warnings |
 | Search Vault | `vg search "query"` | `search_vault(query, scope=None, limit=10)` | document/page/source resources | Ranked evidence-linked results |
 | Find Related Items | `vg related TARGET` | `find_related(target, scope=None, depth=1, kinds=None)` | `vault://{vault_id}/graph/entities/{id}` | Related entities, paths, evidence |
 | Trace Decision | `vg decision-trace TOPIC` | `get_decision_trace(decision_or_topic, scope=None)` | `vault://{vault_id}/decisions/{id}` | Decision, context, alternatives, tradeoffs |
@@ -62,7 +60,7 @@ phase exposes only the CLI.
 | Serve MCP | `vg serve --mcp` | - | all MCP resources | MCP server for agents |
 | Serve HTTP | `vg serve --http` | - | - | HTTP access surface |
 
-## Phase 2 User-Facing Slices
+## Retrieval Features
 
 Phase 2 exposes search in slices. Phase 2A is internal contract readiness only.
 User-facing vector status arrives in Phase 2B, and user-facing search arrives in
@@ -79,7 +77,7 @@ Graph-based expansion joins search after Phase 3. Until then, hybrid retrieval
 means keyword plus vector retrieval with graph-ready result fields and
 per-signal explanations.
 
-## Phase 3 User-Facing Slices
+## Graph Features
 
 Phase 3 exposes graph behavior in small, evidence-first slices. Graph records
 remain derived projections over Vault metadata; graph commands must resolve
@@ -95,7 +93,7 @@ Default `vg search "query"` stays keyword/vector evidence search until graph
 relevance is proven through focused tests. Users must opt into graph expansion
 with an explicit graph command or flag.
 
-## Phase 4 User-Facing Slices
+## Context Pack Features
 
 Phase 4 exposes context packs as bounded, evidence-linked working briefs.
 Context packs are not answers and are not durable Vault knowledge.
@@ -109,22 +107,53 @@ Markdown context output is a rendering view over canonical JSON. Users must opt
 into graph expansion with `--include-graph`; plain `vg context "goal"` uses
 keyword/vector retrieval only.
 
-## Phase 5 User-Facing Slices
+## MCP Adapter Features
 
-Phase 5 exposes the existing Vault Graph services through MCP for local agents.
-MCP is an adapter over the same evidence-first services used by CLI commands;
-it does not add answer synthesis, memory projections, or Vault publication.
+Phase 5 introduced the local MCP adapter. MCP remains an adapter over the same
+evidence-first services used by CLI commands; it does not add independent
+retrieval, answer, memory, or Vault publication implementations.
 
 | Slice | User-Facing Change | Explicitly Not Included |
 | --- | --- | --- |
 | Phase 5A | `vg serve --mcp` starts a local stdio MCP server and provides Codex-compatible local configuration examples | Streamable HTTP, authentication, remote hosting, tools that synthesize answers |
 | Phase 5B | MCP resource templates expose read-only indexed Vault documents, pages, sources, graph entities, current context availability, and generated context packs | resource subscriptions, durable context-pack persistence, full-Vault resource dumps |
-| Phase 5C | MCP tools expose service-backed search, context-pack building, related entities, decision traces, and index status; prompts guide common agent workflows | `ask_vault`, Phase 6 memory tools, autonomous wiki updates, LLM clients |
+| Phase 5C | MCP tools expose service-backed search, context-pack building, related entities, decision traces, and index status; prompts guide common agent workflows | answer and memory service implementations delivered by later layers, autonomous wiki updates, LLM clients |
 
-Only service-backed tools are listed in Phase 5. Future roadmap tools such as
-`ask_vault`, `summarize_project_memory`, `get_open_questions`,
-`get_recent_changes`, and `explain_result` become MCP tools only after their
-application services exist.
+Only service-backed tools are registered. `ask_vault` and the memory projection
+tools are registered because their backing application services now exist.
+Future MCP tools must follow the same rule and stay out of the surface until a
+stable application-service boundary exists.
+
+## Evidence-First Ask And Reasoning
+
+`vg ask` and `ask_vault` are current core product capabilities. They make
+Vault Graph useful when a user wants a reasoned answer rather than a search
+result list or a context pack.
+
+The user-facing value is:
+
+- ask a natural-language question against one Vault or an explicit Vault scope
+- receive a concise answer grounded in original Vault evidence
+- see which claims are directly supported, inferred, partial, unsupported, or
+  missing
+- inspect the evidence and reasoning trace behind the answer
+- receive warnings for stale, missing, contested, deprecated, or conflicting
+  evidence
+- receive safe durable follow-up guidance when new knowledge should be captured
+  through Vault's normal workflow
+
+The implementation value is:
+
+- reuse existing search, graph, decision-trace, context-pack, explanation, and
+  memory projection services
+- keep `AnswerService` as the deep application boundary for CLI, MCP, and later
+  HTTP adapters
+- keep `EvidencePlanner` responsible for selecting evidence-gathering steps
+- keep `AnswerComposer` responsible for composing the answer from resolved
+  evidence
+- keep `CitationGuard` responsible for preventing unsupported claims from
+  appearing as normal answer facts
+- avoid introducing a writable memory database or a second source of truth
 
 ## CLI Features
 
@@ -236,15 +265,35 @@ vg ask "Why did we adopt GraphRAG?"
 vg ask --vault-id main "Why did we adopt GraphRAG?"
 ```
 
-Asks a natural-language question against Vault-derived knowledge.
+Asks a natural-language question against Vault-derived knowledge. This is the
+implemented answer workflow over the existing evidence-first services.
+
+The command calls the same `AnswerService` used by MCP and later HTTP
+adapters. It must not read stores directly, mutate Vault files, run indexing,
+download models, or create a writable memory layer.
 
 The answer should separate:
 
 - answer
+- claim status: supported, partial, inferred, unsupported, or missing
 - evidence
 - inferred links
+- reasoning trace
 - warnings
 - suggested durable follow-up
+
+Expected behavior:
+
+- uses the active Vault by default
+- supports `--vault-id` for scoped answering
+- uses existing search, graph, decision-trace, context-pack, and memory
+  projection services where available
+- cites every major answer claim or labels it as unsupported or partial
+- returns `insufficient_evidence` instead of inventing missing facts
+- carries `vault_id`, document/chunk identity, store revisions, and freshness
+  status in evidence metadata
+- suggests a safe Vault workflow or indexing command when the answer exposes
+  missing evidence, stale projections, or useful publication candidates
 
 ### Related
 
@@ -336,9 +385,10 @@ the `QueryScope` used when it was created.
 
 ## MCP Tools
 
-The feature matrix lists the full roadmap. Phase 5 registers only tools backed
-by existing application services. Tools that require answer synthesis or Phase 6
-memory projections are deferred instead of being listed before they work.
+The feature matrix lists the product surface. MCP registers only tools backed by
+existing application services. Tools that require answer synthesis or memory
+projections are listed only when their backing services exist or are the next
+implementation target.
 
 ### `search_vault(query, scope=None, limit=10)`
 
@@ -346,8 +396,9 @@ Searches Vault-derived indexes and returns ranked, evidence-linked results.
 The optional `scope` is a `QueryScope`; without it, search uses the active Vault
 only. Cross-Vault retrieval must be explicit.
 
-This is the future MCP binding over the same search service. Phase 2C exposes
-the CLI command only; MCP serving remains a later phase.
+This MCP tool uses the same search service as the CLI. The historical Phase 2C
+slice introduced the CLI surface first; the MCP adapter exposes the service
+after the MCP layer is enabled.
 
 The Phase 2C CLI surface is:
 
@@ -383,9 +434,28 @@ appear as top-level warnings.
 
 Answers a natural-language question with cited evidence.
 
-The default mode should prefer inspectable evidence over fluent unsupported
-synthesis. The optional `scope` is a `QueryScope`; without it, the active Vault
-is used.
+The default mode prefers inspectable evidence over fluent unsupported synthesis.
+The optional `scope` is a `QueryScope`; without it, the active Vault is used.
+Cross-Vault answering requires explicit scope.
+
+Expected response fields:
+
+- `answer_id`
+- `question`
+- `scope`
+- `answer`
+- `answer_status`: `supported`, `partial`, or `insufficient_evidence`
+- `claims`
+- `evidence`
+- `reasoning_trace`
+- `warnings`
+- `suggested_follow_up`
+- `generated_at`
+
+`ask_vault` does not own memory storage. It composes existing read-only
+services and returns a cited answer plus reasoning trace. If a later LLM-backed
+composer is added, it must sit behind the same answer contract and pass the same
+citation guard.
 
 ### `find_related(target, scope=None, depth=1, kinds=None)`
 
@@ -611,10 +681,10 @@ Planned views:
 
 These views should not create a second source of truth. They should display
 Vault-derived context, evidence, warnings, and durable follow-up suggestions.
-Local HTTP serving is a future adapter task and is not required to define the
-Phase 7B and 7C view contracts.
-`Ask Project` and answer synthesis move to a future phase after `ask_vault`,
-LLM adapter policy, and citation guarantees are explicitly designed.
+Local HTTP serving remains a separate adapter task and is not required to define
+the Phase 7B and 7C view contracts. If the UI later surfaces ask results, it
+must call `AnswerService` and render the existing answer, evidence, warnings,
+and claim-status contract instead of creating an independent answer engine.
 
 ## User-Visible Guarantees
 

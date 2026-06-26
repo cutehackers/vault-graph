@@ -12,6 +12,7 @@ from vault_graph.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES
 runner = CliRunner()
 
 EXPECTED_PHASE_6C_TOOLS = {
+    "ask_vault",
     "search_vault",
     "build_context_pack",
     "find_related",

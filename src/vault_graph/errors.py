@@ -38,6 +38,18 @@ class ContextPackError(VaultGraphError):
     """Raised when context pack contracts are violated."""
 
 
+class AnswerError(VaultGraphError):
+    """Raised when answer planning, composition, or validation cannot safely complete."""
+
+
+class McpConfigError(VaultGraphError):
+    """Raised when explicit MCP config rendering or registration cannot complete."""
+
+
+class SetupError(VaultGraphError):
+    """Raised when one-command setup cannot proceed safely."""
+
+
 class ResultExplanationError(VaultGraphError):
     """Raised when result explanation contracts are violated or unavailable."""
 

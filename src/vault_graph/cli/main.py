@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import typer
 
@@ -11,6 +11,7 @@ from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.app.graph_retrieval_service import GraphRetrievalService
 from vault_graph.app.index_service import IndexService, StatusReport
+from vault_graph.app.local_index_service_factory import LocalIndexServiceFactory
 from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.context import (
     DEFAULT_CONTEXT_MAX_TOKENS,
@@ -24,15 +25,7 @@ from vault_graph.context import (
 )
 from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
 from vault_graph.errors import (
-    CatalogError,
-    ContextPackError,
-    GraphIndexingError,
-    GraphStoreError,
-    KeywordIndexError,
-    ReadOnlyBoundaryError,
-    SearchError,
-    TextEmbeddingsError,
-    VectorStoreError,
+    VaultGraphError,
 )
 from vault_graph.graph.graph_contracts import (
     EntityRecord,
@@ -60,15 +53,18 @@ from vault_graph.retrieval import (
 )
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
-from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
-from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore
+
+if TYPE_CHECKING:
+    from vault_graph.app.answer_service import AnswerService
 
 app = typer.Typer(no_args_is_help=True)
 vault_app = typer.Typer(no_args_is_help=True)
+mcp_app = typer.Typer(no_args_is_help=True)
 app.add_typer(vault_app, name="vault")
+app.add_typer(mcp_app, name="mcp")
 
 
 def _catalog(state: Path) -> tuple[CatalogService, VaultCatalog]:
@@ -78,45 +74,11 @@ def _catalog(state: Path) -> tuple[CatalogService, VaultCatalog]:
 
 
 def _service(state: Path, *, initialize_store: bool) -> tuple[CatalogService, VaultCatalog, IndexService]:
-    config, catalog = _catalog(state)
-    if initialize_store:
-        config.assert_write_target_safe(target_path=config.metadata_path, catalog=catalog)
-        config.assert_write_target_safe(target_path=config.vector_path, catalog=catalog)
-        config.assert_write_target_safe(target_path=config.vector_status_path, catalog=catalog)
-        config.assert_write_target_safe(target_path=config.graph_path, catalog=catalog)
-        config.assert_write_target_safe(target_path=config.graph_status_path, catalog=catalog)
-        config.assert_cache_target_safe(target_path=config.embedding_cache_path, catalog=catalog)
-    metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=initialize_store)
-    text_embeddings = _text_embeddings(config)
-    graph_store = (
-        SQLiteGraphStore.open_writable(config.graph_path)
-        if initialize_store
-        else SQLiteGraphStore.open_read_only(config.graph_path)
+    bundle = LocalIndexServiceFactory(text_embeddings_factory=_text_embeddings).open(
+        state_path=state,
+        initialize_store=initialize_store,
     )
-    return (
-        config,
-        catalog,
-        IndexService(
-            catalog=catalog,
-            metadata_store=metadata_store,
-            vector_store=ChromaVectorStore(
-                config.vector_path, initialize=initialize_store, read_only=not initialize_store
-            ),
-            text_embeddings=text_embeddings,
-            vector_status_store=LocalVectorStatusStore(config.vector_status_path),
-            embedding_batch_size=text_embeddings.config.embedding_batch_size,
-            embedding_parallelism=text_embeddings.config.embedding_parallelism,
-            embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
-            graph_store=graph_store,
-            graph_extraction_spec=current_graph_extraction_spec(),
-            graph_status_store=LocalGraphStatusStore(config.graph_status_path),
-            graph_readiness=ReadOnlyGraphReadiness(
-                metadata_store=metadata_store,
-                graph_store=graph_store,
-                expected_spec=current_graph_extraction_spec(),
-            ),
-        ),
-    )
+    return bundle.catalog_service, bundle.catalog, bundle.index_service
 
 
 def _search_service(
@@ -246,6 +208,29 @@ def _graph_retrieval_service(state: Path) -> tuple[CatalogService, VaultCatalog,
     )
 
 
+def _answer_service(
+    state: Path,
+    *,
+    include_graph: bool = False,
+) -> tuple[CatalogService, VaultCatalog, AnswerService]:
+    from vault_graph.answer.answer_composer import ExtractiveAnswerComposer
+    from vault_graph.answer.citation_guard import CitationGuard
+    from vault_graph.answer.evidence_planner import EvidencePlanner
+    from vault_graph.app.answer_service import AnswerService
+
+    config, catalog, retrieval_service = _search_service(state, include_graph=include_graph)
+    graph_service = _graph_retrieval_service(state)[2] if include_graph else None
+    return (
+        config,
+        catalog,
+        AnswerService(
+            planner=EvidencePlanner(retrieval_service=retrieval_service, graph_service=graph_service),
+            composer=ExtractiveAnswerComposer(),
+            citation_guard=CitationGuard(),
+        ),
+    )
+
+
 def _text_embeddings(config: CatalogService) -> FastEmbedTextEmbeddings:
     return FastEmbedTextEmbeddings(config=FastEmbedTextEmbeddingsConfig(cache_dir=config.embedding_cache_path))
 
@@ -293,6 +278,104 @@ def vault_list(state: Path = typer.Option(Path(".vault-graph"), "--state", help=
     for entry in catalog.entries():
         active = " active" if entry.vault_id == catalog.active_vault_id else ""
         typer.echo(f"{entry.vault_id}{active} {entry.root_path}")
+
+
+@mcp_app.command("config")
+def mcp_config(
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    agent: str = typer.Option("codex", "--agent", help="Agent config format."),
+    print_config: bool = typer.Option(False, "--print", help="Print config JSON to stdout."),
+) -> None:
+    if not print_config:
+        typer.echo("mcp_config_requires_print")
+        raise typer.Exit(1)
+    from vault_graph.mcp.mcp_config_registration import McpAgent, McpConfigRenderer, McpConfigRequest
+
+    rendered = _exit_on_domain_error(
+        lambda: McpConfigRenderer().render(
+            McpConfigRequest(agent=cast(McpAgent, agent), state_path=state),
+        )
+    )
+    typer.echo(rendered, nl=False)
+
+
+@mcp_app.command("register")
+def mcp_register(
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    agent: str = typer.Option("codex", "--agent", help="Agent config format."),
+    config_path: Path = typer.Option(..., "--config-path", help="Explicit agent MCP config file path."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Report changes without writing config."),
+) -> None:
+    from vault_graph.mcp.mcp_config_registration import McpAgent, McpConfigRegistrar, McpRegistrationRequest
+
+    report = _exit_on_domain_error(
+        lambda: McpConfigRegistrar().register(
+            McpRegistrationRequest(
+                agent=cast(McpAgent, agent),
+                state_path=state,
+                config_path=config_path,
+                dry_run=dry_run,
+            )
+        )
+    )
+    typer.echo(f"agent: {report.agent}")
+    typer.echo(f"config_path: {report.config_path}")
+    typer.echo(f"server_name: {report.server_name}")
+    typer.echo(f"changed: {report.changed}")
+    typer.echo(f"dry_run: {report.dry_run}")
+    if report.backup_path is not None:
+        typer.echo(f"backup_path: {report.backup_path}")
+
+
+@app.command()
+def setup(
+    vault: Path = typer.Option(..., "--vault", help="Vault repository root."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--state", help="Vault Graph state path."),
+    vault_id: str = typer.Option("default", "--vault-id", help="Registered Vault ID."),
+    agent: str | None = typer.Option("codex", "--agent", help="Agent config format."),
+    mcp_config_path: Path | None = typer.Option(None, "--mcp-config-path", help="Explicit agent MCP config path."),
+    print_mcp_config: bool = typer.Option(False, "--print-mcp-config", help="Print MCP config JSON."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Report setup without writing state."),
+) -> None:
+    from vault_graph.app.setup_service import SetupRequest, SetupService
+    from vault_graph.mcp.mcp_config_registration import McpAgent
+
+    report = _exit_on_domain_error(
+        lambda: SetupService().setup(
+            SetupRequest(
+                vault_path=vault,
+                state_path=state,
+                vault_id=vault_id,
+                agent=cast(McpAgent, agent) if agent is not None else None,
+                mcp_config_path=mcp_config_path,
+                print_mcp_config=print_mcp_config,
+                dry_run=dry_run,
+            )
+        )
+    )
+    typer.echo(f"state: {report.state_path}")
+    typer.echo(f"vault_id: {report.vault_id}")
+    typer.echo(f"vault_path: {report.vault_path}")
+    typer.echo(f"created_catalog: {report.created_catalog}")
+    typer.echo(f"indexed: {report.indexed}")
+    typer.echo(f"dry_run: {report.dry_run}")
+    if report.index_report is not None:
+        typer.echo(f"index_revision: {report.index_report.metadata.index_revision}")
+        typer.echo(f"changed: {len(report.index_report.metadata.changed_paths)}")
+        typer.echo(f"unchanged: {len(report.index_report.metadata.unchanged_paths)}")
+        typer.echo(f"deleted: {len(report.index_report.metadata.deleted_paths)}")
+    if report.mcp_registration is not None:
+        typer.echo(f"mcp_config_path: {report.mcp_registration.config_path}")
+        typer.echo(f"mcp_changed: {report.mcp_registration.changed}")
+        if report.mcp_registration.backup_path is not None:
+            typer.echo(f"mcp_backup_path: {report.mcp_registration.backup_path}")
+    for warning in report.warnings:
+        typer.echo(f"warning: {warning}")
+    if report.mcp_config is not None:
+        typer.echo("mcp_config:")
+        typer.echo(report.mcp_config, nl=False)
+    if report.index_report is not None and report.index_report.exit_code:
+        raise typer.Exit(report.index_report.exit_code)
 
 
 @app.command()
@@ -364,6 +447,70 @@ def index(
             typer.echo(f"graph_warning: {warning}")
     if report.exit_code:
         raise typer.Exit(report.exit_code)
+
+
+@app.command()
+def ask(
+    question: str = typer.Argument(..., help="Natural-language question."),
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    vault_id: str | None = typer.Option(None, "--vault-id", help="Ask one registered Vault ID."),
+    all_vaults: bool = typer.Option(False, "--all-vaults", help="Ask all enabled registered Vaults."),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+    include_graph: bool = typer.Option(False, "--include-graph", help="Include explicit graph retrieval signals."),
+    include_cross_vault: bool = typer.Option(
+        False,
+        "--include-cross-vault",
+        help="Include explicit cross-Vault graph relationships.",
+    ),
+    limit: int = typer.Option(10, "--limit", help="Maximum retrieval results before answer composition."),
+    max_evidence_tokens: int = typer.Option(8000, "--max-evidence-tokens", help="Estimated evidence token budget."),
+) -> None:
+    if not question.strip():
+        typer.echo("empty_question")
+        raise typer.Exit(1)
+    if all_vaults and vault_id:
+        typer.echo("Use either --vault-id or --all-vaults, not both.")
+        raise typer.Exit(1)
+    if include_cross_vault and not (include_graph and all_vaults):
+        typer.echo("include_cross_vault_requires_multi_vault_graph_scope")
+        raise typer.Exit(1)
+    if output_format not in {"text", "json"}:
+        typer.echo("unsupported_format")
+        raise typer.Exit(1)
+    from vault_graph.answer.answer_plan import AnswerRequest
+    from vault_graph.answer.answer_renderer import DefaultAnswerRenderer
+
+    _, catalog, service = _exit_on_domain_error(lambda: _answer_service(state, include_graph=include_graph))
+    if all_vaults:
+        scope = _exit_on_domain_error(catalog.scope_for_all_enabled)
+    elif vault_id is not None:
+        selected_vault_id = vault_id
+        scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids([selected_vault_id]))
+    else:
+        scope = _exit_on_domain_error(catalog.default_scope)
+    if include_cross_vault:
+        scope = QueryScope(
+            vault_ids=scope.vault_ids,
+            content_scopes=scope.content_scopes,
+            include_cross_vault=True,
+        )
+    response = _exit_on_domain_error(
+        lambda: service.ask(
+            AnswerRequest(
+                question=question,
+                requested_scope=scope,
+                include_graph=include_graph,
+                include_cross_vault=include_cross_vault,
+                retrieval_limit=limit,
+                max_evidence_tokens=max_evidence_tokens,
+            )
+        )
+    )
+    renderer = DefaultAnswerRenderer()
+    if output_format == "json":
+        typer.echo(renderer.render_json(response), nl=False)
+    else:
+        typer.echo(renderer.render_text(response), nl=False)
 
 
 @app.command()
@@ -583,6 +730,47 @@ def decision_trace(
 
 
 @app.command()
+def watch(
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    vault_id: str | None = typer.Option(None, "--vault-id", help="Watch one registered Vault ID."),
+    all_vaults: bool = typer.Option(False, "--all-vaults", help="Watch all enabled registered Vaults."),
+    interval: float = typer.Option(5.0, "--interval", help="Polling interval in seconds."),
+    full: bool = typer.Option(False, "--full", help="Run full indexing each iteration."),
+) -> None:
+    if all_vaults and vault_id:
+        typer.echo("Use either --vault-id or --all-vaults, not both.")
+        raise typer.Exit(1)
+    if interval <= 0:
+        typer.echo("watch_interval_must_be_positive")
+        raise typer.Exit(1)
+    from vault_graph.app.watch_service import WatchService
+
+    _, catalog = _exit_on_domain_error(lambda: _catalog(state))
+    if all_vaults:
+        scope = _exit_on_domain_error(catalog.scope_for_all_enabled)
+    elif vault_id is not None:
+        selected_vault_id = vault_id
+        scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids([selected_vault_id]))
+    else:
+        scope = _exit_on_domain_error(catalog.default_scope)
+    report = _exit_on_domain_error(
+        lambda: WatchService(state_path=state).run(scope=scope, interval_seconds=interval, full=full)
+    )
+    for iteration in report.iterations:
+        typer.echo(f"iteration: {iteration.iteration}")
+        typer.echo(f"index_revision: {iteration.index_revision}")
+        typer.echo(f"changed: {iteration.changed}")
+        typer.echo(f"unchanged: {iteration.unchanged}")
+        typer.echo(f"deleted: {iteration.deleted}")
+        typer.echo(f"vector_failed: {iteration.vector_failed}")
+        typer.echo(f"graph_failed: {iteration.graph_failed}")
+    if report.interrupted:
+        typer.echo("interrupted: True")
+    if report.exit_code:
+        raise typer.Exit(report.exit_code)
+
+
+@app.command()
 def status(
     state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Report one registered Vault ID."),
@@ -662,22 +850,28 @@ def status(
 def serve(
     state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
     mcp: bool = typer.Option(False, "--mcp", help="Start the local stdio MCP server."),
-    http: bool = typer.Option(False, "--http", help="Reserved for a future HTTP server."),
+    http: bool = typer.Option(False, "--http", help="Start the local read-only HTTP server."),
+    host: str = typer.Option("127.0.0.1", "--host", help="HTTP bind host. Only 127.0.0.1 is supported."),
+    port: int = typer.Option(8765, "--port", help="HTTP bind port."),
 ) -> None:
     if mcp and http:
         typer.echo("Use either --mcp or --http, not both.", err=True)
         raise typer.Exit(1)
     if http:
-        typer.echo("http_transport_not_supported_in_phase_5a", err=True)
-        raise typer.Exit(1)
+        from vault_graph.http.http_errors import HttpServerConfig
+        from vault_graph.http.http_server import run_http_server
+
+        http_config = _exit_on_domain_error_stderr(lambda: HttpServerConfig(state_path=state, host=host, port=port))
+        _exit_on_domain_error_stderr(lambda: run_http_server(http_config))
+        return
     if not mcp:
-        typer.echo("select one server transport: --mcp", err=True)
+        typer.echo("select one server transport: --mcp or --http", err=True)
         raise typer.Exit(1)
     from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server, run_mcp_server
 
-    config = _exit_on_domain_error_stderr(lambda: McpServerConfig(state_path=state))
-    registered = _exit_on_domain_error_stderr(lambda: create_mcp_server(config))
-    _exit_on_domain_error_stderr(lambda: run_mcp_server(registered, config=config))
+    mcp_config = _exit_on_domain_error_stderr(lambda: McpServerConfig(state_path=state))
+    registered = _exit_on_domain_error_stderr(lambda: create_mcp_server(mcp_config))
+    _exit_on_domain_error_stderr(lambda: run_mcp_server(registered, config=mcp_config))
 
 
 def _render_search_response(response: SearchResponse) -> None:
@@ -1121,17 +1315,7 @@ def _warning_json(warning: SearchWarning) -> dict[str, object]:
 def _exit_on_domain_error[T](operation: Callable[[], T]) -> T:
     try:
         return operation()
-    except (
-        CatalogError,
-        ContextPackError,
-        GraphIndexingError,
-        GraphStoreError,
-        KeywordIndexError,
-        ReadOnlyBoundaryError,
-        SearchError,
-        TextEmbeddingsError,
-        VectorStoreError,
-    ) as exc:
+    except VaultGraphError as exc:
         typer.echo(str(exc))
         raise typer.Exit(1) from exc
 
@@ -1139,16 +1323,6 @@ def _exit_on_domain_error[T](operation: Callable[[], T]) -> T:
 def _exit_on_domain_error_stderr[T](operation: Callable[[], T]) -> T:
     try:
         return operation()
-    except (
-        CatalogError,
-        ContextPackError,
-        GraphIndexingError,
-        GraphStoreError,
-        KeywordIndexError,
-        ReadOnlyBoundaryError,
-        SearchError,
-        TextEmbeddingsError,
-        VectorStoreError,
-    ) as exc:
+    except VaultGraphError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc

@@ -165,6 +165,7 @@ class RecordingFactory:
         self.project_memory_service = RecordingProjectMemoryService()
         self.issue_memory_service = RecordingIssueMemoryService()
         self.health_explorer_service = RecordingHealthExplorerService()
+        self.answer_service: object | None = None
         self.status_calls = 0
         self.graph_calls = 0
         self.retrieval_calls = 0
@@ -172,6 +173,7 @@ class RecordingFactory:
         self.project_memory_calls = 0
         self.issue_memory_calls = 0
         self.health_calls = 0
+        self.answer_calls = 0
 
     def open_status_service(self) -> RecordingStatusService:
         self.status_calls += 1
@@ -203,6 +205,12 @@ class RecordingFactory:
         self.health_calls += 1
         return self.health_explorer_service
 
+    def open_answer_service(self, *, include_graph: bool = False) -> object:
+        del include_graph
+        self.answer_calls += 1
+        assert self.answer_service is not None
+        return self.answer_service
+
 
 def test_register_mcp_tools_registers_exact_phase_6c_tools(tmp_path: Path) -> None:
     server = RecordingToolServer()
@@ -216,6 +224,7 @@ def test_register_mcp_tools_registers_exact_phase_6c_tools(tmp_path: Path) -> No
     )
 
     assert registry.tool_names == (
+        "ask_vault",
         "search_vault",
         "build_context_pack",
         "find_related",
@@ -228,12 +237,14 @@ def test_register_mcp_tools_registers_exact_phase_6c_tools(tmp_path: Path) -> No
     )
     assert tuple(server.tools) == registry.tool_names
     assert all(server.structured_output[name] is True for name in registry.tool_names)
-    assert "ask_vault" not in server.tools
 
 
 @pytest.mark.parametrize(
     ("tool_name", "kwargs"),
     [
+        ("ask_vault", {"question": "   "}),
+        ("ask_vault", {"question": "q", "mode": "freeform"}),
+        ("ask_vault", {"question": "q", "max_evidence_tokens": 999}),
         ("search_vault", {"query": "   "}),
         ("build_context_pack", {"goal": ""}),
         ("find_related", {"target": "", "depth": 1}),

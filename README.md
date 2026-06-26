@@ -1,6 +1,6 @@
 # Vault Graph
 
-Status: Draft
+Status: Active local development
 
 Vault Graph is a read-only, rebuildable knowledge access layer over Vault.
 
@@ -12,190 +12,168 @@ Vault remains the source of truth. Vault Graph reads, indexes, retrieves, and
 explains Vault-derived context. It does not publish wiki pages, mutate raw
 sources, edit Vault documents, or replace Vault's validation workflow.
 
-## Installation
+## Install
 
-<!-- Installation details will be added after the supported install path is decided. -->
+Prerequisites:
 
-## User Interfaces
+- Python 3.12+
+- [`uv`](https://docs.astral.sh/uv/)
 
-Vault Graph is designed to expose three user-facing interfaces:
-
-- CLI for local commands and direct human use
-- MCP for Codex, Claude, Cursor, OpenCode, and custom agents
-- HTTP for custom clients and optional UI surfaces
-
-For the full user-facing feature catalog, see
-[`docs/FEATURES.md`](docs/FEATURES.md).
-
-For architecture and storage contracts, see [`docs/SPEC.md`](docs/SPEC.md).
-For the Phase 2 search slices, see the roadmap in [`docs/SPEC.md`](docs/SPEC.md)
-and the user-facing slice table in [`docs/FEATURES.md`](docs/FEATURES.md).
-
-## Interface Preview
-
-This section previews the intended product interface across phases. Phase 2A is
-internal contract work only; vector status appears in Phase 2B and `vg search`
-appears in Phase 2C.
-
-### Initialize
+Current source-checkout install:
 
 ```bash
-vg init --vault /path/to/vault
-vg init --vault-id main --vault /path/to/vault
-vg vault add work --path /path/to/other-vault
-vg vault list
+git clone git@me.github.com:cutehackers/vault-graph.git
+cd vault-graph
+uv sync
+uv run --python 3.12 vg --help
 ```
 
-Configure one or more Vault roots and the Vault Graph state location. If no
-Vault ID is provided, `vg init --vault /path/to/vault` creates the active entry
-with `vault_id: default`.
-
-Commands that support Vault selection use the active Vault by default.
-`--vault-id ID` selects one Vault. `--all-vaults` expands to all enabled Vault
-IDs and must make that selection visible in output.
-
-### Index
+Optional local command install from this checkout:
 
 ```bash
-vg index
-vg index --vault-id main
-vg index --all-vaults
-vg index --full
-vg index --dry-run
+uv tool install -e .
+vg --help
 ```
 
-Build or refresh Vault-derived projections as each phase is implemented:
-metadata first, then vector search, then graph records. The dry-run mode shows
-the planned indexing changes before mutation of Vault Graph state. Indexing
-must not mutate Vault files.
-
-### Watch
+PyPI registration is not required to use the current source checkout. It becomes
+necessary only when Vault Graph wants to promise this public install path:
 
 ```bash
+uv tool install vault-graph
+```
+
+Do not advertise the PyPI command as the primary install path until the package
+has been published.
+
+## Quick Start
+
+Keep Vault Graph state outside your Vault:
+
+```bash
+vg init --vault /path/to/llm-wiki --state ~/.vault-graph
+vg index --state ~/.vault-graph
+vg status --state ~/.vault-graph
+vg search --state ~/.vault-graph "GraphRAG"
+vg context --state ~/.vault-graph "Implement GraphRAG MVP"
+```
+
+The first index builds local metadata, keyword, vector, and graph projections.
+Vault Graph uses local storage and local embeddings by default; it does not
+require hosted services for normal use.
+
+## Common Commands
+
+| Goal | Command |
+| --- | --- |
+| Register a Vault | `vg init --vault /path/to/llm-wiki --state ~/.vault-graph` |
+| Add another Vault | `vg vault add work --path /path/to/other-vault --state ~/.vault-graph` |
+| List Vaults | `vg vault list --state ~/.vault-graph` |
+| Index the active Vault | `vg index --state ~/.vault-graph` |
+| Index one Vault | `vg index --vault-id work --state ~/.vault-graph` |
+| Index all Vaults | `vg index --all-vaults --state ~/.vault-graph` |
+| Check health | `vg status --state ~/.vault-graph` |
+| Search evidence | `vg search --state ~/.vault-graph "query"` |
+| Include graph signals | `vg search --include-graph --state ~/.vault-graph "query"` |
+| Ask with evidence | `vg ask --state ~/.vault-graph "question"` |
+| Build a context pack | `vg context --state ~/.vault-graph "goal"` |
+| Find related items | `vg related --state ~/.vault-graph GraphRAG` |
+| Trace a decision | `vg decision-trace --state ~/.vault-graph GraphRAG` |
+
+Commands that accept `--vault-id` operate on one registered Vault. Commands that
+accept `--all-vaults` expand to all enabled registered Vaults. Commands without
+either option use the active Vault.
+
+## Connect An Agent Through MCP
+
+MCP server installation and MCP server registration are different things:
+
+- installation makes the `vg` command available
+- registration tells an agent how to start `vg serve --mcp`
+
+After indexing your Vault, register this stdio server in the agent's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "vault-graph": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--python",
+        "3.12",
+        "vg",
+        "serve",
+        "--mcp",
+        "--state",
+        "/path/to/.vault-graph"
+      ]
+    }
+  }
+}
+```
+
+The current Codex-style example lives at
+[`docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json`](docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json).
+
+Once connected, the agent can use these MCP tools:
+
+- `search_vault`
+- `build_context_pack`
+- `find_related`
+- `get_decision_trace`
+- `check_index_status`
+- `explain_result`
+- `summarize_project_memory`
+- `get_open_questions`
+- `get_recent_changes`
+- `ask_vault`
+
+Vault Graph provides evidence-first working context and evidence-first answers
+through `ask_vault` and `vg ask`.
+
+## Recommended Easy Setup
+
+The accepted onboarding target is a one-command setup flow:
+
+```bash
+vg setup --vault /path/to/llm-wiki --agent codex
+```
+
+This command:
+
+- uses `~/.vault-graph` as the default state path when `--state` is omitted
+- registers the Vault path
+- runs indexing
+- prepares MCP registration for the selected agent
+- prints the MCP server command or writes it only to an explicit agent config path
+
+The lower-level MCP commands should remain available for explicit control:
+
+```bash
+vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
+vg mcp config --agent codex --state ~/.vault-graph --print
+```
+
+These commands are implemented product features. Their implementation design
+lives at
+[`docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`](docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md):
+
+```bash
+vg setup --vault /path/to/llm-wiki --agent codex
+vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
+vg mcp config --agent codex --state ~/.vault-graph --print
 vg watch
-```
-
-Watch Vault changes and keep indexes fresh.
-
-### Status
-
-```bash
-vg status
-```
-
-Show configured Vault IDs and paths, backend health, schema compatibility, index
-freshness, projection freshness, and warnings.
-
-### Search
-
-```bash
-vg search "GraphRAG"
-vg search --vault-id main "GraphRAG"
-vg search --all-vaults "GraphRAG"
-```
-
-Search returns ranked, evidence-linked results. Phase 2 search starts with
-keyword and vector signals; graph signals are added after graph indexing exists.
-
-### Ask
-
-```bash
-vg ask "Why did we adopt GraphRAG?"
-vg ask --vault-id main "Why did we adopt GraphRAG?"
-```
-
-Ask an evidence-first question against Vault-derived context. Answers should
-separate evidence, inferred links, warnings, and suggested durable follow-up.
-
-### Find Related Context
-
-```bash
-vg related GraphRAG
-vg related --vault-id main GraphRAG
-```
-
-Find documents, decisions, concepts, issues, systems, workflows, and entities
-related to a target topic.
-
-### Build A Context Pack
-
-```bash
-vg context "Implement GraphRAG MVP"
-vg context --vault-id main "Implement GraphRAG MVP"
-```
-
-Generate a scoped JSON or Markdown brief for a human or agent. Context packs are
-working context, not durable knowledge.
-
-### Trace A Decision
-
-```bash
-vg decision-trace GraphRAG
-vg decision-trace --vault-id main GraphRAG
-```
-
-Trace a decision or topic through durable decisions, related evidence, source
-pages, concepts, tradeoffs, and revisit conditions.
-
-### Serve
-
-```bash
-vg serve --mcp
+vg ask "question"
 vg serve --http
 ```
 
-Expose Vault Graph through MCP or HTTP.
-
-## MCP Surface
-
-Initial MCP tools:
-
-- `search_vault(query, scope=None, limit=10)`
-- `ask_vault(question, mode="evidence-first", scope=None)`
-- `find_related(target, scope=None, depth=1, kinds=None)`
-- `get_decision_trace(decision_or_topic, scope=None)`
-- `build_context_pack(goal, scope=None, max_tokens=None)`
-- `summarize_project_memory(scope=None, limit=10)`
-- `get_open_questions(scope=None, limit=20)`
-- `get_recent_changes(since=None, scope=None, limit=20)`
-- `explain_result(result_id)`
-- `check_index_status(scope=None)`
-
-Initial MCP resources:
-
-```text
-vault://{vault_id}/documents/{path}
-vault://{vault_id}/pages/{path}
-vault://{vault_id}/sources/{id}
-vault://{vault_id}/concepts/{name}
-vault://{vault_id}/decisions/{id}
-vault://{vault_id}/issues/{id}
-vault://{vault_id}/timeline/recent
-vault://{vault_id}/context/current
-vault://context/packs/{id}
-vault://{vault_id}/graph/entities/{id}
-```
-
-`vault://context/packs/{id}` is a generated artifact URI. The pack body records
-the `QueryScope` used when it was created.
-
-Initial MCP prompts:
-
-- `generate_codex_brief`
-- `prepare_implementation_context`
-- `review_architecture_decision`
-- `summarize_feature_history`
-- `analyze_project_risk`
-- `prepare_wiki_update_context`
-- `trace_decision_history`
-
 ## Guarantees
 
-Vault Graph user-facing features should preserve these guarantees:
+Vault Graph user-facing features preserve these guarantees:
 
 - read-only access to Vault
 - local-first operation without mandatory hosted services
-- evidence-first answers
+- evidence-first retrieval, context packs, and answers
 - clear separation between stated facts and inferred links
 - warnings for stale, missing, contested, or deprecated material
 - reproducible indexes that can be deleted and rebuilt from Vault
@@ -203,8 +181,8 @@ Vault Graph user-facing features should preserve these guarantees:
 - visible backend health and index freshness status
 - durable knowledge publication only through Vault
 
-## Documentation
+## More Documentation
 
-- [`docs/FEATURES.md`](docs/FEATURES.md): user-facing features and interfaces
-- [`docs/SPEC.md`](docs/SPEC.md): product specification, architecture, storage
-  contracts, indexing rules, and roadmap
+- [`docs/FEATURES.md`](docs/FEATURES.md): user-facing feature catalog
+- [`docs/SPEC.md`](docs/SPEC.md): product specification and architecture
+- [`docs/DESIGN.md`](docs/DESIGN.md): design goals and boundaries

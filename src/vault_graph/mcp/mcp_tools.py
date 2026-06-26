@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from vault_graph.context.context_pack import (
     DEFAULT_CONTEXT_MAX_TOKENS,
@@ -27,6 +27,7 @@ from vault_graph.projection.graph_projection import (
 )
 
 McpToolName = Literal[
+    "ask_vault",
     "search_vault",
     "build_context_pack",
     "find_related",
@@ -100,6 +101,17 @@ def _warning_to_dict(warning: McpErrorPayload) -> dict[str, object]:
         "affected_vault_ids": list(warning.affected_vault_ids),
         "recovery_hint": warning.recovery_hint,
     }
+
+
+@dataclass(frozen=True)
+class AskVaultInput:
+    question: str
+    scope: McpScopeInput | None = None
+    mode: str = "evidence-first"
+    limit: int = 10
+    max_evidence_tokens: int = 8000
+    include_graph: bool = False
+    include_cross_vault: bool = False
 
 
 @dataclass(frozen=True)
@@ -185,6 +197,7 @@ class McpToolRegistry:
         self._result_explanation_cache = result_explanation_cache
         self._explain_result_service = ExplainResultService(cache=result_explanation_cache)
         self.tool_names = (
+            "ask_vault",
             "search_vault",
             "build_context_pack",
             "find_related",
@@ -195,6 +208,48 @@ class McpToolRegistry:
             "get_open_questions",
             "get_recent_changes",
         )
+
+    def ask_vault(self, request: AskVaultInput) -> McpToolBody:
+        try:
+            _validate_ask_vault_request(request)
+            selected_scope = _scope_for_tool(
+                request.scope,
+                catalog=self._services.catalog,
+                allow_graph_cross_vault=request.include_graph,
+            )
+            _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
+            from vault_graph.answer.answer_plan import AnswerRequest
+            from vault_graph.answer.answer_response import AnswerMode
+            from vault_graph.mcp.mcp_answer_serialization import (
+                answer_response_to_payload,
+                explanation_records_for_answer,
+                mcp_warning_from_answer,
+                resource_links_for_answer,
+            )
+
+            answer_service = self._service_factory.open_answer_service(include_graph=request.include_graph)
+            response = answer_service.ask(
+                AnswerRequest(
+                    question=request.question,
+                    requested_scope=selected_scope,
+                    mode=cast(AnswerMode, request.mode),
+                    retrieval_limit=request.limit,
+                    max_evidence_tokens=request.max_evidence_tokens,
+                    include_graph=request.include_graph,
+                    include_cross_vault=request.include_cross_vault,
+                )
+            )
+            records = explanation_records_for_answer(response)
+            body = _tool_body(
+                tool_name="ask_vault",
+                payload=answer_response_to_payload(response),
+                resource_links=resource_links_for_answer(response),
+                warnings=tuple(mcp_warning_from_answer(warning) for warning in response.warnings),
+            )
+            self._result_explanation_cache.put_many(records)
+            return body
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
     def search_vault(self, request: SearchVaultInput) -> McpToolBody:
         try:
@@ -512,6 +567,27 @@ def register_mcp_tools(
         result_explanation_cache=result_explanation_cache,
     )
 
+    @server.tool("ask_vault", structured_output=True)
+    def ask_vault(
+        question: str,
+        scope: dict[str, object] | None = None,
+        mode: str = "evidence-first",
+        limit: int = 10,
+        max_evidence_tokens: int = 8000,
+        include_graph: bool = False,
+        include_cross_vault: bool = False,
+    ) -> dict[str, object]:
+        request = parse_ask_vault_input(
+            question=question,
+            scope=scope,
+            mode=mode,
+            limit=limit,
+            max_evidence_tokens=max_evidence_tokens,
+            include_graph=include_graph,
+            include_cross_vault=include_cross_vault,
+        )
+        return registry.ask_vault(request).to_json_dict()
+
     @server.tool("search_vault", structured_output=True)
     def search_vault(
         query: str,
@@ -652,6 +728,29 @@ def mcp_scope_input_from_raw(
     )
 
 
+def parse_ask_vault_input(
+    *,
+    question: str,
+    scope: dict[str, object] | None = None,
+    mode: str = "evidence-first",
+    limit: int = 10,
+    max_evidence_tokens: int = 8000,
+    include_graph: bool = False,
+    include_cross_vault: bool = False,
+) -> AskVaultInput:
+    request = AskVaultInput(
+        question=_required_string(question, "question"),
+        scope=mcp_scope_input_from_raw(scope, include_cross_vault=include_cross_vault),
+        mode=_required_string(mode, "mode"),
+        limit=_limit(limit),
+        max_evidence_tokens=_evidence_token_budget(max_evidence_tokens),
+        include_graph=_required_bool(include_graph, "include_graph"),
+        include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
+    )
+    _validate_ask_vault_request(request)
+    return request
+
+
 def parse_search_vault_input(
     *,
     query: str,
@@ -784,6 +883,15 @@ def parse_get_recent_changes_input(
 def _validate_search_vault_request(request: SearchVaultInput) -> None:
     _required_string(request.query, "query")
     _limit(request.limit)
+    _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
+
+
+def _validate_ask_vault_request(request: AskVaultInput) -> None:
+    _required_string(request.question, "question")
+    if request.mode != "evidence-first":
+        raise _invalid_arguments("unsupported answer mode")
+    _limit(request.limit)
+    _evidence_token_budget(request.max_evidence_tokens)
     _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
 
 
@@ -942,6 +1050,14 @@ def _limit(value: object) -> int:
         raise _invalid_arguments("limit must be an integer")
     if value < 1 or value > MAX_MCP_TOOL_LIMIT:
         raise _invalid_arguments(f"limit must be between 1 and {MAX_MCP_TOOL_LIMIT}")
+    return value
+
+
+def _evidence_token_budget(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise _invalid_arguments("max_evidence_tokens must be an integer")
+    if value < 1000 or value > 24000:
+        raise _invalid_arguments("max_evidence_tokens must be between 1000 and 24000")
     return value
 
 

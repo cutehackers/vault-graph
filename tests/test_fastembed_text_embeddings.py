@@ -1,4 +1,8 @@
+import sys
+import types
+import warnings
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -8,6 +12,7 @@ from vault_graph.embeddings.fastembed_text_embeddings import (
     SOURCE_MODEL_REVISION,
     FastEmbedTextEmbeddings,
     FastEmbedTextEmbeddingsConfig,
+    _default_backend_factory,
 )
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.errors import TextEmbeddingsError
@@ -120,3 +125,28 @@ def test_fastembed_can_check_local_artifact_without_loading_backend(tmp_path: Pa
 
     assert embeddings.can_embed_without_download() is True
     assert calls == ["resolver"]
+
+
+def test_default_backend_factory_suppresses_known_fastembed_pooling_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = types.ModuleType("fastembed")
+
+    class TextEmbedding:
+        def __init__(self, **_: object) -> None:
+            warnings.warn(
+                "The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling "
+                "instead of CLS embedding.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+    cast(Any, module).TextEmbedding = TextEmbedding
+    monkeypatch.setitem(sys.modules, "fastembed", module)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _default_backend_factory(FastEmbedTextEmbeddingsConfig(cache_dir=tmp_path), tmp_path / "snapshot")
+
+    assert [str(item.message) for item in caught] == []

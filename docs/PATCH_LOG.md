@@ -3,6 +3,180 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-26 - Release Readiness Corrections
+
+**Trigger:** Release-readiness review found stale Ask/MCP status wording,
+incomplete package long-description metadata, generic HTTP explain-result error
+mapping, and noisy FastEmbed pooling warnings during first-run CLI indexing.
+
+**Scope:** Product contract docs, package metadata, HTTP error mapping,
+FastEmbed backend creation, and focused regression tests.
+
+**Core Values Protected:** Kept user-facing docs aligned with implemented
+evidence-first Ask/MCP behavior, preserved stable explainable HTTP error
+contracts, improved local-first CLI ergonomics without hiding domain warnings,
+and avoided inventing unresolved release metadata such as license policy.
+
+**Changes Applied:**
+
+- Updated `SPEC.md`, `FEATURES.md`, `DESIGN.md`, and README wording so
+  `vg ask`, `ask_vault`, result explanation, and memory MCP tools are described
+  as service-backed implemented capabilities rather than future targets.
+- Added README package metadata to `pyproject.toml` for PyPI long-description
+  checks.
+- Mapped HTTP `explain-result` misses to stable
+  `result_explanation_not_found`/404 and blank IDs to `invalid_result_id`/400.
+- Suppressed only FastEmbed's known default-model mean-pooling `UserWarning`
+  during backend creation.
+
+**Verification:**
+
+- `uv run --python 3.12 pytest tests/test_http_server.py::test_http_explain_result_returns_error_for_missing_record tests/test_http_server.py::test_http_explain_result_rejects_blank_result_id -q`
+- `uv run --python 3.12 pytest tests/test_fastembed_text_embeddings.py::test_default_backend_factory_suppresses_known_fastembed_pooling_warning -q`
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src tests`
+- `uv run --python 3.12 pytest -q`
+- `VG_RUN_MCP_STDIO_SMOKE=1 uv run --python 3.12 pytest tests/test_mcp_stdio_smoke.py -q`
+- `rg -n 'next implementation target|next service target|next core product capability|ask_vault is the next|vg ask.*next|should call the same AnswerService|Phase 5 registers only the subset|tools that require answer synthesis|Status: Draft|Future 7A|ask_vault remains|Ask Project is moved|future phase' docs/FEATURES.md docs/SPEC.md docs/DESIGN.md README.md`
+- `uv build`
+- `uv run --python 3.12 --with twine python -m twine check dist/*`
+- fresh wheel install smoke with `vg --help`, `vg ask --help`, and `pip check`
+- tiny Vault smoke with `vg init`, `vg index`, `vg search`, and `vg ask`; stderr
+  checked for known FastEmbed pooling warning text
+
+## 2026-06-26 - HTTP Explain Result Completion
+
+**Trigger:** Final implementation audit found that the CLI TODO plan required
+HTTP `POST /explain-result` to use the explanation service, but the HTTP
+adapter still returned a reserved placeholder response.
+
+**Scope:** HTTP adapter explanation cache wiring, HTTP explanation record
+serialization, MCP cache compatibility wrapper, and HTTP/CLI regression tests.
+
+**Core Values Protected:** Preserved evidence-first explainability across
+adapters, kept HTTP independent from MCP internals, and kept result explanation
+state bounded to rebuildable in-process adapter cache rather than Vault writes.
+
+**Changes Applied:**
+
+- Added an app-level `ResultExplanationCache` under `vault_graph.memory`.
+- Kept the existing MCP cache import path as a compatibility wrapper.
+- Added HTTP explanation record serializers for search, context, graph, and
+  ask responses without importing `vault_graph.mcp`.
+- Changed HTTP `POST /explain-result` to call `ExplainResultService`.
+- Added CLI setup/watch smoke tests and HTTP explanation route tests.
+
+**Verification:**
+
+- `uv run --python 3.12 ruff check src tests`
+- `uv run --python 3.12 mypy src tests`
+- `uv run --python 3.12 pytest -q`
+- `uv run --python 3.12 vg --help`
+- `uv run --python 3.12 vg ask --help`
+- `uv run --python 3.12 vg setup --help`
+- `uv run --python 3.12 vg watch --help`
+- `uv run --python 3.12 vg serve --help`
+- `uv run --python 3.12 vg setup --vault "$tmpdir/vault" --state "$tmpdir/state" --dry-run --print-mcp-config`
+- `uv run --python 3.12 vg serve --http --host 0.0.0.0`
+- `rg -n "CLI TODO|not current commands|not part of the current CLI|http_transport_not_supported_in_phase_5a|ask is not present|HTTP Adapter TODO|reserved transport|result_explanation_not_available" README.md docs/SPEC.md docs/FEATURES.md tests src`
+
+## 2026-06-25 - Ask Design Reference Alignment
+
+**Trigger:** While writing the implementation-ready Ask SPEC, self-review found
+that the previous CLI TODO design still contained a preliminary answer DTO and
+`DESIGN.md` still had historical Phase 3 wording that could be read as
+excluding the now-approved `vg ask` target.
+
+**Scope:** `docs/SPEC.md`, `docs/DESIGN.md`,
+`docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`,
+and the new Ask design SPEC.
+
+**Core Values Protected:** Kept one canonical answer contract, preserved
+service-backed CLI/MCP parity, and avoided shallow duplicated DTOs that could
+drift from evidence-first citation rules.
+
+**Changes Applied:**
+
+- Added the canonical Ask design reference to `SPEC.md`.
+- Reworded the historical CLI note in `DESIGN.md` so it no longer conflicts
+  with the accepted Ask implementation target.
+- Replaced the preliminary CLI TODO answer DTO with a reference to the new
+  answer-layer SPEC and `AnswerService.ask(...)` flow.
+
+**Verification:**
+
+- `git diff --check`
+- `uv run --python 3.12 vg --help`
+- `rg -n 'support_level|AnswerService\.answer|Phase 3 must not implement|ask_vault remains out of scope|Ask Project is moved|Future 7A|Status: Draft' docs/SPEC.md docs/DESIGN.md docs/FEATURES.md docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md docs/superpowers/specs/2026-06-25-evidence-first-ask-and-reasoning-design.md docs/DECISIONS.md README.md`
+- `rg -n '2026-06-25-evidence-first-ask-and-reasoning-design|AnswerDraft|PlannedEvidence|AnswerService\.ask|answer_status|CitationGuard|EvidencePlanner' docs/SPEC.md docs/DESIGN.md docs/FEATURES.md docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md docs/superpowers/specs/2026-06-25-evidence-first-ask-and-reasoning-design.md`
+
+## 2026-06-25 - Ask Vision Documentation Alignment
+
+**Trigger:** Self-review after approving the evidence-first ask direction found
+stale documentation terms that still described implemented surfaces as draft or
+treated `ask_vault` only as unscheduled future work.
+
+**Scope:** `SPEC.md`, `FEATURES.md`, `DESIGN.md`, README status wording, CLI
+command target SPEC, and `DECISIONS.md` notes.
+
+**Core Values Protected:**
+
+- Vault remains the durable source of truth
+- `ask_vault` is evidence-first reasoning, not a writable memory system
+- product documentation distinguishes implemented commands from next
+  implementation targets
+- external memory systems remain adapters or export targets, not core
+  authorities
+
+**Changes Applied:**
+
+- Changed top-level status wording from draft to active product, feature,
+  design, or local-development contracts.
+- Reframed `SPEC.md` roadmap language as product layers and added the
+  `Ask And Reasoning Layer` as the next implementation target.
+- Expanded `FEATURES.md` with the `Evidence-First Ask And Reasoning` feature
+  summary and answer response expectations.
+- Recorded the accepted `ask_vault` direction in `DECISIONS.md`.
+- Updated the CLI command implementation SPEC so `vg ask` is implemented before
+  setup/watch/HTTP adapter work.
+
+**Verification:**
+
+- `git diff --check`
+- `uv run --python 3.12 vg --help`
+- `rg -n "Status: Draft|ask_vault remains|Future 7A|Phase 1:|full roadmap|future MCP binding|future phase" README.md docs/SPEC.md docs/FEATURES.md docs/DESIGN.md docs/DECISIONS.md docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`
+- `rg -n "Next Implementation Target: Evidence-First Ask And Reasoning|Ask And Reasoning Layer|Make Evidence-First Ask The Next Core Implementation|Active product contract|Active feature contract|Active design contract|vg ask is the next" README.md docs/SPEC.md docs/FEATURES.md docs/DESIGN.md docs/DECISIONS.md docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`
+
+## 2026-06-24 - CLI TODO Registration Safety Alignment
+
+**Trigger:** Self-review of the CLI TODO command SPEC found that README and
+`SPEC.md` examples could imply implicit user-level MCP config writes, while the
+new detailed SPEC requires explicit config paths for external writes.
+
+**Scope:** CLI TODO command design, README CLI TODO examples, and `SPEC.md`
+section 17.
+
+**Core Values Protected:**
+
+- Vault Graph does not perform hidden writes outside explicit user-selected
+  targets
+- MCP registration stays separate from installation
+- future CLI documentation does not imply unimplemented commands are available
+
+**Changes Applied:**
+
+- Added the CLI TODO command implementation SPEC.
+- Linked README and `SPEC.md` TODO sections to the new SPEC.
+- Changed `vg mcp register` examples to require `--config-path`.
+- Clarified that `vg setup --agent` prepares MCP registration and writes agent
+  config only through an explicit safe target.
+
+**Verification:**
+
+- `git diff --check`
+- `uv run --python 3.12 vg --help`
+- `rg -n "2026-06-24-cli-todo-command-implementation-design|--config-path|vg setup|vg mcp register|vg mcp config|vg watch|vg ask|vg serve --http" README.md docs/SPEC.md docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`
+
 ## 2026-06-24 - Acceptance Review Release-Readiness Corrections
 
 **Trigger:** Implementation success criteria acceptance review found three

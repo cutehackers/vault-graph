@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -155,9 +156,18 @@ def _resolve_snapshot(config: FastEmbedTextEmbeddingsConfig) -> Path:
 def _default_backend_factory(config: FastEmbedTextEmbeddingsConfig, snapshot_path: Path) -> FastEmbedBackend:
     from fastembed import TextEmbedding
 
-    return TextEmbedding(
-        model_name=config.model_name,
-        specific_model_path=str(snapshot_path),
-        cache_dir=str(config.cache_dir.expanduser()),
-        lazy_load=config.embedding_lazy_load,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=(
+                r"The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 "
+                r"now uses mean pooling instead of CLS embedding.*"
+            ),
+            category=UserWarning,
+        )
+        return TextEmbedding(
+            model_name=config.model_name,
+            specific_model_path=str(snapshot_path),
+            cache_dir=str(config.cache_dir.expanduser()),
+            lazy_load=config.embedding_lazy_load,
+        )

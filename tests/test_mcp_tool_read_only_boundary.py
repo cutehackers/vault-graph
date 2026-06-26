@@ -7,6 +7,7 @@ from typing import cast
 import pytest
 from typer.testing import CliRunner
 
+from tests.test_answer_response_contract import make_response
 from tests.test_mcp_tool_serialization import make_pack_with_item, make_search_response
 from tests.test_read_only_boundary import file_bytes
 from tests.test_sqlite_metadata_store import make_chunk, make_document
@@ -14,6 +15,7 @@ from vault_graph.cli.main import app
 from vault_graph.mcp.mcp_errors import McpProtocolError
 from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
 from vault_graph.mcp.mcp_tools import (
+    AskVaultInput,
     BuildContextPackInput,
     CheckIndexStatusInput,
     ExplainResultInput,
@@ -125,6 +127,38 @@ def test_explain_result_cache_miss_does_not_create_state_paths(tmp_path: Path) -
     assert not (state_path / "vector").exists()
     assert not (state_path / "graph").exists()
     assert not (state_path / "projection_cache").exists()
+
+
+def test_ask_vault_does_not_mutate_vault_or_create_answer_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vault_root = tmp_path / "vault"
+    (vault_root / "wiki").mkdir(parents=True)
+    (vault_root / "wiki" / "page.md").write_text("# Page\nVault body\n", encoding="utf-8")
+    state_path = initialized_state(tmp_path, vault_root)
+    before = file_bytes(vault_root)
+    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+
+    class FakeAnswerService:
+        def ask(self, request: object) -> object:
+            del request
+            return make_response()
+
+    monkeypatch.setattr(
+        registered.tool_registry._service_factory,  # noqa: SLF001
+        "open_answer_service",
+        lambda **_: FakeAnswerService(),
+    )
+
+    body = registered.tool_registry.ask_vault(AskVaultInput(question="Why GraphRAG?"))
+
+    assert body.tool_name == "ask_vault"
+    assert file_bytes(vault_root) == before
+    assert not (state_path / "answers").exists()
+    assert not (state_path / "data" / "answers").exists()
+    assert not (state_path / "memory").exists()
+    assert not (state_path / "data" / "memory").exists()
 
 
 def test_memory_tools_do_not_mutate_vault_bytes(tmp_path: Path) -> None:

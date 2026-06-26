@@ -1,18 +1,23 @@
 # Vault Graph Specification
 
-Version: 1.0
+Version: 1.1
 
-Status: Draft
+Status: Active product contract
 
 Author: Jun Hyoung Lee
 
 Date: 2026-06-04
 
+Updated: 2026-06-26
+
 ## 1. Vision
 
 Vault is the durable source of truth for project knowledge.
 
-Vault Graph is a read-only, rebuildable knowledge access layer over Vault. It helps agents and humans discover context, trace decisions, and assemble task-specific context packs without turning retrieval output into durable knowledge.
+Vault Graph is a read-only, rebuildable knowledge access and reasoning layer
+over Vault. It helps agents and humans discover context, trace decisions,
+assemble task-specific context packs, and answer questions from cited Vault
+evidence without turning retrieval or reasoning output into durable knowledge.
 
 The goal is not simple document search. The goal is to make the value of Vault easier to use:
 
@@ -20,10 +25,13 @@ The goal is not simple document search. The goal is to make the value of Vault e
 - Decision tracing
 - Context management
 - Agent context packs
+- Evidence-first ask and reasoning
 - GraphRAG-style exploration
 - Development knowledge assetization
 
-Vault remains the durable authority. Vault Graph interprets and indexes Vault. Agents consume Vault Graph outputs as context, not as a replacement for Vault.
+Vault remains the durable authority. Vault Graph interprets and indexes Vault.
+Agents consume Vault Graph outputs as working context, cited answers, and
+reasoning traces, not as a replacement for Vault.
 
 ## 2. Relationship To Vault
 
@@ -93,9 +101,11 @@ Deleting all Vault Graph state and rebuilding from Vault should produce
 functionally equivalent results for the same version of the parser, chunker,
 embedding model, and graph extraction spec.
 
-### Principle 3: Agents Consume Context Packs
+### Principle 3: Agents Consume Evidence-Linked Context
 
-Agents should not read an entire Vault for ordinary tasks. They should request a scoped context pack.
+Agents should not read an entire Vault for ordinary tasks. They should request a
+scoped search result, context pack, decision trace, memory projection, or cited
+answer.
 
 ```text
 Vault
@@ -104,13 +114,15 @@ Vault
 Vault Graph retrieval
   |
   v
-Context Pack
+Evidence / Context Pack / Answer
   |
   v
 Agent
 ```
 
-A context pack is an evidence-linked working brief. It is not durable knowledge until a human or agent intentionally publishes it back through Vault's validation workflow.
+Vault Graph output is evidence-linked working context. It is not durable
+knowledge until a human or agent intentionally publishes it back through
+Vault's validation workflow.
 
 ### Principle 4: Local First
 
@@ -131,7 +143,8 @@ Remote services may be optional scale-up integrations, but they must not be requ
 
 Vault Graph answers should prefer cited, inspectable evidence over polished but unsupported synthesis.
 
-Every context pack and decision trace should include:
+Every answer, context pack, decision trace, and memory projection should
+include:
 
 - Source path or wiki page path
 - Section or anchor when available
@@ -182,6 +195,12 @@ Every context pack and decision trace should include:
                               |
                               v
                 +---------------------------+
+                | Evidence Planner / Ask    |
+                | cited answer composer     |
+                +-------------+-------------+
+                              |
+                              v
+                +---------------------------+
                 |       MCP / CLI / HTTP    |
                 +-------------+-------------+
                               |
@@ -223,6 +242,7 @@ vault-graph/
 │       │   ├── search_readiness_service.py
 │       │   ├── graph_readiness_service.py
 │       │   ├── graph_retrieval_service.py
+│       │   ├── answer_service.py
 │       │   └── path_guard.py
 │       ├── ingestion/
 │       │   ├── vault_catalog.py
@@ -258,6 +278,13 @@ vault-graph/
 │       │   ├── context_pack_renderer.py
 │       │   ├── context_pack_serialization.py
 │       │   └── context_pack_warnings.py
+│       ├── answer/
+│       │   ├── answer_plan.py
+│       │   ├── evidence_planner.py
+│       │   ├── answer_composer.py
+│       │   ├── citation_guard.py
+│       │   ├── answer_response.py
+│       │   └── answer_renderer.py
 │       ├── mcp/
 │       │   ├── mcp_server.py
 │       │   ├── mcp_service_factory.py
@@ -302,7 +329,9 @@ vault-graph/
     ├── test_metadata_store_contract.py
     ├── test_vector_store_contract.py
     ├── test_graph_store_contract.py
-    └── test_graph_projection_cache.py
+    ├── test_graph_projection_cache.py
+    ├── test_evidence_planner.py
+    └── test_answer_composer.py
 ```
 
 The default implementation is local-first. Files under `storage/local/` are required for MVP. Files under `storage/adapters/` define optional scale-up adapter boundaries for Postgres, Qdrant, and Neo4j; they must not make hosted services mandatory for the default workflow.
@@ -401,7 +430,35 @@ Response shape:
 
 This is a projection from Vault, not a separate memory database.
 
-### 7.2 Decision Tracking
+### 7.2 Evidence-First Ask And Reasoning
+
+Question:
+
+```text
+왜 GraphRAG를 도입했는가?
+```
+
+Response shape:
+
+- Answer
+- Direct evidence
+- Inferred links
+- Reasoning trace
+- Unsupported or partial claims
+- Warnings
+- Suggested durable follow-up
+
+`ask_vault` and `vg ask` answer natural-language questions by planning a small
+set of evidence-gathering steps over existing search, graph, decision-trace,
+context-pack, and memory projection services. They do not create a writable
+memory layer and do not make generated answers durable Vault knowledge.
+
+Every major answer claim must be supported by cited Vault evidence or labeled
+as unsupported, partial, inferred, or missing. If evidence is insufficient, the
+answer should say so and suggest the next safe Vault workflow or indexing
+command instead of filling gaps with fluent synthesis.
+
+### 7.3 Decision Tracking
 
 Question:
 
@@ -422,7 +479,7 @@ Response shape:
 
 The system should prefer durable `wiki/decisions/` pages when they exist. It may use graph/vector retrieval to find supporting source pages, raw evidence, and related concepts.
 
-### 7.3 Context Management
+### 7.4 Context Management
 
 Question:
 
@@ -442,7 +499,7 @@ Response shape:
 - Warnings
 - Suggested next actions
 
-### 7.4 Agent Context Packs
+### 7.5 Agent Context Packs
 
 Context packs are structured briefs for agents.
 
@@ -468,7 +525,7 @@ Required fields:
 - `evidence`
 - `generated_at`
 
-### 7.5 GraphRAG Exploration
+### 7.6 GraphRAG Exploration
 
 Question:
 
@@ -492,7 +549,7 @@ Returned answers must distinguish:
 - stale or deprecated material
 - missing evidence
 
-### 7.6 Knowledge Assetization
+### 7.7 Knowledge Assetization
 
 Vault Graph turns documents into queryable assets:
 
@@ -1048,7 +1105,7 @@ creation time.
 
 ## 15. MCP Tools
 
-Full roadmap tools:
+Product tool surface:
 
 - `search_vault(query, scope=None, limit=10)`
 - `ask_vault(question, mode="evidence-first", scope=None)`
@@ -1071,8 +1128,10 @@ Tool responses must separate:
 
 Tool `scope` arguments use `QueryScope`. If no scope is provided, tools search
 the active Vault only. Cross-Vault retrieval requires explicit `vault_ids`.
-Phase 5 registers only the subset backed by existing application services; tools
-that need answer synthesis or Phase 6 memory projections are registered later.
+MCP registration exposes only the subset backed by existing application
+services. `ask_vault`, result explanation, and memory projection tools are
+registered because their backing application services exist; future tools must
+wait for the same service-backed boundary.
 
 ## 16. MCP Prompts
 
@@ -1110,24 +1169,31 @@ vg context --vault-id main "GraphRAG MVP 구현"
 vg decision-trace GraphRAG
 vg decision-trace --vault-id main GraphRAG
 vg serve --mcp
-```
-
-CLI TODO:
-
-```bash
-vg watch                           # TODO: file watching and incremental auto-indexing
-vg ask "왜 GraphRAG를 도입했지?"   # TODO: answer synthesis with citation guarantees
-vg ask --vault-id main "..."       # TODO: scoped answer synthesis
-vg serve --http                    # TODO: local read-only HTTP JSON adapter
+vg ask "왜 GraphRAG를 도입했지?"
+vg ask --vault-id main "..."
+vg setup --vault /path/to/vault --agent codex
+vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
+vg mcp config --agent codex --state ~/.vault-graph --print
+vg watch
+vg serve --http
 ```
 
 CLI commands should be explicit about which Vault ID, Vault path, and index state
 path they use. Commands that accept `--vault-id` operate on one registered Vault.
 Commands that accept `--all-vaults` must expand to visible selected Vault IDs in
-their output. Commands without either option use the active Vault. TODO commands
-must stay documented as future work until their behavior is implemented and
-covered by acceptance tests; `vg serve --http` is currently a reserved transport
-that returns an unsupported-transport error.
+their output. Commands without either option use the active Vault. Implemented
+commands are covered by acceptance tests and keep Vault content read-only.
+
+Setup commands should keep installation separate from MCP registration:
+installing Vault Graph makes `vg` available, while MCP registration only writes
+or prints agent configuration that starts `vg serve --mcp`. External agent
+config writes require an explicit config path until a safe default-path policy is
+accepted. `vg setup` should use `~/.vault-graph` as its default state path when
+`--state` is omitted.
+Detailed implementation design for `vg ask` and the CLI onboarding targets lives in
+`docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`.
+The canonical answer-layer contract for `vg ask` and `ask_vault` lives in
+`docs/superpowers/specs/2026-06-25-evidence-first-ask-and-reasoning-design.md`.
 
 ## 18. Context Pack Contract
 
@@ -1278,9 +1344,14 @@ surfaces must call the builder instead of assembling pack sections directly.
 The builder depends on application services and store interfaces, not concrete
 local backend adapters.
 
-## 19. Roadmap
+## 19. Product Layers And Implementation Status
 
-### Phase 1: Vault Catalog, Vault Reader, And MetadataStore
+The first product implementation is complete enough that the main specification
+now describes stable product layers instead of only planned phases. Historical
+slice names such as `Phase 2B` remain in detailed design filenames, decision
+logs, and compatibility notes where they preserve traceability.
+
+### Foundation Layer: Vault Catalog, Vault Reader, And MetadataStore
 
 - Vault catalog configuration with a default single-Vault entry
 - Markdown parser and Vault frontmatter reader
@@ -1291,14 +1362,14 @@ local backend adapters.
 - MetadataStore contract tests for future Postgres support
 - read-only boundary tests
 
-### Phase 2: Vector Search And Graph-Ready Hybrid Retrieval
+### Retrieval Layer: Vector Search And Graph-Ready Hybrid Retrieval
 
-Phase 2 is split into large slices so the retrieval contract can stabilize
-before graph extraction and MCP serving are added. The final retrieval direction
-is evidence-first graph-ready hybrid retrieval, but Phase 2 must not depend on a
-`GraphStore` implementation. Graph signals are reserved for Phase 3 and later.
+The retrieval layer was split into large slices so the retrieval contract could
+stabilize before graph extraction and MCP serving were added. The retrieval
+direction is evidence-first graph-ready hybrid retrieval. Keyword and vector
+evidence are the default signals; graph signals are explicit opt-in signals.
 
-#### Phase 2A: Retrieval Contract And VectorStore Boundary
+#### Retrieval Contract And VectorStore Boundary
 
 - `TextEmbeddings` interface and deterministic test implementation
 - embedding model spec metadata: model name, model version, dimensions, and spec
@@ -1317,11 +1388,10 @@ is evidence-first graph-ready hybrid retrieval, but Phase 2 must not depend on a
   relationships, or durable wiki publication
 - contract tests that future Chroma and Qdrant support must satisfy
 
-#### Phase 2B: Local Vector Indexing
+#### Local Vector Indexing
 
-Phase 2B makes the local vector projection real while keeping search out of
-scope. The goal is not to answer user queries yet. The goal is to make vectors
-rebuildable, inspectable, and recoverable from `MetadataStore` chunks.
+Local vector indexing makes the vector projection rebuildable, inspectable, and
+recoverable from `MetadataStore` chunks.
 
 Accepted Phase 2B decisions:
 
@@ -1437,12 +1507,11 @@ Required implementation capabilities:
 - read-only boundary tests proving vector indexing writes only to Vault Graph
   state and never mutates Vault
 
-#### Phase 2C: Evidence-First Keyword And Vector Search
+#### Evidence-First Keyword And Vector Search
 
-Phase 2C opens the first user-facing search surface. The goal is not to answer
-questions, build context packs, or introduce graph traversal. The goal is to
-return ranked, inspectable Vault evidence from keyword and vector signals while
-keeping Vault Graph read-only, rebuildable, and graph-ready.
+Evidence-first keyword and vector search is the first user-facing search
+surface. It returns ranked, inspectable Vault evidence from keyword and vector
+signals while keeping Vault Graph read-only, rebuildable, and graph-ready.
 
 Accepted Phase 2C decisions:
 
@@ -1699,13 +1768,14 @@ Required implementation capabilities:
 - multi-vault tests proving search identity, filtering, grouping, and dedupe use
   `vault_id`
 
-Phase 2 explicitly excludes graph traversal, entity extraction, decision traces,
-LLM answer generation, context packs, MCP serving, HTTP serving, and Qdrant
-implementation.
+The retrieval layer excludes durable Vault publication, direct store access from
+adapters, and unsupported answer synthesis. Graph traversal, context packs, MCP,
+memory projections, and answer synthesis are separate layers over the same
+evidence contract.
 
-### Phase 3: Entity And Relationship Graph
+### Graph Layer: Entity And Relationship Graph
 
-Phase 3 turns Phase 2 evidence chunks into a rebuildable entity and
+The graph layer turns retrieval evidence chunks into a rebuildable entity and
 relationship graph projection. The goal is to make relationships inspectable and
 retrievable without turning graph state into durable Vault knowledge.
 
@@ -1793,11 +1863,12 @@ Phase 3 explicitly excludes LLM answer generation, context pack generation, MCP
 serving, HTTP serving, durable Vault publication, default hosted graph backends,
 Qdrant implementation, Neo4j implementation, and cross-Vault entity merging.
 
-### Phase 4: Context Pack Builder
+### Context Pack Layer
 
-Phase 4 turns Phase 2 and Phase 3 retrieval into bounded, evidence-linked
-context packs. The phase is split into slices so the schema can stabilize before
-the CLI surface and later MCP serving depend on it.
+The context pack layer turns retrieval and graph signals into bounded,
+evidence-linked context packs. It keeps JSON canonical and Markdown as a
+rendering view so agents can consume task-specific briefs without reading the
+whole Vault.
 
 Phase 4 slices:
 
@@ -1817,12 +1888,12 @@ Phase 4 invariants:
 - `ContextPackBuilder` depends on retrieval and storage interfaces, not local
   backend implementations.
 
-### Phase 5: MCP Server
+### MCP Adapter Layer
 
-Phase 5 turns the existing Phase 2-4 retrieval, graph, and context-pack
-services into a local MCP surface for agents. MCP is an adapter layer, not a
-new reasoning engine or knowledge store. It must preserve the same read-only,
-evidence-first, Vault-scoped behavior as CLI commands.
+The MCP adapter layer exposes retrieval, graph, context-pack, status, and
+memory services to local agents. MCP is an adapter layer, not a new reasoning
+engine or knowledge store. It must preserve the same read-only, evidence-first,
+Vault-scoped behavior as CLI commands.
 
 Detailed Phase 5 contracts live under `docs/superpowers/specs/phase-5/`:
 
@@ -1844,7 +1915,7 @@ Phase 5 slices:
 | --- | --- | --- | --- |
 | Phase 5A | Add a local stdio MCP server boundary, `vg serve --mcp`, read-only service construction, capability registration, and Codex-compatible local config examples | `docs/superpowers/specs/phase-5/2026-06-15-phase-5a-mcp-server-foundation-stdio-design.md` | Streamable HTTP transport, authentication, remote hosting, answer synthesis, memory projections |
 | Phase 5B | Expose read-only MCP resource templates for indexed Vault documents/pages/sources, graph entities, current context, and generated context packs | `docs/superpowers/specs/phase-5/2026-06-15-phase-5b-mcp-resources-context-pack-resources-design.md` | Vault file mutation, resource subscriptions, durable pack persistence, full-Vault resource dumps |
-| Phase 5C | Expose service-backed MCP tools and prompts over existing search, graph, decision-trace, status, and context-pack services | `docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md` | `ask_vault` answer generation, Phase 6 memory tools, autonomous wiki publication, LLM clients |
+| Phase 5C | Expose service-backed MCP tools and prompts over existing search, graph, decision-trace, status, and context-pack services | `docs/superpowers/specs/phase-5/2026-06-15-phase-5c-mcp-tools-prompts-agent-workflows-design.md` | answer and memory service implementations delivered by later layers, autonomous wiki publication, LLM clients |
 
 Phase 5 invariants:
 
@@ -1857,9 +1928,9 @@ Phase 5 invariants:
   indexing tool exists. Phase 5 tools are read-only and must not index.
 - Tool responses use structured JSON as the contract and may include text as a
   compatibility mirror. Warnings remain first-class.
-- Only tools backed by existing services are registered in Phase 5. Tools that
-  require answer synthesis or Phase 6 memory projections are not listed until
-  their application services exist.
+- Only tools backed by existing services are registered. Later answer and memory
+  tools are allowed in the MCP surface only because their application services
+  exist.
 - Context-pack resources are generated artifacts. Without a durable pack store,
   `vault://context/packs/{pack_id}` is backed only by a bounded in-process cache
   and can be regenerated by calling `build_context_pack`.
@@ -1867,12 +1938,12 @@ Phase 5 invariants:
   `vault_ids` only when explicit, and cross-Vault graph expansion only when
   explicit.
 
-### Phase 6: Memory And Explorer Views
+### Memory And Explorer Projection Layer
 
-Phase 6 turns the existing search, graph, context-pack, MCP, and status
-services into memory and explorer projections. These projections help users and
-agents understand current project state, unresolved questions, recent changes,
-and why prior Vault Graph results were returned.
+The memory and explorer projection layer turns search, graph, context-pack,
+MCP, and status services into read-only projections. These projections help
+users and agents understand current project state, unresolved questions, recent
+changes, and why prior Vault Graph results were returned.
 
 Memory is still derived working context. Phase 6 must not create a second
 knowledge base, publish durable wiki pages, edit Vault files, or use summaries
@@ -1918,43 +1989,152 @@ Phase 6 invariants:
   systems remain future adapters or export targets over evidence-linked
   projections, not new authorities inside Vault Graph.
 - `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, and
-  `explain_result` become MCP tools only after their backing application
-  services exist.
+  `explain_result` are MCP tools because their backing application services
+  exist.
 - `vault://{vault_id}/context/current` and `vault://{vault_id}/timeline/recent`
-  move from availability placeholders to read-only projection resources as
-  Phase 6 services land.
-- `ask_vault` remains out of scope until answer synthesis, LLM adapter policy,
-  and citation guarantees are explicitly designed.
+  are read-only projection resources backed by Phase 6 services.
 
-### Phase 7: Optional UI
+### Ask And Reasoning Layer
 
-Phase 7 adds an optional local HTTP and browser UI layer over existing Vault
+The ask and reasoning layer is the implemented answer surface. It turns the
+existing evidence-first services into cited answers without adding a writable
+memory system or making generated answers durable Vault knowledge.
+
+The layer owns `vg ask` and the MCP tool
+`ask_vault(question, mode="evidence-first", scope=None)`.
+
+Core responsibilities:
+
+- plan evidence gathering for a natural-language question
+- call existing application services instead of querying stores directly
+- compose an answer only from resolved Vault evidence
+- label inferred, partial, stale, contested, deprecated, and unsupported claims
+- preserve `vault_id`, evidence references, warnings, store revisions, and
+  freshness status in every answer response
+- provide a reasoning trace that explains which evidence groups were used and
+  why
+- suggest durable follow-up through Vault workflow guidance when the answer
+  exposes missing evidence, contradictions, or useful publication candidates
+
+It is not a memory layer:
+
+- no generic writable `MemoryStore`
+- no hidden episode log
+- no profile, preference, or procedural memory database
+- no agent-generated fact enters Vault Graph as authority unless it is captured
+  in Vault and re-indexed
+- no automatic Vault file edit, rename, rewrite, delete, publish, or validation
+
+Ask flow:
+
+```text
+vg ask "question"
+  -> resolve QueryScope
+  -> AnswerService.ask(...)
+  -> EvidencePlanner.plan(...)
+  -> RetrievalService.search(...)
+  -> optional GraphRetrievalService expansion
+  -> optional DecisionTraceService lookup
+  -> optional MemoryProjectionService lookup
+  -> evidence grouping and conflict/staleness checks
+  -> AnswerComposer.compose(...)
+  -> CitationGuard.validate(...)
+  -> AnswerResponse with answer, claims, evidence, reasoning trace, warnings
+```
+
+Service boundary:
+
+- `AnswerService` is the application-service entrypoint used by CLI, MCP, and
+  later HTTP adapters.
+- `EvidencePlanner` decides which existing services to call. It does not read
+  SQLite, Chroma, graph stores, projection caches, or Vault files directly.
+- `AnswerComposer` turns an `AnswerPlan` plus resolved evidence into an answer
+  draft. `AnswerService` attaches evidence, reasoning trace, `answer_id`, and
+  `generated_at` before `CitationGuard` validates the final `AnswerResponse`.
+  The default composer should be deterministic and extractive enough to run
+  locally without hosted LLM access.
+- Any later LLM composer must be an adapter behind `AnswerComposer`, must run
+  after evidence planning, and must pass the same citation guard.
+- `CitationGuard` rejects normal answer claims that cannot be tied to evidence
+  or explicitly labeled as unsupported, partial, inferred, or missing.
+
+Answer response contract:
+
+- `answer_id`: generated response identifier, not a durable Vault identity
+- `question`
+- `scope`: requested and actual `QueryScope`
+- `answer`: concise natural-language answer
+- `answer_status`: `supported`, `partial`, or `insufficient_evidence`
+- `claims`: claim text, status, evidence refs, and warnings
+- `evidence`: resolved evidence refs with `vault_id`, document/chunk identity,
+  path, section or anchor, store revisions, and retrieval reason
+- `reasoning_trace`: planned steps, services used, result counts, dropped
+  evidence, and conflict/staleness notes
+- `warnings`: top-level answer warnings
+- `suggested_follow_up`: optional durable Vault workflow guidance
+- `generated_at`
+
+Default behavior:
+
+- Use the active Vault by default.
+- Require explicit `--vault-id` or all-Vault scope for multi-vault answering.
+- Prefer concise answers over broad reports.
+- Return `insufficient_evidence` instead of inventing missing context.
+- Preserve read-only behavior; answering must not run indexing, download models,
+  mutate Vault Graph indexes, or write Vault content.
+- Surface stale or missing projections as warnings or structured errors with a
+  safe next command.
+
+Implemented capabilities:
+
+- `vg ask "question"` and `vg ask --vault-id ID "question"`
+- MCP `ask_vault(...)` over the same `AnswerService`
+- `AnswerService`, `EvidencePlanner`, `AnswerComposer`, `CitationGuard`, and
+  `AnswerResponse` contracts
+- answer planning over search, graph, decision trace, context-pack, and memory
+  projection services where available
+- evidence grouping, conflict/staleness handling, and citation validation
+- local deterministic composer as the default implementation
+- tests proving unsupported claims are labeled or rejected
+- tests proving answer generation writes no Vault content and does not mutate
+  derived index state
+- multi-vault tests proving evidence and claims preserve `vault_id`
+- degraded-mode tests for missing graph, memory, vector, or stale projection
+  state
+
+Detailed implementation design:
+
+- `docs/superpowers/specs/2026-06-25-evidence-first-ask-and-reasoning-design.md`
+
+### Optional UI Layer
+
+The optional UI layer adds a local HTTP and browser surface over existing Vault
 Graph application services. It is an adapter and view layer, not a new
 retrieval engine, reasoning engine, memory store, index backend, or Vault
 publication workflow.
 
-The UI exists to make Phase 6 projections easier to inspect. It should show
+The UI exists to make memory projections and evidence flows easier to inspect. It should show
 Vault-derived evidence, warnings, freshness, backend health, decisions, open
 questions, and generated context in a browser without changing the source of
 truth. CLI and MCP remain first-class interfaces; the UI is optional.
 
-`Ask Project` is moved from Phase 7 to a future phase. `ask_vault` remains out
-of scope until answer synthesis, LLM adapter policy, and citation guarantees are
-explicitly designed. Phase 7 may provide a query workspace that links search,
-project memory, open questions, and context packs, but it must not present that
-workspace as generated answers.
+The UI may later call `AnswerService` after the ask layer exists, but it must
+not implement its own answer engine, memory store, evidence planner, LLM client,
+or citation policy. A query workspace may link search, project memory, open
+questions, context packs, and answer responses; it must preserve all warnings
+and evidence links from the service response.
 
 Detailed Phase 7B and 7C contracts live under
-`docs/superpowers/specs/phase-7/`. Phase 7A local HTTP serving and future answer
-synthesis are intentionally not part of the current detailed-design scope.
+`docs/superpowers/specs/phase-7/`. Local HTTP serving is a separate adapter
+task and answer synthesis belongs to the ask layer, not to the UI layer.
 
 Phase 7 slices:
 
 | Slice | Contract | Detailed Design | Explicitly Not Included |
 | --- | --- | --- | --- |
-| Future 7A | Add a local read-only HTTP JSON adapter for existing application services and enable `vg serve --http` | Future detailed design | hosted HTTP, authentication, remote sharing, browser UI, answer synthesis, direct store access |
+| HTTP Adapter | Local read-only HTTP JSON adapter for existing application services through `vg serve --http` | `docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md` | hosted HTTP, authentication, remote sharing, browser UI, direct store access |
 | Phase 7B | Add a minimal Timeline and Health UI over recent changes, projection freshness, backend health, and scale-up adapter readiness | `docs/superpowers/specs/phase-7/2026-06-23-phase-7b-timeline-health-ui-design.md` | decision workspace, context-pack editing, LLM answers, hosted monitoring |
-| Phase 7C | Add Decision Explorer and Agent Workspace views over decision traces, project memory, open questions, context-pack previews, evidence links, and durable follow-up suggestions | `docs/superpowers/specs/phase-7/2026-06-23-phase-7c-decision-agent-workspace-design.md` | `Ask Project`, `ask_vault`, automatic wiki publication, Vault edits, durable context-pack storage |
+| Phase 7C | Add Decision Explorer and Agent Workspace views over decision traces, project memory, open questions, context-pack previews, evidence links, and durable follow-up suggestions | `docs/superpowers/specs/phase-7/2026-06-23-phase-7c-decision-agent-workspace-design.md` | independent answer engine, automatic wiki publication, Vault edits, durable context-pack storage |
 
 Phase 7 invariants:
 
@@ -1972,8 +2152,8 @@ Phase 7 invariants:
 - The UI must not create, edit, rename, delete, or publish Vault content.
 - Generated context packs, memory projections, and timeline views remain
   derived working context, not durable knowledge.
-- `Ask Project` and answer synthesis belong to a future phase after LLM adapter
-  policy and citation guarantees are designed.
+- If the UI surfaces ask results later, it must call `AnswerService` and render
+  the existing evidence, warning, and claim-status contract unchanged.
 
 ## 20. Success Criteria
 
@@ -1984,17 +2164,24 @@ Vault Graph is successful when:
   explicitly.
 - Two Vaults with the same relative path do not collide in metadata, vector,
   graph, MCP, or context-pack output.
-- An agent can request a context pack for a concrete task instead of reading the whole Vault.
+- An agent can request a context pack for a concrete task instead of reading the
+  whole Vault.
+- A user or agent can ask a natural-language question and receive a concise
+  answer whose major claims are cited, labeled as inferred or partial, or
+  rejected as insufficiently supported.
 - Decision traces include evidence and distinguish stated facts from inferred links.
 - All indexes can be deleted and rebuilt from Vault.
 - Local-first operation works without internet access.
 - Retrieval output never bypasses Vault's durable publication workflow.
+- Answering never creates a second durable memory source or silently promotes
+  generated claims to Vault truth.
 
 ## 21. Final Vision
 
 Vault stores durable project knowledge.
 
-Vault Graph makes that knowledge easier to discover, trace, and package for agents.
+Vault Graph makes that knowledge easier to discover, trace, package, and reason
+over for humans and agents.
 
 ```text
 Vault
@@ -2009,13 +2196,19 @@ Hybrid Retrieval / GraphRAG
 Context Pack
   |
   v
-MCP
+Evidence-First Ask
+  |
+  v
+CLI / MCP
   |
   v
 Codex / Agents
 ```
 
-Vault Graph is not just a search system. It is an intelligent, read-only knowledge access layer that helps preserve project context, expose decision history, and let AI agents work from grounded context while Vault remains the durable source of truth.
+Vault Graph is not just a search system. It is an intelligent, read-only
+knowledge access and reasoning layer that helps preserve project context,
+expose decision history, package task context, and answer questions from
+grounded Vault evidence while Vault remains the durable source of truth.
 
 ## TODO: MacBook Local Acceleration Adapter
 

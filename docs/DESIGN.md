@@ -1,6 +1,6 @@
 # Vault Graph Detailed Design
 
-Status: Draft
+Status: Active design contract
 
 Source specification: `docs/SPEC.md`
 
@@ -64,6 +64,7 @@ Vault Graph implements:
 - decision tracing
 - project, decision, issue, and timeline memory projections
 - context pack generation
+- evidence-first answer planning and composition
 - CLI commands
 - MCP resources, tools, and prompts
 - optional HTTP serving over the same application services
@@ -201,6 +202,10 @@ RetrievalServices
 ContextPackBuilder / MemoryServices / DecisionTraceService
     |
     v
+AnswerService
+  evidence planning, answer composition, citation guard
+    |
+    v
 CLI / MCP / HTTP
 ```
 
@@ -250,10 +255,9 @@ Initial commands:
 - `vg serve --mcp`
 - `vg serve --http`
 
-This command list is the full roadmap surface. Phase 3 implementation scope is
-limited to graph readiness/indexing plus `vg related`, `vg decision-trace`, and
-explicit graph search modes. `vg ask`, context packs, MCP serving, and HTTP
-serving remain later-phase work.
+This command list is the product surface. Implemented commands, next
+implementation targets, and adapter TODOs are distinguished in `docs/SPEC.md`
+and `docs/FEATURES.md`.
 
 Phase 3 implementation planning must use the detailed slice documents under
 `docs/superpowers/specs/phase-3/`. `docs/SPEC.md` stays the top-level contract;
@@ -515,6 +519,27 @@ Core modules:
 
 Memory projections are query products over Vault-derived indexes. They are not
 separate memories and must not store durable knowledge.
+
+### 6.12 `answer`
+
+Responsibility:
+
+- plan evidence gathering for natural-language questions
+- compose cited answers from resolved Vault evidence
+- label unsupported, partial, inferred, stale, contested, and missing claims
+- validate answer claims through a citation guard
+
+Core modules:
+
+- `answer_plan.py`
+- `evidence_planner.py`
+- `answer_composer.py`
+- `citation_guard.py`
+- `answer_response.py`
+- `answer_renderer.py`
+
+The answer package composes application services. It must not query storage
+backends directly, mutate Vault Graph indexes, or write Vault content.
 
 ## 7. Runtime Configuration
 
@@ -1384,9 +1409,9 @@ long-form 5A/5B/5C design details.
 
 The MCP server is an adapter over application services. It must not introduce a
 second retrieval, graph, context-pack, answer, or memory implementation.
-Phase 5 registers only tools backed by existing services; answer synthesis and
-rich memory projections remain later phases until their application services
-exist.
+The MCP surface registers only tools backed by existing services. Answer and
+memory tools are exposed through MCP only because their application-service
+boundaries now exist.
 
 ### 15.1 Resources
 
@@ -1412,7 +1437,7 @@ the `QueryScope` used at creation time.
 
 ### 15.2 Tools
 
-Full roadmap tools:
+Current MCP tools:
 
 - `search_vault(query, scope=None, limit=10)`
 - `ask_vault(question, mode="evidence-first", scope=None)`
@@ -1430,9 +1455,8 @@ They must not write to Vault.
 
 Tool `scope` arguments use `QueryScope`. Without scope, tools query only the
 active Vault. Cross-Vault retrieval requires explicit Vault IDs.
-Phase 5 registers only the subset backed by existing application services; tools
-that require answer synthesis or Phase 6 memory projections stay out of the
-listed MCP tool set until those services exist.
+The listed MCP tool set stays service-backed; future tools remain out of the
+surface until a stable application service exists.
 
 ### 15.3 Prompts
 
@@ -1454,8 +1478,10 @@ to publish durable knowledge only through Vault's validation workflow.
 CLI commands should render human-readable output by default and offer structured
 output where useful.
 
-The CLI section describes the full product surface. Phase 3 must not implement
-`vg ask`, context packs, MCP serving, or HTTP serving.
+The CLI section describes the full product surface. Historical graph-layer
+slices did not implement `vg ask`, context packs, MCP serving, or HTTP serving;
+`vg ask` is now implemented on top of the read-only evidence, graph,
+context-pack, MCP, and memory layers.
 
 Recommended common options:
 
@@ -1673,19 +1699,20 @@ Integration tests should cover:
 
 ## 22. Implementation Order
 
-Implementation should follow the phase order from `docs/SPEC.md`.
+Implementation should follow the product layers from `docs/SPEC.md`.
 
 1. Vault reader and `MetadataStore`
-2. Phase 2A: retrieval contract and `VectorStore` boundary
-3. Phase 2B: local vector indexing
-4. Phase 2C: evidence-first keyword and vector search
+2. retrieval contract and `VectorStore` boundary
+3. local vector indexing
+4. evidence-first keyword and vector search
 5. entity and relationship graph
 6. context pack builder
 7. MCP server
 8. memory and explorer projections
-9. optional UI
+9. evidence-first ask and reasoning
+10. optional UI
 
-Each phase should preserve the read-only boundary and include focused tests
+Each layer should preserve the read-only boundary and include focused tests
 before expanding the next layer.
 
 ## 23. Design Checks
