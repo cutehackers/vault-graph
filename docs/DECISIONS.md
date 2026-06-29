@@ -53,19 +53,20 @@ agent setup?
 **Decision:** Not for the current source-checkout workflow. Keep source checkout
 and `uv tool install -e .` as the current install paths. Treat PyPI as required
 only before promising `uv tool install vault-graph` as the public install path.
-Use `vg setup --vault PATH --agent AGENT` as the accepted future happy path, and
+Use `vg setup --vault PATH --agent AGENT` as the source-checkout happy path, and
 separate it from lower-level MCP registration commands.
 
-**Reason:** Users need a simple path now without pretending an unpublished PyPI
-package or unimplemented setup command exists.
+**Reason:** Users need a simple local path now without depending on an
+unpublished PyPI package, and MCP server installation must remain distinct from
+agent MCP registration.
 
 **Implications:**
 
-- README must distinguish current commands from CLI TODO commands.
-- Future `vg setup` should default omitted `--state` to `~/.vault-graph`.
-- Future MCP registration commands should configure agents to run
-  `vg serve --mcp`; they must not describe MCP registration as MCP server
-  installation.
+- README must distinguish current source-checkout install paths from the future
+  public PyPI install path.
+- `vg setup` defaults omitted `--state` to `~/.vault-graph`.
+- MCP registration commands configure agents to run `vg serve --mcp`; they must
+  not describe MCP registration as MCP server installation.
 - PyPI publication can be handled as a release task, not as a blocker for local
   source-checkout usage.
 
@@ -118,18 +119,21 @@ specific laptop cache, hosted service, or network state.
 implementation is complete?
 
 **Decision:** Replace the old "Initial CLI" wording with implemented CLI
-commands and a separate CLI TODO block.
+commands and a separate future-command block.
 
-**Reason:** The SPEC should not imply that `vg watch`, `vg ask`, or
-`vg serve --http` are available product features.
+**Current note:** `vg watch`, `vg ask`, `vg setup`, MCP registration commands,
+and `vg serve --http` are now implemented. This decision remains the
+documentation rule for separating implemented commands from future commands; it
+is no longer an availability statement about those commands.
+
+**Reason:** The SPEC should expose only commands that are implemented and
+covered by acceptance tests, while keeping later command ideas visibly separate.
 
 **Implications:**
 
 - Future commands must be marked TODO until implemented and covered by
   acceptance tests.
-- `vg serve --http` remains a reserved unsupported transport until the future
-  HTTP adapter is designed and built.
-- Current CLI acceptance is evaluated only against implemented commands.
+- Current CLI acceptance is evaluated against implemented commands only.
 
 ## 2026-06-23 - Keep Phase 7 As Read-Only Explorer UI
 
@@ -146,10 +150,9 @@ superseded by `2026-06-25 - Make Evidence-First Ask The Next Core
 Implementation`.
 
 **Reason:** Phase 7 should make existing evidence-linked projections easier to
-inspect without introducing a weak search wrapper or premature LLM answer
-surface. HTTP serving can be designed separately as an adapter boundary, and
-`ask_vault` still needs explicit answer synthesis, LLM adapter, and citation
-guarantee design.
+inspect without introducing a weak search wrapper or an independent answer
+engine. HTTP serving and evidence-first ask are handled by separate adapter and
+answer-layer contracts.
 
 **Implications:**
 

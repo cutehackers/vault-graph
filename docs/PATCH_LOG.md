@@ -3,6 +3,35 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-06-29 - Decision Log Release Wording Alignment
+
+**Trigger:** Final release-readiness check found that the accepted onboarding
+decision still used historical "future" and "CLI TODO" wording after `vg setup`
+and MCP registration commands had been implemented.
+
+**Scope:** `docs/DECISIONS.md` setup/onboarding, CLI command documentation, and
+Phase 7 UI scope decision wording.
+
+**Core Values Protected:** Kept long-term decision memory aligned with the
+implemented source-checkout install path while preserving the separation between
+MCP server installation and agent MCP registration.
+
+**Changes Applied:**
+
+- Reworded the setup decision so `vg setup --vault PATH --agent AGENT` is the
+  current source-checkout happy path, not a future placeholder.
+- Replaced CLI TODO implications with current-command and future-PyPI
+  boundaries.
+- Reworded the CLI documentation decision so implemented commands are no longer
+  described as unavailable.
+- Kept the Phase 7 decision focused on UI scope while pointing HTTP serving and
+  evidence-first ask to their separate implemented contracts.
+
+**Verification:**
+
+- `git diff --check`
+- `rg -n 'future happy path|CLI TODO|Future vg setup|Future MCP registration|available product features|reserved unsupported|ask_vault still needs' docs/DECISIONS.md`
+
 ## 2026-06-26 - Release Readiness Corrections
 
 **Trigger:** Release-readiness review found stale Ask/MCP status wording,
