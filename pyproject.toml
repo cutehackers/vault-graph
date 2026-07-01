@@ -7,7 +7,18 @@ name = "vault-graph"
 version = "0.1.0"
 description = "Read-only, rebuildable knowledge access layer over Vault."
 readme = "README.md"
+authors = [{ name = "Jun Hyoung Lee" }]
+license = "MIT"
 requires-python = ">=3.12"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Text Processing :: Indexing",
+]
 dependencies = [
   "PyYAML>=6.0.2",
   "chromadb>=1.5.9,<2.0",
@@ -30,6 +41,11 @@ dev = [
 
 [project.scripts]
 vg = "vault_graph.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/cutehackers/vault-graph"
+Repository = "https://github.com/cutehackers/vault-graph"
+Issues = "https://github.com/cutehackers/vault-graph/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vault_graph"]

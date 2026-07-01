@@ -1,0 +1,35 @@
+name: publish-testpypi
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-testpypi
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'cutehackers/vault-graph'
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Lint
+        run: uv run --python 3.12 ruff check src tests
+      - name: Type check
+        run: uv run --python 3.12 mypy src tests
+      - name: Test
+        run: uv run --python 3.12 pytest -q
+      - name: Build distributions
+        run: uv build
+      - name: Check distributions
+        run: uv run --python 3.12 --with twine python -m twine check dist/*
+      - name: Publish to TestPyPI
+        run: uv publish --publish-url https://test.pypi.org/legacy/ --trusted-publishing always

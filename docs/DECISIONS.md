@@ -17,6 +17,44 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-06-29 - Use Trusted Publishing With Release Approval
+
+**Question:** How should Vault Graph publish public PyPI packages safely?
+
+**Decision:** Publish through GitHub Actions, PyPI Trusted Publishing, and
+GitHub environment approval. Pull requests and pushes run verification only.
+TestPyPI publishing is manual. Production PyPI publishing runs only from a
+published GitHub Release and waits at the `pypi` environment gate.
+
+**Reason:** Public package files are difficult to recover from after mistakes,
+and release credentials should not live on local machines or in repository
+secrets.
+
+**Implications:**
+
+- Local `uv publish` is not the normal release path.
+- GitHub workflows must grant `id-token: write` only to publish jobs.
+- `pypi` requires a required reviewer before upload.
+- README may promote `uv tool install vault-graph` only after PyPI publication
+  is complete and verified.
+
+## 2026-06-29 - Use MIT License For Public Distribution
+
+**Question:** Which open-source license should Vault Graph use before public
+PyPI distribution?
+
+**Decision:** Use the MIT License for Vault Graph.
+
+**Reason:** MIT keeps the project simple to adopt, compatible with common
+developer tooling, and aligned with the goal of making Vault Graph easy to
+install, inspect, and extend.
+
+**Implications:**
+
+- The source distribution and wheel include a `LICENSE` file.
+- `pyproject.toml` declares MIT package metadata before PyPI publication.
+- Future public packaging docs should describe Vault Graph as MIT-licensed.
+
 ## 2026-06-25 - Make Evidence-First Ask The Next Core Implementation
 
 **Question:** After the first product implementation, should Vault Graph keep

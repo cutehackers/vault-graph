@@ -186,3 +186,8 @@ Vault Graph user-facing features preserve these guarantees:
 - [`docs/FEATURES.md`](docs/FEATURES.md): user-facing feature catalog
 - [`docs/SPEC.md`](docs/SPEC.md): product specification and architecture
 - [`docs/DESIGN.md`](docs/DESIGN.md): design goals and boundaries
+- [`docs/PUBLISHING.md`](docs/PUBLISHING.md): PyPI release workflow and permissions
+
+## License
+
+Vault Graph is distributed under the MIT License. See [`LICENSE`](LICENSE).

@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Lint
+        run: uv run --python 3.12 ruff check src tests
+      - name: Type check
+        run: uv run --python 3.12 mypy src tests
+      - name: Test
+        run: uv run --python 3.12 pytest -q
+      - name: Build distributions
+        run: uv build
+      - name: Check distributions
+        run: uv run --python 3.12 --with twine python -m twine check dist/*
