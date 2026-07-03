@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -8,14 +9,16 @@ from typer.testing import CliRunner
 from vault_graph.cli.main import app
 
 runner = CliRunner()
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def test_serve_help_exposes_mcp_without_starting_server() -> None:
     result = runner.invoke(app, ["serve", "--help"])
 
     assert result.exit_code == 0
-    assert "--mcp" in result.output
-    assert "--state" in result.output
+    output = ANSI_ESCAPE.sub("", result.output)
+    assert "--mcp" in output
+    assert "--state" in output
 
 
 def test_serve_requires_selected_transport(tmp_path: Path) -> None:
