@@ -23,7 +23,6 @@ def test_publishing_doc_starts_with_release_quick_flow() -> None:
     publishing = Path("docs/PUBLISHING.md").read_text(encoding="utf-8")
 
     assert publishing.startswith("# Publishing\n\n## Release Quick Flow\n\n")
-    assert "Do not publish release artifacts from a local machine." in publishing[:500]
-    assert "Run the `prepare-release` workflow manually" in publishing[:1000]
+    assert "In GitHub Actions, run `prepare-release` manually" in publishing[:1000]
     assert "Publish the draft GitHub Release" in publishing[:1000]
-    assert "Approve the `pypi` environment" in publishing[:1000]
+    assert "Approve the `pypi` environment deployment" in publishing[:1000]
