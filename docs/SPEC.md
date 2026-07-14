@@ -1171,8 +1171,9 @@ vg decision-trace --vault-id main GraphRAG
 vg serve --mcp
 vg ask "왜 GraphRAG를 도입했지?"
 vg ask --vault-id main "..."
-vg setup --vault /path/to/vault --agent codex
+vg setup --vault /path/to/vault --agent codex --mcp
 vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
+vg mcp register --agent codex --state ~/.vault-graph --config-path ~/.codex/config.toml
 vg mcp config --agent codex --state ~/.vault-graph --print
 vg watch
 vg serve --http
@@ -1186,10 +1187,13 @@ commands are covered by acceptance tests and keep Vault content read-only.
 
 Setup commands should keep installation separate from MCP registration:
 installing Vault Graph makes `vg` available, while MCP registration only writes
-or prints agent configuration that starts `vg serve --mcp`. External agent
-config writes require an explicit config path until a safe default-path policy is
-accepted. `vg setup` should use `~/.vault-graph` as its default state path when
-`--state` is omitted.
+or prints agent configuration that starts `vg serve --mcp`. `vg setup --mcp`
+may register Codex automatically at `$CODEX_HOME/config.toml` or
+`~/.codex/config.toml` because that default-path policy has been accepted. The
+registration must preserve unrelated config, back up an existing config before
+changing the `vault-graph` server entry, and remain explicit through the
+`--mcp` flag. `vg setup` should use `~/.vault-graph` as its default state path
+when `--state` is omitted.
 Detailed implementation design for `vg ask` and the CLI onboarding targets lives in
 `docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`.
 The canonical answer-layer contract for `vg ask` and `ask_vault` lives in

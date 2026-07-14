@@ -3,6 +3,31 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-07-14 - Easy MCP Setup Policy Alignment
+
+**Trigger:** User-approved setup direction changed MCP onboarding from
+manual-only registration to explicit easy Codex registration through
+`vg setup --mcp`.
+
+**Scope:** Setup CLI, MCP config registration, README quick start, `SPEC.md`,
+CLI onboarding design, and decision log.
+
+**Core Values Protected:** Kept MCP onboarding simple while preserving explicit
+user intent, read-only Vault behavior, config backups, and manual override
+paths.
+
+**Changes Applied:**
+
+- Added `vg setup --mcp` as the preferred easy Codex MCP registration path.
+- Added bounded Codex TOML registration for `$CODEX_HOME/config.toml` or
+  `~/.codex/config.toml`.
+- Preserved existing JSON config registration for explicit config paths.
+- Updated docs that previously prohibited default Codex config discovery.
+
+**Verification:**
+
+- `uv run --python 3.12 pytest tests/test_setup_service.py tests/test_cli_mcp_config.py -q`
+
 ## 2026-06-29 - Decision Log Release Wording Alignment
 
 **Trigger:** Final release-readiness check found that the accepted onboarding

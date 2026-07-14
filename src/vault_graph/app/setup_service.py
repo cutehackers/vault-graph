@@ -24,6 +24,7 @@ class SetupRequest:
     state_path: Path
     vault_id: str = "default"
     agent: McpAgent | None = None
+    register_mcp: bool = False
     mcp_config_path: Path | None = None
     print_mcp_config: bool = False
     dry_run: bool = False
@@ -76,14 +77,17 @@ class SetupService:
         warnings: list[str] = []
         if request.agent is not None:
             config_request = McpConfigRequest(agent=request.agent, state_path=request.state_path)
-            if request.print_mcp_config or request.mcp_config_path is None:
+            actual_mcp_config_path = request.mcp_config_path
+            if request.register_mcp and actual_mcp_config_path is None:
+                actual_mcp_config_path = self._mcp_registrar.default_config_path(request.agent)
+            if request.print_mcp_config or (actual_mcp_config_path is None and not request.register_mcp):
                 mcp_config = self._mcp_renderer.render(config_request)
-            if request.mcp_config_path is not None:
+            if actual_mcp_config_path is not None:
                 mcp_registration = self._mcp_registrar.register(
                     McpRegistrationRequest(
                         agent=request.agent,
                         state_path=request.state_path,
-                        config_path=request.mcp_config_path,
+                        config_path=actual_mcp_config_path,
                         dry_run=request.dry_run,
                     )
                 )

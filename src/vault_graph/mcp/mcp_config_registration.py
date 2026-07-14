@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -69,6 +71,10 @@ class McpConfigRegistrar:
         self._backup_suffix_factory = backup_suffix_factory or (lambda: "bak")
 
     def register(self, request: McpRegistrationRequest) -> McpRegistrationReport:
+        config_path = request.config_path.expanduser()
+        if request.agent == "codex" and config_path.suffix == ".toml":
+            return self._register_codex_toml(request=request, config_path=config_path)
+
         rendered = self._renderer.render(
             McpConfigRequest(
                 agent=request.agent,
@@ -76,7 +82,6 @@ class McpConfigRegistrar:
                 server_name=request.server_name,
             )
         )
-        config_path = request.config_path.expanduser()
         if not config_path.parent.exists():
             raise McpConfigError("mcp_config_parent_missing: config parent directory does not exist")
         rendered_payload = _loads_object(rendered)
@@ -115,6 +120,52 @@ class McpConfigRegistrar:
             rendered_config=rendered,
         )
 
+    def default_config_path(self, agent: McpAgent) -> Path:
+        _validate_agent(agent)
+        codex_home = os.environ.get("CODEX_HOME")
+        return Path(codex_home).expanduser() / "config.toml" if codex_home else Path.home() / ".codex" / "config.toml"
+
+    def _register_codex_toml(self, *, request: McpRegistrationRequest, config_path: Path) -> McpRegistrationReport:
+        if not config_path.parent.exists():
+            raise McpConfigError("mcp_config_parent_missing: config parent directory does not exist")
+        desired_block = _codex_toml_server_block(
+            server_name=request.server_name,
+            state_path=request.state_path.expanduser().resolve(),
+        )
+        current_text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+        _validate_toml_config(current_text)
+        next_text = _upsert_toml_section(
+            value=current_text,
+            section_header=f"[mcp_servers.{request.server_name}]",
+            replacement=desired_block,
+        )
+        changed = current_text != next_text
+        if request.dry_run or not changed:
+            return McpRegistrationReport(
+                agent=request.agent,
+                config_path=config_path,
+                server_name=request.server_name,
+                changed=changed,
+                dry_run=request.dry_run,
+                backup_path=None,
+                rendered_config=desired_block,
+            )
+
+        backup_path = None
+        if config_path.exists():
+            backup_path = self._backup_path(config_path)
+            backup_path.write_text(current_text, encoding="utf-8")
+        config_path.write_text(next_text, encoding="utf-8")
+        return McpRegistrationReport(
+            agent=request.agent,
+            config_path=config_path,
+            server_name=request.server_name,
+            changed=True,
+            dry_run=False,
+            backup_path=backup_path,
+            rendered_config=desired_block,
+        )
+
     def _read_existing_payload(self, config_path: Path) -> dict[str, object]:
         if not config_path.exists():
             return {}
@@ -151,3 +202,40 @@ def _mcp_servers(payload: dict[str, object]) -> dict[str, object]:
     if not isinstance(raw_servers, dict):
         raise McpConfigError("mcp_config_invalid_json: mcpServers must be an object")
     return raw_servers
+
+
+def _codex_toml_server_block(*, server_name: str, state_path: Path) -> str:
+    _validate_server_name(server_name)
+    args = ["serve", "--mcp", "--state", str(state_path)]
+    rendered_args = ", ".join(json.dumps(arg) for arg in args)
+    return f'[mcp_servers.{server_name}]\ncommand = "vg"\nargs = [{rendered_args}]\n'
+
+
+def _validate_toml_config(value: str) -> None:
+    if not value.strip():
+        return
+    try:
+        tomllib.loads(value)
+    except tomllib.TOMLDecodeError as exc:
+        raise McpConfigError("mcp_config_invalid_toml: existing config is not valid TOML") from exc
+
+
+def _upsert_toml_section(*, value: str, section_header: str, replacement: str) -> str:
+    lines = value.splitlines(keepends=True)
+    start = None
+    for index, line in enumerate(lines):
+        if line.strip() == section_header:
+            start = index
+            break
+    if start is None:
+        prefix = value.rstrip()
+        return f"{prefix}\n\n{replacement}" if prefix else replacement
+
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            end = index
+            break
+    updated = [*lines[:start], replacement, *lines[end:]]
+    return "".join(updated)

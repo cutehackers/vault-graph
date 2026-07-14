@@ -24,7 +24,7 @@ vg ask "question"
 Remaining command targets:
 
 ```bash
-vg setup --vault /path/to/vault --agent codex
+vg setup --vault /path/to/vault --agent codex --mcp
 vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
 vg mcp config --agent codex --state ~/.vault-graph --print
 vg watch
@@ -224,15 +224,13 @@ class McpConfigRegistrar:
   ```
 
 - The current source-checkout README example may still use `uv run --python
-  3.12 vg ...` for users running from a checkout. The registrar should accept a
-  command strategy later, but the first implementation should use the installed
-  `vg` command for the registered agent config and print a recovery hint if `vg`
-  is not on `PATH`.
-- The first implementation must not auto-discover and write a default Codex
-  config path. Default-path discovery is a later policy decision because it
-  writes outside Vault Graph state without an explicit target path.
-- Existing config files must be parsed as structured JSON when they exist. Do
-  not use string replacement.
+  3.12 vg ...` for users running from a checkout. Registered agent config uses
+  the installed `vg` command.
+- `vg setup --mcp` may auto-register Codex at `$CODEX_HOME/config.toml` or
+  `~/.codex/config.toml`. This is allowed only behind the explicit `--mcp` flag.
+- Existing JSON config files must be parsed as structured JSON. Existing Codex
+  TOML config files must be parsed as valid TOML before updating the bounded
+  `[mcp_servers.vault-graph]` section.
 - Preserve unrelated agent config entries.
 - If the target server entry already matches the rendered payload, report
   `changed=False`.
@@ -242,7 +240,8 @@ class McpConfigRegistrar:
   nothing.
 - If the parent directory does not exist, fail with
   `mcp_config_parent_missing`.
-- If JSON parsing fails, fail with `mcp_config_invalid_json` and write nothing.
+- If JSON or TOML parsing fails, fail with `mcp_config_invalid_json` or
+  `mcp_config_invalid_toml` and write nothing.
 
 ## 7. CLI-B: Setup
 
@@ -252,6 +251,7 @@ class McpConfigRegistrar:
 vg setup --vault /path/to/vault
 vg setup --vault /path/to/vault --state ~/.vault-graph
 vg setup --vault /path/to/vault --vault-id main
+vg setup --vault /path/to/vault --agent codex --mcp
 vg setup --vault /path/to/vault --agent codex --mcp-config-path /path/to/agent-config.json
 vg setup --vault /path/to/vault --agent codex --print-mcp-config
 vg setup --vault /path/to/vault --dry-run
@@ -278,6 +278,7 @@ class SetupRequest:
     state_path: Path
     vault_id: str = "default"
     agent: SetupAgent | None = None
+    register_mcp: bool = False
     mcp_config_path: Path | None = None
     print_mcp_config: bool = False
     dry_run: bool = False
@@ -313,16 +314,19 @@ class SetupService:
    `setup_vault_id_conflict`. Do not silently replace a Vault root.
 8. Run index apply for the selected Vault.
 9. If `agent` is omitted, stop after indexing.
-10. If `agent` is present and `mcp_config_path` is present, call
-    `McpConfigRegistrar`.
-11. If `agent` is present and `print_mcp_config=True`, include the rendered MCP
+10. If `agent` is present and `register_mcp` is true without
+    `mcp_config_path`, resolve the Codex config path to
+    `$CODEX_HOME/config.toml` or `~/.codex/config.toml`.
+11. If `agent` is present and an explicit or resolved MCP config path is
+    present, call `McpConfigRegistrar`.
+12. If `agent` is present and `print_mcp_config=True`, include the rendered MCP
     config in output.
-12. If `agent` is present with neither `mcp_config_path` nor
+13. If `agent` is present with neither MCP registration path nor
     `print_mcp_config`, print the MCP config and add a warning that no agent
     config file was written.
 
-This preserves the easy default path while avoiding hidden writes to user-level
-agent files.
+This preserves the easy setup path while avoiding hidden writes: automatic Codex
+registration happens only when the user passes `--mcp`.
 
 ## 8. CLI-C: Watch
 
