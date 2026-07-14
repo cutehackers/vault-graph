@@ -1,5 +1,30 @@
 # Publishing
 
+## Release Quick Flow
+
+Do not publish release artifacts from a local machine.
+
+1. Merge the release candidate PR into `main`.
+2. Run the `prepare-release` workflow manually:
+   - `version`: package version without `v`, for example `0.1.1`
+   - `target_ref`: `main`
+   - `release_notes`: release message to place in the draft GitHub Release
+3. Confirm the workflow created a draft GitHub Release such as `v0.1.1`.
+4. Review the draft release notes and attached `dist/*` artifacts.
+5. Publish the draft GitHub Release.
+6. Wait for the `publish-pypi` workflow to pause at the `pypi` environment.
+7. Approve the `pypi` environment after checking the workflow, tag, version,
+   and release notes.
+8. Verify public install:
+
+```bash
+uv tool uninstall vault-graph || true
+uv tool install vault-graph
+vg --help
+vg setup --help
+vg ask --help
+```
+
 Vault Graph uses GitHub Actions and PyPI Trusted Publishing for public package
 distribution. Do not publish release artifacts from a local machine.
 
@@ -7,6 +32,7 @@ distribution. Do not publish release artifacts from a local machine.
 
 - Pull requests run verification only.
 - Pushes to `main` run verification only.
+- Release preparation is manual and creates a draft GitHub Release only.
 - TestPyPI publishing is manual through `workflow_dispatch`.
 - PyPI publishing runs only when a GitHub Release is published.
 - PyPI upload jobs require GitHub environment approval.
@@ -84,11 +110,13 @@ manual installation, use PyPI as an extra index for dependencies.
 
 1. Confirm TestPyPI validation is acceptable.
 2. Confirm README installation instructions match the public PyPI state.
-3. Create and publish a GitHub Release such as `vX.Y.Z`.
-4. Wait for the `publish-pypi` workflow to reach the `pypi` environment gate.
-5. Review the release artifact, version, README, and workflow run.
-6. Approve the `pypi` environment.
-7. Verify public install:
+3. Run the `prepare-release` workflow to create a draft GitHub Release such as
+   `vX.Y.Z`.
+4. Review and publish the draft GitHub Release.
+5. Wait for the `publish-pypi` workflow to reach the `pypi` environment gate.
+6. Review the release artifact, version, README, and workflow run.
+7. Approve the `pypi` environment.
+8. Verify public install:
 
 ```bash
 uv tool uninstall vault-graph || true

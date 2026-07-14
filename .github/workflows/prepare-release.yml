@@ -1,0 +1,104 @@
+name: prepare-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix, for example 0.1.1.
+        required: true
+        type: string
+      target_ref:
+        description: Branch, tag, or commit to release.
+        required: true
+        default: main
+        type: string
+      release_notes:
+        description: Optional release notes for the draft GitHub Release.
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prepare-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.repository == 'cutehackers/vault-graph'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_ref }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Validate release version
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          requested = os.environ["RELEASE_VERSION"]
+          pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+          package_version = pyproject["project"]["version"]
+          init_text = Path("src/vault_graph/__init__.py").read_text(encoding="utf-8")
+          match = re.search(r'__version__\s*=\s*"([^"]+)"', init_text)
+
+          if match is None:
+              raise SystemExit("src/vault_graph/__init__.py does not expose __version__")
+          if package_version != requested:
+              raise SystemExit(f"pyproject version {package_version} does not match requested {requested}")
+          if match.group(1) != requested:
+              raise SystemExit(f"package __version__ {match.group(1)} does not match requested {requested}")
+          PY
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+      - name: Confirm release tag is unused
+        run: |
+          tag="v${RELEASE_VERSION}"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Tag ${tag} already exists."
+            exit 1
+          fi
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+      - name: Lint
+        run: uv run --python 3.12 ruff check src tests
+      - name: Type check
+        run: uv run --python 3.12 mypy src tests
+      - name: Test
+        run: uv run --python 3.12 pytest -q
+      - name: Build distributions
+        run: uv build
+      - name: Check distributions
+        run: uv run --python 3.12 --with twine python -m twine check dist/*
+      - name: Write release notes
+        run: |
+          if [ -n "${RELEASE_NOTES}" ]; then
+            printf '%s\n' "${RELEASE_NOTES}" > release-notes.md
+          else
+            {
+              printf '## v%s\n\n' "${RELEASE_VERSION}"
+              printf 'Validated release candidate for vault-graph v%s.\n' "${RELEASE_VERSION}"
+            } > release-notes.md
+          fi
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+      - name: Create draft GitHub Release
+        run: |
+          gh release create "v${RELEASE_VERSION}" dist/* \
+            --draft \
+            --target "${GITHUB_SHA}" \
+            --title "v${RELEASE_VERSION}" \
+            --notes-file release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
