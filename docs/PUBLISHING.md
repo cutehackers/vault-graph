@@ -2,20 +2,17 @@
 
 ## Release Quick Flow
 
-Do not publish release artifacts from a local machine.
-
 1. Merge the release candidate PR into `main`.
-2. Run the `prepare-release` workflow manually:
-   - `version`: package version without `v`, for example `0.1.2`
+2. In GitHub Actions, run `prepare-release` manually:
+   - `version`: `0.1.2`
    - `target_ref`: `main`
-   - `release_notes`: release message to place in the draft GitHub Release
-3. Confirm the workflow created a draft GitHub Release such as `v0.1.2`.
-4. Review the draft release notes and attached `dist/*` artifacts.
+   - `release_notes`: release message
+3. Open the generated draft GitHub Release `v0.1.2`.
+4. Review the release notes and attached `dist/*` artifacts.
 5. Publish the draft GitHub Release.
-6. Wait for the `publish-pypi` workflow to pause at the `pypi` environment.
-7. Approve the `pypi` environment after checking the workflow, tag, version,
-   and release notes.
-8. Verify public install:
+6. Open the `publish-pypi` workflow run.
+7. Approve the `pypi` environment deployment.
+8. After the workflow succeeds, verify the public install:
 
 ```bash
 uv tool uninstall vault-graph || true
