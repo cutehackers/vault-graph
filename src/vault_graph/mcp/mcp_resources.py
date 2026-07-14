@@ -184,26 +184,18 @@ class CurrentContextResourceReader:
         memory_warnings = tuple(
             memory_warning_to_mcp_error(warning) for warning in _project_memory_warnings(projection)
         )
-        recent_warning = McpErrorPayload(
-            code="recent_changes_unavailable_until_phase_6c",
-            message="recent-change context is unavailable until Phase 6C timeline resources are implemented",
-            severity="info",
-            affected_vault_ids=(vault_id,),
-            recovery_hint="Use project memory evidence and decision traces until timeline/recent is available.",
-        )
         raw_payload_warnings = payload.get("warnings")
         payload_warnings: list[object] = list(raw_payload_warnings) if isinstance(raw_payload_warnings, list) else []
         payload_warnings.extend(
             memory_warning_to_dict(warning) for warning in _project_vault_and_item_warnings(projection)
         )
-        payload_warnings.append(_warning_to_dict(recent_warning))
         payload["warnings"] = payload_warnings
         return McpResourceBody(
             uri=uri.normalized_uri,
             content_mime_type="application/json",
             text=json.dumps(payload, sort_keys=True, ensure_ascii=False, indent=2) + "\n",
             metadata=payload,
-            warnings=(*memory_warnings, recent_warning),
+            warnings=memory_warnings,
         )
 
     def read_recent_timeline(self, uri: McpResourceUri) -> McpResourceBody:

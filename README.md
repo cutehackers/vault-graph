@@ -1,6 +1,6 @@
 # Vault Graph
 
-Status: Active local development
+Status: Active public release
 
 Vault Graph is a read-only, rebuildable knowledge access layer over Vault.
 
@@ -19,7 +19,14 @@ Prerequisites:
 - Python 3.12+
 - [`uv`](https://docs.astral.sh/uv/)
 
-Current source-checkout install:
+Install from PyPI:
+
+```bash
+uv tool install vault-graph
+vg --help
+```
+
+Development install from a source checkout:
 
 ```bash
 git clone git@me.github.com:cutehackers/vault-graph.git
@@ -28,22 +35,12 @@ uv sync
 uv run --python 3.12 vg --help
 ```
 
-Optional local command install from this checkout:
+Optional local command install from a source checkout:
 
 ```bash
 uv tool install -e .
 vg --help
 ```
-
-PyPI registration is not required to use the current source checkout. It becomes
-necessary only when Vault Graph wants to promise this public install path:
-
-```bash
-uv tool install vault-graph
-```
-
-Do not advertise the PyPI command as the primary install path until the package
-has been published.
 
 ## Quick Start
 
@@ -96,12 +93,8 @@ After indexing your Vault, register this stdio server in the agent's MCP config:
 {
   "mcpServers": {
     "vault-graph": {
-      "command": "uv",
+      "command": "vg",
       "args": [
-        "run",
-        "--python",
-        "3.12",
-        "vg",
         "serve",
         "--mcp",
         "--state",
@@ -187,6 +180,7 @@ Vault Graph user-facing features preserve these guarantees:
 - [`docs/SPEC.md`](docs/SPEC.md): product specification and architecture
 - [`docs/DESIGN.md`](docs/DESIGN.md): design goals and boundaries
 - [`docs/PUBLISHING.md`](docs/PUBLISHING.md): PyPI release workflow and permissions
+- [`docs/TODO.md`](docs/TODO.md): explicit deferred work and scale-up backlog
 
 ## License
 

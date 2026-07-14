@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from vault_graph import __version__
 from vault_graph.answer.answer_plan import AnswerRequest
 from vault_graph.context.context_pack import ContextPackBudget, ContextPackRequest
 from vault_graph.http.http_errors import HttpRequestError, HttpServerConfig, map_exception_to_http_error
@@ -31,7 +32,7 @@ def create_http_app(
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
 
-    app = FastAPI(title="Vault Graph", version="0.1.0")
+    app = FastAPI(title="Vault Graph", version=__version__)
     services_factory = service_factory or HttpServiceFactory(state_path=config.state_path)
     explanation_cache = result_explanation_cache or ResultExplanationCache(max_entries=256)
     explain_result_service = ExplainResultService(cache=explanation_cache)
