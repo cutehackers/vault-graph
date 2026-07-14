@@ -47,12 +47,14 @@ vg --help
 Run one setup command after installation:
 
 ```bash
-vg setup --vault /path/to/llm-wiki --agent codex
+vg setup --vault /path/to/llm-wiki --agent codex --mcp
 ```
 
 By default, setup uses `~/.vault-graph` for local state, registers the Vault,
-runs indexing, and prepares MCP registration guidance for the selected agent.
-Keep this state directory outside your Vault.
+runs indexing, and registers the `vault-graph` stdio MCP server in the Codex
+config at `$CODEX_HOME/config.toml` or `~/.codex/config.toml`. Existing Codex
+config is backed up before the `vault-graph` server entry is changed. Keep this
+state directory outside your Vault.
 
 Then use the indexed Vault:
 
@@ -66,7 +68,8 @@ vg status --state ~/.vault-graph
 Vault Graph builds local metadata, keyword, vector, and graph projections. It
 uses local storage and local embeddings by default; it does not require hosted
 services for normal use. The first indexing run may download the pinned local
-embedding model and cache it outside your Vault.
+embedding model and cache it outside your Vault. Restart your agent after MCP
+registration so it can load the new server.
 
 ## Common Commands
 
@@ -97,7 +100,13 @@ MCP server installation and MCP server registration are different things:
 - installation makes the `vg` command available
 - registration tells an agent how to start `vg serve --mcp`
 
-After indexing your Vault, register this stdio server in the agent's MCP config:
+For Codex, the easiest supported path is:
+
+```bash
+vg setup --vault /path/to/llm-wiki --agent codex --mcp
+```
+
+For explicit control, render or register the stdio server manually:
 
 ```json
 {
@@ -138,6 +147,7 @@ For explicit MCP control:
 
 ```bash
 vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
+vg mcp register --agent codex --state ~/.vault-graph --config-path ~/.codex/config.toml
 vg mcp config --agent codex --state ~/.vault-graph --print
 ```
 

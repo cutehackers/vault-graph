@@ -57,3 +57,10 @@ def test_cli_mcp_register_dry_run_writes_nothing(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert not config_path.exists()
     assert "dry_run: True" in result.stdout
+
+
+def test_cli_setup_help_exposes_easy_mcp_flag() -> None:
+    result = runner.invoke(app, ["setup", "--help"])
+
+    assert result.exit_code == 0
+    assert "--mcp" in result.stdout

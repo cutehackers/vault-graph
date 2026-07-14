@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from vault_graph.app.index_service import IndexRunReport
 from vault_graph.app.setup_service import SetupRequest, SetupService
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
@@ -108,3 +110,32 @@ def test_setup_with_agent_prints_config_warning_when_no_config_path(tmp_path: Pa
 
     assert report.mcp_config is not None
     assert report.warnings == ("mcp_config_not_written",)
+
+
+def test_setup_with_mcp_auto_registers_default_codex_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    config_path = codex_home / "config.toml"
+    config_path.write_text('model = "gpt-5"\n', encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    report = SetupService(index_factory=cast(Any, RecordingIndexFactory())).setup(
+        SetupRequest(
+            vault_path=make_vault(tmp_path),
+            state_path=tmp_path / "state",
+            vault_id="main",
+            agent="codex",
+            register_mcp=True,
+        )
+    )
+
+    assert report.mcp_registration is not None
+    assert report.mcp_registration.config_path == config_path
+    assert report.mcp_registration.changed is True
+    assert report.mcp_registration.backup_path == config_path.with_name("config.toml.bak")
+    assert report.warnings == ()
+    config_text = config_path.read_text(encoding="utf-8")
+    assert 'model = "gpt-5"' in config_text
+    assert "[mcp_servers.vault-graph]" in config_text
+    assert 'command = "vg"' in config_text
+    assert 'args = ["serve", "--mcp", "--state", ' in config_text

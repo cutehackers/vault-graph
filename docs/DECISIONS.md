@@ -17,6 +17,27 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-07-14 - Allow Explicit Easy Codex MCP Registration
+
+**Question:** Should `vg setup` auto-register the Vault Graph MCP server for
+Codex?
+
+**Decision:** Yes, but only when the user passes `--mcp`. `vg setup --mcp`
+registers the `vault-graph` stdio server in `$CODEX_HOME/config.toml` or
+`~/.codex/config.toml`, and explicit `--mcp-config-path` remains available.
+
+**Reason:** MCP must be easy enough for normal onboarding, while hidden writes
+outside Vault Graph state remain unacceptable.
+
+**Implications:**
+
+- `vg setup --vault PATH --agent codex --mcp` is the preferred easy path.
+- Existing Codex config must be backed up before the `vault-graph` server entry
+  changes.
+- Unrelated Codex config entries must be preserved.
+- Manual `vg mcp config` and `vg mcp register --config-path` commands remain
+  available for explicit control.
+
 ## 2026-06-29 - Use Trusted Publishing With Release Approval
 
 **Question:** How should Vault Graph publish public PyPI packages safely?
