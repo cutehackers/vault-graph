@@ -14,6 +14,8 @@ def test_publish_script_prepares_release_candidate_pr_only() -> None:
     assert "git status --porcelain" in script
     assert "pyproject.toml" in script
     assert "src/vault_graph/__init__.py" in script
+    assert 'uv run --python 3.12 python - "${VERSION}"' in script
+    assert not any(line.startswith('python - "${VERSION}"') for line in script.splitlines())
     assert "uv lock" in script
     assert "git commit" in script
     assert "git push" in script
