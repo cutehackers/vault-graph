@@ -63,14 +63,14 @@ def test_prompt_text_mentions_registered_phase_6c_memory_tools() -> None:
     assert "get_open_questions" in wiki
 
 
-def test_prompt_text_still_omits_unregistered_future_answer_tools() -> None:
+def test_prompt_text_mentions_registered_ask_vault_tool() -> None:
     registry = McpPromptRegistry()
     text = "\n".join(
         registry.render(name, {"goal": "G", "task": "T", "topic": "P", "feature": "F", "decision_or_topic": "D"})
         for name in registry.prompt_names
     )
 
-    assert "ask_vault" not in text
+    assert "ask_vault" in text
 
 
 def test_unknown_prompt_name_raises_invalid_parameter() -> None:

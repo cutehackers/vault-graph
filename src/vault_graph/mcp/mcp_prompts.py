@@ -119,7 +119,7 @@ def _generate_codex_brief(goal: str, scope: str | None) -> str:
     return _join_prompt_lines(
         *_prompt_header("Codex Brief", scope),
         f"Goal: {goal}",
-        "Call summarize_project_memory, then build_context_pack. Use returned resource links for follow-up evidence.",
+        "Call summarize_project_memory, ask_vault, then build_context_pack for cited working context.",
         "Use search_vault only when the context pack leaves a specific gap.",
         *_SHARED_LINES,
     )
@@ -133,6 +133,7 @@ def _prepare_implementation_context(task: str, scope: str | None) -> str:
             "Call check_index_status, get_recent_changes, summarize_project_memory, then build_context_pack "
             "for the bounded implementation scope."
         ),
+        "Use ask_vault for direct evidence-first questions that need a cited answer before implementation.",
         "Use find_related only when graph context is needed for named entities or relationships.",
         *_SHARED_LINES,
     )
@@ -143,6 +144,7 @@ def _review_architecture_decision(decision_or_topic: str, scope: str | None) -> 
         *_prompt_header("Architecture Decision Review", scope),
         f"Decision or topic: {decision_or_topic}",
         "Call get_decision_trace first, then build_context_pack for supporting evidence.",
+        "Use ask_vault for a concise cited summary when the decision history spans multiple evidence chunks.",
         "Use search_vault for missing citations or alternative decision pages.",
         *_SHARED_LINES,
     )
@@ -153,6 +155,7 @@ def _summarize_feature_history(feature: str, scope: str | None) -> str:
         *_prompt_header("Feature History", scope),
         f"Feature: {feature}",
         "Call get_recent_changes, then build_context_pack with the feature as the goal.",
+        "Use ask_vault to answer the user's feature-history question from cited Vault evidence.",
         "Use find_related for graph-backed dependencies and get_decision_trace for durable decisions.",
         *_SHARED_LINES,
     )
@@ -166,6 +169,7 @@ def _analyze_project_risk(goal: str, scope: str | None) -> str:
             "Call check_index_status, get_open_questions, get_recent_changes, build_context_pack, "
             "inspect warnings, then use search_vault for unresolved risk evidence."
         ),
+        "Use ask_vault only after inspecting warnings, and preserve partial or insufficient-evidence status.",
         "Use check_index_status when stale or missing indexes could affect confidence.",
         *_SHARED_LINES,
     )

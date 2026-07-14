@@ -90,7 +90,6 @@ def test_current_context_resource_preserves_memory_warnings_in_body_and_metadata
     metadata_warnings = cast(list[dict[str, object]], body.metadata["warnings"])
     metadata_codes = {warning["code"] for warning in metadata_warnings}
     assert "no_memory_items_found" in warning_codes
-    assert "recent_changes_unavailable_until_phase_6c" in warning_codes
     assert warning_codes == metadata_codes
 
 

@@ -84,7 +84,7 @@ manual installation, use PyPI as an extra index for dependencies.
 
 1. Confirm TestPyPI validation is acceptable.
 2. Confirm README installation instructions match the public PyPI state.
-3. Create and publish a GitHub Release such as `v0.1.0`.
+3. Create and publish a GitHub Release such as `vX.Y.Z`.
 4. Wait for the `publish-pypi` workflow to reach the `pypi` environment gate.
 5. Review the release artifact, version, README, and workflow run.
 6. Approve the `pypi` environment.
