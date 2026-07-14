@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -37,11 +38,12 @@ def test_github_generated_release_notes_are_categorized() -> None:
 
 def test_publishing_doc_starts_with_release_quick_flow() -> None:
     publishing = Path("docs/PUBLISHING.md").read_text(encoding="utf-8")
+    version = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
 
     assert publishing.startswith("# Publishing\n\n## Release Quick Flow\n\n")
     assert "Open a release candidate PR with the version bump" in publishing[:1000]
-    assert "./publish.sh -v 0.1.2" in publishing[:1000]
-    assert "`0.1.2`" in publishing[:1000]
+    assert f"./publish.sh -v {version}" in publishing[:1000]
+    assert f"`{version}`" in publishing[:1000]
     assert "In GitHub Actions, run `prepare-release` manually" in publishing[:1000]
     assert "leave empty for generated notes" in publishing[:1000]
     assert "Publish the draft GitHub Release" in publishing[:1000]
