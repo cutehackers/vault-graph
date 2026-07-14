@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version without the v prefix, for example 0.1.1.
+        description: Release version without the v prefix, for example 0.1.2.
         required: true
         type: string
       target_ref:
@@ -13,7 +13,7 @@ on:
         default: main
         type: string
       release_notes:
-        description: Optional release notes for the draft GitHub Release.
+        description: Optional release notes. Leave empty to use GitHub generated release notes.
         required: false
         default: ""
         type: string
@@ -79,26 +79,31 @@ jobs:
         run: uv build
       - name: Check distributions
         run: uv run --python 3.12 --with twine python -m twine check dist/*
-      - name: Write release notes
+      - name: Write manual release notes
+        if: ${{ inputs.release_notes != '' }}
         run: |
-          if [ -n "${RELEASE_NOTES}" ]; then
-            printf '%s\n' "${RELEASE_NOTES}" > release-notes.md
-          else
-            {
-              printf '## v%s\n\n' "${RELEASE_VERSION}"
-              printf 'Validated release candidate for vault-graph v%s.\n' "${RELEASE_VERSION}"
-            } > release-notes.md
-          fi
+          printf '%s\n' "${RELEASE_NOTES}" > release-notes.md
         env:
-          RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
-      - name: Create draft GitHub Release
+      - name: Create draft GitHub Release with manual notes
+        if: ${{ inputs.release_notes != '' }}
         run: |
           gh release create "v${RELEASE_VERSION}" dist/* \
             --draft \
             --target "${GITHUB_SHA}" \
             --title "v${RELEASE_VERSION}" \
             --notes-file release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+      - name: Create draft GitHub Release with generated notes
+        if: ${{ inputs.release_notes == '' }}
+        run: |
+          gh release create "v${RELEASE_VERSION}" dist/* \
+            --draft \
+            --generate-notes \
+            --target "${GITHUB_SHA}" \
+            --title "v${RELEASE_VERSION}"
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ inputs.version }}

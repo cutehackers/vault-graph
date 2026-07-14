@@ -1,0 +1,25 @@
+changelog:
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+        - semver-major
+    - title: Features
+      labels:
+        - enhancement
+        - feature
+    - title: Fixes
+      labels:
+        - bug
+        - fix
+    - title: Documentation
+      labels:
+        - documentation
+        - docs
+    - title: CI and Release
+      labels:
+        - ci
+        - release
+    - title: Other Changes
+      labels:
+        - "*"
