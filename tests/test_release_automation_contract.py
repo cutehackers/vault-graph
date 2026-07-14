@@ -39,6 +39,8 @@ def test_publishing_doc_starts_with_release_quick_flow() -> None:
     publishing = Path("docs/PUBLISHING.md").read_text(encoding="utf-8")
 
     assert publishing.startswith("# Publishing\n\n## Release Quick Flow\n\n")
+    assert "Open a release candidate PR that bumps the package version" in publishing[:1000]
+    assert "`0.1.2`" in publishing[:1000]
     assert "In GitHub Actions, run `prepare-release` manually" in publishing[:1000]
     assert "leave empty for generated notes" in publishing[:1000]
     assert "Publish the draft GitHub Release" in publishing[:1000]

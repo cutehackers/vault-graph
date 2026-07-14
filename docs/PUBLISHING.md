@@ -2,17 +2,19 @@
 
 ## Release Quick Flow
 
-1. Merge the release candidate PR into `main`.
-2. In GitHub Actions, run `prepare-release` manually:
+1. Open a release candidate PR that bumps the package version, for example
+   `0.1.2`.
+2. Review and merge the release candidate PR into `main`.
+3. In GitHub Actions, run `prepare-release` manually:
    - `version`: `0.1.2`
    - `target_ref`: `main`
    - `release_notes`: leave empty for generated notes, or write a manual override
-3. Open the generated draft GitHub Release `v0.1.2`.
-4. Review the release notes and attached `dist/*` artifacts.
-5. Publish the draft GitHub Release.
-6. Open the `publish-pypi` workflow run.
-7. Approve the `pypi` environment deployment.
-8. After the workflow succeeds, verify the public install:
+4. Open the generated draft GitHub Release `v0.1.2`.
+5. Review the release notes and attached `dist/*` artifacts.
+6. Publish the draft GitHub Release.
+7. Open the `publish-pypi` workflow run.
+8. Approve the `pypi` environment deployment.
+9. After the workflow succeeds, verify the public install:
 
 ```bash
 uv tool uninstall vault-graph || true
