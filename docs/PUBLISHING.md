@@ -3,7 +3,7 @@
 ## Release Quick Flow
 
 1. Open a release candidate PR with the version bump:
-   `./publish.sh -v 0.1.2`
+   `./publish.sh -v 0.1.3`
    Run this from a clean `main` checkout or release worktree.
 2. Review and merge the release candidate PR into `main`.
 3. In GitHub Actions, run `prepare-release` manually:

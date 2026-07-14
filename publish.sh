@@ -101,6 +101,7 @@ for path, (pattern, replacement) in replacements.items():
 
 publishing_path = Path("docs/PUBLISHING.md")
 publishing = publishing_path.read_text(encoding="utf-8")
+publishing = re.sub(r"\./publish\.sh -v [0-9]+\.[0-9]+\.[0-9]+", f"./publish.sh -v {version}", publishing, count=1)
 publishing = re.sub(r"v[0-9]+\.[0-9]+\.[0-9]+", f"v{version}", publishing, count=1)
 publishing_path.write_text(publishing, encoding="utf-8")
 PY

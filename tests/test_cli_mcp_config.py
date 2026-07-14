@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from typer.core import TyperGroup, TyperOption
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from vault_graph.cli.main import app
@@ -61,6 +63,14 @@ def test_cli_mcp_register_dry_run_writes_nothing(tmp_path: Path) -> None:
 
 def test_cli_setup_help_exposes_easy_mcp_flag() -> None:
     result = runner.invoke(app, ["setup", "--help"])
+    root_command = get_command(app)
+
+    assert isinstance(root_command, TyperGroup)
+    setup_command = root_command.commands["setup"]
+    options = [parameter for parameter in setup_command.params if isinstance(parameter, TyperOption)]
+    option_names = {option.name for option in options}
+    option_flags = {flag for option in options for flag in option.opts}
 
     assert result.exit_code == 0
-    assert "--mcp" in result.stdout
+    assert "mcp" in option_names
+    assert "--mcp" in option_flags
