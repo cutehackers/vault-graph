@@ -44,19 +44,29 @@ vg --help
 
 ## Quick Start
 
-Keep Vault Graph state outside your Vault:
+Run one setup command after installation:
 
 ```bash
-vg init --vault /path/to/llm-wiki --state ~/.vault-graph
-vg index --state ~/.vault-graph
-vg status --state ~/.vault-graph
-vg search --state ~/.vault-graph "GraphRAG"
-vg context --state ~/.vault-graph "Implement GraphRAG MVP"
+vg setup --vault /path/to/llm-wiki --agent codex
 ```
 
-The first index builds local metadata, keyword, vector, and graph projections.
-Vault Graph uses local storage and local embeddings by default; it does not
-require hosted services for normal use.
+By default, setup uses `~/.vault-graph` for local state, registers the Vault,
+runs indexing, and prepares MCP registration guidance for the selected agent.
+Keep this state directory outside your Vault.
+
+Then use the indexed Vault:
+
+```bash
+vg ask --state ~/.vault-graph "What changed recently?"
+vg search --state ~/.vault-graph "GraphRAG"
+vg context --state ~/.vault-graph "Implement GraphRAG MVP"
+vg status --state ~/.vault-graph
+```
+
+Vault Graph builds local metadata, keyword, vector, and graph projections. It
+uses local storage and local embeddings by default; it does not require hosted
+services for normal use. The first indexing run may download the pinned local
+embedding model and cache it outside your Vault.
 
 ## Common Commands
 
@@ -124,40 +134,11 @@ Once connected, the agent can use these MCP tools:
 Vault Graph provides evidence-first working context and evidence-first answers
 through `ask_vault` and `vg ask`.
 
-## Recommended Easy Setup
-
-The accepted onboarding target is a one-command setup flow:
-
-```bash
-vg setup --vault /path/to/llm-wiki --agent codex
-```
-
-This command:
-
-- uses `~/.vault-graph` as the default state path when `--state` is omitted
-- registers the Vault path
-- runs indexing
-- prepares MCP registration for the selected agent
-- prints the MCP server command or writes it only to an explicit agent config path
-
-The lower-level MCP commands should remain available for explicit control:
+For explicit MCP control:
 
 ```bash
 vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
 vg mcp config --agent codex --state ~/.vault-graph --print
-```
-
-These commands are implemented product features. Their implementation design
-lives at
-[`docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`](docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md):
-
-```bash
-vg setup --vault /path/to/llm-wiki --agent codex
-vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
-vg mcp config --agent codex --state ~/.vault-graph --print
-vg watch
-vg ask "question"
-vg serve --http
 ```
 
 ## Guarantees
