@@ -35,7 +35,7 @@ def test_create_mcp_server_loads_services_before_stdio_run(tmp_path: Path) -> No
 
     assert registered.server.name == "vault-graph"
     assert registered.services.catalog.active_vault_id == "default"
-    assert registered.server_version == "0.1.2"
+    assert registered.server_version == "0.1.3"
 
 
 def test_create_mcp_server_registers_resources_tools_prompts_and_explanation_cache(tmp_path: Path) -> None:

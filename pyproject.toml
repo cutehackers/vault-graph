@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vault-graph"
-version = "0.1.2"
+version = "0.1.3"
 description = "Read-only, rebuildable knowledge access layer over Vault."
 readme = "README.md"
 authors = [{ name = "Jun Hyoung Lee" }]
