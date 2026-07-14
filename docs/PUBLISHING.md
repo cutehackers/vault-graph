@@ -6,7 +6,7 @@
 2. In GitHub Actions, run `prepare-release` manually:
    - `version`: `0.1.2`
    - `target_ref`: `main`
-   - `release_notes`: release message
+   - `release_notes`: leave empty for generated notes, or write a manual override
 3. Open the generated draft GitHub Release `v0.1.2`.
 4. Review the release notes and attached `dist/*` artifacts.
 5. Publish the draft GitHub Release.
@@ -30,6 +30,7 @@ distribution. Do not publish release artifacts from a local machine.
 - Pull requests run verification only.
 - Pushes to `main` run verification only.
 - Release preparation is manual and creates a draft GitHub Release only.
+- Empty release notes use GitHub generated release notes for the draft.
 - TestPyPI publishing is manual through `workflow_dispatch`.
 - PyPI publishing runs only when a GitHub Release is published.
 - PyPI upload jobs require GitHub environment approval.

@@ -15,8 +15,24 @@ def test_prepare_release_workflow_creates_draft_release_only() -> None:
     assert workflow["permissions"] == {"contents": "write"}
     assert "gh release create" in workflow_text
     assert "--draft" in workflow_text
+    assert "--generate-notes" in workflow_text
+    assert "release-notes.md" in workflow_text
     assert "uv publish" not in workflow_text
     assert "trusted-publishing" not in workflow_text
+
+
+def test_github_generated_release_notes_are_categorized() -> None:
+    release_config_path = Path(".github/release.yml")
+    release_config = yaml.safe_load(release_config_path.read_text(encoding="utf-8"))
+
+    categories = release_config["changelog"]["categories"]
+    category_titles = {category["title"] for category in categories}
+
+    assert "Features" in category_titles
+    assert "Fixes" in category_titles
+    assert "Documentation" in category_titles
+    assert "CI and Release" in category_titles
+    assert categories[-1]["labels"] == ["*"]
 
 
 def test_publishing_doc_starts_with_release_quick_flow() -> None:
@@ -24,5 +40,6 @@ def test_publishing_doc_starts_with_release_quick_flow() -> None:
 
     assert publishing.startswith("# Publishing\n\n## Release Quick Flow\n\n")
     assert "In GitHub Actions, run `prepare-release` manually" in publishing[:1000]
+    assert "leave empty for generated notes" in publishing[:1000]
     assert "Publish the draft GitHub Release" in publishing[:1000]
     assert "Approve the `pypi` environment deployment" in publishing[:1000]
