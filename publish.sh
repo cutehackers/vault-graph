@@ -72,7 +72,7 @@ else
   BRANCH="${CURRENT_BRANCH}"
 fi
 
-python - "${VERSION}" <<'PY'
+uv run --python 3.12 python - "${VERSION}" <<'PY'
 from __future__ import annotations
 
 import re
