@@ -1,6 +1,6 @@
 # Vault Graph Specification
 
-Version: 1.1
+Version: 1.2
 
 Status: Active product contract
 
@@ -8,18 +8,21 @@ Author: Jun Hyoung Lee
 
 Date: 2026-06-04
 
-Updated: 2026-06-26
+Updated: 2026-07-30
 
 ## 1. Vision
 
-Vault is the durable source of truth for project knowledge.
+Vault is the durable source of truth for project knowledge. A registered source
+repository is the source of truth for its current executable code.
 
-Vault Graph is a read-only, rebuildable knowledge access and reasoning layer
-over Vault. It helps agents and humans discover context, trace decisions,
-assemble task-specific context packs, and answer questions from cited Vault
-evidence without turning retrieval or reasoning output into durable knowledge.
+Vault Graph is a local-first, read-only, rebuildable project evidence access and
+reasoning layer over durable knowledge and current code. It helps agents and
+humans discover context, trace decisions, inspect code structure, assemble
+task-specific context, and answer questions from cited evidence without turning
+retrieval or reasoning output into durable knowledge or executable source.
 
-The goal is not simple document search. The goal is to make the value of Vault easier to use:
+The goal is not simple document or code search. The goal is to make project
+evidence easier to use:
 
 - Project memory projection
 - Decision tracing
@@ -28,12 +31,16 @@ The goal is not simple document search. The goal is to make the value of Vault e
 - Evidence-first ask and reasoning
 - GraphRAG-style exploration
 - Development knowledge assetization
+- Code structure and impact projection
+- Harness-native project context
 
-Vault remains the durable authority. Vault Graph interprets and indexes Vault.
-Agents consume Vault Graph outputs as working context, cited answers, and
-reasoning traces, not as a replacement for Vault.
+Vault remains the durable knowledge authority. Each registered source
+repository remains the authority for its current code. Vault Graph interprets
+and indexes both as separate evidence sources. Agents consume Vault Graph
+outputs as working context, cited answers, and reasoning traces, not as a
+replacement for either authority.
 
-## 2. Relationship To Vault
+## 2. Relationship To Vault And Source Repositories
 
 Vault uses a quality-gated compiled wiki model:
 
@@ -67,9 +74,31 @@ Vault Graph
 
 Vault Graph does not publish durable knowledge. If a retrieved answer or context pack should become durable, it must flow back through the existing Vault workflow: source capture, semantic draft, provenance checks, lint, release gate validation, and Git history.
 
+A registered source repository has a separate authority boundary:
+
+```text
+Source repository
+  source files
+  tests
+  manifests
+  selected Git metadata
+    |
+    v
+Vault Graph
+  CodeProjectionStore
+  code graph projection
+  freshness state
+  project context
+```
+
+Vault Graph does not edit repository content. Code projections preserve
+repository identity, file paths, line ranges, revisions, and extraction
+provenance. Vault documents and code symbols that describe the same concept
+remain separate evidence records and may be connected by typed relationships.
+
 ## 3. Design Principles
 
-### Principle 1: Vault Is The Source Of Truth
+### Principle 1: Source Authorities Remain Authoritative
 
 Vault Graph never edits, renames, rewrites, or deletes files in Vault.
 
@@ -81,11 +110,17 @@ Vault Graph may read:
 - `scratch/reports/`
 - selected Git metadata
 
-Vault Graph must not treat its own indexes, summaries, extracted entities, graph edges, or context packs as authoritative knowledge.
+Vault Graph may also read explicitly registered source repositories, including
+selected source files, tests, manifests, and Git metadata. It never edits,
+renames, rewrites, or deletes repository content.
+
+Vault Graph must not treat its own indexes, summaries, extracted entities,
+code symbols, graph edges, or context packs as authoritative knowledge or
+executable source.
 
 ### Principle 2: All Derived Data Is Rebuildable
 
-Everything created by Vault Graph is a projection from Vault:
+Everything created by Vault Graph is a projection from registered authorities:
 
 - Metadata index
 - Vector index
@@ -96,22 +131,50 @@ Everything created by Vault Graph is a projection from Vault:
 - Timeline projection
 - Context packs
 - Summaries
+- Code symbol index
+- Code relationship graph
+- Code freshness state
+- Combined project context
 
-Deleting all Vault Graph state and rebuilding from Vault should produce
-functionally equivalent results for the same version of the parser, chunker,
-embedding model, and graph extraction spec.
+Deleting all Vault Graph state and rebuilding from the same Vault and repository
+revisions should produce functionally equivalent results for the same version
+of the parser, chunker, embedding model, graph extraction spec, and code
+extraction spec.
 
-### Principle 3: Agents Consume Evidence-Linked Context
+### Principle 3: One Body Owner, Many Evidence References
 
-Agents should not read an entire Vault for ordinary tasks. They should request a
-scoped search result, context pack, decision trace, memory projection, or cited
-answer.
+Each source or canonical chunk body has one storage owner at each authority or
+projection boundary. Navigation, keyword, vector, graph, context, and answer
+views reference stable document, chunk, or evidence identities instead of
+becoming additional body owners.
+
+This principle does not collapse distinct authority roles:
+
+- raw source evidence and durable wiki synthesis remain separate
+- operating documentation and durable knowledge remain separate
+- equal content hashes may share physical derived storage while preserving
+  separate paths, revisions, locks, lifecycle, and provenance
+
+Default retrieval groups records from the same provenance family and returns
+one canonical result with supporting evidence links. Raw sources, generated
+navigation, and audit reports are not co-equal default answer candidates.
+
+This is the accepted Round 0 target contract. The current metadata, FTS, graph,
+and default content-scope implementation does not yet satisfy it. Code indexing
+must not begin until the Round 0 design, migration, and measurable completion
+gate are implemented and verified.
+
+### Principle 4: Agents Consume Evidence-Linked Context
+
+Agents should not read an entire Vault or repository for ordinary tasks. They
+should request a scoped search result, context pack, code exploration, decision
+trace, memory projection, or cited answer.
 
 ```text
-Vault
-  |
-  v
-Vault Graph retrieval
+Vault knowledge + repository code
+              |
+              v
+Vault Graph retrieval and project context
   |
   v
 Evidence / Context Pack / Answer
@@ -122,9 +185,11 @@ Agent
 
 Vault Graph output is evidence-linked working context. It is not durable
 knowledge until a human or agent intentionally publishes it back through
-Vault's validation workflow.
+Vault's validation workflow, and it is not executable source until a human or
+agent intentionally changes the registered repository through its normal
+development workflow.
 
-### Principle 4: Local First
+### Principle 5: Local First
 
 The core system must work without internet access.
 
@@ -139,7 +204,7 @@ Local-first requirements:
 
 Remote services may be optional scale-up integrations, but they must not be required for the default workflow.
 
-### Principle 5: Provenance Over Fluency
+### Principle 6: Provenance Over Fluency
 
 Vault Graph answers should prefer cited, inspectable evidence over polished but unsupported synthesis.
 
@@ -2182,19 +2247,26 @@ Vault Graph is successful when:
 
 ## 21. Final Vision
 
-Vault stores durable project knowledge.
+Vault stores durable project knowledge. Registered source repositories store
+current executable code.
 
-Vault Graph makes that knowledge easier to discover, trace, package, and reason
-over for humans and agents.
+Vault Graph connects those authorities so humans and agents can discover,
+trace, package, and reason over project evidence without replacing either
+source.
 
 ```text
-Vault
+Vault knowledge        Repository code
+       |                     |
+       +----------+----------+
+                  |
+                  v
+             Vault Graph
   |
   v
-Vault Graph
+Knowledge + Code Projections
   |
   v
-Hybrid Retrieval / GraphRAG
+Project Retrieval / GraphRAG
   |
   v
 Context Pack
@@ -2209,10 +2281,12 @@ CLI / MCP
 Codex / Agents
 ```
 
-Vault Graph is not just a search system. It is an intelligent, read-only
-knowledge access and reasoning layer that helps preserve project context,
-expose decision history, package task context, and answer questions from
-grounded Vault evidence while Vault remains the durable source of truth.
+Vault Graph is not just a search system. It is an intelligent, local-first,
+read-only project evidence access and reasoning layer that helps preserve
+project context, expose decision history, inspect code structure, package task
+context, and answer questions from grounded knowledge and code evidence. Vault
+remains authoritative for durable knowledge, and registered source repositories
+remain authoritative for current code.
 
 ## 21. Deferred Work And TODO Backlog
 

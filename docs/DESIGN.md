@@ -11,15 +11,18 @@ specification is the active product and architecture contract.
 
 ## 1. Purpose
 
-Vault Graph is a read-only, rebuildable access layer over Vault. It indexes
-Vault content, exposes evidence-linked retrieval, builds context packs, and
-helps agents trace project memory without turning derived output into durable
-knowledge.
+Vault Graph is a local-first, read-only, rebuildable project evidence access
+layer. The current implementation indexes Vault content, exposes evidence-linked
+retrieval, builds context packs, and helps agents trace project memory. The
+accepted next direction adds separate code projections over registered source
+repositories without turning derived output into durable knowledge or
+executable source.
 
 The detailed design has three goals:
 
 - make implementation boundaries clear enough for test-driven work
-- preserve the Vault source-of-truth boundary in every runtime path
+- preserve Vault knowledge authority and source-repository code authority in
+  every runtime path
 - keep storage backends replaceable without changing user-facing behavior
 
 This document does not redefine product scope. It translates the existing
@@ -38,10 +41,13 @@ Vault Graph has three current documentation surfaces:
 
 The design follows these authority rules:
 
-- Vault remains the durable source of truth.
-- Vault Graph state is always derived from Vault and can be deleted.
-- Context packs, summaries, graph relationships, embeddings, and indexes are
-  working context, not durable knowledge.
+- Vault remains the durable knowledge source of truth.
+- Each registered source repository remains the source of truth for its current
+  executable code.
+- Vault Graph state is always derived from registered authorities and can be
+  deleted.
+- Context packs, summaries, graph relationships, code projections, embeddings,
+  and indexes are working context, not durable knowledge or executable source.
 - Durable publication belongs to Vault's source capture, semantic draft,
   validation, release gate, and Git history workflow.
 
@@ -49,7 +55,7 @@ The design follows these authority rules:
 
 ### 3.1 In Scope
 
-Vault Graph implements:
+The current Vault implementation includes:
 
 - local Vault configuration
 - read-only Vault scanning
@@ -69,6 +75,14 @@ Vault Graph implements:
 - MCP resources, tools, and prompts
 - optional HTTP serving over the same application services
 
+The accepted next-round scope adds:
+
+- read-only source-repository registration
+- deterministic Python and Dart code structure extraction
+- code symbol, relationship, evidence, revision, and freshness projection
+- combined code and Vault project context behind an application service
+- a harness-native high-level MCP exploration tool and usage guidance
+
 ### 3.2 Out Of Scope
 
 Vault Graph does not implement:
@@ -78,7 +92,10 @@ Vault Graph does not implement:
 - raw source mutation
 - wiki page mutation
 - documentation mutation inside Vault
+- source repository mutation
+- automatic code edits or refactoring
 - contradiction resolution as durable truth
+- automatic merging of Vault knowledge and code symbols into one authority
 - autonomous truth arbitration
 - required hosted storage or SaaS dependencies
 
@@ -86,15 +103,21 @@ Any insight that should become durable must be returned as a warning, context
 pack item, or suggested Vault workflow command. Vault Graph must not silently
 perform that workflow.
 
+Any code change remains the responsibility of the external development
+workflow. Vault Graph may return code evidence and impact guidance but must not
+silently edit a registered repository.
+
 ## 4. Design Invariants
 
 These invariants must hold across CLI, MCP, HTTP, indexing, retrieval, and test
 fixtures.
 
-### 4.1 Read-Only Vault Boundary
+### 4.1 Read-Only Source Boundaries
 
-Vault Graph may read registered Vault paths. It may write only to the configured
-Vault Graph state directory.
+Vault Graph may read registered Vault and source-repository paths. It may write
+only to the configured Vault Graph state directory, except for explicit,
+user-requested harness registration that follows the existing backup and
+preservation contract.
 
 Allowed writes:
 
@@ -112,7 +135,15 @@ Forbidden writes:
 - Vault `docs/`
 - Vault `scratch/`
 - Vault Git metadata
+- registered repository source files
+- registered repository tests and manifests
+- registered repository Git metadata
 - any path outside the configured Vault Graph state directory
+
+Vault evidence and code evidence remain logically distinct even when they share
+the same label or content hash. Physical deduplication may reuse derived storage,
+but it must preserve each source kind, source ID, path, revision, and evidence
+location.
 
 ### 4.2 Rebuildability
 
@@ -130,7 +161,30 @@ runtime policies:
 If two index runs use the same Vault revision and runtime contract versions,
 query behavior should be functionally equivalent.
 
-### 4.3 Evidence-First Output
+### 4.3 Single-Body Projection
+
+One canonical derived store owns each distinct chunk plaintext body. Other
+projections keep stable references:
+
+- keyword search stores an inverted index and returns `chunk_id`
+- vector search stores embeddings plus identifying metadata, not plaintext
+- graph evidence stores `chunk_id`, revision, anchor, or offsets, not persisted
+  excerpts
+- context packs and answers resolve bounded excerpts when requested
+
+Physical content sharing must not erase logical provenance. `vault_id`, source
+role, path, revision, anchor, lifecycle, and human-lock identity remain
+independent even when content hashes match.
+
+Default retrieval groups the raw source, source page, canonical wiki synthesis,
+generated navigation, and audit records of one provenance family. It returns
+the canonical knowledge result and attaches the others as evidence or audit
+links instead of presenting them as repeated co-equal results.
+
+The accepted code-index and harness direction is gated on this invariant being
+implemented and verified.
+
+### 4.4 Evidence-First Output
 
 Every answer, decision trace, related item, warning, and context-pack item must
 be traceable to evidence when evidence exists. Output must distinguish:
@@ -142,7 +196,7 @@ be traceable to evidence when evidence exists. Output must distinguish:
 - stale indexes or projections
 - missing evidence
 
-### 4.4 Interface-First Storage
+### 4.5 Interface-First Storage
 
 Application services depend on store interfaces, not concrete backends.
 
@@ -156,7 +210,7 @@ The MVP local backends define the reference behavior:
 Scale-up adapters must preserve these contracts instead of changing the domain
 model.
 
-### 4.5 Multi-Vault Namespace
+### 4.6 Multi-Vault Namespace
 
 One Vault Graph instance may index multiple registered Vault repositories. The
 default installation still behaves like a single-Vault system by creating one

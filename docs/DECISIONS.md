@@ -17,6 +17,66 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-07-30 - Gate Expansion On Projection Deduplication
+
+**Question:** Should Vault Graph begin code indexing immediately after accepting
+the unified project-evidence direction?
+
+**Decision:** No. First complete an Authority & Projection Hygiene gate over the
+existing Vault and Vault Graph model. Separate raw evidence, canonical wiki
+knowledge, operating documents, generated navigation, and audit reports; store
+each derived plaintext body once; and collapse default search results by
+provenance family.
+
+**Reason:** Indexing raw, wiki, docs, and reports as co-equal content and storing
+chunk plaintext in multiple projections creates token, storage, authority, and
+maintenance ambiguity. Adding code before fixing that contract would multiply
+the problem.
+
+**Implications:**
+
+- Default knowledge retrieval becomes canonical-wiki-first; raw evidence,
+  operating docs, and audit reports require role-aware or explicit modes.
+- FTS, vector, and graph projections reference canonical chunks instead of
+  owning additional plaintext copies.
+- Graph evidence resolves excerpts at read time rather than persisting them.
+- Exact content hashes may share physical storage but never erase distinct
+  provenance, paths, revisions, locks, or lifecycle.
+- Code-index Round 1 does not start until the measurable completion gate in
+  `docs/superpowers/reports/2026-07-30-vault-projection-duplication-direction-report-ko.md`
+  passes.
+
+## 2026-07-30 - Expand To A Unified Project Evidence Layer
+
+**Question:** After completing Vault graph search, should Vault Graph remain
+Vault-only, require code to be copied into Vault, delegate code indexing to an
+external sidecar, or index registered source repositories as a separate
+authority?
+
+**Decision:** Expand Vault Graph into a local-first, read-only, rebuildable
+project evidence and reasoning layer. Vault remains authoritative for durable
+project knowledge. Each registered source repository remains authoritative for
+its current executable code. Vault Graph may index both but must edit neither.
+
+**Reason:** Coding agents need current code structure and durable project
+decisions together. Copying code into Vault creates a stale second source, while
+a mandatory external sidecar splits setup, freshness, provenance, and retrieval
+contracts.
+
+**Implications:**
+
+- Round 1 builds a separate deterministic code projection, beginning with
+  Python and Dart, instead of extending Markdown ingestion with code parsing.
+- Round 2 adds a high-level project exploration service and MCP tool that
+  combines code evidence, Vault evidence, impact, tests, and freshness.
+- Vault documents and repository symbols with the same concept remain separate
+  evidence records connected by typed relationships.
+- Derived storage may deduplicate content physically, but it must preserve
+  source kind, source ID, path, revision, and evidence location.
+- Duplicate or overlapping repository registrations must be rejected.
+- The detailed direction and two-round completion criteria live in
+  `docs/superpowers/reports/2026-07-30-code-index-agent-context-direction-report-ko.md`.
+
 ## 2026-07-14 - Allow Explicit Easy Codex MCP Registration
 
 **Question:** Should `vg setup` auto-register the Vault Graph MCP server for
