@@ -13,6 +13,7 @@ from vault_graph.project_context.project_context_models import (
     MAX_PROJECT_CONTEXT_DEPTH,
     MAX_PROJECT_CONTEXT_LIMIT,
     MAX_PROJECT_CONTEXT_TOKENS,
+    MIN_PROJECT_CONTEXT_TOKENS,
     PROJECT_CONTEXT_SCHEMA_VERSION,
     ProjectAuthorityFreshness,
     ProjectContext,
@@ -23,6 +24,7 @@ from vault_graph.project_context.project_context_models import (
     ProjectEvidenceRelation,
     ProjectFreshness,
     combine_freshness,
+    estimate_project_context_tokens,
 )
 
 __all__ = [
@@ -32,6 +34,7 @@ __all__ = [
     "MAX_PROJECT_CONTEXT_DEPTH",
     "MAX_PROJECT_CONTEXT_LIMIT",
     "MAX_PROJECT_CONTEXT_TOKENS",
+    "MIN_PROJECT_CONTEXT_TOKENS",
     "PROJECT_BINDING_SCHEMA_VERSION",
     "PROJECT_CONTEXT_SCHEMA_VERSION",
     "ProjectAuthorityFreshness",
@@ -46,4 +49,5 @@ __all__ = [
     "ProjectEvidenceRelation",
     "ProjectFreshness",
     "combine_freshness",
+    "estimate_project_context_tokens",
 ]
