@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 
@@ -15,6 +15,7 @@ from vault_graph.code_index.code_models import (
     CodeTraversalResult,
 )
 from vault_graph.context import ContextPack
+from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.project_context import (
     ProjectAuthorityFreshness,
     ProjectBinding,
@@ -213,30 +214,78 @@ def test_project_context_includes_bounded_impact_and_related_test_evidence(tmp_p
 
 
 def test_vault_graph_relation_adapter_marks_unmapped_authorities_as_unresolved(tmp_path: Path) -> None:
-    calls: list[str] = []
+    calls: list[tuple[str, QueryScope]] = []
 
     class Retrieval:
         def search(self, **_: object) -> object:
-            calls.append("retrieval")
-            return object()
+            calls.append(("retrieval", cast(QueryScope, _["requested_scope"])))
+            return type(
+                "Search",
+                (),
+                {
+                    "results": (
+                        type(
+                            "Result",
+                            (),
+                            {
+                                "evidence": (
+                                    type(
+                                        "Evidence",
+                                        (),
+                                        {"vault_id": "vault", "document_id": "decision-1", "chunk_id": "chunk-1"},
+                                    )(),
+                                )
+                            },
+                        )(),
+                    )
+                },
+            )()
 
     class Graph:
         def related(self, **_: object) -> object:
-            calls.append("graph")
+            calls.append(("graph", cast(QueryScope, _["requested_scope"])))
             return object()
 
     context = _service(tmp_path, code=_Code()).build(ProjectContextRequest(task="Find the implementation"))
     lookup = VaultGraphRelationLookup(retrieval_service=Retrieval(), graph_service=Graph())
+    stated_code = replace(
+        context.code_evidence[0], reasons=(f"vault-evidence:{context.vault_evidence[0].evidence_id}",)
+    )
     relations = lookup.find_relations(
         task=context.task,
         repository_id=context.repository_id,
         vault_ids=("vault",),
+        content_scopes=("wiki",),
+        code_evidence=(stated_code,),
+        vault_evidence=context.vault_evidence,
+    )
+
+    assert [call[0] for call in calls] == ["retrieval", "graph"]
+    assert all(call[1].content_scopes == ("wiki",) for call in calls)
+    assert relations[0].status == "stated"
+
+
+def test_vault_graph_relation_adapter_explains_an_unsupported_lookup_result(tmp_path: Path) -> None:
+    class Retrieval:
+        def search(self, **_: object) -> object:
+            return object()
+
+    class Graph:
+        def related(self, **_: object) -> object:
+            return object()
+
+    context = _service(tmp_path, code=_Code()).build(ProjectContextRequest(task="Find the implementation"))
+    relations = VaultGraphRelationLookup(retrieval_service=Retrieval(), graph_service=Graph()).find_relations(
+        task=context.task,
+        repository_id=context.repository_id,
+        vault_ids=("vault",),
+        content_scopes=("wiki",),
         code_evidence=context.code_evidence,
         vault_evidence=context.vault_evidence,
     )
 
-    assert calls == ["retrieval", "graph"]
     assert relations[0].status == "unresolved"
+    assert "stable" in relations[0].reason
 
 
 def test_project_context_never_reports_fresh_when_a_selected_vault_is_stale(tmp_path: Path) -> None:
