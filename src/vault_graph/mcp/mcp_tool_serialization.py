@@ -110,6 +110,12 @@ def resource_links_for_project_context(context: ProjectContext) -> tuple[McpReso
                 )
             )
             continue
+        if evidence.authority != "vault" or not _is_safe_vault_evidence_uri(
+            evidence.source_uri,
+            evidence.vault_id,
+            evidence.relative_path,
+        ):
+            continue
         links.append(
             McpResourceLink(
                 rel="evidence",
@@ -988,23 +994,25 @@ _SOURCE_LINE_FRAGMENT = re.compile(r"L([1-9][0-9]{0,9})-L([1-9][0-9]{0,9})\Z")
 
 
 def _redact_unsafe_project_context_paths(payload: dict[str, Any]) -> None:
-    for field_name in ("code_evidence", "impact_evidence", "test_evidence"):
+    for field_name in ("code_evidence", "impact_evidence", "test_evidence", "vault_evidence"):
         records = payload.get(field_name)
         if not isinstance(records, tuple | list):
             continue
         for record in records:
             if not isinstance(record, dict):
                 continue
+            authority = record.get("authority")
             repository_id = record.get("repository_id")
+            vault_id = record.get("vault_id")
             relative_path = record.get("relative_path")
             source_uri = record.get("source_uri")
-            path_is_safe = _is_safe_repository_relative_path(relative_path)
-            uri_is_safe = (
-                isinstance(source_uri, str)
-                and isinstance(repository_id, str)
-                and path_is_safe
-                and _is_safe_repository_evidence_uri(source_uri, repository_id, relative_path)
-            )
+            path_is_safe = _is_safe_relative_path(relative_path)
+            uri_is_safe = False
+            if isinstance(source_uri, str) and path_is_safe:
+                if authority == "code" and isinstance(repository_id, str):
+                    uri_is_safe = _is_safe_repository_evidence_uri(source_uri, repository_id, relative_path)
+                elif authority == "vault" and isinstance(vault_id, str):
+                    uri_is_safe = _is_safe_vault_evidence_uri(source_uri, vault_id, relative_path)
             if not path_is_safe:
                 record["relative_path"] = None
             if not uri_is_safe:
@@ -1018,7 +1026,7 @@ def _is_safe_repository_evidence_uri(
 ) -> bool:
     """Validate the exact opaque repository URI emitted by SourceEvidenceReader."""
 
-    if not isinstance(repository_id, str) or not _is_safe_repository_relative_path(relative_path):
+    if not isinstance(repository_id, str) or not _is_safe_relative_path(relative_path):
         return False
     parsed = urlsplit(uri)
     if (
@@ -1030,7 +1038,7 @@ def _is_safe_repository_evidence_uri(
     ):
         return False
     decoded_path = unquote(parsed.path[1:])
-    if decoded_path != relative_path or not _is_safe_repository_relative_path(decoded_path):
+    if decoded_path != relative_path or not _is_safe_relative_path(decoded_path):
         return False
     if quote(decoded_path, safe="/") != parsed.path[1:]:
         return False
@@ -1040,7 +1048,28 @@ def _is_safe_repository_evidence_uri(
     return int(match.group(1)) <= int(match.group(2))
 
 
-def _is_safe_repository_relative_path(value: object) -> bool:
+def _is_safe_vault_evidence_uri(uri: str, vault_id: str | None, relative_path: str | None) -> bool:
+    if not isinstance(vault_id, str) or not _is_safe_relative_path(relative_path):
+        return False
+    parsed = urlsplit(uri)
+    if (
+        parsed.scheme != "vault"
+        or parsed.netloc != quote(vault_id, safe="")
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.startswith("/")
+        or parsed.path.startswith("//")
+    ):
+        return False
+    decoded_path = unquote(parsed.path[1:])
+    return (
+        decoded_path == relative_path
+        and _is_safe_relative_path(decoded_path)
+        and quote(decoded_path, safe="/") == parsed.path[1:]
+    )
+
+
+def _is_safe_relative_path(value: object) -> bool:
     if not isinstance(value, str) or not value or "\\" in value:
         return False
     path = PurePosixPath(value)
