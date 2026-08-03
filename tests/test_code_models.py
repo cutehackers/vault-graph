@@ -174,7 +174,7 @@ def test_edge_rejects_invalid_extraction_status_and_anchor() -> None:
             parser_spec_version=CODE_PARSER_SPEC_VERSION,
         )
 
-    with pytest.raises(ValueError, match="target"):
+    with pytest.raises(ValueError, match="resolved extraction"):
         CodeEdgeRecord(
             edge_id="edge-1",
             repository_id="demo",
@@ -182,7 +182,7 @@ def test_edge_rejects_invalid_extraction_status_and_anchor() -> None:
             relation_kind="CALLS",
             target_symbol_id=None,
             unresolved_target_key=None,
-            extraction_status="unresolved",
+            extraction_status="extracted",
             anchor_start_line=1,
             anchor_start_column=0,
             parser_spec_version=CODE_PARSER_SPEC_VERSION,
