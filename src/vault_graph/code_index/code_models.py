@@ -8,6 +8,7 @@ grammar or watcher backend.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, NewType
@@ -106,13 +107,15 @@ class CodeRepositoryEntry:
     watch: bool
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "include_globs")
+        _normalize_tuple_attr(self, "exclude_globs")
+        _normalize_tuple_attr(self, "languages")
         _require_non_empty(self.repository_id, "repository_id")
         if not isinstance(self.root_path, Path) or not str(self.root_path):
             raise ValueError("root_path is required")
         _require_non_empty(self.display_name, "display_name")
-        _require_tuple(self.include_globs, "include_globs")
-        _require_tuple(self.exclude_globs, "exclude_globs")
-        _require_tuple(self.languages, "languages")
+        _require_bool(self.enabled, "enabled")
+        _require_bool(self.watch, "watch")
         for field_name, values in (
             ("include_globs", self.include_globs),
             ("exclude_globs", self.exclude_globs),
@@ -137,6 +140,7 @@ class CodeFileSnapshot:
     parser_spec_version: str
 
     def __post_init__(self) -> None:
+        _require_bool(self.is_test_file, "is_test_file")
         _require_non_empty(self.repository_id, "repository_id")
         _require_non_empty(self.relative_path, "relative_path")
         _require_relative_path(self.relative_path)
@@ -160,6 +164,7 @@ class CodeFileInput:
     parser_spec_version: str
 
     def __post_init__(self) -> None:
+        _require_bool(self.is_test_file, "is_test_file")
         _require_non_empty(self.repository_id, "repository_id")
         _require_non_empty(self.relative_path, "relative_path")
         _require_relative_path(self.relative_path)
@@ -167,6 +172,9 @@ class CodeFileInput:
         if not isinstance(self.content, bytes):
             raise ValueError("content must be bytes")
         _require_digest(self.content_hash, "content_hash")
+        actual_hash = hashlib.sha256(self.content).hexdigest()
+        if self.content_hash != actual_hash:
+            raise ValueError("content_hash does not match content")
         _require_non_empty(self.source_revision, "source_revision")
         _require_non_empty(self.parser_spec_version, "parser_spec_version")
 
@@ -323,9 +331,9 @@ class CodeParseResult:
     diagnostics: tuple[CodeParseDiagnostic, ...] = ()
 
     def __post_init__(self) -> None:
-        _require_tuple(self.symbols, "symbols")
-        _require_tuple(self.references, "references")
-        _require_tuple(self.diagnostics, "diagnostics")
+        _normalize_tuple_attr(self, "symbols")
+        _normalize_tuple_attr(self, "references")
+        _normalize_tuple_attr(self, "diagnostics")
         for record in self.symbols:
             if record.repository_id != self.file.repository_id:
                 raise ValueError("parsed record repository_id must match file")
@@ -375,6 +383,9 @@ class CodeManifest:
     file_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "repository_ids")
+        _normalize_nested_tuple_attr(self, "source_revisions")
+        _normalize_tuple_attr(self, "file_ids")
         for field_name in ("generation_id", "schema_version", "parser_spec_version", "policy_revision"):
             _require_non_empty(getattr(self, field_name), field_name)
         _require_tuple(self.repository_ids, "repository_ids")
@@ -395,11 +406,11 @@ class CodeReconcilePlan:
     run_id: str = ""
 
     def __post_init__(self) -> None:
-        _require_tuple(self.files, "files")
-        _require_tuple(self.symbols, "symbols")
-        _require_tuple(self.edges, "edges")
-        _require_tuple(self.pending_references, "pending_references")
-        _require_tuple(self.deleted_file_ids, "deleted_file_ids")
+        _normalize_tuple_attr(self, "files")
+        _normalize_tuple_attr(self, "symbols")
+        _normalize_tuple_attr(self, "edges")
+        _normalize_tuple_attr(self, "pending_references")
+        _normalize_tuple_attr(self, "deleted_file_ids")
         if self.run_id:
             _require_non_empty(self.run_id, "run_id")
         repositories = set(self.manifest.repository_ids)
@@ -432,7 +443,10 @@ class CodeApplyResult:
     schema_version: str = CODE_PROJECTION_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "repository_ids")
+        _normalize_tuple_attr(self, "diagnostics")
         _require_non_empty(self.generation_id, "generation_id")
+        _require_bool(self.activated, "activated")
         _require_tuple(self.repository_ids, "repository_ids")
         _require_non_negative(self.file_count, "file_count")
         _require_non_negative(self.symbol_count, "symbol_count")
@@ -453,6 +467,8 @@ class CodeSymbolQuery:
     limit: int = 20
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "repository_ids")
+        _normalize_tuple_attr(self, "kinds")
         _require_non_empty(self.query_text.strip(), "query_text")
         _require_tuple(self.repository_ids, "repository_ids")
         _require_tuple(self.kinds, "kinds")
@@ -515,6 +531,7 @@ class CodeTraversalQuery:
     include_uncertain: bool = False
 
     def __post_init__(self) -> None:
+        _require_bool(self.include_uncertain, "include_uncertain")
         _require_non_empty(self.symbol_id, "symbol_id")
         if self.repository_id is not None:
             _require_non_empty(self.repository_id, "repository_id")
@@ -537,6 +554,9 @@ class CodeTraversalResult:
     schema_version: str = CODE_PROJECTION_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "hits")
+        _normalize_tuple_attr(self, "edges")
+        _normalize_tuple_attr(self, "warnings")
         _require_non_empty(self.root_symbol_id, "root_symbol_id")
         if self.direction not in ("inbound", "outbound"):
             raise ValueError(f"unsupported traversal direction: {self.direction}")
@@ -557,7 +577,10 @@ class CodeIndexRequest:
     verify: bool = False
 
     def __post_init__(self) -> None:
-        _require_tuple(self.repository_ids, "repository_ids")
+        _normalize_tuple_attr(self, "repository_ids")
+        _require_bool(self.full, "full")
+        _require_bool(self.dry_run, "dry_run")
+        _require_bool(self.verify, "verify")
         for repository_id in self.repository_ids:
             _require_non_empty(repository_id, "repository_ids")
 
@@ -572,9 +595,9 @@ class CodeIndexPlan:
     schema_version: str = CODE_PROJECTION_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        _require_tuple(self.repository_ids, "repository_ids")
-        _require_tuple(self.changed_paths, "changed_paths")
-        _require_tuple(self.deleted_paths, "deleted_paths")
+        _normalize_tuple_attr(self, "repository_ids")
+        _normalize_tuple_attr(self, "changed_paths")
+        _normalize_tuple_attr(self, "deleted_paths")
         _require_non_empty(self.parser_spec_version, "parser_spec_version")
         _require_non_empty(self.schema_version, "schema_version")
 
@@ -601,6 +624,9 @@ class CodeRunReport:
     schema_version: str = CODE_PROJECTION_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "repository_ids")
+        _normalize_tuple_attr(self, "pending_paths")
+        _normalize_tuple_attr(self, "diagnostics")
         _require_non_empty(self.run_id, "run_id")
         if self.mode not in ("full", "incremental"):
             raise ValueError(f"unsupported index mode: {self.mode}")
@@ -631,7 +657,8 @@ class CodeFreshnessRequest:
     verify: bool = False
 
     def __post_init__(self) -> None:
-        _require_tuple(self.repository_ids, "repository_ids")
+        _normalize_tuple_attr(self, "repository_ids")
+        _require_bool(self.verify, "verify")
         for repository_id in self.repository_ids:
             _require_non_empty(repository_id, "repository_ids")
 
@@ -646,7 +673,9 @@ class CodeFreshnessReport:
     schema_version: str = CODE_PROJECTION_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        _require_tuple(self.repository_ids, "repository_ids")
+        _normalize_tuple_attr(self, "repository_ids")
+        _normalize_tuple_attr(self, "warnings")
+        _normalize_tuple_attr(self, "pending_paths")
         _require_freshness(self.state)
         _require_tuple(self.warnings, "warnings")
         _require_tuple(self.pending_paths, "pending_paths")
@@ -665,6 +694,8 @@ class CodeSymbolSearchRequest:
     output_format: CodeOutputFormat = "text"
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "repository_ids")
+        _normalize_tuple_attr(self, "kinds")
         CodeSymbolQuery(self.query_text, self.repository_ids, self.kinds, self.path_prefix, self.limit)
         _require_output_format(self.output_format)
 
@@ -677,6 +708,7 @@ class CodeSymbolRequest:
     output_format: CodeOutputFormat = "text"
 
     def __post_init__(self) -> None:
+        _require_bool(self.include_source, "include_source")
         _require_non_empty(self.symbol_id, "symbol_id")
         _require_positive(self.max_lines, "max_lines")
         _require_output_format(self.output_format)
@@ -703,6 +735,7 @@ class CodeTraversalRequest:
     include_uncertain: bool = False
 
     def __post_init__(self) -> None:
+        _require_bool(self.include_uncertain, "include_uncertain")
         CodeTraversalQuery(
             symbol_id=self.symbol_id,
             depth=self.depth,
@@ -735,6 +768,8 @@ class CodeSearchResponse:
     candidate_count: int = 0
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "results")
+        _normalize_tuple_attr(self, "warnings")
         _require_non_empty(self.query_text.strip(), "query_text")
         _require_tuple(self.results, "results")
         _require_freshness(self.freshness)
@@ -752,6 +787,8 @@ class CodeSymbolResponse:
     output_format: CodeOutputFormat = "text"
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "source_lines")
+        _normalize_tuple_attr(self, "warnings")
         _require_freshness(self.freshness)
         _require_tuple(self.source_lines, "source_lines")
         _require_tuple(self.warnings, "warnings")
@@ -768,6 +805,8 @@ class CodeFileOutlineResponse:
     output_format: CodeOutputFormat = "text"
 
     def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "symbols")
+        _normalize_tuple_attr(self, "warnings")
         _require_non_empty(self.repository_id, "repository_id")
         _require_relative_path(self.relative_path)
         _require_tuple(self.symbols, "symbols")
@@ -800,6 +839,19 @@ class CodeRepositoryAddRequest:
         _require_non_empty(self.repository_id, "repository_id")
         if not isinstance(self.root_path, Path) or not str(self.root_path):
             raise ValueError("root_path is required")
+        if self.display_name is not None:
+            _require_non_empty(self.display_name, "display_name")
+        _normalize_tuple_attr(self, "languages")
+        _normalize_tuple_attr(self, "include_globs")
+        _normalize_tuple_attr(self, "exclude_globs")
+        for field_name, values in (
+            ("languages", self.languages),
+            ("include_globs", self.include_globs),
+            ("exclude_globs", self.exclude_globs),
+        ):
+            for value in values:
+                _require_non_empty(value, field_name)
+        _require_bool(self.watch, "watch")
         _require_output_format(self.output_format)
 
 
@@ -827,7 +879,7 @@ class CodeRepositoryListResponse:
     output_format: CodeOutputFormat = "text"
 
     def __post_init__(self) -> None:
-        _require_tuple(self.repositories, "repositories")
+        _normalize_tuple_attr(self, "repositories")
         _require_output_format(self.output_format)
 
 
@@ -876,7 +928,8 @@ class CodeRepositoryMutationResponse:
 
     def __post_init__(self) -> None:
         _require_non_empty(self.repository_id, "repository_id")
-        _require_tuple(self.warnings, "warnings")
+        _normalize_tuple_attr(self, "warnings")
+        _require_bool(self.changed, "changed")
         _require_output_format(self.output_format)
 
 
@@ -898,9 +951,38 @@ def _require_relative_path(value: str) -> None:
         raise ValueError("relative_path must stay within the repository root")
 
 
+def _normalize_tuple_attr(instance: object, field_name: str) -> tuple[object, ...]:
+    value = getattr(instance, field_name)
+    if isinstance(value, list):
+        value = tuple(value)
+        object.__setattr__(instance, field_name, value)
+    if not isinstance(value, tuple):
+        raise ValueError(f"{field_name} must be an immutable tuple or list")
+    return value
+
+
+def _normalize_nested_tuple_attr(instance: object, field_name: str) -> tuple[tuple[object, ...], ...]:
+    values = _normalize_tuple_attr(instance, field_name)
+    normalized: tuple[tuple[object, ...], ...] = tuple(
+        tuple(value) if isinstance(value, (tuple, list)) else _raise_nested_tuple(field_name) for value in values
+    )
+    object.__setattr__(instance, field_name, normalized)
+    return normalized
+
+
+def _raise_nested_tuple(field_name: str) -> tuple[object, ...]:
+    raise ValueError(f"{field_name} entries must be immutable tuples or lists")
+
+
 def _require_tuple(value: object, field_name: str) -> None:
+    """Require an already-normalized immutable sequence for internal checks."""
     if not isinstance(value, tuple):
         raise ValueError(f"{field_name} must be an immutable tuple")
+
+
+def _require_bool(value: object, field_name: str) -> None:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a bool")
 
 
 def _require_non_negative(value: int, field_name: str) -> None:
