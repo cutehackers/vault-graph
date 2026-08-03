@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from typing import Literal
 
 from vault_graph.project_context.project_binding import ProjectBinding
@@ -11,6 +12,7 @@ PROJECT_CONTEXT_SCHEMA_VERSION = "project-context-v1"
 DEFAULT_PROJECT_CONTEXT_DEPTH = 2
 DEFAULT_PROJECT_CONTEXT_LIMIT = 20
 DEFAULT_PROJECT_CONTEXT_TOKENS = 4000
+MIN_PROJECT_CONTEXT_TOKENS = 512
 MAX_PROJECT_CONTEXT_DEPTH = 8
 MAX_PROJECT_CONTEXT_LIMIT = 100
 MAX_PROJECT_CONTEXT_TOKENS = 16000
@@ -43,7 +45,7 @@ class ProjectContextRequest:
             _require_non_empty(self.project_path, "project_path")
         if self.repository_id is not None:
             _require_non_empty(self.repository_id, "repository_id")
-        _require_bounded(self.max_tokens, "max_tokens", 1, MAX_PROJECT_CONTEXT_TOKENS)
+        _require_bounded(self.max_tokens, "max_tokens", MIN_PROJECT_CONTEXT_TOKENS, MAX_PROJECT_CONTEXT_TOKENS)
         _require_bounded(self.depth, "depth", 0, MAX_PROJECT_CONTEXT_DEPTH)
         _require_bounded(self.limit, "limit", 1, MAX_PROJECT_CONTEXT_LIMIT)
 
@@ -177,6 +179,8 @@ class ProjectContext:
     authority_freshness: tuple[ProjectAuthorityFreshness, ...]
     warnings: tuple[ProjectContextWarning, ...]
     budget: ProjectContextBudget
+    impact_evidence: tuple[ProjectEvidence, ...] = ()
+    test_evidence: tuple[ProjectEvidence, ...] = ()
     schema_version: str = PROJECT_CONTEXT_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -185,7 +189,15 @@ class ProjectContext:
         if self.binding.repository_id != self.repository_id:
             raise ValueError("binding repository_id must match context repository_id")
         _require_freshness(self.freshness)
-        for field_name in ("code_evidence", "vault_evidence", "relations", "authority_freshness", "warnings"):
+        for field_name in (
+            "code_evidence",
+            "impact_evidence",
+            "test_evidence",
+            "vault_evidence",
+            "relations",
+            "authority_freshness",
+            "warnings",
+        ):
             if not isinstance(getattr(self, field_name), tuple):
                 raise ValueError(f"{field_name} must be an immutable tuple")
         if self.schema_version != PROJECT_CONTEXT_SCHEMA_VERSION:
@@ -201,6 +213,13 @@ def combine_freshness(states: tuple[ProjectFreshness, ...]) -> ProjectFreshness:
         if state in states:
             return state
     raise ValueError("unsupported freshness state")
+
+
+def estimate_project_context_tokens(context: ProjectContext) -> int:
+    """Estimate compact JSON output tokens from every field emitted by the DTO."""
+
+    serialized = json.dumps(asdict(context), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return max(1, (len(serialized) + 3) // 4)
 
 
 def _require_non_empty(value: str, field_name: str) -> None:
@@ -225,6 +244,7 @@ __all__ = [
     "MAX_PROJECT_CONTEXT_DEPTH",
     "MAX_PROJECT_CONTEXT_LIMIT",
     "MAX_PROJECT_CONTEXT_TOKENS",
+    "MIN_PROJECT_CONTEXT_TOKENS",
     "PROJECT_CONTEXT_SCHEMA_VERSION",
     "ProjectAuthorityFreshness",
     "ProjectContext",
@@ -236,4 +256,5 @@ __all__ = [
     "ProjectFreshness",
     "ProjectRelationStatus",
     "combine_freshness",
+    "estimate_project_context_tokens",
 ]

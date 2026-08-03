@@ -109,7 +109,11 @@ class CodeIndexFactory:
 
         from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
         from vault_graph.project_context.project_binding_catalog import ProjectBindingCatalogService
-        from vault_graph.project_context.project_context_service import IndexStatusVaultFreshness, ProjectContextService
+        from vault_graph.project_context.project_context_service import (
+            IndexStatusVaultFreshness,
+            ProjectContextService,
+            VaultGraphRelationLookup,
+        )
 
         code_services = self.open()
         vault_services = ReadOnlyServiceFactory(state_path=self.state_path).open_read_only()
@@ -130,6 +134,10 @@ class CodeIndexFactory:
             vault_status_service=IndexStatusVaultFreshness(
                 catalog=vault_services.catalog,
                 status_reader=ReadOnlyServiceFactory(state_path=self.state_path).open_status_service(),
+            ),
+            graph_relation_lookup=VaultGraphRelationLookup(
+                retrieval_service=vault_services.retrieval_service,
+                graph_service=ReadOnlyServiceFactory(state_path=self.state_path).open_graph_retrieval_service(),
             ),
         )
 
