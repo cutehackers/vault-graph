@@ -7,6 +7,7 @@ from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.index_service import IndexRunReport
 from vault_graph.app.local_index_service_factory import LocalIndexServiceFactory
 from vault_graph.errors import CatalogError, SetupError
+from vault_graph.harness.harness_guidance import HarnessGuidanceReport, HarnessGuidanceRequest, HarnessGuidanceService
 from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
 from vault_graph.mcp.mcp_config_registration import (
     McpAgent,
@@ -55,6 +56,24 @@ class SetupService:
         self._index_factory = index_factory or LocalIndexServiceFactory()
         self._mcp_renderer = mcp_renderer or McpConfigRenderer()
         self._mcp_registrar = mcp_registrar or McpConfigRegistrar(renderer=self._mcp_renderer)
+
+    def manage_harness_guidance(
+        self,
+        *,
+        action: str,
+        request: HarnessGuidanceRequest,
+        vault_roots: tuple[Path, ...],
+    ) -> HarnessGuidanceReport:
+        """Run an explicit instruction-file change without changing setup defaults."""
+
+        service = HarnessGuidanceService(vault_roots=vault_roots)
+        if action == "install":
+            return service.install(request)
+        if action == "remove":
+            return service.remove(request)
+        if action == "preview":
+            return service.preview(request)
+        raise SetupError("unsupported_harness_guidance_action")
 
     def setup(self, request: SetupRequest) -> SetupReport:
         catalog_service = CatalogService(state_path=request.state_path)

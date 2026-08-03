@@ -28,6 +28,9 @@ PHASE_5C_PROMPT_NAMES = (
     "trace_decision_history",
 )
 
+HARNESS_GUIDANCE_START_MARKER = "<!-- vault-graph:harness-guidance:start -->"
+HARNESS_GUIDANCE_END_MARKER = "<!-- vault-graph:harness-guidance:end -->"
+
 _SHARED_LINES = (
     "Use Vault Graph as read-only working context.",
     "Do not read the whole Vault when a scoped context pack is enough.",

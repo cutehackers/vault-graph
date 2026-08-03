@@ -50,6 +50,10 @@ class SetupError(VaultGraphError):
     """Raised when one-command setup cannot proceed safely."""
 
 
+class HarnessGuidanceError(VaultGraphError):
+    """Raised when explicit coding-harness guidance cannot be changed safely."""
+
+
 class ResultExplanationError(VaultGraphError):
     """Raised when result explanation contracts are violated or unavailable."""
 

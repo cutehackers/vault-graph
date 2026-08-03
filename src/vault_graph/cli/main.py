@@ -16,6 +16,7 @@ from vault_graph.app.projection_generation import ProjectionGenerationManager
 from vault_graph.app.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.cli.code_commands import code_app
+from vault_graph.cli.harness_commands import harness_app
 from vault_graph.cli.project_commands import project_app
 from vault_graph.context import (
     DEFAULT_CONTEXT_MAX_TOKENS,
@@ -72,6 +73,7 @@ app.add_typer(vault_app, name="vault")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(code_app, name="code")
 app.add_typer(project_app, name="project")
+app.add_typer(harness_app, name="harness")
 
 
 def _catalog(state: Path) -> tuple[CatalogService, VaultCatalog]:

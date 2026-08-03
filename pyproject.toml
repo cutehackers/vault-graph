@@ -68,6 +68,7 @@ select = ["B", "E", "F", "I", "UP"]
 [tool.ruff.lint.per-file-ignores]
 "src/vault_graph/cli/main.py" = ["B008"]
 "src/vault_graph/cli/code_commands.py" = ["B008"]
+"src/vault_graph/cli/harness_commands.py" = ["B008"]
 "src/vault_graph/cli/project_commands.py" = ["B008"]
 
 [tool.mypy]
