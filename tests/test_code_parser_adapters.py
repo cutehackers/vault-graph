@@ -145,7 +145,14 @@ def test_dart_adapter_extracts_constructors_and_each_property_initializer() -> N
     assert "members.Widget.first" in names
     assert "members.Widget.second" in names
     assert "members.Widget.operator +" in names
-    assert not any(symbol.name == "other" for symbol in result.symbols)
+    assert "members.Widget.operator []" in names
+    assert "members.Widget.operator []=" in names
+    assert "members.Widget.operator ~" in names
+    assert "members.Widget.title" in names
+    assert "members.Widget.make" in names
+    assert "members.Widget.greet" in names
+    assert "members.Widget.convert" in names
+    assert not any(symbol.name in {"other", "index", "value", "message"} for symbol in result.symbols)
     property_ranges = {
         symbol.name: (symbol.start_line, symbol.start_column, symbol.end_line, symbol.end_column)
         for symbol in result.symbols
@@ -201,6 +208,14 @@ def test_python_signature_is_bounded_to_the_declaration_header() -> None:
     assert signature == "def one() -> int:"
     assert "decorator" not in signature
     assert "return" not in signature
+
+
+def test_python_adapter_emits_one_import_reference_per_imported_module() -> None:
+    from vault_graph.code_index.python_parser import PythonCodeParserAdapter
+
+    result = PythonCodeParserAdapter().parse(_input(FIXTURES / "python/basic_project/imports.py", language="python"))
+    targets = {reference.target_key for reference in result.references if reference.relation_kind == "IMPORTS"}
+    assert {"foo", "bar", "pkg"}.issubset(targets)
 
 
 @pytest.mark.parametrize(
