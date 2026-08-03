@@ -172,6 +172,9 @@ class FakeMetadataStore:
             vault_revision=f"git-{vault_id}",
         )
 
+    def list_family_evidence(self, *, vault_id: str, provenance_family_id: str) -> tuple[EvidenceReference, ...]:
+        raise AssertionError("not used by metadata resource reader tests")
+
     def health(self) -> StoreHealth:
         self.calls.append("health")
         return StoreHealth(
