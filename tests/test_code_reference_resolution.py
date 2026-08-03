@@ -283,6 +283,31 @@ def test_full_rebuild_drops_pending_references_missing_from_current_parse() -> N
     assert rebuilt.pending_references == ()
 
 
+def test_pending_identity_is_scoped_by_repository_when_reference_ids_collide() -> None:
+    first_file = _file("first", "pkg/service.py")
+    second_file = _file("second", "pkg/service.py")
+    first_caller = _symbol(first_file, "run", line=2)
+    second_caller = _symbol(second_file, "run", line=2)
+    first_reference = _reference(first_file, first_caller, "CALLS", "missing", line=3, reference_id="shared")
+    second_reference = _reference(second_file, second_caller, "CALLS", "missing", line=3, reference_id="shared")
+    initial = CodeReferenceResolver().resolve(
+        files=(first_file, second_file),
+        symbols=(first_caller, second_caller),
+        references=(first_reference, second_reference),
+        previous_pending=(),
+    )
+
+    incremental = CodeReferenceResolver().resolve(
+        files=(first_file, second_file),
+        symbols=(first_caller, second_caller),
+        references=(first_reference,),
+        previous_pending=initial.pending_references,
+        changed_file_ids=(code_file_identity("first", "pkg/other.py"),),
+    )
+
+    assert {pending.repository_id for pending in incremental.pending_references} == {"first", "second"}
+
+
 def test_collisions_and_dynamic_calls_are_ambiguous_not_confident() -> None:
     source = _file("repo", "pkg/service.py")
     first_file = _file("repo", "pkg/one.py")
