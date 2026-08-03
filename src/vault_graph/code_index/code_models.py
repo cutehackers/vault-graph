@@ -253,11 +253,8 @@ class CodeEdgeRecord:
             raise ValueError("unresolved_target_key must be non-empty when provided")
         if self.extraction_status in ("extracted", "inferred") and self.target_symbol_id is None:
             raise ValueError("resolved extraction status requires target_symbol_id")
-        if self.extraction_status in ("ambiguous", "unresolved"):
-            if self.target_symbol_id is not None:
-                raise ValueError("ambiguous or unresolved edge cannot have target_symbol_id")
-            if self.unresolved_target_key is None:
-                raise ValueError("ambiguous or unresolved edge requires unresolved_target_key")
+        if self.extraction_status in ("ambiguous", "unresolved") and self.target_symbol_id is not None:
+            raise ValueError("ambiguous or unresolved edge cannot have target_symbol_id")
 
 
 @dataclass(frozen=True)
