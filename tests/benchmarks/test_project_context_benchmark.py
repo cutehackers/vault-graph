@@ -192,7 +192,7 @@ class _FixtureVaultContextPackBuilder:
             ),
             retrieval_policy_version="fixture-vault-reader-v1",
             budget=ContextPackBudget(max_tokens=request.budget.max_tokens, used_tokens=1),
-            generated_at="2026-08-04T00:00:00+00:00",
+            generated_at="2026-08-03T00:00:00+00:00",
             current_state=(),
             relevant_pages=(),
             relevant_sources=(),
