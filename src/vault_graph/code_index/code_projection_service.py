@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import uuid
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Literal
 
 from vault_graph.code_index.code_freshness import CodeFreshnessService
-from vault_graph.code_index.code_generation import CodeProjectionGenerationManager
+from vault_graph.code_index.code_generation import CodeGenerationLayout, CodeProjectionGenerationManager
 from vault_graph.code_index.code_models import (
     CODE_PROJECTION_SCHEMA_VERSION,
     CodeEdgeRecord,
     CodeFileInput,
+    CodeFileSnapshot,
     CodeFreshnessReport,
     CodeFreshnessRequest,
     CodeFreshnessState,
@@ -63,7 +65,7 @@ class CodeProjectionService:
         self.generation_manager = generation_manager
         self._store_factory = store_factory or _sqlite_store
         self._parsed: dict[str, CodeParseResult] = {}
-        self._snapshots: dict[str, CodeFileInput] = {}
+        self._snapshots: dict[str, CodeFileInput | CodeFileSnapshot] = {}
         self._pending: tuple[PendingCodeReference, ...] = ()
         self._syncing = False
         self.fail_next_apply = False
@@ -115,12 +117,7 @@ class CodeProjectionService:
         if not isinstance(request, CodeIndexRequest):
             raise TypeError("request must be a CodeIndexRequest")
         requested_entries = _select_entries(self._entries, request.repository_ids)
-        # A generation is the complete enabled-repository snapshot. A scoped
-        # run therefore rebuilds the selected namespace while carrying every
-        # other repository forward in the same staged generation.
-        entries = self._entries
         repository_ids = tuple(entry.repository_id for entry in requested_entries)
-        generation_repository_ids = tuple(entry.repository_id for entry in entries)
         mode: Literal["full", "incremental"] = "full" if request.full else "incremental"
         run_id = f"code-run-{uuid.uuid4().hex}"
         if request.dry_run:
@@ -138,55 +135,111 @@ class CodeProjectionService:
         staged = None
         diagnostics: list[CodeParseDiagnostic] = []
         try:
-            scans = self._scan(entries)
+            # A scoped run scans only the requested repositories. When an
+            # active generation exists, its SQLite file is cloned into the
+            # staged generation so untouched namespaces remain byte-for-byte
+            # represented without re-reading their source files.
+            scans = self._scan(requested_entries)
             files = tuple(file for scan in scans for file in scan.files)
             current_by_id = {code_file_identity(file.repository_id, file.relative_path): file for file in files}
-            old_ids = set(self._snapshots)
-            deleted_count = len(old_ids - set(current_by_id))
+            active = self.generation_manager.active_layout(())
+            active_store = self._open_active_store(active)
+            active_manifest = active_store.current_manifest(()) if active_store is not None else None
+            existing_selected = self._existing_snapshots(active_store, repository_ids)
+            old_ids = set(existing_selected)
+            deleted_ids = old_ids - set(current_by_id)
+            deleted_count = len(deleted_ids)
             parsed_results, parsed_count, skipped_count, parse_diagnostics = self._parse(files, full=request.full)
             diagnostics.extend(parse_diagnostics)
             all_files = tuple(result.file for result in parsed_results)
-            all_symbols = tuple(symbol for result in parsed_results for symbol in result.symbols)
+            untouched_files = (
+                tuple(
+                    snapshot
+                    for snapshot in active_store.file_snapshots(active_manifest.repository_ids)
+                    if snapshot.repository_id not in set(repository_ids)
+                )
+                if active_store is not None and active_manifest is not None
+                else tuple(
+                    _as_snapshot(snapshot)
+                    for file_id, snapshot in self._snapshots.items()
+                    if snapshot.repository_id not in set(repository_ids)
+                )
+            )
+            untouched_symbols = (
+                active_store.symbols(active_manifest.repository_ids)
+                if active_store is not None and active_manifest is not None
+                else tuple(
+                    symbol
+                    for result in self._parsed.values()
+                    for symbol in result.symbols
+                    if symbol.repository_id not in set(repository_ids)
+                )
+            )
+            all_symbols = tuple(symbol for result in parsed_results for symbol in result.symbols) + tuple(
+                symbol for symbol in untouched_symbols if symbol.repository_id not in set(repository_ids)
+            )
             all_references = tuple(reference for result in parsed_results for reference in result.references)
-            previous_pending = self._pending if not request.full else ()
+            previous_pending = (
+                tuple(
+                    pending
+                    for pending in active_store.pending_references(active_manifest.repository_ids)
+                    if pending.repository_id in set(repository_ids)
+                )
+                if active_store is not None and active_manifest is not None
+                else tuple(pending for pending in self._pending if pending.repository_id in set(repository_ids))
+            )
             changed_ids = tuple(
                 file_id
                 for file_id, file in current_by_id.items()
                 if request.full
-                or file_id not in self._snapshots
-                or self._snapshots[file_id].content_hash != file.content_hash
+                or file_id not in existing_selected
+                or existing_selected[file_id].content_hash != file.content_hash
             )
             resolution = self._resolver.resolve(
-                files=all_files,
+                files=tuple(all_files) + tuple(untouched_files),
                 symbols=all_symbols,
                 references=all_references,
-                previous_pending=previous_pending,
-                changed_file_ids=None if request.full else tuple(changed_ids) + tuple(old_ids - set(current_by_id)),
+                previous_pending=() if request.full else previous_pending,
+                changed_file_ids=None if request.full else tuple(changed_ids) + tuple(deleted_ids),
             )
-            policy_revision = _policy_revision(entries)
-            generation_ids = generation_repository_ids
+            generation_ids = _generation_repository_ids(
+                active_manifest.repository_ids if active_manifest is not None else (),
+                self._entries,
+                repository_ids,
+            )
+            generation_entries = tuple(entry for entry in self._entries if entry.repository_id in set(generation_ids))
+            policy_revision = _policy_revision(generation_entries)
             staged = self.generation_manager.stage(generation_ids)
+            if active is not None and active.database_path.exists():
+                shutil.copy2(active.database_path, staged.database_path)
             store = self._store_factory(staged.database_path, policy_revision)
+            source_revisions = dict(active_manifest.source_revisions) if active_manifest is not None else {}
+            source_revisions.update((scan.repository_id, scan.source_revision) for scan in scans)
+            if set(source_revisions) != set(generation_ids):
+                raise RuntimeError("scoped code projection cannot establish untouched source revisions")
+            active_file_ids = set(active_manifest.file_ids) if active_manifest is not None else set()
+            desired_file_ids = (active_file_ids - deleted_ids) | set(current_by_id)
             manifest = CodeManifest(
                 generation_id=staged.generation_id,
                 schema_version=CODE_PROJECTION_SCHEMA_VERSION,
                 parser_spec_version=self._scanner.parser_spec_version,
                 repository_ids=generation_ids,
                 policy_revision=policy_revision,
-                source_revisions=tuple(sorted((scan.repository_id, scan.source_revision) for scan in scans)),
-                file_ids=tuple(sorted(current_by_id)),
+                source_revisions=tuple(sorted(source_revisions.items())),
+                file_ids=tuple(sorted(desired_file_ids)),
             )
             reconcile = CodeReconcilePlan(
                 manifest=manifest,
                 files=tuple(sorted(all_files, key=lambda item: (item.repository_id, item.relative_path))),
                 symbols=tuple(
                     sorted(
-                        all_symbols,
+                        tuple(symbol for symbol in all_symbols if symbol.repository_id in set(repository_ids)),
                         key=lambda item: (item.repository_id, item.file_id, item.start_line, item.symbol_id),
                     )
                 ),
-                edges=resolution.edges,
+                edges=tuple(edge for edge in resolution.edges if edge.repository_id in set(repository_ids)),
                 pending_references=resolution.pending_references,
+                deleted_file_ids=tuple(sorted(deleted_ids)),
                 run_id=run_id,
             )
             if self.fail_next_apply:
@@ -196,16 +249,38 @@ class CodeProjectionService:
             health = store.health()
             if not health.schema_compatible:
                 raise RuntimeError(f"staged code projection failed health audit: {health.message}")
+            if request.verify and store.current_manifest(generation_ids) != manifest:
+                raise RuntimeError("staged code projection manifest verification failed")
+            warnings = tuple(sorted({warning for scan in scans for warning in scan.warnings}))
+            diagnostics.extend(diagnostic for result in parsed_results for diagnostic in result.diagnostics)
+            partial = bool(warnings or diagnostics)
+            if hasattr(store, "record_freshness"):
+                store.record_freshness(
+                    "partial" if partial else "fresh", (*warnings, *(diagnostic.message for diagnostic in diagnostics))
+                )
             self.generation_manager.activate(staged)
             self._parsed = {
                 code_file_identity(result.file.repository_id, result.file.relative_path): result
                 for result in parsed_results
             }
-            self._snapshots = dict(current_by_id)
-            self._pending = resolution.pending_references
-            warnings = tuple(sorted({warning for scan in scans for warning in scan.warnings}))
-            diagnostics.extend(diagnostic for result in parsed_results for diagnostic in result.diagnostics)
-            partial = bool(warnings or diagnostics)
+            retained_snapshots = {
+                file_id: snapshot
+                for file_id, snapshot in (
+                    existing_selected.items() if active_store is not None else self._snapshots.items()
+                )
+                if file_id not in deleted_ids and snapshot.repository_id not in set(repository_ids)
+            }
+            self._snapshots = {**retained_snapshots, **current_by_id}
+            retained_pending = tuple(
+                pending
+                for pending in (
+                    active_store.pending_references(active_manifest.repository_ids)
+                    if active_store is not None and active_manifest is not None
+                    else self._pending
+                )
+                if pending.repository_id not in set(repository_ids)
+            )
+            self._pending = tuple((*retained_pending, *resolution.pending_references))
             return _run_report(
                 run_id=run_id,
                 mode=mode,
@@ -216,8 +291,8 @@ class CodeProjectionService:
                 files_skipped=skipped_count,
                 files_deleted=deleted_count,
                 files_retried=len(resolution.retried_reference_ids),
-                symbols_extracted=len(all_symbols),
-                edges=resolution.edges,
+                symbols_extracted=sum(1 for symbol in all_symbols if symbol.repository_id in set(repository_ids)),
+                edges=tuple(edge for edge in resolution.edges if edge.repository_id in set(repository_ids)),
                 pending_paths=resolution.pending_references,
                 files_by_id=current_by_id,
                 diagnostics=tuple(diagnostics),
@@ -243,7 +318,7 @@ class CodeProjectionService:
     def status(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport:
         entries = _select_entries(self._entries, repository_ids)
         freshness = CodeFreshnessService(
-            catalog=entries,
+            catalog=self._entries,
             scanner=self._scanner,
             generation_manager=self.generation_manager,
             parser_spec_version=self._scanner.parser_spec_version,
@@ -257,6 +332,34 @@ class CodeProjectionService:
 
     def _scan(self, entries: tuple[CodeRepositoryEntry, ...]) -> tuple[CodeScanResult, ...]:
         return tuple(self._scanner.scan(entry) for entry in entries)
+
+    def _open_active_store(self, active: CodeGenerationLayout | None) -> SQLiteCodeProjectionStore | None:
+        if active is None or not active.database_path.exists():
+            return None
+        store = SQLiteCodeProjectionStore.open_read_only(
+            active.database_path,
+            parser_spec_version=self._scanner.parser_spec_version,
+        )
+        health = store.health()
+        if not health.schema_compatible:
+            raise RuntimeError(f"active code projection is incompatible: {health.message}")
+        return store
+
+    def _existing_snapshots(
+        self,
+        active_store: SQLiteCodeProjectionStore | None,
+        repository_ids: tuple[str, ...],
+    ) -> dict[str, CodeFileInput | CodeFileSnapshot]:
+        if active_store is not None:
+            return {
+                code_file_identity(snapshot.repository_id, snapshot.relative_path): snapshot
+                for snapshot in active_store.file_snapshots(repository_ids)
+            }
+        return {
+            file_id: snapshot
+            for file_id, snapshot in self._snapshots.items()
+            if snapshot.repository_id in set(repository_ids)
+        }
 
     def _parse(
         self,
@@ -334,6 +437,24 @@ def _policy_revision(entries: tuple[CodeRepositoryEntry, ...]) -> str:
     payload = [(entry.repository_id, repository_policy_revision(entry)) for entry in entries]
     serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
     return f"code-policy-set-v1:{hashlib.sha256(serialized.encode('utf-8')).hexdigest()}"
+
+
+def _generation_repository_ids(
+    active_ids: tuple[str, ...],
+    entries: tuple[CodeRepositoryEntry, ...],
+    requested_ids: tuple[str, ...],
+) -> tuple[str, ...]:
+    # Bootstrap runs with no active generation create only the explicitly
+    # requested namespace; later scoped runs clone and retain every active
+    # registered namespace.
+    registered = {entry.repository_id for entry in entries}
+    retained = set(active_ids) & registered
+    retained.update(requested_ids)
+    return tuple(sorted(retained))
+
+
+def _as_snapshot(value: CodeFileInput | CodeFileSnapshot) -> CodeFileSnapshot:
+    return value.snapshot() if isinstance(value, CodeFileInput) else value
 
 
 def _sqlite_store(database_path: Path, policy_revision: str) -> CodeProjectionStore:

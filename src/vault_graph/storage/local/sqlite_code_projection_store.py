@@ -31,6 +31,7 @@ from vault_graph.code_index.code_models import (
     CodeSymbolRecord,
     CodeTraversalQuery,
     CodeTraversalResult,
+    PendingCodeReference,
 )
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
@@ -529,6 +530,71 @@ class SQLiteCodeProjectionStore:
                 requested,
             ).fetchall()
         return tuple(str(row["relative_path"]) for row in rows)
+
+    def file_snapshots(self, repository_ids: tuple[str, ...]) -> tuple[CodeFileSnapshot, ...]:
+        requested = _normalize_repository_ids(repository_ids)
+        if not requested or not self._database_path.exists():
+            return ()
+        with self._connect_readonly() as connection:
+            placeholders = ",".join("?" for _ in requested)
+            rows = connection.execute(
+                f"SELECT * FROM files WHERE repository_id IN ({placeholders}) ORDER BY repository_id, relative_path",
+                requested,
+            ).fetchall()
+        return tuple(_file_snapshot_from_row(row) for row in rows)
+
+    def symbols(self, repository_ids: tuple[str, ...]) -> tuple[CodeSymbolRecord, ...]:
+        requested = _normalize_repository_ids(repository_ids)
+        if not requested or not self._database_path.exists():
+            return ()
+        with self._connect_readonly() as connection:
+            placeholders = ",".join("?" for _ in requested)
+            rows = connection.execute(
+                (
+                    f"SELECT * FROM symbols WHERE repository_id IN ({placeholders}) "
+                    "ORDER BY repository_id, file_id, start_line, start_column, symbol_id"
+                ),
+                requested,
+            ).fetchall()
+        return tuple(_symbol_from_row(row) for row in rows)
+
+    def pending_references(self, repository_ids: tuple[str, ...]) -> tuple[PendingCodeReference, ...]:
+        requested = _normalize_repository_ids(repository_ids)
+        if not requested or not self._database_path.exists():
+            return ()
+        with self._connect_readonly() as connection:
+            placeholders = ",".join("?" for _ in requested)
+            rows = connection.execute(
+                (
+                    f"SELECT * FROM pending_references WHERE repository_id IN ({placeholders}) "
+                    "ORDER BY repository_id, pending_id"
+                ),
+                requested,
+            ).fetchall()
+        return tuple(_pending_from_row(row) for row in rows)
+
+    def record_freshness(self, state: str, warnings: tuple[str, ...] = ()) -> None:
+        if self._read_only:
+            raise PermissionError("code projection store is read-only")
+        with self._connect() as connection:
+            _set_metadata(connection, "freshness_state", state)
+            _set_metadata(connection, "freshness_warnings", json.dumps(list(warnings), sort_keys=True))
+
+    def last_freshness(self) -> tuple[str, tuple[str, ...]]:
+        if not self._database_path.exists():
+            return "unknown", ()
+        with self._connect_readonly() as connection:
+            state = _metadata(connection, "freshness_state") or "fresh"
+            serialized = _metadata(connection, "freshness_warnings")
+        if serialized is None:
+            return state, ()
+        try:
+            values = json.loads(serialized)
+        except json.JSONDecodeError:
+            return "unknown", ("stored freshness warnings are invalid",)
+        if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+            return "unknown", ("stored freshness warnings are invalid",)
+        return state, tuple(values)
 
     def apply_reconcile_plan(self, plan: CodeReconcilePlan) -> CodeApplyResult:
         if self._read_only:
@@ -1253,6 +1319,34 @@ def _symbol_from_row(row: sqlite3.Row) -> CodeSymbolRecord:
         end_column=int(row["end_column"]),
         content_hash=str(row["content_hash"]),
         source_revision=str(row["source_revision"]),
+        parser_spec_version=str(row["parser_spec_version"]),
+    )
+
+
+def _file_snapshot_from_row(row: sqlite3.Row) -> CodeFileSnapshot:
+    return CodeFileSnapshot(
+        repository_id=str(row["repository_id"]),
+        relative_path=str(row["relative_path"]),
+        language=str(row["language"]),
+        content_hash=str(row["content_hash"]),
+        byte_count=int(row["byte_count"]),
+        line_count=int(row["line_count"]),
+        source_revision=str(row["source_revision"]),
+        is_test_file=bool(row["is_test_file"]),
+        parser_spec_version=str(row["parser_spec_version"]),
+    )
+
+
+def _pending_from_row(row: sqlite3.Row) -> PendingCodeReference:
+    return PendingCodeReference(
+        pending_id=str(row["pending_id"]),
+        repository_id=str(row["repository_id"]),
+        source_file_id=str(row["source_file_id"]),
+        reference_id=str(row["reference_id"]),
+        source_revision=str(row["source_revision"]),
+        relation_kind=str(row["relation_kind"]),
+        target_key=str(row["target_key"]),
+        reason=str(row["reason"]),
         parser_spec_version=str(row["parser_spec_version"]),
     )
 

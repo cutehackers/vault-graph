@@ -97,7 +97,7 @@ class CodeSourceScanner:
             selected.append((relative, content, language, _is_test_path(relative)))
 
         selected.sort(key=lambda item: item[0])
-        source_revision = _source_revision(root, selected)
+        source_revision = _source_revision(root, selected, repository.git_revision_policy)
         files = tuple(
             CodeFileInput(
                 repository_id=repository.repository_id,
@@ -185,11 +185,21 @@ def _is_test_path(relative: str) -> bool:
     )
 
 
-def _source_revision(root: Path, selected: list[tuple[str, bytes, str, bool]]) -> str:
+def _source_revision(
+    root: Path,
+    selected: list[tuple[str, bytes, str, bool]],
+    git_revision_policy: str,
+) -> str:
+    if git_revision_policy not in {"head", "head-and-working-tree", "content-hash"}:
+        raise CodeSourceScanError(f"unsupported git revision policy: {git_revision_policy}")
     content_digest = _selected_digest(selected)
+    if git_revision_policy == "content-hash":
+        return f"content-hash:{content_digest}"
     head = _git(root, "rev-parse", "HEAD")
     if head is None:
         return f"content-hash:{content_digest}"
+    if git_revision_policy == "head":
+        return f"git:{head}"
     dirty = _git(root, "status", "--porcelain", "--untracked-files=all")
     if dirty is None:
         return f"git:{head}"

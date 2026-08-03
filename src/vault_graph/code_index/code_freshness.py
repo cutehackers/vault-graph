@@ -91,11 +91,17 @@ class CodeFreshnessService:
             self._last_report = report
             return report
 
+        generation_entries = (
+            tuple(entry for entry in self._entries if entry.repository_id in set(layout.repository_ids))
+            if layout is not None
+            else entries
+        )
+        expected_policy = _policy_revision(generation_entries)
         if self._store is not None:
             projection = self._store
         else:
             assert layout is not None
-            projection = self._open_store(layout.database_path, _policy_revision(entries))
+            projection = self._open_store(layout.database_path, expected_policy)
         try:
             health = projection.health()
         except Exception as exc:  # backend failures are represented as availability state
@@ -114,7 +120,6 @@ class CodeFreshnessService:
             return report
 
         manifest = projection.current_manifest(repository_ids)
-        expected_policy = _policy_revision(entries)
         manifest_revisions = dict(manifest.source_revisions)
         current_revisions = {scan.repository_id: scan.source_revision for scan in scans}
         if manifest.parser_spec_version != self._parser_spec_version:
@@ -128,11 +133,44 @@ class CodeFreshnessService:
             if indexed_revision != current_revision:
                 warnings.append(f"source revision changed: {repository_id}")
 
+        file_method = getattr(projection, "file_snapshots", None)
+        indexed_files = (
+            {(snapshot.repository_id, snapshot.relative_path): snapshot for snapshot in file_method(repository_ids)}
+            if callable(file_method)
+            else {}
+        )
+        current_files = {
+            (file.repository_id, file.relative_path): file.snapshot() for scan in scans for file in scan.files
+        }
+        if not callable(file_method):
+            warnings.append("content verification is unavailable for this store")
+        elif indexed_files.keys() != current_files.keys():
+            warnings.append("indexed file scope differs from source scan")
+        for key in indexed_files.keys() & current_files.keys():
+            indexed = indexed_files[key]
+            current = current_files[key]
+            if indexed.content_hash != current.content_hash:
+                warnings.append(f"content hash changed: {key[0]}/{key[1]}")
+            if request.verify and (
+                indexed.language != current.language
+                or indexed.byte_count != current.byte_count
+                or indexed.line_count != current.line_count
+                or indexed.parser_spec_version != current.parser_spec_version
+            ):
+                warnings.append(f"file fingerprint metadata changed: {key[0]}/{key[1]}")
+
+        last_state, last_warnings = _last_freshness(projection)
+        if last_state == "partial":
+            warnings.extend(last_warnings)
+            warnings.append("last code projection run was partial")
+
         pending_paths.extend(_pending_paths(projection, repository_ids))
         if pending_paths:
             warnings.append("unresolved references remain pending")
 
         state: CodeFreshnessState = "fresh" if not warnings else "stale"
+        if last_state == "partial":
+            state = "partial"
         if any(message.startswith("source_unavailable:") for message in warnings):
             state = "unknown"
         report = CodeFreshnessReport(
@@ -204,6 +242,16 @@ def _pending_paths(projection: CodeProjectionStore, repository_ids: tuple[str, .
     if callable(method):
         return tuple(str(item.target_key) for item in method(repository_ids))
     return ()
+
+
+def _last_freshness(projection: CodeProjectionStore) -> tuple[str, tuple[str, ...]]:
+    method = getattr(projection, "last_freshness", None)
+    if not callable(method):
+        return "fresh", ()
+    state, warnings = method()
+    if state not in {"fresh", "stale", "syncing", "partial", "unavailable", "unknown"}:
+        return "unknown", ("stored freshness state is invalid",)
+    return state, tuple(warnings)
 
 
 __all__ = ["CodeFreshness", "CodeFreshnessService"]

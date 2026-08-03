@@ -71,6 +71,7 @@ from vault_graph.code_index.python_parser import PythonCodeParserAdapter, Python
 from vault_graph.code_index.reference_resolution import CodeReferenceResolver
 from vault_graph.code_index.repository_catalog import (
     SUPPORTED_CODE_LANGUAGES,
+    SUPPORTED_GIT_REVISION_POLICIES,
     CodeRepositoryCatalog,
     CodeRepositoryCatalogService,
     repository_policy_revision,
@@ -156,6 +157,7 @@ __all__ = [
     "CodeRepositoryCatalog",
     "CodeRepositoryCatalogService",
     "SUPPORTED_CODE_LANGUAGES",
+    "SUPPORTED_GIT_REVISION_POLICIES",
     "repository_policy_revision",
     "CodeParserAdapter",
     "PythonCodeParserAdapter",
