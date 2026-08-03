@@ -378,15 +378,21 @@ def test_collisions_and_dynamic_calls_are_ambiguous_not_confident() -> None:
     first = _symbol(first_file, "helper", line=2)
     second = _symbol(second_file, "helper", line=2)
     method = _symbol(first_file, "method", line=4)
+    marker_collision = _symbol(
+        first_file,
+        "obj.method",
+        qualified_name="dynamic:obj.method",
+        line=5,
+    )
     references = (
         _reference(source, caller, "CALLS", "helper", line=3),
         _reference(source, caller, "CALLS", "factory()", line=4),
-        _reference(source, caller, "CALLS", "obj.method", line=5),
+        _reference(source, caller, "CALLS", "dynamic:obj.method", line=5),
     )
 
     result = CodeReferenceResolver().resolve(
         files=(source, first_file, second_file),
-        symbols=(caller, first, second, method),
+        symbols=(caller, first, second, method, marker_collision),
         references=references,
         previous_pending=(),
     )
