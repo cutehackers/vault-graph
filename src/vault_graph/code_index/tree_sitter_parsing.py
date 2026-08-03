@@ -123,13 +123,14 @@ def unsupported_diagnostics(
     tree: Any,
     unsupported_node_types: frozenset[str],
     *,
+    top_level_only: bool = False,
     limit: int = 32,
 ) -> tuple[CodeParseDiagnostic, ...]:
     """Report known grammar constructs outside the adapter's common vocabulary."""
 
     diagnostics: list[CodeParseDiagnostic] = []
     for node in walk(tree.root_node):
-        if node.type not in unsupported_node_types:
+        if node.type not in unsupported_node_types or (top_level_only and node.parent != tree.root_node):
             continue
         start_line, start_column = node_start(node)
         end_line, end_column = node_end(node)
