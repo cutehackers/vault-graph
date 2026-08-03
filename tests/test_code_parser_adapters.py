@@ -250,6 +250,7 @@ def test_dart_adapter_preserves_prefixed_and_implicit_constructor_targets() -> N
     assert (13, "pkg.Foo.named") in {(reference.anchor_start_line, reference.target_key) for reference in calls}
     assert (14, "Foo.named") in {(reference.anchor_start_line, reference.target_key) for reference in calls}
     assert (15, "pkg.Foo.named") in {(reference.anchor_start_line, reference.target_key) for reference in calls}
+    assert (16, "pkg.Foo") in {(reference.anchor_start_line, reference.target_key) for reference in calls}
 
 
 def test_adapters_reject_a_file_for_the_wrong_language() -> None:

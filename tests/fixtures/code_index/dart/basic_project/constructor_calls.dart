@@ -13,4 +13,5 @@ void run() {
   const pkg.Foo.named(bar());
   Foo.named();
   pkg.Foo.named();
+  pkg.Foo();
 }
