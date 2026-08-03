@@ -1,6 +1,12 @@
 """Bounded, read-only composition of code and Vault evidence."""
 
-from vault_graph.project_context.project_binding import ProjectBinding
+from vault_graph.project_context.project_binding import (
+    MAX_PROJECT_BINDING_CONTENT_SCOPES,
+    MAX_PROJECT_BINDING_EVIDENCE_MAPPINGS,
+    MAX_PROJECT_BINDING_ID_LENGTH,
+    MAX_PROJECT_BINDING_VAULT_IDS,
+    ProjectBinding,
+)
 from vault_graph.project_context.project_binding_catalog import (
     PROJECT_BINDING_SCHEMA_VERSION,
     ProjectBindingCatalog,
@@ -10,6 +16,8 @@ from vault_graph.project_context.project_context_models import (
     DEFAULT_PROJECT_CONTEXT_DEPTH,
     DEFAULT_PROJECT_CONTEXT_LIMIT,
     DEFAULT_PROJECT_CONTEXT_TOKENS,
+    MAX_COMPACT_CONTEXT_SEQUENCE_ITEMS,
+    MAX_COMPACT_CONTEXT_STRING_CHARS,
     MAX_PROJECT_CONTEXT_DEPTH,
     MAX_PROJECT_CONTEXT_LIMIT,
     MAX_PROJECT_CONTEXT_TOKENS,
@@ -24,6 +32,7 @@ from vault_graph.project_context.project_context_models import (
     ProjectEvidenceRelation,
     ProjectFreshness,
     combine_freshness,
+    compact_project_context_value,
     estimate_project_context_tokens,
 )
 
@@ -31,6 +40,12 @@ __all__ = [
     "DEFAULT_PROJECT_CONTEXT_DEPTH",
     "DEFAULT_PROJECT_CONTEXT_LIMIT",
     "DEFAULT_PROJECT_CONTEXT_TOKENS",
+    "MAX_COMPACT_CONTEXT_SEQUENCE_ITEMS",
+    "MAX_COMPACT_CONTEXT_STRING_CHARS",
+    "MAX_PROJECT_BINDING_CONTENT_SCOPES",
+    "MAX_PROJECT_BINDING_EVIDENCE_MAPPINGS",
+    "MAX_PROJECT_BINDING_ID_LENGTH",
+    "MAX_PROJECT_BINDING_VAULT_IDS",
     "MAX_PROJECT_CONTEXT_DEPTH",
     "MAX_PROJECT_CONTEXT_LIMIT",
     "MAX_PROJECT_CONTEXT_TOKENS",
@@ -49,5 +64,6 @@ __all__ = [
     "ProjectEvidenceRelation",
     "ProjectFreshness",
     "combine_freshness",
+    "compact_project_context_value",
     "estimate_project_context_tokens",
 ]

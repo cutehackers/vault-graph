@@ -18,6 +18,7 @@ MAX_PROJECT_CONTEXT_DEPTH = 8
 MAX_PROJECT_CONTEXT_LIMIT = 100
 MAX_PROJECT_CONTEXT_TOKENS = 16000
 MAX_COMPACT_CONTEXT_STRING_CHARS = 96
+MAX_COMPACT_CONTEXT_SEQUENCE_ITEMS = 8
 
 ProjectFreshness = Literal["fresh", "stale", "syncing", "partial", "unavailable", "unknown"]
 ProjectAuthorityKind = Literal["code", "vault"]
@@ -228,12 +229,17 @@ def estimate_project_context_tokens(context: ProjectContext) -> int:
     """
 
     serialized = json.dumps(
-        _compact_for_output(asdict(context)), sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        compact_project_context_value(asdict(context)),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
     )
     return max(1, (len(serialized) + 3) // 4)
 
 
-def _compact_for_output(value: object) -> object:
+def compact_project_context_value(value: object) -> object:
+    """Return the deterministic compact representation used by context JSON."""
+
     if isinstance(value, str):
         if len(value) <= MAX_COMPACT_CONTEXT_STRING_CHARS:
             return value
@@ -241,12 +247,26 @@ def _compact_for_output(value: object) -> object:
         prefix_length = MAX_COMPACT_CONTEXT_STRING_CHARS - len(digest) - 1
         return f"{value[:prefix_length]}~{digest}"
     if isinstance(value, dict):
-        return {key: _compact_for_output(item) for key, item in value.items()}
+        return {key: compact_project_context_value(item) for key, item in value.items()}
     if isinstance(value, tuple):
-        return tuple(_compact_for_output(item) for item in value)
+        compacted_tuple = tuple(compact_project_context_value(item) for item in value)
+        return _compact_sequence(compacted_tuple, value)
     if isinstance(value, list):
-        return [_compact_for_output(item) for item in value]
+        compacted_list = [compact_project_context_value(item) for item in value]
+        return _compact_sequence(compacted_list, value)
     return value
+
+
+def _compact_sequence(compacted: tuple[object, ...] | list[object], original: object) -> object:
+    if len(compacted) <= MAX_COMPACT_CONTEXT_SEQUENCE_ITEMS:
+        return compacted
+    digest = sha256(
+        json.dumps(original, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=repr).encode("utf-8")
+    ).hexdigest()[:16]
+    marker = {"omitted_count": len(compacted) - MAX_COMPACT_CONTEXT_SEQUENCE_ITEMS, "omitted_digest": digest}
+    if isinstance(compacted, tuple):
+        return compacted[:MAX_COMPACT_CONTEXT_SEQUENCE_ITEMS] + (marker,)
+    return compacted[:MAX_COMPACT_CONTEXT_SEQUENCE_ITEMS] + [marker]
 
 
 def _require_non_empty(value: str, field_name: str) -> None:
@@ -271,6 +291,8 @@ __all__ = [
     "MAX_PROJECT_CONTEXT_DEPTH",
     "MAX_PROJECT_CONTEXT_LIMIT",
     "MAX_PROJECT_CONTEXT_TOKENS",
+    "MAX_COMPACT_CONTEXT_SEQUENCE_ITEMS",
+    "MAX_COMPACT_CONTEXT_STRING_CHARS",
     "MIN_PROJECT_CONTEXT_TOKENS",
     "PROJECT_CONTEXT_SCHEMA_VERSION",
     "ProjectAuthorityFreshness",
@@ -283,5 +305,6 @@ __all__ = [
     "ProjectFreshness",
     "ProjectRelationStatus",
     "combine_freshness",
+    "compact_project_context_value",
     "estimate_project_context_tokens",
 ]
