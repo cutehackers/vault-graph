@@ -103,6 +103,18 @@ def test_catalog_rejects_parent_child_overlap(tmp_path: Path) -> None:
         service.add(_entry(child, "child"))
 
 
+def test_catalog_rejects_duplicate_state_namespace(tmp_path: Path) -> None:
+    _, service = _vault_and_service(tmp_path)
+    first = tmp_path / "repo-a"
+    second = tmp_path / "repo-b"
+    first.mkdir()
+    second.mkdir()
+    service.add(_entry(first, "first", state_namespace="code/shared"))
+
+    with pytest.raises(CatalogError, match="duplicate state_namespace"):
+        service.add(_entry(second, "second", state_namespace="code/shared"))
+
+
 @pytest.mark.parametrize("glob", [".", "../outside/**", "src/../outside/**", "/tmp/**"])
 def test_catalog_rejects_empty_absolute_or_traversal_globs(tmp_path: Path, glob: str) -> None:
     _, service = _vault_and_service(tmp_path)
@@ -132,6 +144,15 @@ def test_catalog_rejects_empty_glob_loaded_from_yaml(tmp_path: Path) -> None:
     )
 
     with pytest.raises(CatalogError, match="repository entry"):
+        service.load()
+
+
+def test_catalog_wraps_malformed_utf8_as_catalog_error(tmp_path: Path) -> None:
+    _, service = _vault_and_service(tmp_path)
+    service.config_path.parent.mkdir(parents=True, exist_ok=True)
+    service.config_path.write_bytes(b"repositories:\n  - \xff\n")
+
+    with pytest.raises(CatalogError, match="cannot read code repository catalog"):
         service.load()
 
 

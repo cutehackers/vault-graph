@@ -42,6 +42,24 @@ def test_code_repository_root_equal_or_inside_vault_is_rejected(tmp_path: Path) 
         service.add(_entry(nested))
 
 
+def test_code_repository_root_equal_or_inside_graph_state_is_rejected(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    vault_root.mkdir()
+    state_path = tmp_path / "state"
+    catalog_service = CatalogService(state_path=state_path)
+    catalog_service.create_default_catalog(vault_root=vault_root)
+    service = CodeRepositoryCatalogService(catalog_service=catalog_service)
+
+    state_path.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(CatalogError, match="Graph state"):
+        service.add(_entry(state_path))
+
+    nested = state_path / "nested-repository"
+    nested.mkdir()
+    with pytest.raises(CatalogError, match="Graph state"):
+        service.add(_entry(nested))
+
+
 def test_catalog_mutations_never_modify_or_delete_repository_files(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
