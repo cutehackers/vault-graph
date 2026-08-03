@@ -192,6 +192,22 @@ def test_dart_adapter_extracts_library_declarations_and_annotations() -> None:
     )
 
 
+def test_dart_adapter_reports_unmodeled_record_and_typedef_constructs() -> None:
+    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+
+    result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/unsupported.dart", language="dart"))
+    assert any(diagnostic.code == "unsupported-construct" for diagnostic in result.diagnostics)
+
+
+def test_dart_adapter_reports_unmodeled_top_level_variables() -> None:
+    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+
+    result = DartCodeParserAdapter().parse(
+        _input(FIXTURES / "dart/basic_project/top_level_variable.dart", language="dart")
+    )
+    assert any(diagnostic.code == "unsupported-construct" for diagnostic in result.diagnostics)
+
+
 def test_adapters_reject_a_file_for_the_wrong_language() -> None:
     from vault_graph.code_index.dart_parser import DartCodeParserAdapter
 

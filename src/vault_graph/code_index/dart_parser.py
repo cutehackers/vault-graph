@@ -63,7 +63,17 @@ class DartCodeParserAdapter:
         references = self._collect_references(file, file_id, tree.root_node, module, declarations, owners)
         diagnostics = (
             syntax_diagnostics(file, tree)
-            + unsupported_diagnostics(file, tree, frozenset({"record_declaration", "enum_declaration"}))
+            + unsupported_diagnostics(
+                file,
+                tree,
+                frozenset({"record_declaration", "record_type", "enum_declaration", "type_alias"}),
+            )
+            + unsupported_diagnostics(
+                file,
+                tree,
+                frozenset({"initialized_identifier_list", "static_final_declaration_list"}),
+                top_level_only=True,
+            )
         )[:32]
         return CodeParseResult(
             file=file.snapshot(),
