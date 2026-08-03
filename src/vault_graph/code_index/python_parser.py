@@ -53,7 +53,7 @@ class PythonCodeParserAdapter:
         module = self._module_symbol(file, file_id, module_name, tree.root_node)
         declarations: list[_Declaration] = []
         owners: dict[Any, str] = {tree.root_node: module.symbol_id}
-        declaration_by_id: dict[str, _Declaration] = {}
+        ordinal_counts: dict[tuple[str, str, str], int] = {}
         self._collect_declarations(
             file=file,
             file_id=file_id,
@@ -62,15 +62,14 @@ class PythonCodeParserAdapter:
             parent=module,
             declarations=declarations,
             owners=owners,
-            declaration_by_id=declaration_by_id,
+            ordinal_counts=ordinal_counts,
         )
         symbols = tuple(sorted((module, *(declaration.symbol for declaration in declarations)), key=_symbol_sort_key))
         references = self._collect_references(file, file_id, tree.root_node, module, declarations, owners)
-        diagnostics = syntax_diagnostics(file, tree) + unsupported_diagnostics(
-            file,
-            tree,
-            frozenset({"match_statement", "type_alias_statement"}),
-        )
+        diagnostics = (
+            syntax_diagnostics(file, tree)
+            + unsupported_diagnostics(file, tree, frozenset({"match_statement", "type_alias_statement"}))
+        )[:32]
         return CodeParseResult(
             file=file.snapshot(),
             symbols=symbols,
@@ -90,6 +89,9 @@ class PythonCodeParserAdapter:
     def _module_symbol(self, file: CodeFileInput, file_id: str, name: str, node: Any) -> CodeSymbolRecord:
         start_line, start_column = node_start(node)
         end_line, end_column = node_end(node)
+        max_line = max(1, file.snapshot().line_count)
+        start_line = min(start_line, max_line)
+        end_line = max(start_line, min(end_line, max_line))
         return CodeSymbolRecord(
             symbol_id=stable_identity("code-symbol-v1", file.repository_id, file_id, "module", name, "0"),
             repository_id=file.repository_id,
@@ -118,7 +120,7 @@ class PythonCodeParserAdapter:
         parent: CodeSymbolRecord,
         declarations: list[_Declaration],
         owners: dict[Any, str],
-        declaration_by_id: dict[str, _Declaration],
+        ordinal_counts: dict[tuple[str, str, str], int],
     ) -> None:
         if node.type == "decorated_definition":
             declaration_node = next(
@@ -126,9 +128,16 @@ class PythonCodeParserAdapter:
                 None,
             )
             if declaration_node is not None:
-                declaration = self._build_declaration(file, file_id, module_name, declaration_node, node, parent)
+                declaration = self._build_declaration(
+                    file,
+                    file_id,
+                    module_name,
+                    declaration_node,
+                    node,
+                    parent,
+                    ordinal_counts,
+                )
                 declarations.append(declaration)
-                declaration_by_id[declaration.symbol.symbol_id] = declaration
                 owners[node] = declaration.symbol.symbol_id
                 owners[declaration_node] = declaration.symbol.symbol_id
                 for child in declaration_node.children:
@@ -140,13 +149,12 @@ class PythonCodeParserAdapter:
                         parent=declaration.symbol,
                         declarations=declarations,
                         owners=owners,
-                        declaration_by_id=declaration_by_id,
+                        ordinal_counts=ordinal_counts,
                     )
                 return
         if node.type in {"class_definition", "function_definition"}:
-            declaration = self._build_declaration(file, file_id, module_name, node, node, parent)
+            declaration = self._build_declaration(file, file_id, module_name, node, node, parent, ordinal_counts)
             declarations.append(declaration)
-            declaration_by_id[declaration.symbol.symbol_id] = declaration
             owners[node] = declaration.symbol.symbol_id
             for child in node.children:
                 self._collect_declarations(
@@ -157,7 +165,7 @@ class PythonCodeParserAdapter:
                     parent=declaration.symbol,
                     declarations=declarations,
                     owners=owners,
-                    declaration_by_id=declaration_by_id,
+                    ordinal_counts=ordinal_counts,
                 )
             return
         for child in node.children:
@@ -169,7 +177,7 @@ class PythonCodeParserAdapter:
                 parent=parent,
                 declarations=declarations,
                 owners=owners,
-                declaration_by_id=declaration_by_id,
+                ordinal_counts=ordinal_counts,
             )
 
     def _build_declaration(
@@ -180,6 +188,7 @@ class PythonCodeParserAdapter:
         declaration_node: Any,
         span_node: Any,
         parent: CodeSymbolRecord,
+        ordinal_counts: dict[tuple[str, str, str], int],
     ) -> _Declaration:
         name_node = next((child for child in declaration_node.named_children if child.type == "identifier"), None)
         if name_node is None:
@@ -200,6 +209,9 @@ class PythonCodeParserAdapter:
         else:
             kind = "function"
         qualified_name = f"{parent.qualified_name}.{name}"
+        ordinal_key = (parent.symbol_id, kind, name)
+        ordinal = ordinal_counts.get(ordinal_key, 0)
+        ordinal_counts[ordinal_key] = ordinal + 1
         start_line, start_column = node_start(span_node)
         end_line, end_column = node_end(span_node)
         symbol_id = stable_identity(
@@ -208,7 +220,7 @@ class PythonCodeParserAdapter:
             file_id,
             kind,
             qualified_name,
-            "0",
+            str(ordinal),
         )
         symbol = CodeSymbolRecord(
             symbol_id=symbol_id,
@@ -218,7 +230,7 @@ class PythonCodeParserAdapter:
             language_kind=declaration_node.type,
             name=name,
             qualified_name=qualified_name,
-            signature=source_signature(span_node),
+            signature=source_signature(declaration_node),
             start_line=start_line,
             end_line=end_line,
             start_column=start_column,
@@ -276,7 +288,8 @@ class PythonCodeParserAdapter:
                 current = current.parent
             return module.symbol_id
 
-        add(root, "DEFINES", module.qualified_name, None)
+        if file.snapshot().line_count > 0 and node_start(root)[0] <= file.snapshot().line_count:
+            add(root, "DEFINES", module.qualified_name, None)
         for declaration in declarations:
             add(declaration.node, "DEFINES", declaration.symbol.qualified_name, declaration.parent_symbol_id)
             add(declaration.node, "CONTAINS", declaration.symbol.qualified_name, declaration.parent_symbol_id)

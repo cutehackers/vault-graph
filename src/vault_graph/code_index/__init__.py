@@ -57,6 +57,7 @@ from vault_graph.code_index.code_models import (
     CodeTraversalResponse,
     CodeTraversalResult,
     PendingCodeReference,
+    code_file_identity,
 )
 from vault_graph.code_index.dart_parser import DartCodeParserAdapter, DartParserAdapter
 from vault_graph.code_index.parser_adapter import CodeParserAdapter
@@ -99,6 +100,7 @@ __all__ = [
     "CodeTraversalQuery",
     "CodeTraversalResult",
     "PendingCodeReference",
+    "code_file_identity",
     "CodeRepositoryId",
     "CodeExtractionStatus",
     "CodeFreshnessState",

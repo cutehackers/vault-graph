@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import FrozenInstanceError, fields
+from dataclasses import FrozenInstanceError, fields, replace
 from pathlib import Path
 from typing import cast
 
@@ -218,6 +218,36 @@ def test_file_input_rejects_content_hash_mismatch() -> None:
         parser_spec_version=CODE_PARSER_SPEC_VERSION,
     )
     assert valid.snapshot().content_hash == hashlib.sha256(content).hexdigest()
+
+
+def test_parse_result_rejects_dangling_reference_file_identity_and_anchor() -> None:
+    expected_file_id = hashlib.sha256(b"code-file-v1\0demo\0lib/example.py").hexdigest()
+    valid_reference = CodeReferenceRecord(
+        reference_id="reference-1",
+        repository_id="demo",
+        source_file_id=expected_file_id,
+        source_symbol_id=None,
+        relation_kind="IMPORTS",
+        target_key="other",
+        anchor_start_line=3,
+        anchor_start_column=0,
+        parser_spec_version=CODE_PARSER_SPEC_VERSION,
+    )
+    valid = CodeParseResult(file=_file(), symbols=(), references=(valid_reference,))
+    assert valid.references == (valid_reference,)
+
+    with pytest.raises(ValueError, match="source_file_id"):
+        CodeParseResult(file=_file(), symbols=(), references=(replace(valid_reference, source_file_id="other"),))
+    with pytest.raises(ValueError, match="anchor_start_line"):
+        CodeParseResult(file=_file(), symbols=(), references=(replace(valid_reference, anchor_start_line=0),))
+    with pytest.raises(ValueError, match="anchor_start_line"):
+        CodeParseResult(file=_file(), symbols=(), references=(replace(valid_reference, anchor_start_line=4),))
+    with pytest.raises(ValueError, match="source_symbol_id"):
+        CodeParseResult(
+            file=_file(),
+            symbols=(),
+            references=(replace(valid_reference, source_symbol_id="dangling-symbol"),),
+        )
 
 
 def test_nested_sequences_are_normalized_to_immutable_tuples() -> None:
