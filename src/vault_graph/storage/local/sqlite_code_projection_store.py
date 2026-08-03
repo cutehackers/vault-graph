@@ -739,6 +739,15 @@ class SQLiteCodeProjectionStore:
         )
 
     def _validate_plan(self, plan: CodeReconcilePlan) -> None:
+        if plan.manifest.schema_version != CODE_PROJECTION_SCHEMA_VERSION:
+            raise ValueError("plan schema version is incompatible")
+        if plan.manifest.parser_spec_version != self._expected_parser_spec_version:
+            raise ValueError("plan parser spec version is incompatible")
+        if (
+            self._expected_policy_revision is not None
+            and plan.manifest.policy_revision != self._expected_policy_revision
+        ):
+            raise ValueError("plan policy revision is incompatible")
         symbols_by_id: dict[str, CodeSymbolRecord] = {}
         files_by_id: dict[str, CodeFileSnapshot] = {}
         for file_snapshot in plan.files:
