@@ -16,7 +16,7 @@ from typing import Literal, NewType
 CodeRepositoryId = NewType("CodeRepositoryId", str)
 
 CODE_PROJECTION_SCHEMA_VERSION = "code-projection-v1"
-CODE_TREE_SITTER_RUNTIME_VERSION = "0.24.0"
+CODE_TREE_SITTER_RUNTIME_VERSION = "0.25.2"
 CODE_TREE_SITTER_PYTHON_VERSION = "0.25.0"
 CODE_DART_GRAMMAR_PACKAGE_VERSION = "0.1.0"
 CODE_DART_GRAMMAR_SOURCE = "https://github.com/efrenbl/tree-sitter-dart"
