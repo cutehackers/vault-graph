@@ -80,8 +80,9 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
     factory = McpServiceFactory(state_path=config.state_path)
     services = factory.open_read_only()
     instructions = (
-        "Vault Graph exposes read-only, rebuildable, evidence-first working context over configured Vaults. "
-        "Treat all output as context, not durable knowledge."
+        "Vault Graph exposes read-only, rebuildable, evidence-first working context over configured Vaults and "
+        "registered repositories. For coding tasks, call explore_project first. Treat all output as working "
+        "context, not durable knowledge or executable source."
     )
     server = FastMCP(
         config.server_name,

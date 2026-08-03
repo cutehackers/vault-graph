@@ -20,6 +20,7 @@ from vault_graph.memory.result_explanation import (
     ExplanationSignal,
     ExplanationWarning,
 )
+from vault_graph.project_context import ProjectContext, compact_project_context_value
 from vault_graph.retrieval.graph_retrieval import (
     DecisionTraceResponse,
     DecisionTraceStep,
@@ -60,6 +61,84 @@ def search_response_to_payload(response: SearchResponse) -> dict[str, object]:
 
 def context_pack_to_payload(pack: ContextPack) -> dict[str, object]:
     return context_pack_to_dict(pack)
+
+
+def project_context_to_payload(context: ProjectContext) -> dict[str, object]:
+    """Return the same compact representation used by the context budget.
+
+    The project-context service computes its budget from this compact value.
+    Applying it before JSON serialization keeps the MCP wire value within the
+    service's deterministic contract even for verbose user-controlled metadata.
+    """
+
+    compacted = compact_project_context_value(dataclasses.asdict(context))
+    if not isinstance(compacted, dict):  # pragma: no cover - dataclass input guarantees a mapping
+        raise TypeError("project context payload must be an object")
+    return compacted
+
+
+def resource_links_for_project_context(context: ProjectContext) -> tuple[McpResourceLink, ...]:
+    links: list[McpResourceLink] = []
+    for evidence in (
+        *context.code_evidence,
+        *context.impact_evidence,
+        *context.test_evidence,
+        *context.vault_evidence,
+    ):
+        if evidence.source_uri is None:
+            continue
+        if evidence.authority == "code":
+            if not _is_safe_repository_evidence_uri(evidence.source_uri, evidence.relative_path):
+                continue
+            links.append(
+                McpResourceLink(
+                    rel="repository_evidence",
+                    uri=evidence.source_uri,
+                    title=evidence.relative_path or evidence.title,
+                    repository_id=evidence.repository_id,
+                    relative_path=evidence.relative_path,
+                    start_line=evidence.start_line,
+                    end_line=evidence.end_line,
+                )
+            )
+            continue
+        links.append(
+            McpResourceLink(
+                rel="evidence",
+                uri=evidence.source_uri,
+                title=evidence.title,
+                vault_id=evidence.vault_id,
+            )
+        )
+    return _unique_links(links)
+
+
+def mcp_warnings_for_project_context(context: ProjectContext) -> tuple[McpErrorPayload, ...]:
+    return tuple(
+        McpErrorPayload(
+            code=warning.code,
+            message=warning.message,
+            severity="warning",
+            affected_vault_ids=(),
+            recovery_hint=warning.recovery_hint,
+        )
+        for warning in context.warnings
+    )
+
+
+def project_context_text_mirror(context: ProjectContext) -> str:
+    """A concise, source-body-free text rendering for clients that prefer text."""
+
+    warning_codes = ", ".join(warning.code for warning in context.warnings[:3]) or "none"
+    return (
+        f"Task: {context.task}\n"
+        f"Repository: {context.repository_id}\n"
+        f"Freshness: {context.freshness}\n"
+        "Evidence: "
+        f"code={len(context.code_evidence)}, impact={len(context.impact_evidence)}, "
+        f"tests={len(context.test_evidence)}, vault={len(context.vault_evidence)}\n"
+        f"Warnings: {warning_codes}"
+    )
 
 
 def related_response_to_payload(response: RelatedResponse) -> dict[str, object]:
@@ -651,6 +730,10 @@ def _links_from_dicts(values: tuple[dict[str, object], ...]) -> tuple[McpResourc
                 vault_id=_optional_string(value.get("vault_id")),
                 document_id=_optional_string(value.get("document_id")),
                 chunk_id=_optional_string(value.get("chunk_id")),
+                repository_id=_optional_string(value.get("repository_id")),
+                relative_path=_optional_string(value.get("relative_path")),
+                start_line=_optional_positive_int(value.get("start_line"), "start_line"),
+                end_line=_optional_positive_int(value.get("end_line"), "end_line"),
             )
         )
     return tuple(links)
@@ -883,6 +966,23 @@ def _optional_string(value: object) -> str | None:
     if not isinstance(value, str):
         raise TypeError("resource link optional fields must be strings")
     return value
+
+
+def _optional_positive_int(value: object, field_name: str) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise TypeError(f"{field_name} must be a positive integer or null")
+    return value
+
+
+def _is_safe_repository_evidence_uri(uri: str, relative_path: str | None) -> bool:
+    """Allow only the service's opaque, relative-path repository URI scheme."""
+
+    if not uri.startswith("vg-source://") or relative_path is None:
+        return False
+    path = Path(relative_path)
+    return not path.is_absolute() and ".." not in path.parts and "\\" not in relative_path
 
 
 def _json_value(value: object) -> object:

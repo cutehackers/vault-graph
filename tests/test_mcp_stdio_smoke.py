@@ -22,6 +22,7 @@ EXPECTED_PHASE_6C_TOOLS = {
     "summarize_project_memory",
     "get_open_questions",
     "get_recent_changes",
+    "explore_project",
 }
 
 
