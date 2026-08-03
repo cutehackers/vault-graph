@@ -297,12 +297,13 @@ class CodeProjectionService:
                 files_by_id=current_by_id,
                 diagnostics=tuple(diagnostics),
             )
-        except (OSError, RuntimeError, ValueError):
+        except (OSError, RuntimeError, ValueError) as exc:
             if staged is not None:
                 try:
                     self.generation_manager.discard(staged)
                 except Exception:
                     pass
+            self._record_active_failure(repository_ids, str(exc))
             return CodeRunReport(
                 run_id=run_id,
                 mode=mode,
@@ -344,6 +345,32 @@ class CodeProjectionService:
         if not health.schema_compatible:
             raise RuntimeError(f"active code projection is incompatible: {health.message}")
         return store
+
+    def _record_active_failure(self, repository_ids: tuple[str, ...], message: str) -> None:
+        """Persist a partial marker without changing the active generation."""
+
+        try:
+            active = self.generation_manager.active_layout(())
+            if active is None or not active.database_path.exists():
+                return
+            reader = SQLiteCodeProjectionStore.open_read_only(
+                active.database_path,
+                parser_spec_version=self._scanner.parser_spec_version,
+            )
+            if not reader.health().schema_compatible:
+                return
+            writer = SQLiteCodeProjectionStore.open_writable(
+                active.database_path,
+                parser_spec_version=self._scanner.parser_spec_version,
+            )
+            writer.record_freshness(
+                "partial",
+                (f"code projection run failed for {','.join(repository_ids) or 'all repositories'}: {message}",),
+            )
+        except (OSError, RuntimeError, ValueError):
+            # The old generation remains queryable even when its diagnostic
+            # marker cannot be written (for example, a read-only state path).
+            return
 
     def _existing_snapshots(
         self,
