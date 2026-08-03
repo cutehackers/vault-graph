@@ -696,6 +696,8 @@ class SQLiteCodeProjectionStore:
                     target_column = "source_symbol_id"
                 for row in rows:
                     edge = _edge_from_row(row)
+                    if query.relation_kinds and edge.relation_kind not in query.relation_kinds:
+                        continue
                     if edge.extraction_status not in ("extracted", "inferred"):
                         if query.include_uncertain:
                             warnings.append(f"uncertain edge excluded from traversal: {edge.edge_id}")
