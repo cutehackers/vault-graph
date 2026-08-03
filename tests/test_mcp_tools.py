@@ -234,6 +234,7 @@ def test_register_mcp_tools_registers_exact_phase_6c_tools(tmp_path: Path) -> No
         "summarize_project_memory",
         "get_open_questions",
         "get_recent_changes",
+        "explore_project",
     )
     assert tuple(server.tools) == registry.tool_names
     assert all(server.structured_output[name] is True for name in registry.tool_names)

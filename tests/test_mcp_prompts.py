@@ -56,6 +56,7 @@ def test_prompt_text_mentions_registered_phase_6c_memory_tools() -> None:
     ):
         assert required in codex
     assert "summarize_project_memory" in implementation
+    assert "explore_project" in implementation
     assert "get_recent_changes" in implementation
     assert "get_recent_changes" in feature
     assert "get_open_questions" in risk

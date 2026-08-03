@@ -20,6 +20,16 @@ from vault_graph.mcp.mcp_uri import encode_resource_segment
 from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
 from vault_graph.memory.memory_models import MemoryWarning, OpenQuestionsProjection, ProjectMemoryProjection
 from vault_graph.memory.result_explanation import ExplainResultService
+from vault_graph.project_context import (
+    DEFAULT_PROJECT_CONTEXT_DEPTH,
+    DEFAULT_PROJECT_CONTEXT_LIMIT,
+    DEFAULT_PROJECT_CONTEXT_TOKENS,
+    MAX_PROJECT_CONTEXT_DEPTH,
+    MAX_PROJECT_CONTEXT_LIMIT,
+    MAX_PROJECT_CONTEXT_TOKENS,
+    MIN_PROJECT_CONTEXT_TOKENS,
+    ProjectContextRequest,
+)
 from vault_graph.projection.graph_projection import (
     DEFAULT_GRAPH_RELATED_DEPTH,
     DEFAULT_GRAPH_RESULT_LIMIT,
@@ -38,8 +48,10 @@ McpToolName = Literal[
     "summarize_project_memory",
     "get_open_questions",
     "get_recent_changes",
+    "explore_project",
 ]
 MAX_MCP_TOOL_LIMIT = 50
+MAX_MCP_PROJECT_TASK_CHARS = 4096
 
 
 class McpToolServer(Protocol):
@@ -64,6 +76,10 @@ class McpResourceLink:
     vault_id: str | None = None
     document_id: str | None = None
     chunk_id: str | None = None
+    repository_id: str | None = None
+    relative_path: str | None = None
+    start_line: int | None = None
+    end_line: int | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -73,6 +89,10 @@ class McpResourceLink:
             "vault_id": self.vault_id,
             "document_id": self.document_id,
             "chunk_id": self.chunk_id,
+            "repository_id": self.repository_id,
+            "relative_path": self.relative_path,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
         }
 
 
@@ -182,6 +202,26 @@ class GetRecentChangesInput:
     limit: int = 20
 
 
+@dataclass(frozen=True)
+class ExploreProjectInput:
+    task: str
+    project_path: str | None = None
+    repository_id: str | None = None
+    max_tokens: int = DEFAULT_PROJECT_CONTEXT_TOKENS
+    depth: int = DEFAULT_PROJECT_CONTEXT_DEPTH
+    limit: int = DEFAULT_PROJECT_CONTEXT_LIMIT
+
+    def to_project_context_request(self) -> ProjectContextRequest:
+        return ProjectContextRequest(
+            task=self.task,
+            project_path=self.project_path,
+            repository_id=self.repository_id,
+            max_tokens=self.max_tokens,
+            depth=self.depth,
+            limit=self.limit,
+        )
+
+
 class McpToolRegistry:
     tool_names: tuple[McpToolName, ...]
 
@@ -209,6 +249,7 @@ class McpToolRegistry:
             "summarize_project_memory",
             "get_open_questions",
             "get_recent_changes",
+            "explore_project",
         )
 
     def ask_vault(self, request: AskVaultInput) -> McpToolBody:
@@ -554,6 +595,38 @@ class McpToolRegistry:
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
+    def explore_project(self, request: ExploreProjectInput) -> McpToolBody:
+        """Expose only the project-context application boundary to MCP."""
+
+        try:
+            _validate_explore_project_request(request)
+            context = self._service_factory.open_project_context_service().build(request.to_project_context_request())
+            from vault_graph.mcp.mcp_tool_serialization import (
+                mcp_warnings_for_project_context,
+                project_context_text_mirror,
+                project_context_to_payload,
+                resource_links_for_project_context,
+            )
+
+            payload = project_context_to_payload(context)
+            return _tool_body(
+                tool_name="explore_project",
+                payload=payload,
+                resource_links=resource_links_for_project_context(context),
+                warnings=mcp_warnings_for_project_context(context),
+                text=project_context_text_mirror(context),
+            )
+        except ValueError as exc:
+            if str(exc).split(";", 1)[0] in {
+                "scope_required",
+                "unregistered_project_path",
+                "conflicting_project_scope",
+            }:
+                raise _project_scope_error(exc) from exc
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
 
 def register_mcp_tools(
     server: McpToolServer,
@@ -697,6 +770,25 @@ def register_mcp_tools(
     ) -> dict[str, object]:
         request = parse_get_recent_changes_input(since=since, scope=scope, limit=limit)
         return registry.get_recent_changes(request).to_json_dict()
+
+    @server.tool("explore_project", structured_output=True)
+    def explore_project(
+        task: str,
+        project_path: str | None = None,
+        repository_id: str | None = None,
+        max_tokens: int | None = None,
+        depth: int = DEFAULT_PROJECT_CONTEXT_DEPTH,
+        limit: int = DEFAULT_PROJECT_CONTEXT_LIMIT,
+    ) -> dict[str, object]:
+        request = parse_explore_project_input(
+            task=task,
+            project_path=project_path,
+            repository_id=repository_id,
+            max_tokens=max_tokens,
+            depth=depth,
+            limit=limit,
+        )
+        return registry.explore_project(request).to_json_dict()
 
     return registry
 
@@ -887,6 +979,29 @@ def parse_get_recent_changes_input(
     return request
 
 
+def parse_explore_project_input(
+    *,
+    task: str,
+    project_path: str | None = None,
+    repository_id: str | None = None,
+    max_tokens: int | None = None,
+    depth: int = DEFAULT_PROJECT_CONTEXT_DEPTH,
+    limit: int = DEFAULT_PROJECT_CONTEXT_LIMIT,
+) -> ExploreProjectInput:
+    if project_path is not None and repository_id is not None:
+        raise _invalid_arguments("Use either project_path or repository_id, not both.")
+    request = ExploreProjectInput(
+        task=_project_task(task),
+        project_path=_optional_project_scope(project_path, "project_path"),
+        repository_id=_optional_project_scope(repository_id, "repository_id"),
+        max_tokens=_project_token_budget(max_tokens),
+        depth=_project_depth(depth),
+        limit=_project_limit(limit),
+    )
+    _validate_explore_project_request(request)
+    return request
+
+
 def _validate_search_vault_request(request: SearchVaultInput) -> None:
     _required_string(request.query, "query")
     _limit(request.limit)
@@ -941,6 +1056,17 @@ def _validate_get_recent_changes_request(request: GetRecentChangesInput) -> None
         raise _invalid_arguments("get_recent_changes does not support include_cross_vault")
 
 
+def _validate_explore_project_request(request: ExploreProjectInput) -> None:
+    _project_task(request.task)
+    _optional_project_scope(request.project_path, "project_path")
+    _optional_project_scope(request.repository_id, "repository_id")
+    if request.project_path is not None and request.repository_id is not None:
+        raise _invalid_arguments("Use either project_path or repository_id, not both.")
+    _project_token_budget(request.max_tokens)
+    _project_depth(request.depth)
+    _project_limit(request.limit)
+
+
 def _scope_for_tool(
     scope: McpScopeInput | None,
     *,
@@ -966,6 +1092,7 @@ def _tool_body(
     payload: dict[str, object],
     resource_links: tuple[McpResourceLink, ...],
     warnings: tuple[McpErrorPayload, ...],
+    text: str | None = None,
 ) -> McpToolBody:
     from vault_graph.mcp.mcp_tool_serialization import tool_text_mirror
 
@@ -974,7 +1101,7 @@ def _tool_body(
         payload=payload,
         resource_links=resource_links,
         warnings=warnings,
-        text=tool_text_mirror(payload),
+        text=text if text is not None else tool_text_mirror(payload),
     )
 
 
@@ -1076,6 +1203,66 @@ def _graph_depth(value: object) -> int:
     if value < 1 or value > MAX_GRAPH_PROJECTION_DEPTH:
         raise _invalid_arguments(f"depth must be between 1 and {MAX_GRAPH_PROJECTION_DEPTH}")
     return value
+
+
+def _project_task(value: object) -> str:
+    task = _required_string(value, "task")
+    if len(task) > MAX_MCP_PROJECT_TASK_CHARS:
+        raise _invalid_arguments(f"task must be at most {MAX_MCP_PROJECT_TASK_CHARS} characters")
+    return task
+
+
+def _optional_project_scope(value: object | None, field_name: str) -> str | None:
+    if value is None:
+        return None
+    return _required_string(value, field_name)
+
+
+def _project_token_budget(value: object | None) -> int:
+    if value is None:
+        return DEFAULT_PROJECT_CONTEXT_TOKENS
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise _invalid_arguments("max_tokens must be an integer")
+    if value < MIN_PROJECT_CONTEXT_TOKENS or value > MAX_PROJECT_CONTEXT_TOKENS:
+        raise _invalid_arguments(
+            f"max_tokens must be between {MIN_PROJECT_CONTEXT_TOKENS} and {MAX_PROJECT_CONTEXT_TOKENS}"
+        )
+    return value
+
+
+def _project_depth(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise _invalid_arguments("depth must be an integer")
+    if value < 0 or value > MAX_PROJECT_CONTEXT_DEPTH:
+        raise _invalid_arguments(f"depth must be between 0 and {MAX_PROJECT_CONTEXT_DEPTH}")
+    return value
+
+
+def _project_limit(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise _invalid_arguments("limit must be an integer")
+    if value < 1 or value > MAX_PROJECT_CONTEXT_LIMIT:
+        raise _invalid_arguments(f"limit must be between 1 and {MAX_PROJECT_CONTEXT_LIMIT}")
+    return value
+
+
+def _project_scope_error(exc: ValueError) -> McpProtocolError:
+    code, _, detail = str(exc).partition(";")
+    recovery_hint = (
+        "Register a repository and bind it to its Vault with `vg project bind`, then pass repository_id."
+        if code == "scope_required"
+        else "Pass a registered repository_id or a path inside one registered repository."
+    )
+    return McpProtocolError(
+        kind="invalid_parameter",
+        payload=McpErrorPayload(
+            code=code,
+            message=detail.strip() or "A registered, explicitly bound repository scope is required.",
+            severity="error",
+            affected_vault_ids=(),
+            recovery_hint=recovery_hint,
+        ),
+    )
 
 
 def _optional_positive_int(value: object | None, field_name: str) -> int | None:
