@@ -75,14 +75,14 @@ class CodeReferenceResolver:
         indexes = self._build_indexes(symbols, file_by_id)
         import_references = self._imports_by_file(references)
         valid_previous = self._validate_previous_pending(file_by_id, previous_pending)
-        previous_by_reference = {pending.reference_id: pending for pending in valid_previous}
+        previous_by_reference = {(pending.repository_id, pending.reference_id): pending for pending in valid_previous}
         changed = set(changed_file_ids) if changed_file_ids is not None else None
         edges: list[CodeEdgeRecord] = []
         pending: list[PendingCodeReference] = []
         retried: list[str] = []
         seen_edge_keys: set[tuple[str, str, str | None, str | None, int, int]] = set()
         seen_pending_keys: set[tuple[str, str, str, str]] = set()
-        seen_references: set[str] = set()
+        seen_references: set[tuple[str, str]] = set()
 
         for reference in sorted(references, key=_reference_sort_key):
             if reference.parser_spec_version != self._parser_spec_version:
@@ -92,7 +92,8 @@ class CodeReferenceResolver:
                 raise ValueError(f"reference source_file_id is missing: {reference.source_file_id}")
             if source_file.repository_id != reference.repository_id:
                 raise ValueError("reference source file must belong to the same repository")
-            seen_references.add(reference.reference_id)
+            reference_scope = (reference.repository_id, reference.reference_id)
+            seen_references.add(reference_scope)
             source_symbol = self._source_symbol(reference, indexes)
             if source_symbol is None:
                 # A parser must normally emit a module symbol for a file. Keep
@@ -106,7 +107,7 @@ class CodeReferenceResolver:
                 indexes,
                 import_references,
             )
-            previous = previous_by_reference.get(reference.reference_id)
+            previous = previous_by_reference.get(reference_scope)
             impacted = previous is not None and self._retry_is_impacted(
                 reference,
                 source_file,
@@ -169,7 +170,7 @@ class CodeReferenceResolver:
                 retried_reference_ids=tuple(sorted(set(retried))),
             )
         for old in sorted(valid_previous, key=lambda item: (item.repository_id, item.pending_id)):
-            if old.reference_id in seen_references or old.source_file_id not in file_by_id:
+            if (old.repository_id, old.reference_id) in seen_references or old.source_file_id not in file_by_id:
                 continue
             if changed is not None and old.source_file_id in changed:
                 continue
