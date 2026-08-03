@@ -329,6 +329,15 @@ class SQLiteCodeProjectionStore:
                     self._expected_policy_revision
                 ):
                     return self._incompatible("policy revision mismatch")
+                manifest_json = _metadata(connection, "manifest_json")
+                if manifest_json is not None:
+                    try:
+                        manifest = _manifest_from_json(manifest_json)
+                    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                        return self._incompatible(f"manifest is invalid: {exc}")
+                    manifest_issue = self._manifest_integrity_issue(connection, manifest)
+                    if manifest_issue is not None:
+                        return self._incompatible(f"manifest {manifest_issue}")
                 dangling = connection.execute(
                     """
                     SELECT e.edge_id
@@ -353,6 +362,77 @@ class SQLiteCodeProjectionStore:
                 )
         except sqlite3.Error as exc:
             return self._incompatible(str(exc))
+
+    def _manifest_integrity_issue(
+        self,
+        connection: sqlite3.Connection,
+        manifest: CodeManifest,
+    ) -> str | None:
+        if len(set(manifest.repository_ids)) != len(manifest.repository_ids):
+            return "contains duplicate repository IDs"
+        if len(set(manifest.file_ids)) != len(manifest.file_ids):
+            return "contains duplicate file IDs"
+        manifest_revisions = dict(manifest.source_revisions)
+        if manifest.schema_version != CODE_PROJECTION_SCHEMA_VERSION:
+            return "schema version mismatch"
+        if manifest.parser_spec_version != self._expected_parser_spec_version:
+            return "parser spec version mismatch"
+        metadata_policy = _metadata(connection, "policy_revision")
+        if metadata_policy is not None and manifest.policy_revision != metadata_policy:
+            return "policy revision mismatch"
+        if len(manifest_revisions) != len(manifest.source_revisions):
+            return "contains duplicate source revisions"
+        if set(manifest_revisions) - set(manifest.repository_ids):
+            return "contains an out-of-scope source revision"
+        placeholders = ",".join("?" for _ in manifest.repository_ids)
+        repositories = connection.execute(
+            f"SELECT repository_id, source_revision FROM repositories WHERE repository_id IN ({placeholders})",
+            manifest.repository_ids,
+        ).fetchall()
+        repository_rows = {str(row["repository_id"]): str(row["source_revision"]) for row in repositories}
+        missing_repositories = set(manifest.repository_ids) - set(repository_rows)
+        if missing_repositories:
+            return f"references missing repositories: {', '.join(sorted(missing_repositories))}"
+        for repository_id, source_revision in manifest_revisions.items():
+            if repository_rows[repository_id] != source_revision:
+                return f"source revision mismatch for repository {repository_id}"
+        file_rows = connection.execute(
+            f"SELECT file_id, repository_id, source_revision FROM files WHERE repository_id IN ({placeholders})",
+            manifest.repository_ids,
+        ).fetchall()
+        actual_file_ids = {str(row["file_id"]) for row in file_rows}
+        if actual_file_ids != set(manifest.file_ids):
+            return "file IDs do not match stored files"
+        for row in file_rows:
+            repository_id = str(row["repository_id"])
+            expected_revision = manifest_revisions.get(repository_id)
+            if expected_revision is not None and str(row["source_revision"]) != expected_revision:
+                return f"source revision mismatch for file {row['file_id']}"
+        repository_policy_rows = connection.execute("SELECT DISTINCT policy_revision FROM repositories").fetchall()
+        if any(
+            metadata_policy is not None and str(row["policy_revision"]) != metadata_policy
+            for row in repository_policy_rows
+        ):
+            return "policy revision mismatch in repositories"
+        symbol_source_mismatch = connection.execute(
+            """
+            SELECT s.symbol_id
+            FROM symbols s JOIN files f ON f.file_id = s.file_id
+            WHERE s.repository_id <> f.repository_id
+               OR s.content_hash <> f.content_hash
+               OR s.source_revision <> f.source_revision
+               OR s.parser_spec_version <> f.parser_spec_version
+            LIMIT 1
+            """
+        ).fetchone()
+        if symbol_source_mismatch is not None:
+            return f"symbol source identity mismatch for {symbol_source_mismatch['symbol_id']}"
+        parser_tables = ("repositories", "files", "symbols", "edges", "pending_references", "file_fingerprints")
+        for table in parser_tables:
+            parser_rows = connection.execute(f"SELECT DISTINCT parser_spec_version FROM {table}").fetchall()
+            if any(str(row["parser_spec_version"]) != manifest.parser_spec_version for row in parser_rows):
+                return f"parser spec version mismatch in {table}"
+        return None
 
     def current_manifest(self, repository_ids: tuple[str, ...]) -> CodeManifest:
         health = self.health()
@@ -750,40 +830,114 @@ class SQLiteCodeProjectionStore:
             raise ValueError("plan policy revision is incompatible")
         symbols_by_id: dict[str, CodeSymbolRecord] = {}
         files_by_id: dict[str, CodeFileSnapshot] = {}
+        edge_ids: set[str] = set()
+        pending_ids: set[str] = set()
+        manifest_revisions: dict[str, str] = {}
+        for repository_id, source_revision in plan.manifest.source_revisions:
+            if repository_id in manifest_revisions:
+                raise ValueError(f"duplicate manifest source revision: {repository_id}")
+            if repository_id not in plan.manifest.repository_ids:
+                raise ValueError("manifest source revision repository is outside repository scope")
+            manifest_revisions[repository_id] = source_revision
+        existing_symbol_repositories = self._existing_identity_repositories("symbols", "symbol_id")
+        existing_edge_repositories = self._existing_identity_repositories("edges", "edge_id")
+        existing_pending_repositories = self._existing_identity_repositories("pending_references", "pending_id")
         for file_snapshot in plan.files:
             file_id = _file_id(file_snapshot)
             if file_id in files_by_id:
                 raise ValueError(f"duplicate file identity: {file_id}")
+            if file_snapshot.parser_spec_version != plan.manifest.parser_spec_version:
+                raise ValueError("file parser spec version is incompatible with manifest")
+            expected_revision = manifest_revisions.get(file_snapshot.repository_id)
+            if expected_revision is not None and file_snapshot.source_revision != expected_revision:
+                raise ValueError("file source revision is incompatible with manifest")
             files_by_id[file_id] = file_snapshot
+        for deleted_file_id in plan.deleted_file_ids:
+            existing_repository = self._existing_file_repository(deleted_file_id)
+            if existing_repository is None or existing_repository not in plan.manifest.repository_ids:
+                raise ValueError("deleted file is outside manifest repository scope")
         for symbol in plan.symbols:
             if symbol.symbol_id in symbols_by_id:
                 raise ValueError(f"duplicate symbol identity: {symbol.symbol_id}")
             if symbol.file_id not in files_by_id:
                 raise ValueError(f"symbol file_id is not present in plan: {symbol.file_id}")
-            if files_by_id[symbol.file_id].repository_id != symbol.repository_id:
+            source_file = files_by_id[symbol.file_id]
+            if source_file.repository_id != symbol.repository_id:
                 raise ValueError("symbol and file must belong to the same repository")
+            if symbol.parser_spec_version != plan.manifest.parser_spec_version:
+                raise ValueError("symbol parser spec version is incompatible with manifest")
+            if (
+                symbol.content_hash != source_file.content_hash
+                or symbol.source_revision != source_file.source_revision
+                or symbol.file_id != _file_id(source_file)
+            ):
+                raise ValueError("symbol source identity does not match file")
+            existing_repository = existing_symbol_repositories.get(symbol.symbol_id)
+            if existing_repository is not None and existing_repository != symbol.repository_id:
+                raise ValueError("symbol identity is owned by another repository")
             symbols_by_id[symbol.symbol_id] = symbol
         for edge in plan.edges:
+            if edge.edge_id in edge_ids:
+                raise ValueError(f"duplicate edge identity: {edge.edge_id}")
+            edge_ids.add(edge.edge_id)
+            if edge.parser_spec_version != plan.manifest.parser_spec_version:
+                raise ValueError("edge parser spec version is incompatible with manifest")
+            existing_repository = existing_edge_repositories.get(edge.edge_id)
+            if existing_repository is not None and existing_repository != edge.repository_id:
+                raise ValueError("edge identity is owned by another repository")
             source = symbols_by_id.get(edge.source_symbol_id)
-            if source is None and edge.source_symbol_id not in self._existing_symbol_ids():
-                raise ValueError(f"edge source_symbol_id is missing: {edge.source_symbol_id}")
+            if source is None:
+                source_repository = existing_symbol_repositories.get(edge.source_symbol_id)
+                if source_repository is None:
+                    raise ValueError(f"edge source_symbol_id is missing: {edge.source_symbol_id}")
+                if source_repository != edge.repository_id:
+                    raise ValueError("edge source must belong to the same repository")
             if source is not None and source.repository_id != edge.repository_id:
                 raise ValueError("edge source must belong to the same repository")
             if edge.target_symbol_id is not None:
                 target = symbols_by_id.get(edge.target_symbol_id)
-                if target is not None and target.repository_id != edge.repository_id:
+                if target is None:
+                    target_repository = existing_symbol_repositories.get(edge.target_symbol_id)
+                    if target_repository is None:
+                        raise ValueError(f"edge target_symbol_id is missing: {edge.target_symbol_id}")
+                    if target_repository != edge.repository_id:
+                        raise ValueError("edge target must belong to the same repository")
+                elif target.repository_id != edge.repository_id:
                     raise ValueError("edge target must belong to the same repository")
-                if target is None and edge.target_symbol_id not in self._existing_symbol_ids():
-                    raise ValueError(f"edge target_symbol_id is missing: {edge.target_symbol_id}")
+        for pending in plan.pending_references:
+            if pending.pending_id in pending_ids:
+                raise ValueError(f"duplicate pending reference identity: {pending.pending_id}")
+            pending_ids.add(pending.pending_id)
+            if pending.parser_spec_version != plan.manifest.parser_spec_version:
+                raise ValueError("pending reference parser spec version is incompatible with manifest")
+            expected_revision = manifest_revisions.get(pending.repository_id)
+            if expected_revision is not None and pending.source_revision != expected_revision:
+                raise ValueError("pending reference source revision is incompatible with manifest")
+            existing_repository = existing_pending_repositories.get(pending.pending_id)
+            if existing_repository is not None and existing_repository != pending.repository_id:
+                raise ValueError("pending reference identity is owned by another repository")
 
-    def _existing_symbol_ids(self) -> set[str]:
+    def _existing_identity_repositories(self, table: str, identity_column: str) -> dict[str, str]:
         if not self._database_path.exists():
-            return set()
+            return {}
         try:
             with self._connect_readonly() as connection:
-                return {str(row["symbol_id"]) for row in connection.execute("SELECT symbol_id FROM symbols")}
+                return {
+                    str(row[identity_column]): str(row["repository_id"])
+                    for row in connection.execute(f"SELECT {identity_column}, repository_id FROM {table}")
+                }
         except sqlite3.Error:
-            return set()
+            return {}
+
+    def _existing_file_repository(self, file_id: str) -> str | None:
+        if not self._database_path.exists():
+            return None
+        try:
+            with self._connect_readonly() as connection:
+                row = connection.execute("SELECT repository_id FROM files WHERE file_id = ?", (file_id,)).fetchone()
+                return str(row["repository_id"]) if row is not None else None
+        except sqlite3.Error:
+            return None
 
     def _validate_integrity(self, connection: sqlite3.Connection) -> None:
         dangling = connection.execute(
