@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 from vault_graph.code_index.code_models import CodeIndexRequest, CodeRepositoryEntry
 from vault_graph.code_index.code_projection_service import CodeProjectionService
+from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
 
 
 def _entry(root: Path) -> CodeRepositoryEntry:
@@ -68,6 +70,43 @@ def test_dry_run_does_not_create_or_activate_code_state(tmp_path: Path) -> None:
     assert report.status == "stale"
     assert not (state_path / "projections" / "code" / "active.json").exists()
     assert not (state_path / "projections" / "code" / "generations").exists()
+
+
+def test_dry_run_uses_active_snapshot_in_a_fresh_service(tmp_path: Path) -> None:
+    source = tmp_path / "main.py"
+    source.write_text("def main():\n    return 1\n", encoding="utf-8")
+    state_path = tmp_path / "state"
+    entry = _entry(tmp_path)
+    first = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    first.apply(CodeIndexRequest(full=True))
+    second = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    before = second.generation_manager.active_layout(())
+    assert before is not None
+
+    report = second.apply(CodeIndexRequest(dry_run=True))
+
+    after = second.generation_manager.active_layout(())
+    assert after is not None
+    assert report.files_discovered == 0
+    assert after.generation_id == before.generation_id
+
+
+def test_sqlite_failure_returns_partial_and_marks_active_generation(tmp_path: Path) -> None:
+    source = tmp_path / "main.py"
+    source.write_text("def main():\n    return 1\n", encoding="utf-8")
+    state_path = tmp_path / "state"
+    entry = _entry(tmp_path)
+    service = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    service.apply(CodeIndexRequest(full=True))
+
+    def fail_store(_database_path: Path, _policy_revision: str) -> CodeProjectionStore:
+        raise sqlite3.OperationalError("simulated sqlite failure")
+
+    service._store_factory = fail_store
+    report = service.apply(CodeIndexRequest())
+
+    assert report.status == "partial"
+    assert service.status(()).state == "partial"
 
 
 def test_status_reads_active_projection_without_rewriting_database(tmp_path: Path) -> None:

@@ -5,13 +5,18 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import sqlite3
 import uuid
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Literal
 
 from vault_graph.code_index.code_freshness import CodeFreshnessService
-from vault_graph.code_index.code_generation import CodeGenerationLayout, CodeProjectionGenerationManager
+from vault_graph.code_index.code_generation import (
+    CodeGenerationError,
+    CodeGenerationLayout,
+    CodeProjectionGenerationManager,
+)
 from vault_graph.code_index.code_models import (
     CODE_PROJECTION_SCHEMA_VERSION,
     CodeEdgeRecord,
@@ -92,18 +97,28 @@ class CodeProjectionService:
         current = {
             code_file_identity(file.repository_id, file.relative_path): file for scan in scans for file in scan.files
         }
+        baseline, active_manifest = self._planning_baseline(tuple(entry.repository_id for entry in entries))
         current_ids = set(current)
+        force_reindex = request.full
+        if active_manifest is not None:
+            force_reindex = force_reindex or active_manifest.parser_spec_version != self._scanner.parser_spec_version
+            generation_entries = tuple(
+                entry for entry in self._entries if entry.repository_id in set(active_manifest.repository_ids)
+            )
+            force_reindex = force_reindex or active_manifest.policy_revision != _policy_revision(generation_entries)
+            current_revisions = {scan.repository_id: scan.source_revision for scan in scans}
+            indexed_revisions = dict(active_manifest.source_revisions)
+            force_reindex = force_reindex or any(
+                indexed_revisions.get(repository_id) != revision
+                for repository_id, revision in current_revisions.items()
+            )
         changed = tuple(
             file.relative_path
             for file_id, file in sorted(current.items())
-            if request.full
-            or file_id not in self._snapshots
-            or self._snapshots[file_id].content_hash != file.content_hash
+            if force_reindex or file_id not in baseline or baseline[file_id].content_hash != file.content_hash
         )
         deleted = tuple(
-            snapshot.relative_path
-            for file_id, snapshot in sorted(self._snapshots.items())
-            if file_id not in current_ids
+            snapshot.relative_path for file_id, snapshot in sorted(baseline.items()) if file_id not in current_ids
         )
         return CodeIndexPlan(
             request=request,
@@ -297,7 +312,7 @@ class CodeProjectionService:
                 files_by_id=current_by_id,
                 diagnostics=tuple(diagnostics),
             )
-        except (OSError, RuntimeError, ValueError) as exc:
+        except (OSError, RuntimeError, ValueError, sqlite3.Error, CodeGenerationError) as exc:
             if staged is not None:
                 try:
                     self.generation_manager.discard(staged)
@@ -346,6 +361,28 @@ class CodeProjectionService:
             raise RuntimeError(f"active code projection is incompatible: {health.message}")
         return store
 
+    def _planning_baseline(
+        self,
+        repository_ids: tuple[str, ...],
+    ) -> tuple[dict[str, CodeFileInput | CodeFileSnapshot], CodeManifest | None]:
+        active = self.generation_manager.active_layout(())
+        active_store = self._open_active_store(active)
+        if active_store is None:
+            return (
+                {
+                    file_id: snapshot
+                    for file_id, snapshot in self._snapshots.items()
+                    if snapshot.repository_id in set(repository_ids)
+                },
+                None,
+            )
+        manifest = active_store.current_manifest(())
+        snapshots: dict[str, CodeFileInput | CodeFileSnapshot] = {
+            code_file_identity(snapshot.repository_id, snapshot.relative_path): snapshot
+            for snapshot in active_store.file_snapshots(repository_ids)
+        }
+        return snapshots, manifest
+
     def _record_active_failure(self, repository_ids: tuple[str, ...], message: str) -> None:
         """Persist a partial marker without changing the active generation."""
 
@@ -367,7 +404,7 @@ class CodeProjectionService:
                 "partial",
                 (f"code projection run failed for {','.join(repository_ids) or 'all repositories'}: {message}",),
             )
-        except (OSError, RuntimeError, ValueError):
+        except (OSError, RuntimeError, ValueError, sqlite3.Error, CodeGenerationError):
             # The old generation remains queryable even when its diagnostic
             # marker cannot be written (for example, a read-only state path).
             return
