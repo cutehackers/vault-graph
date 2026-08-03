@@ -272,7 +272,7 @@ class ProjectContextService:
                 test_evidence,
                 code_freshness,
                 code_warnings,
-            ) = self._code_evidence(request, repository.repository_id)
+            ) = self._code_evidence(request, repository.repository_id, binding)
             warnings.extend(code_warnings)
         vault_evidence, vault_warnings = self._vault_evidence(request, vault_scope, vault_freshness)
         warnings.extend(vault_warnings)
@@ -340,7 +340,7 @@ class ProjectContextService:
         return matches[0]
 
     def _code_evidence(
-        self, request: ProjectContextRequest, repository_id: str
+        self, request: ProjectContextRequest, repository_id: str, binding: ProjectBinding
     ) -> tuple[
         tuple[ProjectEvidence, ...],
         tuple[ProjectEvidence, ...],
@@ -349,12 +349,13 @@ class ProjectContextService:
         tuple[ProjectContextWarning, ...],
     ]:
         assert self._code_query_service is not None
+        max_symbol_work = _bounded_symbol_work(request)
         try:
             response = self._code_query_service.search_symbols(
                 CodeSymbolSearchRequest(
                     query_text=request.task,
                     repository_ids=(repository_id,),
-                    limit=request.limit,
+                    limit=max_symbol_work,
                     output_format="json",
                 )
             )
@@ -392,18 +393,21 @@ class ProjectContextService:
         for hit in sorted(
             response.results,
             key=lambda item: (item.repository_id, item.relative_path, item.start_line, item.symbol_id),
-        ):
+        )[:max_symbol_work]:
             source_uri, live_warnings = self._live_source_uri(hit.symbol_id, hit.repository_id, hit.relative_path)
-            freshnesses.append(_freshness_for_live_source(response.freshness, live_warnings))
+            source_freshness = _freshness_for_live_source(response.freshness, live_warnings)
+            freshnesses.append(source_freshness)
             warnings += tuple(
                 ProjectContextWarning(
                     code=warning,
                     message="Current source differs from, or is unavailable for, the selected code projection.",
-                    freshness=response.freshness,
+                    freshness=source_freshness,
                     authority_id=hit.repository_id,
                 )
                 for warning in live_warnings
             )
+            mapping = dict(binding.evidence_mappings).get(f"code:{hit.symbol_id}")
+            reasons = ("code_symbol_match", f"vault-evidence:{mapping}") if mapping else ("code_symbol_match",)
             evidence.append(
                 ProjectEvidence(
                     evidence_id=f"code:{hit.symbol_id}",
@@ -412,20 +416,20 @@ class ProjectContextService:
                     summary=hit.signature or hit.kind,
                     relationship_status="stated",
                     revision=hit.source_revision,
-                    freshness=response.freshness,
+                    freshness=source_freshness,
                     source_uri=source_uri,
                     repository_id=hit.repository_id,
                     relative_path=hit.relative_path,
                     start_line=hit.start_line,
                     end_line=hit.end_line,
-                    reasons=("code_symbol_match",),
+                    reasons=reasons,
                 )
             )
             impact, related_tests, impact_freshness, impact_warnings = self._impact_evidence(
                 symbol_id=hit.symbol_id,
                 repository_id=hit.repository_id,
                 depth=request.depth,
-                limit=request.limit,
+                limit=max_symbol_work,
             )
             impacts.extend(impact)
             tests.extend(related_tests)
@@ -490,14 +494,15 @@ class ProjectContextService:
         for hit in sorted(
             traversal.hits,
             key=lambda item: (item.repository_id, item.relative_path, item.start_line, item.symbol_id),
-        ):
+        )[:limit]:
             source_uri, source_warnings = self._live_source_uri(hit.symbol_id, hit.repository_id, hit.relative_path)
-            freshnesses.append(_freshness_for_live_source(traversal.freshness, source_warnings))
+            item_freshness = _freshness_for_live_source(traversal.freshness, source_warnings)
+            freshnesses.append(item_freshness)
             warnings += tuple(
                 ProjectContextWarning(
                     code=warning,
                     message="Current source differs from, or is unavailable for, the selected code projection.",
-                    freshness=traversal.freshness,
+                    freshness=item_freshness,
                     authority_id=hit.repository_id,
                 )
                 for warning in source_warnings
@@ -505,7 +510,7 @@ class ProjectContextService:
             item = _code_evidence_from_hit(
                 hit=hit,
                 source_uri=source_uri,
-                freshness=traversal.freshness,
+                freshness=item_freshness,
                 reason="code_impact" if hit.kind != "test" else "related_test",
             )
             (tests if hit.kind == "test" else impacts).append(item)
@@ -749,6 +754,12 @@ def _freshness_for_live_source(base: ProjectFreshness, warnings: tuple[str, ...]
     if any(warning.startswith("source_changed_since_index") for warning in warnings):
         return combine_freshness((base, "stale"))
     return base
+
+
+def _bounded_symbol_work(request: ProjectContextRequest) -> int:
+    """Bound source/impact reads before live work based on the requested output budget."""
+
+    return min(request.limit, max(1, request.max_tokens // 64), 20)
 
 
 def _vault_freshness_from_status(report: object) -> tuple[ProjectFreshness, tuple[str, ...]]:

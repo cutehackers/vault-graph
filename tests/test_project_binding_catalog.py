@@ -62,9 +62,17 @@ def _service(tmp_path: Path) -> tuple[ProjectBindingCatalogService, Path]:
 def test_project_binding_catalog_round_trips_versioned_state(tmp_path: Path) -> None:
     service, state_path = _service(tmp_path)
 
-    catalog = service.bind(ProjectBinding(repository_id="demo", vault_ids=("main",), content_scopes=("wiki",)))
+    catalog = service.bind(
+        ProjectBinding(
+            repository_id="demo",
+            vault_ids=("main",),
+            content_scopes=("wiki",),
+            evidence_mappings=(("code:run", "vault:main:decision-1:chunk-1"),),
+        )
+    )
 
     assert catalog.resolve("demo").vault_ids == ("main",)
+    assert catalog.resolve("demo").evidence_mappings == (("code:run", "vault:main:decision-1:chunk-1"),)
     payload = json.loads((state_path / "configs" / "project-bindings.json").read_text(encoding="utf-8"))
     assert payload["schema_version"] == "project-bindings-v1"
     assert service.load().resolve("demo").content_scopes == ("wiki",)

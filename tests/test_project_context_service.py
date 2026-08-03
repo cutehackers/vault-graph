@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -22,7 +22,11 @@ from vault_graph.project_context import (
     ProjectContextRequest,
     ProjectFreshness,
 )
-from vault_graph.project_context.project_context_service import ProjectContextService, VaultGraphRelationLookup
+from vault_graph.project_context.project_context_service import (
+    ProjectContextService,
+    ProjectGraphRelationLookup,
+    VaultGraphRelationLookup,
+)
 
 
 @dataclass(frozen=True)
@@ -45,13 +49,16 @@ class _Repositories:
 
 
 class _Bindings:
+    def __init__(self, evidence_mappings: tuple[tuple[str, str], ...] = ()) -> None:
+        self._binding = ProjectBinding("demo", ("vault",), ("wiki",), evidence_mappings)
+
     def entries(self) -> tuple[ProjectBinding, ...]:
-        return (ProjectBinding("demo", ("vault",), ("wiki",)),)
+        return (self._binding,)
 
     def resolve(self, repository_id: str) -> ProjectBinding:
         if repository_id != "demo":
             raise ValueError(f"missing project binding for repository_id: {repository_id}")
-        return self.entries()[0]
+        return self._binding
 
 
 class _Code:
@@ -175,7 +182,13 @@ class _VaultStatus:
 
 
 def _service(
-    tmp_path: Path, *, code: _Code | None = None, vault_state: ProjectFreshness = "fresh"
+    tmp_path: Path,
+    *,
+    code: _Code | None = None,
+    vault_state: ProjectFreshness = "fresh",
+    evidence_mappings: tuple[tuple[str, str], ...] = (),
+    authority_revision: str = "git-1",
+    graph_relation_lookup: ProjectGraphRelationLookup | None = None,
 ) -> ProjectContextService:
     repository = tmp_path / "repository"
     repository.mkdir()
@@ -183,15 +196,17 @@ def _service(
     class Status(_VaultStatus):
         def status(self, vault_ids: tuple[str, ...]) -> tuple[ProjectAuthorityFreshness, ...]:
             return tuple(
-                ProjectAuthorityFreshness("vault", vault_id, vault_state, revision="git-1") for vault_id in vault_ids
+                ProjectAuthorityFreshness("vault", vault_id, vault_state, revision=authority_revision)
+                for vault_id in vault_ids
             )
 
     return ProjectContextService(
         repository_catalog=_Repositories(repository),
-        binding_catalog=_Bindings(),
+        binding_catalog=_Bindings(evidence_mappings),
         code_query_service=code,
         context_pack_builder=_ContextPacks(),
         vault_status_service=Status(),
+        graph_relation_lookup=graph_relation_lookup,
     )
 
 
@@ -248,21 +263,122 @@ def test_vault_graph_relation_adapter_marks_unmapped_authorities_as_unresolved(t
 
     context = _service(tmp_path, code=_Code()).build(ProjectContextRequest(task="Find the implementation"))
     lookup = VaultGraphRelationLookup(retrieval_service=Retrieval(), graph_service=Graph())
-    stated_code = replace(
-        context.code_evidence[0], reasons=(f"vault-evidence:{context.vault_evidence[0].evidence_id}",)
-    )
     relations = lookup.find_relations(
         task=context.task,
         repository_id=context.repository_id,
         vault_ids=("vault",),
         content_scopes=("wiki",),
-        code_evidence=(stated_code,),
+        code_evidence=context.code_evidence,
         vault_evidence=context.vault_evidence,
     )
 
     assert [call[0] for call in calls] == ["retrieval", "graph"]
     assert all(call[1].content_scopes == ("wiki",) for call in calls)
-    assert relations[0].status == "stated"
+    assert relations[0].status == "unresolved"
+
+
+def test_project_context_emits_stated_relation_from_binding_mapping_and_authority_results(tmp_path: Path) -> None:
+    class Retrieval:
+        def search(self, **_: object) -> object:
+            return type(
+                "Search",
+                (),
+                {
+                    "results": (
+                        type(
+                            "Result",
+                            (),
+                            {
+                                "evidence": (
+                                    type(
+                                        "Evidence",
+                                        (),
+                                        {"vault_id": "vault", "document_id": "decision-1", "chunk_id": "chunk-1"},
+                                    )(),
+                                )
+                            },
+                        )(),
+                    )
+                },
+            )()
+
+    class Graph:
+        def related(self, **_: object) -> object:
+            return object()
+
+    lookup = VaultGraphRelationLookup(retrieval_service=Retrieval(), graph_service=Graph())
+    context = _service(
+        tmp_path,
+        code=_Code(),
+        evidence_mappings=(("code:symbol-1", "vault:vault:decision-1:chunk-1"),),
+        graph_relation_lookup=lookup,
+    ).build(ProjectContextRequest(task="Find the implementation"))
+
+    assert context.relations[0].status == "stated"
+
+
+def test_project_context_bounds_live_code_work_before_source_and_impact_reads(tmp_path: Path) -> None:
+    class ManyCode(_Code):
+        def __init__(self) -> None:
+            self.source_calls = 0
+            self.impact_calls = 0
+
+        def search_symbols(self, request: object) -> CodeSearchResponse:
+            return CodeSearchResponse(
+                query_text="task",
+                results=tuple(
+                    CodeSymbolHit(
+                        symbol_id=f"symbol-{index}",
+                        repository_id="demo",
+                        file_id=f"file-{index}",
+                        relative_path=f"src/demo_{index}.py",
+                        kind="function",
+                        language_kind="function_definition",
+                        name=f"run_{index}",
+                        qualified_name=f"run_{index}",
+                        signature="def run()",
+                        start_line=1,
+                        end_line=2,
+                    )
+                    for index in range(100)
+                ),
+                freshness="fresh",
+            )
+
+        def get_symbol(self, request: object) -> CodeSymbolResponse:
+            self.source_calls += 1
+            return super().get_symbol(request)
+
+        def get_impact(self, request: CodeImpactRequest) -> CodeTraversalResponse:
+            self.impact_calls += 1
+            return CodeTraversalResponse(
+                CodeTraversalResult(
+                    "root",
+                    "inbound",
+                    tuple(
+                        CodeSymbolHit(
+                            symbol_id=f"caller-{index}",
+                            repository_id="demo",
+                            file_id=f"file-{index}",
+                            relative_path=f"src/caller_{index}.py",
+                            kind="function",
+                            language_kind="function_definition",
+                            name=f"caller_{index}",
+                            qualified_name=f"caller_{index}",
+                            signature="def caller()",
+                            start_line=1,
+                            end_line=2,
+                        )
+                        for index in range(100)
+                    ),
+                )
+            )
+
+    code = ManyCode()
+    _service(tmp_path, code=code).build(ProjectContextRequest(task="Find", max_tokens=512, limit=100))
+
+    assert code.impact_calls <= 8
+    assert code.source_calls <= 72
 
 
 def test_vault_graph_relation_adapter_explains_an_unsupported_lookup_result(tmp_path: Path) -> None:
@@ -316,6 +432,20 @@ def test_live_source_drift_downgrades_an_otherwise_fresh_code_authority(tmp_path
 
     assert context.authority_freshness[0].state == "stale"
     assert context.freshness == "stale"
+    assert context.code_evidence[0].freshness == "stale"
+    assert context.impact_evidence[0].freshness == "stale"
+    assert context.test_evidence[0].freshness == "stale"
+
+
+def test_project_context_compacts_long_binding_and_authority_metadata_within_budget(tmp_path: Path) -> None:
+    context = _service(
+        tmp_path,
+        code=_Code(),
+        evidence_mappings=(("code:" + "x" * 1000, "vault:" + "y" * 1000),),
+        authority_revision="revision-" + "z" * 1000,
+    ).build(ProjectContextRequest(task="Find the implementation", max_tokens=512))
+
+    assert context.budget.used_tokens <= 512
 
 
 def test_project_context_falls_back_to_vault_evidence_when_code_index_is_missing(tmp_path: Path) -> None:

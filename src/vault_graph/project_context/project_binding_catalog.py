@@ -77,6 +77,7 @@ class ProjectBindingCatalogService:
                     repository_id=item["repository_id"],
                     vault_ids=tuple(item["vault_ids"]),
                     content_scopes=tuple(item.get("content_scopes", ())),
+                    evidence_mappings=tuple(tuple(mapping) for mapping in item.get("evidence_mappings", ())),
                 )
                 for item in raw_bindings
             )
@@ -93,6 +94,7 @@ class ProjectBindingCatalogService:
                     "repository_id": item.repository_id,
                     "vault_ids": list(item.vault_ids),
                     "content_scopes": list(item.content_scopes),
+                    "evidence_mappings": [list(mapping) for mapping in item.evidence_mappings],
                 }
                 for item in sorted(bindings, key=lambda item: item.repository_id)
             ],

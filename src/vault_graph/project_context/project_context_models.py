@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
+from hashlib import sha256
 from typing import Literal
 
 from vault_graph.project_context.project_binding import ProjectBinding
@@ -16,6 +17,7 @@ MIN_PROJECT_CONTEXT_TOKENS = 512
 MAX_PROJECT_CONTEXT_DEPTH = 8
 MAX_PROJECT_CONTEXT_LIMIT = 100
 MAX_PROJECT_CONTEXT_TOKENS = 16000
+MAX_COMPACT_CONTEXT_STRING_CHARS = 96
 
 ProjectFreshness = Literal["fresh", "stale", "syncing", "partial", "unavailable", "unknown"]
 ProjectAuthorityKind = Literal["code", "vault"]
@@ -216,10 +218,35 @@ def combine_freshness(states: tuple[ProjectFreshness, ...]) -> ProjectFreshness:
 
 
 def estimate_project_context_tokens(context: ProjectContext) -> int:
-    """Estimate compact JSON output tokens from every field emitted by the DTO."""
+    """Estimate compact JSON output tokens from every field emitted by the DTO.
 
-    serialized = json.dumps(asdict(context), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    Project bindings and authority revisions are user-controlled identifiers and
+    may be arbitrarily long. The wire contract uses a deterministic abbreviated
+    representation for oversized strings, retaining a prefix and digest so the
+    estimate cannot fail merely because metadata is verbose. Every DTO field is
+    still traversed; only oversized scalar values are compacted.
+    """
+
+    serialized = json.dumps(
+        _compact_for_output(asdict(context)), sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    )
     return max(1, (len(serialized) + 3) // 4)
+
+
+def _compact_for_output(value: object) -> object:
+    if isinstance(value, str):
+        if len(value) <= MAX_COMPACT_CONTEXT_STRING_CHARS:
+            return value
+        digest = sha256(value.encode("utf-8")).hexdigest()[:16]
+        prefix_length = MAX_COMPACT_CONTEXT_STRING_CHARS - len(digest) - 1
+        return f"{value[:prefix_length]}~{digest}"
+    if isinstance(value, dict):
+        return {key: _compact_for_output(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return tuple(_compact_for_output(item) for item in value)
+    if isinstance(value, list):
+        return [_compact_for_output(item) for item in value]
+    return value
 
 
 def _require_non_empty(value: str, field_name: str) -> None:
