@@ -5,10 +5,12 @@
 ## 결론
 
 Round 2의 `explore_project` 경로는 코드와 Vault를 별도 권위로 유지한 채
-하나의 읽기 전용 호출로 묶는다. 고정 Python/Dart/Vault fixture를 사용한
-결정적 benchmark에서 네 가지 대표 작업 모두 기존 다중 도구 흐름보다
-애플리케이션 호출 수와 프롬프트 지시 토큰이 줄었고, 필요한 증거 재현율은
-낮아지지 않았으며 stale 결과 누락은 없었다.
+하나의 읽기 전용 호출로 묶는다. 고정 Python/Dart/Vault fixture를 임시
+작업 경로에 복사한 뒤 실제 code catalog, code projection, project binding,
+`ProjectContextService`, MCP adapter를 연결한 결정적 benchmark에서 네 가지
+대표 작업 모두 기존 다중 도구 흐름보다 애플리케이션 호출 수와 프롬프트 지시
+토큰이 줄었고, 필요한 증거 재현율은 낮아지지 않았으며 stale 결과 누락은
+없었다.
 
 이 검증은 LLM, 네트워크, 시간 측정에 의존하지 않는다. 따라서 CI와 오프라인
 개발 환경에서 같은 입력에 같은 결과를 재현한다.
@@ -23,10 +25,28 @@ Round 2의 `explore_project` 경로는 코드와 Vault를 별도 권위로 유�
 - `demo` 등록 코드 카탈로그와 `demo -> project-vault/wiki`의 명시적 binding
 - 인덱스 이후 소스가 바뀐 `source_changed_since_index` stale 사례
 
+각 scenario는 fixture를 `tmp_path`에 복사하고 다음 실제 경로를 사용한다.
+
+1. `CatalogService`가 `project-vault`를 등록한다.
+2. fixture의 `repositories.yaml`을 실제 임시 repository root에 맞춰 로드하고
+   `CodeIndexFactory`가 Python/Dart projection을 full index한다.
+3. fixture의 `project-bindings.json`을 `ProjectBindingCatalogService`로 검증하고
+   실제 Graph state에 다시 기록한다.
+4. 실제 `CodeIndexFactory.open_query_service`와 실제
+   `ProjectContextService`를 MCP `explore_project` adapter로 호출한다.
+
+Vault fixture는 `ProjectContextService`의 안정된 injected context-pack/status
+protocol을 통해 파일을 매번 읽는다. 이는 local metadata/vector/graph 전체
+index를 만들지 않고도 Vault authority 및 source revision을 실제 파일로
+검증하는 범위다. 따라서 이 benchmark는 Vault retrieval ranking 자체의 통합
+benchmark가 아니라, 코드 projection·명시 binding·project-context composition·MCP
+경로의 통합 acceptance test다.
+
 fixture의 Vault와 repository 파일 트리 SHA-256 fingerprint를 호출 전후에
 비교했다. benchmark와 코드 인덱스 미가용 fallback 모두 두 권위를 변경하지
-않는다. fallback은 항상 Vault 증거만 반환하고 `code_index_unavailable` 경고를
-포함하므로, 오래된 코드를 새 코드처럼 제시하지 않는다.
+않는다. fallback은 실제 미인덱스 code catalog/binding state에서 항상 Vault
+증거만 반환하고 `code_index_unavailable` 경고를 포함하므로, 오래된 코드를 새
+코드처럼 제시하지 않는다.
 
 ## Benchmark 결과
 
@@ -35,17 +55,20 @@ fixture의 Vault와 repository 파일 트리 SHA-256 fingerprint를 호출 전�
 
 | 시나리오 | 기존 호출 → 탐색 호출 | 지시 토큰 → 탐색 토큰 | fallback 읽기 → 탐색 읽기 | 증거 재현율 | stale 누락 | 탐색 출력 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 구조 설명 | 4 → 1 | 40 → 15 | 3 → 0 | 1.00 | 0 | 762 |
-| 버그 범위 | 5 → 1 | 46 → 15 | 4 → 0 | 1.00 | 0 | 1,039 |
-| 영향 분석 | 5 → 1 | 32 → 15 | 4 → 0 | 1.00 | 0 | 935 |
-| 설계·구현 일관성 | 5 → 1 | 45 → 15 | 4 → 0 | 1.00 | 0 | 765 |
+| 구조 설명 | 4 → 1 | 43 → 14 | 3 → 0 | 1.00 | 0 | 871 |
+| 버그 범위 | 5 → 1 | 37 → 14 | 4 → 0 | 1.00 | 0 | 1,185 |
+| 영향 분석 | 5 → 1 | 31 → 14 | 4 → 0 | 1.00 | 0 | 871 |
+| 설계·구현 일관성 | 5 → 1 | 45 → 14 | 4 → 0 | 1.00 | 0 | 866 |
 
 각 시나리오에서 다음 acceptance threshold를 만족한다.
 
 - `explore_project` 애플리케이션 호출 수가 scripted baseline보다 작다.
 - 프롬프트 지시 토큰이 baseline보다 작다.
 - 관련 증거 재현율이 baseline(1.00) 이상이다.
-- stale 결과 누락은 정확히 0이다.
+- stale scenario는 index 이후 실제 `src/billing.py`를 변경한 뒤
+  `CodeFreshnessService.compare(..., verify=True)`가 `stale`과 content-hash
+  drift를 보고하고, live source evidence가 `source_changed_since_index`를
+  ProjectContext warning으로 전달하는 것을 확인한다. stale 결과 누락은 0이다.
 - MCP 출력은 max token/depth/limit 경계 안에 있다.
 - Vault와 repository fingerprint가 호출 전후 동일하다.
 - 코드 인덱스 미가용 fallback은 두 호출에서 동일하게 직렬화된다.
@@ -72,10 +95,10 @@ fixture의 Vault와 repository 파일 트리 SHA-256 fingerprint를 호출 전�
 
 ```text
 uv run pytest tests/benchmarks/test_project_context_benchmark.py tests/test_project_context_serialization.py -q
-7 passed
+8 passed
 
 uv run pytest -q
-1122 passed, 1 skipped
+1123 passed, 1 skipped
 
 uv run ruff check .
 All checks passed
