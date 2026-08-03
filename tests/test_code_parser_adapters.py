@@ -235,7 +235,13 @@ def test_dart_adapter_preserves_all_receiver_selectors_as_dynamic_targets() -> N
     result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/receiver_calls.dart", language="dart"))
     targets = {reference.target_key for reference in result.references if reference.relation_kind == "CALLS"}
 
-    assert {'dynamic:"x".trim', "dynamic:this.run", "dynamic:(foo()).bar"}.issubset(targets)
+    assert {
+        'dynamic:"x".trim',
+        "dynamic:this.run",
+        "dynamic:(foo()).bar",
+        "dynamic:getObj().run",
+        "dynamic:foo().bar",
+    }.issubset(targets)
     assert "run" in targets
 
 
