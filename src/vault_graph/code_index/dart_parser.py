@@ -564,17 +564,44 @@ def _dart_call_target(node: Any) -> str:
                 return ""
             if previous.type in {"identifier", "type_identifier"}:
                 return node_text(previous)
+            if previous.type == "selector":
+                dynamic_target = _dart_dynamic_selector_target(previous)
+                if dynamic_target:
+                    return dynamic_target
             previous_ids = _callee_identifiers(previous)
             if previous_ids:
-                receiver = _dart_selector_chain(previous)
-                if receiver:
-                    return f"dynamic:{'.'.join((*receiver, node_text(previous_ids[-1])))}"
                 return node_text(previous_ids[-1])
     identifiers = _callee_identifiers(node)
     if identifiers:
         return node_text(identifiers[-1])
     text = node_text(node)
     return text.strip("().")
+
+
+def _dart_dynamic_selector_target(node: Any) -> str:
+    """Preserve a selector receiver that static extraction cannot type-resolve."""
+
+    method = node_text(node).lstrip("?.").split("(", 1)[0].strip()
+    if not method:
+        return ""
+    parent = node.parent
+    if parent is None:
+        return ""
+    try:
+        index = next(index for index, child in enumerate(parent.children) if child == node)
+    except StopIteration:
+        return ""
+    if index == 0:
+        return ""
+    receiver_node = parent.children[index - 1]
+    if receiver_node.type == "selector":
+        receiver_target = _dart_dynamic_selector_target(receiver_node)
+        receiver = receiver_target.removeprefix("dynamic:") if receiver_target else ""
+    else:
+        receiver = node_text(receiver_node).strip()
+    if not receiver:
+        return ""
+    return f"dynamic:{receiver}.{method}"
 
 
 def _callee_identifiers(node: Any) -> list[Any]:
