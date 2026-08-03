@@ -23,6 +23,7 @@ from vault_graph.code_index.code_models import (
     CodeIndexRequest,
     CodeManifest,
     CodeParseDiagnostic,
+    CodeParseResult,
     CodeReconcilePlan,
     CodeReferenceRecord,
     CodeRepositoryAddRequest,
@@ -245,6 +246,87 @@ def test_nested_sequences_are_normalized_to_immutable_tuples() -> None:
     assert manifest.repository_ids == ("demo",)
     assert manifest.source_revisions == (("demo", "rev-1"),)
     assert manifest.file_ids == ("file-1",)
+
+
+def test_manifest_rejects_malformed_revision_and_file_identity_entries() -> None:
+    with pytest.raises(ValueError, match="source_revisions entries"):
+        CodeManifest(
+            generation_id="generation-1",
+            schema_version=CODE_PROJECTION_SCHEMA_VERSION,
+            parser_spec_version=CODE_PARSER_SPEC_VERSION,
+            repository_ids=("demo",),
+            policy_revision="policy-1",
+            source_revisions=(("demo",),),  # type: ignore[assignment]
+        )
+    with pytest.raises(ValueError, match="source_revisions.revision"):
+        CodeManifest(
+            generation_id="generation-1",
+            schema_version=CODE_PROJECTION_SCHEMA_VERSION,
+            parser_spec_version=CODE_PARSER_SPEC_VERSION,
+            repository_ids=("demo",),
+            policy_revision="policy-1",
+            source_revisions=(("demo", ""),),
+        )
+    with pytest.raises(ValueError, match="file_ids"):
+        CodeManifest(
+            generation_id="generation-1",
+            schema_version=CODE_PROJECTION_SCHEMA_VERSION,
+            parser_spec_version=CODE_PARSER_SPEC_VERSION,
+            repository_ids=("demo",),
+            policy_revision="policy-1",
+            file_ids=("",),
+        )
+
+
+def test_path_and_deleted_identity_fields_reject_traversal_or_empty_values() -> None:
+    with pytest.raises(ValueError, match="changed_paths"):
+        CodeIndexPlan(
+            request=CodeIndexRequest(),
+            repository_ids=(),
+            changed_paths=("../outside.py",),
+            deleted_paths=(),
+            parser_spec_version=CODE_PARSER_SPEC_VERSION,
+        )
+    with pytest.raises(ValueError, match="pending_paths"):
+        CodeFreshnessReport(repository_ids=(), state="stale", pending_paths=("/outside.py",))
+    manifest = CodeManifest(
+        generation_id="generation-1",
+        schema_version=CODE_PROJECTION_SCHEMA_VERSION,
+        parser_spec_version=CODE_PARSER_SPEC_VERSION,
+        repository_ids=("demo",),
+        policy_revision="policy-1",
+    )
+    with pytest.raises(ValueError, match="deleted_file_ids"):
+        CodeReconcilePlan(
+            manifest=manifest,
+            files=(),
+            symbols=(),
+            edges=(),
+            deleted_file_ids=("",),
+        )
+
+
+def test_parse_result_requires_matching_source_and_parser_identity() -> None:
+    file = _file()
+    symbol = CodeSymbolRecord(
+        symbol_id="symbol-1",
+        repository_id=file.repository_id,
+        file_id="file-1",
+        kind="function",
+        language_kind="function_definition",
+        name="hello",
+        qualified_name="example.hello",
+        signature=None,
+        start_line=1,
+        end_line=1,
+        start_column=0,
+        end_column=5,
+        content_hash=file.content_hash,
+        source_revision=file.source_revision,
+        parser_spec_version="other-parser-spec",
+    )
+    with pytest.raises(ValueError, match="parser_spec_version"):
+        CodeParseResult(file=file, symbols=(symbol,), references=())
 
 
 def test_bool_fields_reject_integer_values() -> None:

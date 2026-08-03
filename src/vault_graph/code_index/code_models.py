@@ -337,12 +337,22 @@ class CodeParseResult:
         for record in self.symbols:
             if record.repository_id != self.file.repository_id:
                 raise ValueError("parsed record repository_id must match file")
+            if record.parser_spec_version != self.file.parser_spec_version:
+                raise ValueError("parsed symbol parser_spec_version must match file")
+            if record.content_hash != self.file.content_hash or record.source_revision != self.file.source_revision:
+                raise ValueError("parsed symbol source identity must match file")
         for reference in self.references:
             if reference.repository_id != self.file.repository_id:
                 raise ValueError("parsed record repository_id must match file")
+            if reference.parser_spec_version != self.file.parser_spec_version:
+                raise ValueError("parsed reference parser_spec_version must match file")
         for diagnostic in self.diagnostics:
             if diagnostic.repository_id != self.file.repository_id:
                 raise ValueError("parsed record repository_id must match file")
+            if diagnostic.relative_path != self.file.relative_path:
+                raise ValueError("parsed diagnostic relative_path must match file")
+            if diagnostic.parser_spec_version != self.file.parser_spec_version:
+                raise ValueError("parsed diagnostic parser_spec_version must match file")
 
 
 @dataclass(frozen=True)
@@ -392,7 +402,15 @@ class CodeManifest:
         for repository_id in self.repository_ids:
             _require_non_empty(repository_id, "repository_ids")
         _require_tuple(self.source_revisions, "source_revisions")
+        for source_revision in self.source_revisions:
+            if len(source_revision) != 2:
+                raise ValueError("source_revisions entries must contain repository_id and revision")
+            repository_id, revision = source_revision
+            _require_non_empty(repository_id, "source_revisions.repository_id")
+            _require_non_empty(revision, "source_revisions.revision")
         _require_tuple(self.file_ids, "file_ids")
+        for file_id in self.file_ids:
+            _require_non_empty(file_id, "file_ids")
 
 
 @dataclass(frozen=True)
@@ -426,6 +444,8 @@ class CodeReconcilePlan:
         for pending in self.pending_references:
             if pending.repository_id not in repositories:
                 raise ValueError("record repository_id is not present in manifest")
+        for file_id in self.deleted_file_ids:
+            _require_non_empty(file_id, "deleted_file_ids")
 
 
 @dataclass(frozen=True)
@@ -598,6 +618,8 @@ class CodeIndexPlan:
         _normalize_tuple_attr(self, "repository_ids")
         _normalize_tuple_attr(self, "changed_paths")
         _normalize_tuple_attr(self, "deleted_paths")
+        _validate_relative_paths(self.changed_paths, "changed_paths")
+        _validate_relative_paths(self.deleted_paths, "deleted_paths")
         _require_non_empty(self.parser_spec_version, "parser_spec_version")
         _require_non_empty(self.schema_version, "schema_version")
 
@@ -627,6 +649,7 @@ class CodeRunReport:
         _normalize_tuple_attr(self, "repository_ids")
         _normalize_tuple_attr(self, "pending_paths")
         _normalize_tuple_attr(self, "diagnostics")
+        _validate_relative_paths(self.pending_paths, "pending_paths")
         _require_non_empty(self.run_id, "run_id")
         if self.mode not in ("full", "incremental"):
             raise ValueError(f"unsupported index mode: {self.mode}")
@@ -676,6 +699,7 @@ class CodeFreshnessReport:
         _normalize_tuple_attr(self, "repository_ids")
         _normalize_tuple_attr(self, "warnings")
         _normalize_tuple_attr(self, "pending_paths")
+        _validate_relative_paths(self.pending_paths, "pending_paths")
         _require_freshness(self.state)
         _require_tuple(self.warnings, "warnings")
         _require_tuple(self.pending_paths, "pending_paths")
@@ -949,6 +973,16 @@ def _require_relative_path(value: str) -> None:
     path = Path(value)
     if path.is_absolute() or ".." in path.parts:
         raise ValueError("relative_path must stay within the repository root")
+
+
+def _validate_relative_paths(values: tuple[str, ...], field_name: str) -> None:
+    for value in values:
+        if not isinstance(value, str):
+            raise ValueError(f"{field_name} entries must be strings")
+        try:
+            _require_relative_path(value)
+        except ValueError as error:
+            raise ValueError(f"{field_name} contains an invalid relative path") from error
 
 
 def _normalize_tuple_attr(instance: object, field_name: str) -> tuple[object, ...]:
