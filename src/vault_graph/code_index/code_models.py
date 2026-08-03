@@ -582,9 +582,11 @@ class CodeTraversalQuery:
     depth: int = 1
     limit: int = 100
     include_uncertain: bool = False
+    relation_kinds: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _require_bool(self.include_uncertain, "include_uncertain")
+        _normalize_tuple_attr(self, "relation_kinds")
         _require_non_empty(self.symbol_id, "symbol_id")
         if self.repository_id is not None:
             _require_non_empty(self.repository_id, "repository_id")
@@ -592,6 +594,9 @@ class CodeTraversalQuery:
             raise ValueError(f"unsupported traversal direction: {self.direction}")
         _require_non_negative(self.depth, "depth")
         _require_positive(self.limit, "limit")
+        for relation_kind in self.relation_kinds:
+            if relation_kind not in CODE_RELATION_KINDS:
+                raise ValueError(f"unsupported relation kind: {relation_kind}")
 
 
 @dataclass(frozen=True)
@@ -760,6 +765,8 @@ class CodeSymbolSearchRequest:
 @dataclass(frozen=True)
 class CodeSymbolRequest:
     symbol_id: str
+    repository_id: str | None = None
+    relative_path: str | None = None
     include_source: bool = False
     max_lines: int = 80
     output_format: CodeOutputFormat = "text"
@@ -767,6 +774,10 @@ class CodeSymbolRequest:
     def __post_init__(self) -> None:
         _require_bool(self.include_source, "include_source")
         _require_non_empty(self.symbol_id, "symbol_id")
+        if self.repository_id is not None:
+            _require_non_empty(self.repository_id, "repository_id")
+        if self.relative_path is not None:
+            _require_relative_path(self.relative_path)
         _require_positive(self.max_lines, "max_lines")
         _require_output_format(self.output_format)
 
@@ -786,6 +797,8 @@ class CodeFileOutlineRequest:
 @dataclass(frozen=True)
 class CodeTraversalRequest:
     symbol_id: str
+    repository_id: str | None = None
+    relative_path: str | None = None
     depth: int = 1
     limit: int = 100
     output_format: CodeOutputFormat = "text"
@@ -795,23 +808,39 @@ class CodeTraversalRequest:
         _require_bool(self.include_uncertain, "include_uncertain")
         CodeTraversalQuery(
             symbol_id=self.symbol_id,
+            repository_id=self.repository_id,
             depth=self.depth,
             limit=self.limit,
             include_uncertain=self.include_uncertain,
         )
+        if self.relative_path is not None:
+            _require_relative_path(self.relative_path)
         _require_output_format(self.output_format)
 
 
 @dataclass(frozen=True)
 class CodeImpactRequest:
     symbol_id: str
+    repository_id: str | None = None
+    relative_path: str | None = None
     direction: CodeTraversalDirection = "inbound"
     depth: int = 3
     limit: int = 100
     output_format: CodeOutputFormat = "text"
+    include_uncertain: bool = False
 
     def __post_init__(self) -> None:
-        CodeTraversalQuery(symbol_id=self.symbol_id, direction=self.direction, depth=self.depth, limit=self.limit)
+        _require_bool(self.include_uncertain, "include_uncertain")
+        CodeTraversalQuery(
+            symbol_id=self.symbol_id,
+            repository_id=self.repository_id,
+            direction=self.direction,
+            depth=self.depth,
+            limit=self.limit,
+            include_uncertain=self.include_uncertain,
+        )
+        if self.relative_path is not None:
+            _require_relative_path(self.relative_path)
         _require_output_format(self.output_format)
 
 
@@ -839,6 +868,7 @@ class CodeSearchResponse:
 class CodeSymbolResponse:
     symbol: CodeSymbolRecord | None
     freshness: CodeFreshnessState
+    source_uri: str | None = None
     source_lines: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     output_format: CodeOutputFormat = "text"

@@ -97,6 +97,10 @@ def __getattr__(name: str) -> object:
         from vault_graph.code_index.code_projection_service import CodeProjectionService
 
         return CodeProjectionService
+    if name == "CodeQueryService":
+        from vault_graph.code_index.code_query_service import CodeQueryService
+
+        return CodeQueryService
     raise AttributeError(name)
 
 
@@ -148,6 +152,7 @@ __all__ = [
     "CodeFreshness",
     "CodeFreshnessService",
     "CodeProjectionService",
+    "CodeQueryService",
     "CodeScanResult",
     "CodeSourceScanError",
     "CodeSourceScanner",
