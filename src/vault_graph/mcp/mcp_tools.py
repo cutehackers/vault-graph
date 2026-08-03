@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
@@ -609,19 +610,15 @@ class McpToolRegistry:
             )
 
             payload = project_context_to_payload(context)
-            return _tool_body(
-                tool_name="explore_project",
+            return _bounded_project_context_body(
                 payload=payload,
                 resource_links=resource_links_for_project_context(context),
                 warnings=mcp_warnings_for_project_context(context),
                 text=project_context_text_mirror(context),
+                max_tokens=request.max_tokens,
             )
         except ValueError as exc:
-            if str(exc).split(";", 1)[0] in {
-                "scope_required",
-                "unregistered_project_path",
-                "conflicting_project_scope",
-            }:
+            if _is_project_scope_error(exc):
                 raise _project_scope_error(exc) from exc
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
         except Exception as exc:
@@ -1247,7 +1244,11 @@ def _project_limit(value: object) -> int:
 
 
 def _project_scope_error(exc: ValueError) -> McpProtocolError:
-    code, _, detail = str(exc).partition(";")
+    raw_message = str(exc)
+    code, _, detail = raw_message.partition(";")
+    if raw_message.startswith("missing project binding"):
+        code = "scope_required"
+        detail = "An explicit repository-to-Vault binding is required."
     recovery_hint = (
         "Register a repository and bind it to its Vault with `vg project bind`, then pass repository_id."
         if code == "scope_required"
@@ -1263,6 +1264,102 @@ def _project_scope_error(exc: ValueError) -> McpProtocolError:
             recovery_hint=recovery_hint,
         ),
     )
+
+
+def _is_project_scope_error(exc: ValueError) -> bool:
+    message = str(exc)
+    return message.startswith(
+        (
+            "scope_required",
+            "unregistered_project_path",
+            "conflicting_project_scope",
+            "missing project binding",
+        )
+    )
+
+
+def _bounded_project_context_body(
+    *,
+    payload: dict[str, object],
+    resource_links: tuple[McpResourceLink, ...],
+    warnings: tuple[McpErrorPayload, ...],
+    text: str,
+    max_tokens: int,
+) -> McpToolBody:
+    """Fit the whole MCP envelope, not just the nested project-context DTO."""
+
+    selected_links = list(resource_links)
+    selected_warnings = list(warnings)
+    selected_text = text
+    body = _project_context_body(payload, selected_links, selected_warnings, selected_text)
+    if _estimate_mcp_body_tokens(body) <= max_tokens:
+        return body
+
+    selected_text = "Project context: see structured payload."
+    body = _project_context_body(payload, selected_links, selected_warnings, selected_text)
+    while selected_links and _estimate_mcp_body_tokens(body) > max_tokens:
+        selected_links.pop()
+        body = _project_context_body(payload, selected_links, selected_warnings, selected_text)
+    while selected_warnings and _estimate_mcp_body_tokens(body) > max_tokens:
+        selected_warnings.pop()
+        body = _project_context_body(payload, selected_links, selected_warnings, selected_text)
+    while _estimate_mcp_body_tokens(body) > max_tokens and _trim_project_context_payload(payload):
+        body = _project_context_body(payload, selected_links, selected_warnings, selected_text)
+    if _estimate_mcp_body_tokens(body) > max_tokens:
+        raise _invalid_arguments("project context cannot fit the requested max_tokens")
+    return body
+
+
+def _project_context_body(
+    payload: dict[str, object],
+    resource_links: list[McpResourceLink],
+    warnings: list[McpErrorPayload],
+    text: str,
+) -> McpToolBody:
+    return McpToolBody(
+        tool_name="explore_project",
+        payload=payload,
+        resource_links=tuple(resource_links),
+        warnings=tuple(warnings),
+        text=text,
+    )
+
+
+def _estimate_mcp_body_tokens(body: McpToolBody) -> int:
+    serialized = json.dumps(body.to_json_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return max(1, (len(serialized) + 3) // 4)
+
+
+def _trim_project_context_payload(payload: dict[str, object]) -> bool:
+    for field_name in ("warnings", "relations", "impact_evidence", "test_evidence"):
+        if _drop_last_payload_item(payload, field_name, keep=0):
+            return True
+    for field_name in ("code_evidence", "vault_evidence"):
+        if _drop_last_payload_item(payload, field_name, keep=1):
+            return True
+    binding = payload.get("binding")
+    if isinstance(binding, dict) and _drop_last_mapping_item(binding, "evidence_mappings"):
+        return True
+    for field_name in ("code_evidence", "vault_evidence", "authority_freshness"):
+        if _drop_last_payload_item(payload, field_name, keep=0):
+            return True
+    return False
+
+
+def _drop_last_payload_item(payload: dict[str, object], field_name: str, *, keep: int) -> bool:
+    values = payload.get(field_name)
+    if not isinstance(values, tuple | list) or len(values) <= keep:
+        return False
+    payload[field_name] = values[:-1]
+    return True
+
+
+def _drop_last_mapping_item(mapping: dict[object, object], field_name: str) -> bool:
+    values = mapping.get(field_name)
+    if not isinstance(values, tuple | list) or not values:
+        return False
+    mapping[field_name] = values[:-1]
+    return True
 
 
 def _optional_positive_int(value: object | None, field_name: str) -> int | None:
