@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 
 from vault_graph.code_index.code_models import (
     CODE_PARSER_SPEC_VERSION,
@@ -214,6 +215,72 @@ def test_pending_reference_retries_when_target_file_is_added() -> None:
     assert second.pending_references == ()
     assert second.retried_reference_ids == ("retry-me",)
     assert second.edges[0].extraction_status == "inferred"
+
+
+def test_parser_spec_version_is_part_of_edge_identity() -> None:
+    source = _file("repo", "pkg/service.py")
+    target = _file("repo", "pkg/helper.py")
+    caller = _symbol(source, "run", line=2)
+    helper = _symbol(target, "helper", line=2)
+    reference = _reference(source, caller, "CALLS", "helper", line=3)
+    first = CodeReferenceResolver().resolve(
+        files=(source, target), symbols=(caller, helper), references=(reference,), previous_pending=()
+    )
+    newer_spec = "code-parser-spec-v2"
+    second = CodeReferenceResolver(parser_spec_version=newer_spec).resolve(
+        files=(replace(source, parser_spec_version=newer_spec), replace(target, parser_spec_version=newer_spec)),
+        symbols=(replace(caller, parser_spec_version=newer_spec), replace(helper, parser_spec_version=newer_spec)),
+        references=(replace(reference, parser_spec_version=newer_spec),),
+        previous_pending=(),
+    )
+
+    assert first.edges[0].edge_id != second.edges[0].edge_id
+
+
+def test_incremental_retry_skips_unrelated_changes_and_reports_impacted_unresolved() -> None:
+    source = _file("repo", "pkg/service.py")
+    target = _file("repo", "pkg/helper.py")
+    unrelated = _file("repo", "pkg/other.py")
+    caller = _symbol(source, "run", line=2)
+    reference = _reference(source, caller, "CALLS", "helper", line=3, reference_id="retry-me")
+    first = CodeReferenceResolver().resolve(
+        files=(source,), symbols=(caller,), references=(reference,), previous_pending=()
+    )
+
+    unrelated_run = CodeReferenceResolver().resolve(
+        files=(source, target, unrelated),
+        symbols=(caller,),
+        references=(reference,),
+        previous_pending=first.pending_references,
+        changed_file_ids=(code_file_identity("repo", "pkg/other.py"),),
+    )
+    impacted_run = CodeReferenceResolver().resolve(
+        files=(source, target),
+        symbols=(caller,),
+        references=(reference,),
+        previous_pending=first.pending_references,
+        changed_file_ids=(code_file_identity("repo", "pkg/helper.py"),),
+    )
+
+    assert unrelated_run.retried_reference_ids == ()
+    assert len(unrelated_run.pending_references) == 1
+    assert impacted_run.retried_reference_ids == ("retry-me",)
+    assert len(impacted_run.pending_references) == 1
+
+
+def test_full_rebuild_drops_pending_references_missing_from_current_parse() -> None:
+    source = _file("repo", "pkg/service.py")
+    caller = _symbol(source, "run", line=2)
+    reference = _reference(source, caller, "CALLS", "missing", line=3, reference_id="stale")
+    first = CodeReferenceResolver().resolve(
+        files=(source,), symbols=(caller,), references=(reference,), previous_pending=()
+    )
+
+    rebuilt = CodeReferenceResolver().resolve(
+        files=(source,), symbols=(caller,), references=(), previous_pending=first.pending_references
+    )
+
+    assert rebuilt.pending_references == ()
 
 
 def test_collisions_and_dynamic_calls_are_ambiguous_not_confident() -> None:

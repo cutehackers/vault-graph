@@ -74,7 +74,8 @@ class CodeReferenceResolver:
         self._validate_symbol_scope(file_by_id, symbols)
         indexes = self._build_indexes(symbols, file_by_id)
         import_references = self._imports_by_file(references)
-        previous_by_reference = {pending.reference_id: pending for pending in previous_pending}
+        valid_previous = self._validate_previous_pending(file_by_id, previous_pending)
+        previous_by_reference = {pending.reference_id: pending for pending in valid_previous}
         changed = set(changed_file_ids) if changed_file_ids is not None else None
         edges: list[CodeEdgeRecord] = []
         pending: list[PendingCodeReference] = []
@@ -105,10 +106,28 @@ class CodeReferenceResolver:
                 indexes,
                 import_references,
             )
+            previous = previous_by_reference.get(reference.reference_id)
+            impacted = previous is not None and self._retry_is_impacted(
+                reference,
+                source_file,
+                candidates,
+                changed,
+                indexes,
+            )
+            deferred = previous is not None and changed is not None and not impacted
+            if deferred:
+                # An incremental run must not consume a pending record merely
+                # because an unrelated file happened to expose a same-named
+                # symbol. Keep the old unresolved state until its namespace
+                # or source file is actually affected.
+                candidates = ()
             status: str
             target: CodeSymbolRecord | None
             reason: str | None = None
-            if not candidates and self._is_dynamic(reference):
+            if deferred:
+                assert previous is not None
+                status, target, reason = "unresolved", None, previous.reason
+            elif not candidates and self._is_dynamic(reference):
                 status, target, reason = "ambiguous", None, "dynamic-static-target"
             elif len(candidates) > 1:
                 status, target, reason = "ambiguous", None, "multiple-static-targets"
@@ -124,22 +143,32 @@ class CodeReferenceResolver:
                 seen_edge_keys.add(edge_key)
                 edges.append(edge)
             if status == "unresolved":
-                record = self._pending(reference, source_file, reason or "target-not-found")
+                record = (
+                    previous
+                    if deferred and previous is not None
+                    else self._pending(
+                        reference,
+                        source_file,
+                        reason or "target-not-found",
+                    )
+                )
                 pending_key = _pending_key(record)
                 if pending_key not in seen_pending_keys:
                     seen_pending_keys.add(pending_key)
                     pending.append(record)
-            elif reference.reference_id in previous_by_reference and self._retry_is_impacted(
-                reference,
-                candidates,
-                changed,
-            ):
+            if previous is not None and (changed is None or impacted):
                 retried.append(reference.reference_id)
 
         # A changed source file may temporarily produce no references (for
         # example after a syntax error). Keep unaffected pending records until
         # that source is parsed successfully again.
-        for old in sorted(previous_pending, key=lambda item: (item.repository_id, item.pending_id)):
+        if changed is None:
+            return ResolutionResult(
+                edges=tuple(sorted(edges, key=_edge_sort_key)),
+                pending_references=tuple(sorted(pending, key=_pending_sort_key)),
+                retried_reference_ids=tuple(sorted(set(retried))),
+            )
+        for old in sorted(valid_previous, key=lambda item: (item.repository_id, item.pending_id)):
             if old.reference_id in seen_references or old.source_file_id not in file_by_id:
                 continue
             if changed is not None and old.source_file_id in changed:
@@ -189,6 +218,31 @@ class CodeReferenceResolver:
             modules_by_file=modules_by_file,
             files_by_id=files_by_id,
         )
+
+    def _validate_previous_pending(
+        self,
+        file_by_id: dict[str, CodeFileSnapshot],
+        previous_pending: tuple[PendingCodeReference, ...],
+    ) -> tuple[PendingCodeReference, ...]:
+        valid: list[PendingCodeReference] = []
+        seen_ids: set[str] = set()
+        for pending in previous_pending:
+            if pending.pending_id in seen_ids:
+                raise ValueError(f"duplicate pending reference identity: {pending.pending_id}")
+            seen_ids.add(pending.pending_id)
+            if pending.parser_spec_version != self._parser_spec_version:
+                raise ValueError("pending reference parser_spec_version is incompatible")
+            source_file = file_by_id.get(pending.source_file_id)
+            if source_file is None:
+                continue
+            if source_file.repository_id != pending.repository_id:
+                raise ValueError("pending source file must belong to the same repository")
+            if source_file.source_revision != pending.source_revision:
+                # The source changed; current parser output owns the new
+                # pending record and the old one must not be carried forward.
+                continue
+            valid.append(pending)
+        return tuple(valid)
 
     def _validate_symbol_scope(
         self,
@@ -333,14 +387,42 @@ class CodeReferenceResolver:
     def _retry_is_impacted(
         self,
         reference: CodeReferenceRecord,
+        source_file: CodeFileSnapshot,
         candidates: tuple[CodeSymbolRecord, ...],
         changed_file_ids: set[str] | None,
+        indexes: _SymbolIndexes,
     ) -> bool:
         if changed_file_ids is None:
             return True
-        if reference.source_file_id in changed_file_ids:
+        if self._file_id(source_file) in changed_file_ids:
             return True
-        return any(candidate.file_id in changed_file_ids for candidate in candidates)
+        if any(candidate.file_id in changed_file_ids for candidate in candidates):
+            return True
+        target = _clean_target(reference.target_key)
+        if not target:
+            return False
+        normalized_target = _normal_module_name(target.lstrip(".")).replace(".", "/")
+        for file_id in changed_file_ids:
+            changed_file = indexes.files_by_id.get(file_id)
+            if changed_file is None or changed_file.repository_id != reference.repository_id:
+                continue
+            module = indexes.modules_by_file.get(file_id)
+            if module is not None and (
+                module.qualified_name == target
+                or module.qualified_name.endswith("." + target)
+                or _normal_module_name(module.qualified_name) == _normal_module_name(target)
+            ):
+                return True
+            if _matches_import_path(changed_file.relative_path, normalized_target):
+                return True
+            if any(
+                symbol.file_id == file_id
+                and symbol.repository_id == reference.repository_id
+                and (symbol.name == target.rsplit(".", 1)[-1] or symbol.qualified_name == target)
+                for symbol in indexes.by_id.values()
+            ):
+                return True
+        return False
 
     def _edge(
         self,
@@ -360,6 +442,7 @@ class CodeReferenceResolver:
                 target.symbol_id if target is not None else unresolved_key or "",
                 str(reference.anchor_start_line),
                 str(reference.anchor_start_column),
+                reference.parser_spec_version,
             ),
             repository_id=reference.repository_id,
             source_symbol_id=source_symbol.symbol_id,
