@@ -6,6 +6,7 @@ from typing import Protocol
 
 from vault_graph.code_index.code_models import (
     CodeApplyResult,
+    CodeFileSnapshot,
     CodeManifest,
     CodeReconcilePlan,
     CodeSymbolHit,
@@ -13,6 +14,7 @@ from vault_graph.code_index.code_models import (
     CodeSymbolRecord,
     CodeTraversalQuery,
     CodeTraversalResult,
+    PendingCodeReference,
 )
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
@@ -32,6 +34,31 @@ class CodeProjectionStore(Protocol):
 
     def pending_paths(self, repository_ids: tuple[str, ...]) -> tuple[str, ...]:
         """Return source-relative paths that still have unresolved references."""
+
+        ...
+
+    def file_snapshots(self, repository_ids: tuple[str, ...]) -> tuple[CodeFileSnapshot, ...]:
+        """Return indexed file fingerprints for verification and carry-forward."""
+
+        ...
+
+    def symbols(self, repository_ids: tuple[str, ...]) -> tuple[CodeSymbolRecord, ...]:
+        """Return indexed structural symbols for a repository scope."""
+
+        ...
+
+    def pending_references(self, repository_ids: tuple[str, ...]) -> tuple[PendingCodeReference, ...]:
+        """Return unresolved references for a repository scope."""
+
+        ...
+
+    def record_freshness(self, state: str, warnings: tuple[str, ...] = ()) -> None:
+        """Persist the result of the last staged run."""
+
+        ...
+
+    def last_freshness(self) -> tuple[str, tuple[str, ...]]:
+        """Return the last persisted run freshness state and diagnostics."""
 
         ...
 

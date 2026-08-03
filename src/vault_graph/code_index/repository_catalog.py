@@ -23,6 +23,7 @@ from vault_graph.errors import CatalogError
 from vault_graph.ingestion.vault_catalog import VaultCatalog
 
 SUPPORTED_CODE_LANGUAGES = ("python", "dart")
+SUPPORTED_GIT_REVISION_POLICIES = ("head", "head-and-working-tree", "content-hash")
 
 
 @runtime_checkable
@@ -217,6 +218,7 @@ def repository_policy_revision(entry: CodeRepositoryEntry) -> str:
         "exclude_globs": list(entry.exclude_globs),
         "include_globs": list(entry.include_globs),
         "languages": list(entry.languages),
+        "git_revision_policy": entry.git_revision_policy,
     }
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return f"code-policy-v1:{hashlib.sha256(serialized.encode('utf-8')).hexdigest()}"
@@ -269,6 +271,8 @@ def _validate_entry_policy(entry: CodeRepositoryEntry) -> None:
     unsupported = tuple(language for language in entry.languages if language not in SUPPORTED_CODE_LANGUAGES)
     if unsupported:
         raise CatalogError(f"unsupported language for repository {entry.repository_id}: {unsupported[0]}")
+    if entry.git_revision_policy not in SUPPORTED_GIT_REVISION_POLICIES:
+        raise CatalogError(f"unsupported git_revision_policy for repository {entry.repository_id}")
     _validate_state_namespace(entry.state_namespace, repository_id=entry.repository_id)
     for field_name, patterns in (("include", entry.include_globs), ("exclude", entry.exclude_globs)):
         for pattern in patterns:

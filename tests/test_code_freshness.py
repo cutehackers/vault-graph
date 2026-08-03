@@ -93,5 +93,24 @@ def test_non_git_revision_falls_back_to_content_hash(tmp_path: Path) -> None:
     assert result.source_revision.startswith("content-hash:")
 
 
+def test_head_policy_ignores_dirty_worktree_but_worktree_policy_does_not(tmp_path: Path) -> None:
+    subprocess.run(("git", "init", "-q"), cwd=tmp_path, check=True)
+    subprocess.run(("git", "config", "user.email", "test@example.com"), cwd=tmp_path, check=True)
+    subprocess.run(("git", "config", "user.name", "Test"), cwd=tmp_path, check=True)
+    source = tmp_path / "main.py"
+    source.write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(("git", "add", "main.py"), cwd=tmp_path, check=True)
+    subprocess.run(("git", "commit", "-qm", "initial"), cwd=tmp_path, check=True)
+    head_entry = CodeRepositoryEntry(**{**_entry(tmp_path).__dict__, "git_revision_policy": "head"})
+    worktree_entry = _entry(tmp_path)
+    source.write_text("x = 2\n", encoding="utf-8")
+
+    head = CodeSourceScanner().scan(head_entry)
+    worktree = CodeSourceScanner().scan(worktree_entry)
+
+    assert "+wt:" not in head.source_revision
+    assert "+wt:" in worktree.source_revision
+
+
 def test_freshness_reports_stale_when_source_revision_changes(tmp_path: Path) -> None:
     assert CodeFreshnessRequest(repository_ids=("demo",)).repository_ids == ("demo",)
