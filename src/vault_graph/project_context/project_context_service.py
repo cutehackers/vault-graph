@@ -137,6 +137,7 @@ class ProjectGraphRelationLookup(Protocol):
         task: str,
         repository_id: str,
         vault_ids: tuple[str, ...],
+        content_scopes: tuple[str, ...],
         code_evidence: tuple[ProjectEvidence, ...],
         vault_evidence: tuple[ProjectEvidence, ...],
     ) -> tuple[ProjectEvidenceRelation, ...]: ...
@@ -160,15 +161,20 @@ class VaultGraphRelationLookup:
         task: str,
         repository_id: str,
         vault_ids: tuple[str, ...],
+        content_scopes: tuple[str, ...],
         code_evidence: tuple[ProjectEvidence, ...],
         vault_evidence: tuple[ProjectEvidence, ...],
     ) -> tuple[ProjectEvidenceRelation, ...]:
         if not code_evidence or not vault_evidence:
             return ()
-        scope = QueryScope(vault_ids=vault_ids)
+        scope = QueryScope(vault_ids=vault_ids, content_scopes=content_scopes)
         try:
-            self._retrieval_service.search(query_text=task, requested_scope=scope, limit=1, output_format="json")
-            self._graph_service.related(target=task, requested_scope=scope, depth=1, limit=1, output_format="json")
+            retrieval = self._retrieval_service.search(
+                query_text=task, requested_scope=scope, limit=1, output_format="json"
+            )
+            graph = self._graph_service.related(
+                target=task, requested_scope=scope, depth=1, limit=1, output_format="json"
+            )
         except (OSError, VaultGraphError, ValueError):
             return (
                 ProjectEvidenceRelation(
@@ -178,6 +184,7 @@ class VaultGraphRelationLookup:
                     reason="Vault graph lookup is unavailable; no stable cross-authority identifier was resolved.",
                 ),
             )
+        resolved_vault_ids = _vault_evidence_ids_from_response(retrieval) | _vault_evidence_ids_from_response(graph)
         relations: list[ProjectEvidenceRelation] = []
         for code in code_evidence:
             stable_ids = {
@@ -186,7 +193,7 @@ class VaultGraphRelationLookup:
                 if reason.startswith("vault-evidence:")
             }
             for vault in vault_evidence:
-                if vault.evidence_id in stable_ids:
+                if vault.evidence_id in stable_ids and vault.evidence_id in resolved_vault_ids:
                     relations.append(
                         ProjectEvidenceRelation(
                             code_evidence_id=code.evidence_id,
@@ -197,12 +204,17 @@ class VaultGraphRelationLookup:
                     )
         if relations:
             return tuple(sorted(relations, key=lambda item: (item.code_evidence_id, item.vault_evidence_id)))
+        reason = (
+            "An explicit mapping did not appear in selected Vault retrieval or graph evidence."
+            if any(reason.startswith("vault-evidence:") for reason in code_evidence[0].reasons)
+            else "No stable code-to-Vault identifier or explicit mapping is configured."
+        )
         return (
             ProjectEvidenceRelation(
                 code_evidence_id=code_evidence[0].evidence_id,
                 vault_evidence_id=vault_evidence[0].evidence_id,
                 status="unresolved",
-                reason="No stable code-to-Vault identifier or explicit mapping is configured.",
+                reason=reason,
             ),
         )
 
@@ -593,6 +605,7 @@ class ProjectContextService:
             task=request.task,
             repository_id=binding.repository_id,
             vault_ids=binding.vault_ids,
+            content_scopes=binding.content_scopes or DEFAULT_CONTENT_SCOPES,
             code_evidence=code_evidence,
             vault_evidence=vault_evidence,
         )
@@ -786,6 +799,20 @@ def _vault_uri(vault_id: str, path: str) -> str | None:
     if candidate.is_absolute() or ".." in candidate.parts or not candidate.parts:
         return None
     return f"vault://{quote(vault_id, safe='')}/{quote(candidate.as_posix(), safe='/')}"
+
+
+def _vault_evidence_ids_from_response(response: object) -> set[str]:
+    """Read only stable Vault evidence identities from retrieval/graph response DTOs."""
+
+    ids: set[str] = set()
+    for item in (*tuple(getattr(response, "results", ())), *tuple(getattr(response, "items", ()))):
+        for evidence in tuple(getattr(item, "evidence", ())):
+            vault_id = getattr(evidence, "vault_id", None)
+            document_id = getattr(evidence, "document_id", None)
+            chunk_id = getattr(evidence, "chunk_id", None)
+            if all(isinstance(value, str) and value for value in (vault_id, document_id, chunk_id)):
+                ids.add(f"vault:{vault_id}:{document_id}:{chunk_id}")
+    return ids
 
 
 def _contains_path(root_path: Path, candidate: Path) -> bool:
