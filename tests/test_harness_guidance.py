@@ -85,6 +85,20 @@ def test_default_install_then_default_remove_is_reversible(tmp_path: Path) -> No
     assert instruction.read_text(encoding="utf-8") == "# Existing rules\n"
 
 
+def test_install_and_remove_preserve_trailing_whitespace_and_blank_lines(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    instruction = project / "AGENTS.md"
+    original = "# Existing rules  \n\n\n"
+    instruction.write_text(original, encoding="utf-8")
+    service = _service(tmp_path)
+
+    service.install(HarnessGuidanceRequest(target=project, file_name="AGENTS.md"))
+    service.remove(HarnessGuidanceRequest(target=project, file_name="AGENTS.md"))
+
+    assert instruction.read_text(encoding="utf-8") == original
+
+
 def test_install_rejects_existing_backup_and_tampered_marker(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
@@ -108,6 +122,15 @@ def test_remove_rejects_missing_or_tampered_marker(tmp_path: Path) -> None:
 
     with pytest.raises(HarnessGuidanceError, match="harness_guidance_marker_missing"):
         _service(tmp_path).remove(HarnessGuidanceRequest(target=project, file_name="CLAUDE.md"))
+
+
+def test_install_rejects_broken_instruction_symlink(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "AGENTS.md").symlink_to(project / "missing-target")
+
+    with pytest.raises(HarnessGuidanceError, match="harness_guidance_symlink_not_allowed"):
+        _service(tmp_path).install(HarnessGuidanceRequest(target=project, file_name="AGENTS.md"))
 
 
 def test_remove_rejects_explicit_backup_path(tmp_path: Path) -> None:
