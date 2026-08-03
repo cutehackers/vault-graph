@@ -566,6 +566,9 @@ def _dart_call_target(node: Any) -> str:
                 return node_text(previous)
             previous_ids = _callee_identifiers(previous)
             if previous_ids:
+                receiver = _dart_selector_chain(previous)
+                if receiver:
+                    return f"dynamic:{'.'.join((*receiver, node_text(previous_ids[-1])))}"
                 return node_text(previous_ids[-1])
     identifiers = _callee_identifiers(node)
     if identifiers:

@@ -224,7 +224,7 @@ def test_dart_adapter_excludes_call_arguments_from_callee_targets() -> None:
     targets = {reference.target_key for reference in result.references if reference.relation_kind == "CALLS"}
     assert "bar" in targets
     assert "named" in targets
-    assert "greet" in targets
+    assert "dynamic:obj.greet" in targets
     assert "y" not in targets
     assert "arg" not in targets
 

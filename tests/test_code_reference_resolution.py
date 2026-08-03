@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 from dataclasses import replace
 
+import pytest
+
 from vault_graph.code_index.code_models import (
     CODE_PARSER_SPEC_VERSION,
     CodeFileSnapshot,
@@ -102,6 +104,35 @@ def test_resolves_same_file_and_cross_file_calls_without_cross_repository_edges(
     assert {edge.target_symbol_id for edge in result.edges} == {local_target.symbol_id, remote_target.symbol_id}
     assert result.pending_references == ()
     assert all(edge.repository_id == "repo" for edge in result.edges)
+
+
+def test_rejects_source_symbol_from_another_file_or_missing_symbol() -> None:
+    source = _file("repo", "pkg/service.py")
+    other = _file("repo", "pkg/other.py")
+    caller = _symbol(source, "run", line=2)
+    foreign = _symbol(other, "other", line=2)
+    wrong_file = _reference(source, foreign, "CALLS", "missing", line=3)
+    missing = replace(wrong_file, source_symbol_id="missing-source")
+
+    with pytest.raises(ValueError, match="source symbol must belong to the reference source file"):
+        CodeReferenceResolver().resolve(
+            files=(source, other), symbols=(caller, foreign), references=(wrong_file,), previous_pending=()
+        )
+    with pytest.raises(ValueError, match="source_symbol_id is missing"):
+        CodeReferenceResolver().resolve(
+            files=(source, other), symbols=(caller, foreign), references=(missing,), previous_pending=()
+        )
+
+
+def test_rejects_source_less_reference_when_source_module_is_not_indexed() -> None:
+    source = _file("repo", "pkg/service.py")
+    caller = _symbol(source, "run", line=2)
+    reference = replace(_reference(source, caller, "DEFINES", "pkg.service", line=1), source_symbol_id=None)
+
+    with pytest.raises(ValueError, match="requires a module symbol"):
+        CodeReferenceResolver().resolve(
+            files=(source,), symbols=(caller,), references=(reference,), previous_pending=()
+        )
 
 
 def test_resolves_imports_inheritance_implements_and_test_targets() -> None:
@@ -315,19 +346,21 @@ def test_collisions_and_dynamic_calls_are_ambiguous_not_confident() -> None:
     caller = _symbol(source, "run", line=2)
     first = _symbol(first_file, "helper", line=2)
     second = _symbol(second_file, "helper", line=2)
+    method = _symbol(first_file, "method", line=4)
     references = (
         _reference(source, caller, "CALLS", "helper", line=3),
         _reference(source, caller, "CALLS", "factory()", line=4),
+        _reference(source, caller, "CALLS", "obj.method", line=5),
     )
 
     result = CodeReferenceResolver().resolve(
         files=(source, first_file, second_file),
-        symbols=(caller, first, second),
+        symbols=(caller, first, second, method),
         references=references,
         previous_pending=(),
     )
 
-    assert len(result.edges) == 2
+    assert len(result.edges) == 3
     assert all(edge.extraction_status == "ambiguous" for edge in result.edges)
     assert all(edge.target_symbol_id is None for edge in result.edges)
     assert result.pending_references == ()

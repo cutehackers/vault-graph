@@ -349,7 +349,11 @@ def _python_call_target(node: Any) -> str:
     callee = node.named_children[0] if node.named_children else None
     if callee is None:
         return ""
-    if callee.type in {"attribute", "identifier", "dotted_name"}:
+    if callee.type == "attribute":
+        # Preserve the receiver so the resolver can distinguish a statically
+        # qualified symbol from dynamic dispatch on an unknown object.
+        return f"dynamic:{node_text(callee)}"
+    if callee.type in {"identifier", "dotted_name"}:
         identifiers = [child for child in walk(callee) if child.type == "identifier"]
         return node_text(identifiers[-1] if identifiers else callee)
     return node_text(callee).split(".")[-1]

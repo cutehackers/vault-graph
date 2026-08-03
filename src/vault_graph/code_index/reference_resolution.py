@@ -95,11 +95,6 @@ class CodeReferenceResolver:
             reference_scope = (reference.repository_id, reference.reference_id)
             seen_references.add(reference_scope)
             source_symbol = self._source_symbol(reference, indexes)
-            if source_symbol is None:
-                # A parser must normally emit a module symbol for a file. Keep
-                # this malformed candidate visible as unresolved instead of
-                # constructing an edge with a dangling source endpoint.
-                continue
             candidates = self._candidates(
                 reference,
                 source_file,
@@ -268,13 +263,20 @@ class CodeReferenceResolver:
         return {file_id: tuple(sorted(values)) for file_id, values in imports.items()}
 
     @staticmethod
-    def _source_symbol(reference: CodeReferenceRecord, indexes: _SymbolIndexes) -> CodeSymbolRecord | None:
+    def _source_symbol(reference: CodeReferenceRecord, indexes: _SymbolIndexes) -> CodeSymbolRecord:
         if reference.source_symbol_id is not None:
             symbol = indexes.by_id.get(reference.source_symbol_id)
-            if symbol is not None and symbol.repository_id == reference.repository_id:
-                return symbol
-            return None
-        return indexes.modules_by_file.get(reference.source_file_id)
+            if symbol is None:
+                raise ValueError(f"reference source_symbol_id is missing: {reference.source_symbol_id}")
+            if symbol.repository_id != reference.repository_id:
+                raise ValueError("reference source symbol must belong to the same repository")
+            if symbol.file_id != reference.source_file_id:
+                raise ValueError("reference source symbol must belong to the reference source file")
+            return symbol
+        module = indexes.modules_by_file.get(reference.source_file_id)
+        if module is None:
+            raise ValueError("reference without source_symbol_id requires a module symbol for its source file")
+        return module
 
     def _candidates(
         self,
@@ -327,13 +329,13 @@ class CodeReferenceResolver:
                     add(indexes.by_qualified.get((repository_id, f"{imported_module}.{target_key}"), ()))
 
         # Same-file names are preferred over a repository-wide short name.
-        if not candidates:
+        if not candidates and "." not in target_key:
             add(
                 symbol
                 for symbol in indexes.by_name.get((repository_id, target_key.rsplit(".", 1)[-1]), ())
                 if symbol.file_id == source_file_id
             )
-        if not candidates:
+        if not candidates and "." not in target_key:
             add(indexes.by_name.get((repository_id, target_key.rsplit(".", 1)[-1]), ()))
 
         # A suffix match is useful for language-qualified names but remains
@@ -484,7 +486,9 @@ class CodeReferenceResolver:
     @staticmethod
     def _is_dynamic(reference: CodeReferenceRecord) -> bool:
         target = reference.target_key.casefold()
-        return reference.relation_kind in {"CALLS", "TESTS"} and any(marker in target for marker in _DYNAMIC_MARKERS)
+        return reference.relation_kind in {"CALLS", "TESTS"} and (
+            target.startswith("dynamic:") or any(marker in target for marker in (*_DYNAMIC_MARKERS, "."))
+        )
 
 
 def _clean_target(target: str) -> str:
