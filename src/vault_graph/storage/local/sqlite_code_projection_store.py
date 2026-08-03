@@ -828,6 +828,10 @@ class SQLiteCodeProjectionStore:
             and plan.manifest.policy_revision != self._expected_policy_revision
         ):
             raise ValueError("plan policy revision is incompatible")
+        if len(set(plan.manifest.repository_ids)) != len(plan.manifest.repository_ids):
+            raise ValueError("duplicate manifest repository IDs")
+        if len(set(plan.manifest.file_ids)) != len(plan.manifest.file_ids):
+            raise ValueError("duplicate manifest file IDs")
         symbols_by_id: dict[str, CodeSymbolRecord] = {}
         files_by_id: dict[str, CodeFileSnapshot] = {}
         edge_ids: set[str] = set()
@@ -857,6 +861,9 @@ class SQLiteCodeProjectionStore:
             existing_repository = self._existing_file_repository(deleted_file_id)
             if existing_repository is None or existing_repository not in plan.manifest.repository_ids:
                 raise ValueError("deleted file is outside manifest repository scope")
+        desired_file_ids = self._desired_file_ids(plan, files_by_id)
+        if desired_file_ids != set(plan.manifest.file_ids):
+            raise ValueError("manifest file IDs do not match desired files")
         for symbol in plan.symbols:
             if symbol.symbol_id in symbols_by_id:
                 raise ValueError(f"duplicate symbol identity: {symbol.symbol_id}")
@@ -950,6 +957,38 @@ class SQLiteCodeProjectionStore:
                 return str(row["repository_id"]) if row is not None else None
         except sqlite3.Error:
             return None
+
+    def _desired_file_ids(
+        self,
+        plan: CodeReconcilePlan,
+        files_by_id: dict[str, CodeFileSnapshot],
+    ) -> set[str]:
+        if not self._database_path.exists():
+            current_by_path: dict[tuple[str, str], str] = {}
+        else:
+            try:
+                with self._connect_readonly() as connection:
+                    placeholders = ",".join("?" for _ in plan.manifest.repository_ids)
+                    rows = connection.execute(
+                        (
+                            "SELECT file_id, repository_id, relative_path FROM files "
+                            f"WHERE repository_id IN ({placeholders})"
+                        ),
+                        plan.manifest.repository_ids,
+                    ).fetchall()
+                current_by_path = {
+                    (str(row["repository_id"]), str(row["relative_path"])): str(row["file_id"]) for row in rows
+                }
+            except sqlite3.Error:
+                current_by_path = {}
+        for deleted_file_id in plan.deleted_file_ids:
+            for path_key, current_file_id in tuple(current_by_path.items()):
+                if current_file_id == deleted_file_id:
+                    del current_by_path[path_key]
+                    break
+        for file_id, file_snapshot in files_by_id.items():
+            current_by_path[(file_snapshot.repository_id, file_snapshot.relative_path)] = file_id
+        return set(current_by_path.values())
 
     def _validate_integrity(self, connection: sqlite3.Connection) -> None:
         dangling = connection.execute(

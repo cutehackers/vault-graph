@@ -453,6 +453,58 @@ def test_sqlite_code_store_rejects_deletion_outside_manifest_repository_scope(tm
         store.apply_reconcile_plan(deletion_plan)
 
 
+def test_sqlite_code_store_rejects_duplicate_manifest_repository_ids(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    plan = _plan()
+    duplicate_manifest = replace(plan.manifest, repository_ids=("repo-a", "repo-a"))
+    duplicate_plan = replace(plan, manifest=duplicate_manifest, run_id="duplicate-manifest-repositories")
+
+    with pytest.raises(ValueError, match="duplicate manifest repository"):
+        store.apply_reconcile_plan(duplicate_plan)
+
+
+@pytest.mark.parametrize("file_ids", [(), ("missing-file-id",)])
+def test_sqlite_code_store_requires_manifest_file_ids_to_match_desired_files(
+    tmp_path: Path,
+    file_ids: tuple[str, ...],
+) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    plan = _plan()
+    mismatched_manifest = replace(plan.manifest, file_ids=file_ids)
+    mismatched_plan = replace(plan, manifest=mismatched_manifest, run_id="mismatched-manifest-files")
+
+    with pytest.raises(ValueError, match="manifest file IDs"):
+        store.apply_reconcile_plan(mismatched_plan)
+
+
+def test_sqlite_code_store_allows_incremental_plan_with_complete_manifest_file_ids(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    first = _plan()
+    store.apply_reconcile_plan(first)
+    new_file = replace(first.files[0], relative_path="lib/new.py")
+    new_file_id = code_file_identity("repo-a", "lib/new.py")
+    incremental_manifest = replace(
+        first.manifest,
+        generation_id="generation-2",
+        file_ids=(first.manifest.file_ids[0], new_file_id),
+    )
+    incremental_plan = CodeReconcilePlan(
+        manifest=incremental_manifest,
+        files=(new_file,),
+        symbols=(),
+        edges=(),
+        run_id="incremental-complete-manifest",
+    )
+
+    result = store.apply_reconcile_plan(incremental_plan)
+
+    assert result.file_count == 2
+    assert store.current_manifest(("repo-a",)).file_ids == (first.manifest.file_ids[0], new_file_id)
+
+
 def test_sqlite_code_store_read_only_open_does_not_create_missing_state(tmp_path: Path) -> None:
     path = tmp_path / "missing" / "code.sqlite3"
     store = SQLiteCodeProjectionStore.open_read_only(path)
