@@ -13,11 +13,12 @@ from vault_graph.code_index.code_models import (
     CODE_TREE_SITTER_RUNTIME_VERSION,
     CodeFileInput,
     CodeParseDiagnostic,
+    code_file_identity,
 )
 
 
 def file_identity(file: CodeFileInput) -> str:
-    return stable_identity("code-file-v1", file.repository_id, file.relative_path)
+    return code_file_identity(file.repository_id, file.relative_path)
 
 
 def stable_identity(*parts: str) -> str:
@@ -164,9 +165,15 @@ def source_signature(node: Any, *, max_length: int = 512) -> str:
     """Return declaration text without retaining a complete source body."""
 
     text = node_text(node).strip()
+    lines = [line.strip() for line in text.splitlines() if not line.lstrip().startswith("@")]
+    text = "\n".join(lines).strip()
     for marker in ("\n", "{", "=>"):
         if marker in text:
             text = text.split(marker, 1)[0].rstrip()
+    if node.type in {"function_definition", "class_definition"} and ":" in text:
+        text = text.rsplit(":", 1)[0].rstrip() + ":"
+    if node.type == "initialized_identifier" and "=" in text:
+        text = text.split("=", 1)[0].rstrip()
     return text[:max_length]
 
 

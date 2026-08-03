@@ -344,8 +344,16 @@ class CodeParseResult:
         for reference in self.references:
             if reference.repository_id != self.file.repository_id:
                 raise ValueError("parsed record repository_id must match file")
+            if reference.source_file_id != code_file_identity(self.file.repository_id, self.file.relative_path):
+                raise ValueError("parsed reference source_file_id does not match file")
+            if not 1 <= reference.anchor_start_line <= self.file.line_count:
+                raise ValueError("parsed reference anchor_start_line is outside file range")
             if reference.parser_spec_version != self.file.parser_spec_version:
                 raise ValueError("parsed reference parser_spec_version must match file")
+            if reference.source_symbol_id is not None and reference.source_symbol_id not in {
+                symbol.symbol_id for symbol in self.symbols
+            }:
+                raise ValueError("parsed reference source_symbol_id does not match a symbol")
         for diagnostic in self.diagnostics:
             if diagnostic.repository_id != self.file.repository_id:
                 raise ValueError("parsed record repository_id must match file")
@@ -1075,3 +1083,7 @@ def _line_count(content: bytes) -> int:
     if not content:
         return 0
     return content.count(b"\n") + (0 if content.endswith(b"\n") else 1)
+
+
+def code_file_identity(repository_id: str, relative_path: str) -> str:
+    return hashlib.sha256(f"code-file-v1\0{repository_id}\0{relative_path}".encode()).hexdigest()

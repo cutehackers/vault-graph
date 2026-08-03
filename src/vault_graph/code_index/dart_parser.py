@@ -48,6 +48,7 @@ class DartCodeParserAdapter:
         module = self._module_symbol(file, file_id, module_name, module_node)
         declarations: list[_Declaration] = []
         owners: dict[Any, str] = {tree.root_node: module.symbol_id}
+        ordinal_counts: dict[tuple[str, str, str], int] = {}
         self._collect_declarations(
             file=file,
             file_id=file_id,
@@ -56,14 +57,14 @@ class DartCodeParserAdapter:
             parent=module,
             declarations=declarations,
             owners=owners,
+            ordinal_counts=ordinal_counts,
         )
         symbols = tuple(sorted((module, *(item.symbol for item in declarations)), key=_symbol_sort_key))
         references = self._collect_references(file, file_id, tree.root_node, module, declarations, owners)
-        diagnostics = syntax_diagnostics(file, tree) + unsupported_diagnostics(
-            file,
-            tree,
-            frozenset({"record_declaration", "enum_declaration"}),
-        )
+        diagnostics = (
+            syntax_diagnostics(file, tree)
+            + unsupported_diagnostics(file, tree, frozenset({"record_declaration", "enum_declaration"}))
+        )[:32]
         return CodeParseResult(
             file=file.snapshot(),
             symbols=symbols,
@@ -83,6 +84,9 @@ class DartCodeParserAdapter:
     def _module_symbol(self, file: CodeFileInput, file_id: str, name: str, node: Any) -> CodeSymbolRecord:
         start_line, start_column = node_start(node)
         end_line, end_column = node_end(node)
+        max_line = max(1, file.snapshot().line_count)
+        start_line = min(start_line, max_line)
+        end_line = max(start_line, min(end_line, max_line))
         return CodeSymbolRecord(
             symbol_id=stable_identity("code-symbol-v1", file.repository_id, file_id, "module", name, "0"),
             repository_id=file.repository_id,
@@ -111,6 +115,7 @@ class DartCodeParserAdapter:
         parent: CodeSymbolRecord,
         declarations: list[_Declaration],
         owners: dict[Any, str],
+        ordinal_counts: dict[tuple[str, str, str], int],
     ) -> None:
         if node.type in {"class_definition", "mixin_declaration", "extension_declaration"}:
             name_node = _declaration_name(node)
@@ -128,6 +133,7 @@ class DartCodeParserAdapter:
                     parent,
                     kind,
                     end_node=_following_body(node),
+                    ordinal_counts=ordinal_counts,
                 )
                 declarations.append(declaration)
                 owners[node] = declaration.symbol.symbol_id
@@ -141,10 +147,16 @@ class DartCodeParserAdapter:
                         parent=declaration.symbol,
                         declarations=declarations,
                         owners=owners,
+                        ordinal_counts=ordinal_counts,
                     )
                 return
         if node.type == "method_signature" and parent.kind in {"class", "mixin", "interface"}:
             name_node = _declaration_name(node)
+            name_override = None
+            operator_name = _operator_name(node)
+            if operator_name is not None:
+                name_node = operator_name[0]
+                name_override = operator_name[1]
             if name_node is not None:
                 kind = (
                     "property"
@@ -159,6 +171,8 @@ class DartCodeParserAdapter:
                     parent,
                     kind,
                     end_node=_following_body(node),
+                    ordinal_counts=ordinal_counts,
+                    name_override=name_override,
                 )
                 declarations.append(declaration)
                 owners[node] = declaration.symbol.symbol_id
@@ -172,20 +186,47 @@ class DartCodeParserAdapter:
                         parent=declaration.symbol,
                         declarations=declarations,
                         owners=owners,
+                        ordinal_counts=ordinal_counts,
                     )
                 return
         if node.type == "constructor_signature" and parent.kind in {"class", "mixin", "interface"}:
             name_node = _declaration_name(node)
             if name_node is not None:
-                declaration = self._build_declaration(file, file_id, name_node, node, parent, "method")
+                declaration = self._build_declaration(
+                    file, file_id, name_node, node, parent, "method", ordinal_counts=ordinal_counts
+                )
                 declarations.append(declaration)
                 owners[node] = declaration.symbol.symbol_id
                 return
         if node.type == "declaration" and parent.kind in {"class", "mixin", "interface"}:
-            for name_node in _property_names(node):
-                declaration = self._build_declaration(file, file_id, name_node, node, parent, "property")
+            constructor = next((child for child in node.named_children if child.type == "constructor_signature"), None)
+            if constructor is not None:
+                name_node = _constructor_name(constructor)
+                if name_node is not None:
+                    declaration = self._build_declaration(
+                        file,
+                        file_id,
+                        name_node,
+                        constructor,
+                        parent,
+                        "method",
+                        ordinal_counts=ordinal_counts,
+                    )
+                    declarations.append(declaration)
+                    owners[constructor] = declaration.symbol.symbol_id
+                return
+            for property_node, name_node in _property_declarations(node):
+                declaration = self._build_declaration(
+                    file,
+                    file_id,
+                    name_node,
+                    property_node,
+                    parent,
+                    "property",
+                    ordinal_counts=ordinal_counts,
+                )
                 declarations.append(declaration)
-                owners[node] = declaration.symbol.symbol_id
+                owners[property_node] = declaration.symbol.symbol_id
             return
         if node.type == "function_signature" and node.parent is not None and node.parent.type != "method_signature":
             name_node = _declaration_name(node)
@@ -199,6 +240,7 @@ class DartCodeParserAdapter:
                     parent,
                     kind,
                     end_node=_following_body(node),
+                    ordinal_counts=ordinal_counts,
                 )
                 declarations.append(declaration)
                 owners[node] = declaration.symbol.symbol_id
@@ -213,6 +255,7 @@ class DartCodeParserAdapter:
                 parent=parent,
                 declarations=declarations,
                 owners=owners,
+                ordinal_counts=ordinal_counts,
             )
 
     def _build_declaration(
@@ -223,14 +266,21 @@ class DartCodeParserAdapter:
         span_node: Any,
         parent: CodeSymbolRecord,
         kind: str,
+        ordinal_counts: dict[tuple[str, str, str], int],
         end_node: Any | None = None,
+        name_override: str | None = None,
     ) -> _Declaration:
-        name = node_text(name_node)
+        name = name_override or node_text(name_node)
         qualified_name = f"{parent.qualified_name}.{name}"
+        ordinal_key = (parent.symbol_id, kind, name)
+        ordinal = ordinal_counts.get(ordinal_key, 0)
+        ordinal_counts[ordinal_key] = ordinal + 1
         start_line, start_column = node_start(span_node)
         end_line, end_column = node_end(end_node or span_node)
         symbol = CodeSymbolRecord(
-            symbol_id=stable_identity("code-symbol-v1", file.repository_id, file_id, kind, qualified_name, "0"),
+            symbol_id=stable_identity(
+                "code-symbol-v1", file.repository_id, file_id, kind, qualified_name, str(ordinal)
+            ),
             repository_id=file.repository_id,
             file_id=file_id,
             kind=kind,
@@ -294,7 +344,8 @@ class DartCodeParserAdapter:
                 )
             )
 
-        add(root, "DEFINES", module.qualified_name, None)
+        if file.snapshot().line_count > 0 and node_start(root)[0] <= file.snapshot().line_count:
+            add(root, "DEFINES", module.qualified_name, None)
         for declaration in declarations:
             add(declaration.node, "DEFINES", declaration.symbol.qualified_name, declaration.parent_symbol_id)
             add(declaration.node, "CONTAINS", declaration.symbol.qualified_name, declaration.parent_symbol_id)
@@ -305,7 +356,7 @@ class DartCodeParserAdapter:
                 target = _dart_import_target(node)
                 if target:
                     add(node, "IMPORTS", target, source_symbol_id)
-            elif node.type == "class_definition":
+            elif node.type in {"class_definition", "mixin_declaration", "extension_declaration"}:
                 for relation, target_node in _dart_inheritance_nodes(node):
                     add(target_node, relation, node_text(target_node), source_symbol_id)
             elif node.type == "selector" and _dart_selector_is_call(node):
@@ -349,8 +400,35 @@ def _declaration_name(node: Any) -> Any | None:
     return None
 
 
-def _property_names(node: Any) -> tuple[Any, ...]:
-    return tuple(child for child in walk(node) if child.type == "initialized_identifier" and child.named_children)
+def _property_declarations(node: Any) -> tuple[tuple[Any, Any], ...]:
+    declarations: list[tuple[Any, Any]] = []
+    identifier_lists = [child for child in node.named_children if child.type == "initialized_identifier_list"]
+    for identifier_list in identifier_lists:
+        for property_node in identifier_list.named_children:
+            if property_node.type != "initialized_identifier":
+                continue
+            name_node = next((child for child in property_node.named_children if child.type == "identifier"), None)
+            if name_node is not None:
+                declarations.append((property_node, name_node))
+    return tuple(declarations)
+
+
+def _constructor_name(node: Any) -> Any | None:
+    identifiers = [child for child in node.named_children if child.type == "identifier"]
+    return identifiers[-1] if identifiers else None
+
+
+def _operator_name(node: Any) -> tuple[Any, str] | None:
+    operator_signature = next((child for child in walk(node) if child.type == "operator_signature"), None)
+    if operator_signature is None:
+        return None
+    token = next(
+        (child for child in operator_signature.named_children if child.type in {"binary_operator", "unary_operator"}),
+        None,
+    )
+    if token is None:
+        return None
+    return (token, f"operator {node_text(token)}")
 
 
 def _is_test_name(name: str, file: CodeFileInput) -> bool:
@@ -389,6 +467,11 @@ def _dart_import_target(node: Any) -> str:
 
 def _dart_inheritance_nodes(node: Any) -> tuple[tuple[str, Any], ...]:
     result: list[tuple[str, Any]] = []
+    if node.type in {"mixin_declaration", "extension_declaration"}:
+        type_node = next((child for child in node.named_children if child.type == "type_identifier"), None)
+        if type_node is not None:
+            result.append(("IMPLEMENTS", type_node))
+        return tuple(result)
     superclass = next((child for child in node.named_children if child.type == "superclass"), None)
     if superclass is not None:
         base = next((child for child in superclass.named_children if child.type == "type_identifier"), None)
