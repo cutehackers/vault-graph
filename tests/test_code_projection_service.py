@@ -166,3 +166,20 @@ def test_failed_staging_keeps_previous_code_generation_active(tmp_path: Path) ->
     assert current is not None
     assert current.generation_id == previous.generation_id
     assert first.run_id != failed.run_id
+
+
+def test_failed_run_persists_partial_marker_for_new_service(tmp_path: Path) -> None:
+    source = tmp_path / "main.py"
+    source.write_text("def main():\n    return 1\n", encoding="utf-8")
+    state_path = tmp_path / "state"
+    entry = _entry(tmp_path)
+    service = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    service.apply(CodeIndexRequest(full=True))
+    service.fail_next_apply = True
+
+    failed = service.apply(CodeIndexRequest())
+    fresh_process = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+
+    assert failed.status == "partial"
+    assert service.status(()).state == "partial"
+    assert fresh_process.status(()).state == "partial"
