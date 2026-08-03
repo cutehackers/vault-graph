@@ -3,6 +3,28 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-03 - Refine Round 1 Parser Backend Boundary
+
+**Trigger:** Round 1 design review questioned whether Python and Dart parsers
+should be implemented directly and whether that was the best fit for a local
+code index.
+
+**Scope:** Round 1 CodeParserAdapter design, parser dependency boundary, and
+Python/Dart fixture requirements.
+
+**Core Values Protected:** Preserved local-first operation, deterministic
+rebuildability, parser changeability, read-only source authority, and explicit
+unsupported/partial evidence states.
+
+**Changes Applied:** Clarified that `CodeParserAdapter` is a Python protocol
+around pinned Tree-sitter backends rather than hand-written language parsers.
+Made the Dart grammar ABI/fixture gate explicit, kept Dart Analyzer as an
+optional future semantic resolver, and recorded that Tree-sitter dependencies
+must be added explicitly to the package.
+
+**Verification:** Official Tree-sitter and Dart Analyzer documentation review,
+local dependency availability check, and `git diff --check`.
+
 ## 2026-08-03 - Normalize YAML Dates At The Ingestion Boundary
 
 **Trigger:** Disposable indexing of the real local Vault exposed a YAML date
