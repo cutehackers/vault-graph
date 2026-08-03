@@ -297,8 +297,7 @@ class PythonCodeParserAdapter:
         for node in walk(root):
             source_symbol_id = owner(node)
             if node.type in {"import_statement", "import_from_statement"}:
-                target = _python_import_target(node)
-                if target:
+                for target in _python_import_targets(node):
                     add(node, "IMPORTS", target, source_symbol_id)
             elif node.type == "call":
                 target = _python_call_target(node)
@@ -331,11 +330,19 @@ def _is_test_name(name: str, file: CodeFileInput) -> bool:
     return file.is_test_file or name.startswith("test_") or name.startswith("test")
 
 
-def _python_import_target(node: Any) -> str:
+def _python_import_targets(node: Any) -> tuple[str, ...]:
     named = list(node.named_children)
     if node.type == "import_from_statement":
-        return node_text(named[0]) if named else ""
-    return node_text(named[0]) if named else ""
+        return (node_text(named[0]),) if named else ()
+    targets: list[str] = []
+    for child in named:
+        if child.type == "dotted_name":
+            targets.append(node_text(child))
+        elif child.type == "aliased_import":
+            dotted = next((descendant for descendant in walk(child) if descendant.type == "dotted_name"), None)
+            if dotted is not None:
+                targets.append(node_text(dotted))
+    return tuple(targets)
 
 
 def _python_call_target(node: Any) -> str:

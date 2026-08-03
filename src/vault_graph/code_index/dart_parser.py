@@ -153,10 +153,10 @@ class DartCodeParserAdapter:
         if node.type == "method_signature" and parent.kind in {"class", "mixin", "interface"}:
             name_node = _declaration_name(node)
             name_override = None
-            operator_name = _operator_name(node)
-            if operator_name is not None:
-                name_node = operator_name[0]
-                name_override = operator_name[1]
+            special_name = _special_method_name(node)
+            if special_name is not None:
+                name_node = special_name[0]
+                name_override = special_name[1]
             if name_node is not None:
                 kind = (
                     "property"
@@ -392,6 +392,11 @@ def _declaration_name(node: Any) -> Any | None:
     if direct_types:
         return direct_types[-1]
     descendants = [child for child in walk(node) if child is not node and child.type == "identifier"]
+    parameter_list = next((child for child in walk(node) if child.type == "formal_parameter_list"), None)
+    if parameter_list is not None:
+        before_parameters = [child for child in descendants if child.end_byte <= parameter_list.start_byte]
+        if before_parameters:
+            return before_parameters[-1]
     if descendants:
         return descendants[-1]
     type_descendants = [child for child in walk(node) if child is not node and child.type == "type_identifier"]
@@ -418,12 +423,23 @@ def _constructor_name(node: Any) -> Any | None:
     return identifiers[-1] if identifiers else None
 
 
-def _operator_name(node: Any) -> tuple[Any, str] | None:
+def _special_method_name(node: Any) -> tuple[Any, str] | None:
+    setter_signature = next((child for child in walk(node) if child.type == "setter_signature"), None)
+    if setter_signature is not None:
+        name_node = next((child for child in setter_signature.named_children if child.type == "identifier"), None)
+        if name_node is not None:
+            return (name_node, node_text(name_node))
+    factory_signature = next((child for child in walk(node) if child.type == "factory_constructor_signature"), None)
+    if factory_signature is not None:
+        identifiers = [child for child in factory_signature.named_children if child.type == "identifier"]
+        if identifiers:
+            name_node = identifiers[-1]
+            return (name_node, node_text(name_node))
     operator_signature = next((child for child in walk(node) if child.type == "operator_signature"), None)
     if operator_signature is None:
         return None
     token = next(
-        (child for child in operator_signature.named_children if child.type in {"binary_operator", "unary_operator"}),
+        (child for child in operator_signature.children if child.type not in {"operator", "formal_parameter_list"}),
         None,
     )
     if token is None:
