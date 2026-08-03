@@ -31,11 +31,10 @@ def install(
 def remove(
     target: Path = typer.Option(..., "--target"),
     file_name: str = typer.Option(..., "--file-name"),
-    backup: Path | None = typer.Option(None, "--backup"),
     preview: bool = typer.Option(False, "--preview"),
     state: Path = typer.Option(Path(".vault-graph"), "--state"),
 ) -> None:
-    _run("remove", target, file_name, backup, preview, state)
+    _run("remove", target, file_name, None, preview, state)
 
 
 @guidance_app.command("preview")
