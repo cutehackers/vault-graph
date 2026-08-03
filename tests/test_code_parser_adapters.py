@@ -5,6 +5,8 @@ import sys
 
 from vault_graph.code_index.code_models import (
     CODE_DART_GRAMMAR_REVISION,
+    CODE_DART_GRAMMAR_SOURCE,
+    CODE_DART_GRAMMAR_SOURCE_REVISION,
     CODE_PARSER_SPEC_VERSION,
     CodeFileInput,
 )
@@ -12,7 +14,10 @@ from vault_graph.code_index.code_models import (
 
 def test_parser_spec_identifies_installed_grammars_without_network_side_effects() -> None:
     assert CODE_PARSER_SPEC_VERSION.startswith("code-parser-spec-")
-    assert CODE_DART_GRAMMAR_REVISION.startswith("tree-sitter-dart-")
+    assert CODE_DART_GRAMMAR_SOURCE == "https://github.com/efrenbl/tree-sitter-dart"
+    assert CODE_DART_GRAMMAR_SOURCE_REVISION == "12ba73fbfd0755652d97bd10e76a84c076112d14"
+    assert CODE_DART_GRAMMAR_REVISION == ("tree-sitter-dart-0.1.0@12ba73fbfd0755652d97bd10e76a84c076112d14-abi15")
+    assert "12ba73fbfd0755652d97bd10e76a84c076112d14" in CODE_PARSER_SPEC_VERSION
 
     before = set(sys.modules)
     module = importlib.import_module("vault_graph.code_index.code_models")
