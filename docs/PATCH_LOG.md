@@ -3,6 +3,18 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-04 - Close Project Context Evidence Review Gaps
+
+**Trigger:** Quality review found that live source drift did not reach impact/test evidence, cross-authority stated relations lacked an explicit mapping path, and large metadata could exceed the context budget or trigger unbounded source reads.
+
+**Scope:** Project context evidence freshness, repository↔Vault evidence mappings, bounded code/impact reads, and compact token estimation.
+
+**Core Values Protected:** Preserved read-only authority boundaries, inspectable evidence provenance, deterministic bounded output, and changeable adapter seams.
+
+**Changes Applied:** Propagated live freshness to every code evidence item and warning, persisted explicit binding mappings and resolved stated relations only against returned stable Vault IDs, bounded search/impact work before source reads, and compacted oversized metadata deterministically for budget estimation.
+
+**Verification:** `uv run pytest -q` (1063 passed, 1 skipped); `uv run ruff check .`; `uv run mypy src`; `uv build`; `uv lock --check`; changed-file format check; `git diff --check`.
+
 ## 2026-08-03 - Harden Round 2 Project Context Plan Contracts
 
 **Trigger:** Independent plan review found underspecified repository↔Vault binding, scope defaults, MCP smoke gating, and harness instruction-file safety contracts.
