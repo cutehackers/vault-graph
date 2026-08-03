@@ -339,6 +339,37 @@ def test_pending_identity_is_scoped_by_repository_when_reference_ids_collide() -
     assert {pending.repository_id for pending in incremental.pending_references} == {"first", "second"}
 
 
+def test_rejects_duplicate_current_reference_scope() -> None:
+    source = _file("repo", "pkg/service.py")
+    caller = _symbol(source, "run", line=2)
+    first = _reference(source, caller, "CALLS", "one", line=3, reference_id="duplicate")
+    second = _reference(source, caller, "CALLS", "two", line=4, reference_id="duplicate")
+
+    with pytest.raises(ValueError, match="duplicate reference identity"):
+        CodeReferenceResolver().resolve(
+            files=(source,), symbols=(caller,), references=(first, second), previous_pending=()
+        )
+
+
+def test_rejects_duplicate_previous_pending_scope() -> None:
+    source = _file("repo", "pkg/service.py")
+    caller = _symbol(source, "run", line=2)
+    reference = _reference(source, caller, "CALLS", "missing", line=3, reference_id="duplicate")
+    initial = CodeReferenceResolver().resolve(
+        files=(source,), symbols=(caller,), references=(reference,), previous_pending=()
+    )
+    first = initial.pending_references[0]
+    second = replace(first, pending_id=f"{first.pending_id}-duplicate")
+
+    with pytest.raises(ValueError, match="duplicate pending reference scope"):
+        CodeReferenceResolver().resolve(
+            files=(source,),
+            symbols=(caller,),
+            references=(reference,),
+            previous_pending=(first, second),
+        )
+
+
 def test_collisions_and_dynamic_calls_are_ambiguous_not_confident() -> None:
     source = _file("repo", "pkg/service.py")
     first_file = _file("repo", "pkg/one.py")
