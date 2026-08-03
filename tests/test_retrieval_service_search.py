@@ -98,6 +98,7 @@ def _keyword_hit(document_id: str, chunk_id: str, rank: int = 1) -> KeywordHit:
         backend="memory-keyword",
         index_revision="metadata-1",
         matched_fields=("text",),
+        provenance_family_id=f"family:{document_id}",
     )
 
 
@@ -244,6 +245,7 @@ def _hit(vault_id: str, document_id: str, chunk_id: str, rank: int) -> KeywordHi
         backend="memory-keyword",
         index_revision="metadata-1",
         matched_fields=("text",),
+        provenance_family_id=f"family:{vault_id}:{document_id}",
     )
 
 

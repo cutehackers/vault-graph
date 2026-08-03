@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from vault_graph.errors import KeywordIndexError
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
@@ -13,6 +14,7 @@ class KeywordQuery:
     query_text: str
     scope: QueryScope
     limit: int
+    source_roles: tuple[DocumentRole, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -31,6 +33,8 @@ class KeywordHit:
     backend: str
     index_revision: str
     matched_fields: tuple[str, ...]
+    source_role: DocumentRole = "canonical_knowledge"
+    provenance_family_id: str = ""
 
     def __post_init__(self) -> None:
         _require_non_empty(self.vault_id, "vault_id")
@@ -38,6 +42,7 @@ class KeywordHit:
         _require_non_empty(self.chunk_id, "chunk_id")
         _require_non_empty(self.backend, "backend")
         _require_non_empty(self.index_revision, "index_revision")
+        _require_non_empty(self.provenance_family_id, "provenance_family_id")
         if self.rank <= 0:
             raise KeywordIndexError("rank must be positive")
         if not isinstance(self.matched_fields, tuple):

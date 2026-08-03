@@ -73,6 +73,7 @@ def _keyword_hit(document_id: str, chunk_id: str) -> KeywordHit:
         backend="memory-keyword",
         index_revision="metadata-1",
         matched_fields=("text",),
+        provenance_family_id=f"family:{document_id}",
     )
 
 
@@ -89,10 +90,13 @@ def test_deleted_vault_graph_index_state_rebuilds_from_vault_without_mutating_va
         "wiki/project.md",
         "---\ntags: [GraphRAG, Retrieval]\n---\n# GraphRAG\nGraphRAG depends on Retrieval evidence.\n",
     )
-    assert runner.invoke(
-        app,
-        ["init", "--vault", str(vault_root), "--state", str(state_path)],
-    ).exit_code == 0
+    assert (
+        runner.invoke(
+            app,
+            ["init", "--vault", str(vault_root), "--state", str(state_path)],
+        ).exit_code
+        == 0
+    )
     assert runner.invoke(app, ["index", "--state", str(state_path), "--vault-id", "default"]).exit_code == 0
     before = file_bytes(vault_root)
 

@@ -132,6 +132,8 @@ def _document_changed(*, current: DocumentState, item: NormalizedDocument) -> bo
         or current.raw_sha256 != item.document.raw_sha256
         or current.parser_version != item.document.parser_version
         or current.chunker_version != _document_chunker_version(item)
+        or current.source_role != item.document.source_role
+        or current.provenance_family_id != item.document.provenance_family_id
     )
 
 

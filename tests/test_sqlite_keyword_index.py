@@ -1,3 +1,5 @@
+import sqlite3
+from dataclasses import replace
 from pathlib import Path
 
 from tests.test_sqlite_metadata_store import make_chunk, make_document
@@ -126,3 +128,51 @@ def test_keyword_schema_version_mismatch_is_visible(tmp_path: Path) -> None:
     assert health.ok is False
     assert health.schema_compatible is False
     assert "schema version mismatch" in health.message
+
+
+def test_keyword_projection_is_contentless_and_filters_role_before_limit(tmp_path: Path) -> None:
+    database_path = tmp_path / "metadata.sqlite3"
+    metadata_store = SQLiteMetadataStore(database_path, initialize=True)
+    raw_document = replace(
+        make_document("default", "raw/source.md", "hash-raw"),
+        source_role="raw_evidence",
+        provenance_family_id="family-raw",
+    )
+    wiki_document = replace(
+        make_document("default", "wiki/page.md", "hash-wiki"),
+        source_role="canonical_knowledge",
+        provenance_family_id="family-wiki",
+    )
+    raw_chunk = replace(
+        make_chunk("default", raw_document.document_id, raw_document.path, text="alpha"),
+        source_role=raw_document.source_role,
+        provenance_family_id=raw_document.provenance_family_id,
+    )
+    wiki_chunk = replace(
+        make_chunk("default", wiki_document.document_id, wiki_document.path, text="alpha"),
+        source_role=wiki_document.source_role,
+        provenance_family_id=wiki_document.provenance_family_id,
+    )
+    metadata_store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[raw_document, wiki_document],
+        chunks=[raw_chunk, wiki_chunk],
+        tombstones=[],
+    )
+
+    hits = SQLiteKeywordIndex(database_path).search(
+        KeywordQuery(
+            query_text="alpha",
+            scope=QueryScope(vault_ids=("default",), content_scopes=("raw", "wiki")),
+            limit=1,
+            source_roles=("canonical_knowledge",),
+        )
+    )
+
+    assert tuple((hit.source_role, hit.provenance_family_id) for hit in hits) == (
+        ("canonical_knowledge", "family-wiki"),
+    )
+    with sqlite3.connect(database_path) as connection:
+        schema = connection.execute("SELECT sql FROM sqlite_master WHERE name = 'keyword_chunks'").fetchone()[0]
+        assert "content=''" in str(schema).replace(" ", "")
+        assert connection.execute("SELECT text FROM keyword_chunks").fetchone()[0] is None

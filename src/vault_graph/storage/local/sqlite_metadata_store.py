@@ -5,16 +5,17 @@ import sqlite3
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from vault_graph.errors import MetadataStoreError
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.local.sqlite_keyword_index import apply_keyword_revision, ensure_keyword_schema
 
-SCHEMA_VERSION = "metadata-v1"
+SCHEMA_VERSION = "metadata-v2"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -31,9 +32,17 @@ CREATE TABLE IF NOT EXISTS documents (
   last_indexed_at TEXT,
   vault_revision TEXT,
   index_revision TEXT,
+  source_role TEXT NOT NULL,
+  provenance_family_id TEXT NOT NULL,
   is_tombstoned INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (vault_id, path),
   UNIQUE (document_id)
+);
+
+CREATE TABLE IF NOT EXISTS content_blobs (
+  blob_hash TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  byte_count INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
@@ -43,11 +52,13 @@ CREATE TABLE IF NOT EXISTS chunks (
   path TEXT NOT NULL,
   section TEXT,
   anchor TEXT,
-  text TEXT NOT NULL,
+  blob_hash TEXT NOT NULL REFERENCES content_blobs(blob_hash),
   token_count INTEGER NOT NULL,
   content_hash TEXT NOT NULL,
   chunker_version TEXT NOT NULL,
   index_revision TEXT,
+  source_role TEXT NOT NULL,
+  provenance_family_id TEXT NOT NULL,
   PRIMARY KEY (vault_id, chunk_id)
 );
 
@@ -88,9 +99,9 @@ class SQLiteMetadataStore:
                     INSERT INTO documents (
                       vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
                       content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                      vault_revision, index_revision, is_tombstoned
+                      vault_revision, index_revision, source_role, provenance_family_id, is_tombstoned
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                     ON CONFLICT(vault_id, path) DO UPDATE SET
                       document_id=excluded.document_id,
                       kind=excluded.kind,
@@ -103,6 +114,8 @@ class SQLiteMetadataStore:
                       last_indexed_at=excluded.last_indexed_at,
                       vault_revision=excluded.vault_revision,
                       index_revision=excluded.index_revision,
+                      source_role=excluded.source_role,
+                      provenance_family_id=excluded.provenance_family_id,
                       is_tombstoned=0
                     """,
                     (
@@ -119,6 +132,8 @@ class SQLiteMetadataStore:
                         indexed_at,
                         document.vault_revision,
                         index_revision,
+                        document.source_role,
+                        document.provenance_family_id,
                     ),
                 )
                 connection.execute(
@@ -127,12 +142,17 @@ class SQLiteMetadataStore:
                 )
             for chunk in chunks:
                 connection.execute(
+                    "INSERT OR IGNORE INTO content_blobs (blob_hash, text, byte_count) VALUES (?, ?, ?)",
+                    (chunk.content_hash, chunk.text, len(chunk.text.encode("utf-8"))),
+                )
+                connection.execute(
                     """
                     INSERT OR REPLACE INTO chunks (
-                      vault_id, chunk_id, document_id, path, section, anchor, text,
-                      token_count, content_hash, chunker_version, index_revision
+                      vault_id, chunk_id, document_id, path, section, anchor, blob_hash,
+                      token_count, content_hash, chunker_version, index_revision, source_role,
+                      provenance_family_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         chunk.vault_id,
@@ -141,11 +161,13 @@ class SQLiteMetadataStore:
                         chunk.path,
                         chunk.section,
                         chunk.anchor,
-                        chunk.text,
+                        chunk.content_hash,
                         chunk.token_count,
                         chunk.content_hash,
                         chunk.chunker_version,
                         index_revision,
+                        chunk.source_role,
+                        chunk.provenance_family_id,
                     ),
                 )
             for vault_id, path in tombstones:
@@ -161,6 +183,10 @@ class SQLiteMetadataStore:
                 chunks=chunks,
                 tombstones=tombstones,
             )
+            connection.execute(
+                "DELETE FROM content_blobs "
+                "WHERE NOT EXISTS (SELECT 1 FROM chunks WHERE chunks.blob_hash = content_blobs.blob_hash)"
+            )
 
     def document_state(self, vault_id: str, path: str) -> DocumentState:
         if not self._database_path.exists():
@@ -169,7 +195,8 @@ class SQLiteMetadataStore:
             row = connection.execute(
                 """
                 SELECT d.vault_id, d.path, d.document_id, d.frontmatter_hash, d.content_hash,
-                       d.raw_sha256, d.parser_version, c.chunker_version, d.is_tombstoned
+                       d.raw_sha256, d.parser_version, c.chunker_version, d.is_tombstoned,
+                       d.source_role, d.provenance_family_id
                 FROM documents d
                 LEFT JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id
                 WHERE d.vault_id = ? AND d.path = ?
@@ -191,7 +218,8 @@ class SQLiteMetadataStore:
             rows = connection.execute(
                 f"""
                 SELECT d.vault_id, d.path, d.document_id, d.frontmatter_hash, d.content_hash,
-                       d.raw_sha256, d.parser_version, c.chunker_version, d.is_tombstoned
+                       d.raw_sha256, d.parser_version, c.chunker_version, d.is_tombstoned,
+                       d.source_role, d.provenance_family_id
                 FROM documents d
                 LEFT JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id
                 WHERE d.vault_id IN ({placeholders})
@@ -213,7 +241,7 @@ class SQLiteMetadataStore:
                 f"""
                 SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
                        content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                       vault_revision, index_revision
+                       vault_revision, index_revision, source_role, provenance_family_id
                 FROM documents
                 WHERE vault_id IN ({vault_placeholders})
                   AND is_tombstoned = 0
@@ -252,7 +280,7 @@ class SQLiteMetadataStore:
                 f"""
                 SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
                        content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                       vault_revision, index_revision
+                       vault_revision, index_revision, source_role, provenance_family_id
                 FROM documents
                 WHERE vault_id = ?
                   AND is_tombstoned = 0
@@ -275,8 +303,10 @@ class SQLiteMetadataStore:
             rows = connection.execute(
                 f"""
                 SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
-                       c.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision
+                       b.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision,
+                       c.source_role, c.provenance_family_id
                 FROM chunks c
+                INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
                 INNER JOIN documents d
                   ON d.vault_id = c.vault_id
                  AND d.document_id = c.document_id
@@ -305,8 +335,10 @@ class SQLiteMetadataStore:
             rows = connection.execute(
                 """
                 SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
-                       c.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision
+                       b.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision,
+                       c.source_role, c.provenance_family_id
                 FROM chunks c
+                INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
                 INNER JOIN documents d
                   ON d.vault_id = c.vault_id
                  AND d.document_id = c.document_id
@@ -328,7 +360,7 @@ class SQLiteMetadataStore:
                 """
                 SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
                        content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                       vault_revision, index_revision
+                       vault_revision, index_revision, source_role, provenance_family_id
                 FROM documents
                 WHERE document_id = ? AND is_tombstoned = 0
                 """,
@@ -344,10 +376,12 @@ class SQLiteMetadataStore:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT vault_id, chunk_id, document_id, path, section, anchor, text,
-                       token_count, content_hash, chunker_version, index_revision
-                FROM chunks
-                WHERE vault_id = ? AND chunk_id = ?
+                SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor, b.text,
+                       c.token_count, c.content_hash, c.chunker_version, c.index_revision,
+                       c.source_role, c.provenance_family_id
+                FROM chunks c
+                INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
+                WHERE c.vault_id = ? AND c.chunk_id = ?
                 """,
                 (vault_id, chunk_id),
             ).fetchone()
@@ -368,7 +402,8 @@ class SQLiteMetadataStore:
             row = connection.execute(
                 """
                 SELECT d.vault_id, d.document_id, c.chunk_id, d.path, c.section, c.anchor,
-                       c.content_hash, d.raw_sha256, c.index_revision, d.vault_revision
+                       c.content_hash, d.raw_sha256, c.index_revision, d.vault_revision,
+                       c.source_role, c.provenance_family_id
                 FROM documents d
                 INNER JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id AND c.path = d.path
                 WHERE d.vault_id = ?
@@ -397,7 +432,7 @@ class SQLiteMetadataStore:
                     str(row["name"])
                     for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
                 }
-                missing = {"documents", "chunks", "index_revisions"} - tables
+                missing = {"documents", "content_blobs", "chunks", "index_revisions"} - tables
                 if missing:
                     return StoreHealth(
                         ok=False,
@@ -430,7 +465,7 @@ class SQLiteMetadataStore:
                 """
                 SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
                        content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                       vault_revision, index_revision
+                       vault_revision, index_revision, source_role, provenance_family_id
                 FROM documents
                 WHERE is_tombstoned = 0
                 ORDER BY vault_id, path
@@ -463,6 +498,8 @@ def _missing_document_state(*, vault_id: str, path: str) -> DocumentState:
         parser_version=None,
         chunker_version=None,
         is_tombstoned=True,
+        source_role=None,
+        provenance_family_id=None,
     )
 
 
@@ -477,6 +514,8 @@ def _document_state_from_row(row: sqlite3.Row) -> DocumentState:
         parser_version=str(row["parser_version"]),
         chunker_version=str(row["chunker_version"]) if row["chunker_version"] is not None else None,
         is_tombstoned=bool(row["is_tombstoned"]),
+        source_role=cast(DocumentRole, str(row["source_role"])),
+        provenance_family_id=str(row["provenance_family_id"]),
     )
 
 
@@ -495,6 +534,8 @@ def _document_snapshot_from_row(row: sqlite3.Row) -> DocumentSnapshot:
         last_indexed_at=str(row["last_indexed_at"]) if row["last_indexed_at"] is not None else None,
         vault_revision=str(row["vault_revision"]) if row["vault_revision"] is not None else None,
         index_revision=str(row["index_revision"]) if row["index_revision"] is not None else None,
+        source_role=cast(DocumentRole, str(row["source_role"])),
+        provenance_family_id=str(row["provenance_family_id"]),
     )
 
 
@@ -511,6 +552,8 @@ def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
         content_hash=str(row["content_hash"]),
         chunker_version=str(row["chunker_version"]),
         index_revision=str(row["index_revision"]) if row["index_revision"] is not None else None,
+        source_role=cast(DocumentRole, str(row["source_role"])),
+        provenance_family_id=str(row["provenance_family_id"]),
     )
 
 
@@ -542,4 +585,6 @@ def _evidence_reference_from_row(row: sqlite3.Row) -> EvidenceReference:
         raw_sha256=str(row["raw_sha256"]),
         metadata_index_revision=str(row["index_revision"]) if row["index_revision"] is not None else None,
         vault_revision=str(row["vault_revision"]) if row["vault_revision"] is not None else None,
+        source_role=cast(DocumentRole, str(row["source_role"])),
+        provenance_family_id=str(row["provenance_family_id"]),
     )
