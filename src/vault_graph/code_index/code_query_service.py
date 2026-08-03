@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import cast
 
 from vault_graph.code_index.code_freshness import CodeFreshnessService
 from vault_graph.code_index.code_models import (
     CodeFileOutlineRequest,
     CodeFileOutlineResponse,
     CodeFreshnessReport,
-    CodeFreshnessRequest,
     CodeImpactRequest,
     CodeRepositoryEntry,
     CodeSearchResponse,
@@ -198,7 +198,7 @@ class CodeQueryService:
         scope = self._scope((repository_id,) if repository_id else ())
         matches = tuple(
             symbol
-            for symbol in self._store.symbols(scope)
+            for symbol in self._symbols_for_scope(scope)
             if symbol_or_id in {symbol.name, symbol.qualified_name}
             and self._matches(symbol, repository_id, relative_path)
         )
@@ -207,6 +207,10 @@ class CodeQueryService:
         if not matches:
             return None, ("symbol_not_found",)
         return matches[0], ()
+
+    def _symbols_for_scope(self, scope: tuple[str, ...]) -> tuple[CodeSymbolRecord, ...]:
+        repository_ids = scope or tuple(sorted(self._entry_ids))
+        return self._store.symbols(repository_ids)
 
     def _matches(self, symbol: CodeSymbolRecord, repository_id: str | None, relative_path: str | None) -> bool:
         return (
@@ -234,8 +238,9 @@ class CodeQueryService:
         return tuple(sorted(set(repository_ids)))
 
     def _freshness(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport:
-        if isinstance(self._freshness_service, CodeFreshnessService):
-            return self._freshness_service.compare(CodeFreshnessRequest(repository_ids=repository_ids))
+        if hasattr(self._freshness_service, "read_status_for"):
+            status_reader = cast(CodeFreshnessService, self._freshness_service)
+            return status_reader.read_status_for(repository_ids)
         return self._freshness_service.status(repository_ids)
 
     def _redact_warnings(self, warnings: tuple[str, ...]) -> tuple[str, ...]:

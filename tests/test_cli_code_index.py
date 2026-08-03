@@ -38,3 +38,32 @@ def test_code_repository_add_and_list_json(tmp_path: Path) -> None:
     assert added.exit_code == 0, added.output
     assert listed.exit_code == 0, listed.output
     assert '"repository_id": "demo"' in listed.output
+
+
+def test_code_repository_add_renders_validation_and_duplicate_errors(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    repository = tmp_path / "repository"
+    vault.mkdir()
+    repository.mkdir()
+    state = tmp_path / "state"
+    runner = CliRunner()
+    assert runner.invoke(app, ["init", "--vault", str(vault), "--state", str(state)]).exit_code == 0
+
+    invalid = runner.invoke(
+        app,
+        ["code", "repository", "add", "bad", "--path", str(repository), "--language", "rust", "--state", str(state)],
+    )
+    first = runner.invoke(
+        app,
+        ["code", "repository", "add", "demo", "--path", str(repository), "--language", "python", "--state", str(state)],
+    )
+    duplicate = runner.invoke(
+        app,
+        ["code", "repository", "add", "demo", "--path", str(repository), "--language", "python", "--state", str(state)],
+    )
+
+    assert invalid.exit_code != 0
+    assert "unsupported language" in invalid.output
+    assert first.exit_code == 0, first.output
+    assert duplicate.exit_code != 0
+    assert "duplicate repository_id" in duplicate.output

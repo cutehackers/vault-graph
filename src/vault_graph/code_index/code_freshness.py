@@ -6,6 +6,7 @@ import hashlib
 import json
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from typing import cast
 
 from vault_graph.code_index.code_generation import CodeGenerationLayout, CodeProjectionGenerationManager
 from vault_graph.code_index.code_models import (
@@ -180,6 +181,99 @@ class CodeFreshnessService:
             pending_paths=tuple(sorted(set(pending_paths))),
             parser_spec_version=self._parser_spec_version,
         )
+        self._last_report = report
+        return report
+
+    def read_status(self, request: CodeFreshnessRequest) -> CodeFreshnessReport:
+        """Read bounded persisted projection status without scanning source files."""
+
+        if not isinstance(request, CodeFreshnessRequest):
+            raise TypeError("request must be a CodeFreshnessRequest")
+        entries = _select_entries(self._entries, request.repository_ids)
+        repository_ids = tuple(entry.repository_id for entry in entries)
+        if not entries:
+            return self._remember(
+                CodeFreshnessReport(
+                    repository_ids=(),
+                    state="unknown",
+                    warnings=("no enabled code repositories are registered",),
+                    parser_spec_version=self._parser_spec_version,
+                )
+            )
+        layout = self._active_layout(repository_ids)
+        if layout is None and self._store is None:
+            return self._remember(
+                CodeFreshnessReport(
+                    repository_ids=repository_ids,
+                    state="unavailable",
+                    warnings=("no compatible active code generation",),
+                    parser_spec_version=self._parser_spec_version,
+                )
+            )
+        generation_entries = (
+            tuple(entry for entry in self._entries if entry.repository_id in set(layout.repository_ids))
+            if layout is not None
+            else entries
+        )
+        if self._store is not None:
+            projection = self._store
+        else:
+            assert layout is not None
+            projection = self._open_store(layout.database_path, _policy_revision(generation_entries))
+        try:
+            health = projection.health()
+        except Exception as exc:
+            return self._remember(
+                CodeFreshnessReport(
+                    repository_ids=repository_ids,
+                    state="unavailable",
+                    warnings=(f"code projection unavailable: {exc}",),
+                    parser_spec_version=self._parser_spec_version,
+                )
+            )
+        if not health.schema_compatible:
+            return self._remember(
+                CodeFreshnessReport(
+                    repository_ids=repository_ids,
+                    state="unavailable",
+                    warnings=(f"code projection unavailable: {health.message}",),
+                    parser_spec_version=self._parser_spec_version,
+                )
+            )
+        warnings = ["live source verification was not requested"]
+        manifest = projection.current_manifest(repository_ids)
+        if manifest.parser_spec_version != self._parser_spec_version:
+            warnings.append("parser specification differs from active generation")
+        if manifest.schema_version != CODE_PROJECTION_SCHEMA_VERSION:
+            warnings.append("code projection schema differs from active generation")
+        if manifest.policy_revision != _policy_revision(generation_entries):
+            warnings.append("repository scan policy differs from active generation")
+        pending_paths = _pending_paths(projection, repository_ids)
+        if pending_paths:
+            warnings.append("unresolved references remain pending")
+        last_state, last_warnings = _last_freshness(projection)
+        warnings.extend(last_warnings)
+        state: CodeFreshnessState = (
+            cast(CodeFreshnessState, last_state)
+            if last_state in {"partial", "syncing", "unavailable", "stale"}
+            else "unknown"
+        )
+        return self._remember(
+            CodeFreshnessReport(
+                repository_ids=repository_ids,
+                state=state,
+                warnings=tuple(sorted(set(warnings))),
+                pending_paths=tuple(sorted(set(pending_paths))),
+                parser_spec_version=self._parser_spec_version,
+            )
+        )
+
+    def read_status_for(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport:
+        """Read persisted status for a repository scope without a live scan."""
+
+        return self.read_status(CodeFreshnessRequest(repository_ids=repository_ids))
+
+    def _remember(self, report: CodeFreshnessReport) -> CodeFreshnessReport:
         self._last_report = report
         return report
 

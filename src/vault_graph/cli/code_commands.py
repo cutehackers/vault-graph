@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -38,21 +39,7 @@ def repository_add(
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
-    languages = tuple(language) or ("python", "dart")
-    entry = CodeRepositoryEntry(
-        repository_id=repository_id,
-        root_path=path,
-        display_name=repository_id,
-        enabled=True,
-        include_globs=tuple(f"**/*.{'py' if item == 'python' else 'dart'}" for item in languages),
-        exclude_globs=(),
-        languages=languages,
-        state_namespace=f"code/{repository_id}",
-        git_revision_policy="head-and-working-tree",
-        watch=False,
-    )
-    services = _services(state)
-    _render(services.repository_catalog_service.add(entry).resolve(repository_id), output_format)
+    _render(_code_operation(lambda: _add_repository(state, repository_id, path, tuple(language))), output_format)
 
 
 @repository_app.command("list")
@@ -225,6 +212,33 @@ def impact(
 def _services(state: Path) -> CodeIndexServices:
     try:
         return CodeIndexFactory(state_path=state).open()
+    except (ValueError, VaultGraphError) as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(1) from exc
+
+
+def _add_repository(
+    state: Path, repository_id: str, path: Path, requested_languages: tuple[str, ...]
+) -> CodeRepositoryEntry:
+    languages = requested_languages or ("python", "dart")
+    entry = CodeRepositoryEntry(
+        repository_id=repository_id,
+        root_path=path,
+        display_name=repository_id,
+        enabled=True,
+        include_globs=tuple(f"**/*.{'py' if item == 'python' else 'dart'}" for item in languages),
+        exclude_globs=(),
+        languages=languages,
+        state_namespace=f"code/{repository_id}",
+        git_revision_policy="head-and-working-tree",
+        watch=False,
+    )
+    return _services(state).repository_catalog_service.add(entry).resolve(repository_id)
+
+
+def _code_operation[T](operation: Callable[[], T]) -> T:
+    try:
+        return operation()
     except (ValueError, VaultGraphError) as exc:
         typer.echo(str(exc))
         raise typer.Exit(1) from exc

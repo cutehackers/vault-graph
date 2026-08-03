@@ -17,6 +17,7 @@ from vault_graph.code_index.code_models import (
 )
 from vault_graph.code_index.code_projection_service import CodeProjectionService
 from vault_graph.code_index.code_query_service import CodeQueryService
+from vault_graph.code_index.source_scanning import CodeSourceScanner
 from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
 
 
@@ -72,6 +73,51 @@ def test_symbol_source_is_live_bounded_evidence_with_a_safe_uri(tmp_path: Path) 
     assert result.symbol is not None
     assert result.source_uri == "vg-source://demo/sample.py#L1-L2"
     assert result.source_lines == ("def first():", "    return second()")
+
+
+def test_unscoped_symbol_name_resolves_in_a_single_registered_repository(tmp_path: Path) -> None:
+    service, _ = _service(tmp_path)
+
+    result = service.get_symbol(CodeSymbolRequest("first"))
+
+    assert result.symbol is not None
+    assert result.symbol.name == "first"
+
+
+def test_query_reads_persisted_status_without_scanning_the_repository(tmp_path: Path) -> None:
+    from vault_graph.code_index.code_freshness import CodeFreshnessService
+    from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / "sample.py").write_text("def example():\n    return 1\n", encoding="utf-8")
+    entry = _entry(repository)
+    projection = CodeProjectionService.for_testing(state_path=tmp_path / "state", entries=(entry,))
+    projection.apply(CodeIndexRequest(full=True))
+    active = projection.generation_manager.active_layout(())
+    assert active is not None
+
+    class Scanner:
+        parser_spec_version = "unused"
+
+        def scan(self, _entry: CodeRepositoryEntry) -> None:
+            raise AssertionError("query must not scan source files")
+
+    service = CodeQueryService(
+        catalog=(entry,),
+        store=SQLiteCodeProjectionStore.open_read_only(active.database_path),
+        freshness_service=CodeFreshnessService(
+            catalog=(entry,),
+            scanner=cast(CodeSourceScanner, Scanner()),
+            generation_manager=projection.generation_manager,
+        ),
+    )
+
+    response = service.search_symbols(CodeSymbolSearchRequest("example"))
+
+    assert response.results
+    assert response.freshness == "unknown"
+    assert "live source verification was not requested" in response.warnings
 
 
 def test_callers_stay_within_repository_and_follow_resolved_edges(tmp_path: Path) -> None:
@@ -132,3 +178,55 @@ def test_scoped_query_rejects_direct_ids_and_outlines_outside_its_repository(tmp
     assert "symbol_scope_mismatch" in direct.warnings
     with pytest.raises(ValueError, match="outside the query service scope"):
         service.get_file_outline(CodeFileOutlineRequest(repository_id="other", relative_path="sample.py"))
+
+
+def test_unscoped_name_reports_ambiguity_across_registered_repositories(tmp_path: Path) -> None:
+    from vault_graph.code_index.code_models import CodeFreshnessReport, CodeSymbolRecord
+
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    first = _entry(first_root)
+    second = replace(first, repository_id="other", root_path=second_root, state_namespace="code/other")
+    first_symbol = CodeSymbolRecord(
+        symbol_id="first-symbol",
+        repository_id="demo",
+        file_id="first-file",
+        kind="function",
+        language_kind="function_definition",
+        name="shared",
+        qualified_name="shared",
+        signature=None,
+        start_line=1,
+        end_line=1,
+        start_column=0,
+        end_column=1,
+        content_hash="1" * 64,
+        source_revision="content-hash:first",
+        parser_spec_version="parser-v1",
+    )
+    second_symbol = replace(first_symbol, symbol_id="second-symbol", repository_id="other", file_id="second-file")
+
+    class Store:
+        def get_symbol(self, symbol_id: str) -> None:
+            return None
+
+        def symbols(self, repository_ids: tuple[str, ...]) -> tuple[CodeSymbolRecord, ...]:
+            assert repository_ids == ("demo", "other")
+            return first_symbol, second_symbol
+
+    class Freshness:
+        def status(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport:
+            return CodeFreshnessReport(repository_ids=repository_ids, state="fresh")
+
+    service = CodeQueryService(
+        catalog=(first, second),
+        store=cast(CodeProjectionStore, Store()),
+        freshness_service=cast(CodeFreshnessService | CodeProjectionService, Freshness()),
+    )
+
+    result = service.get_symbol(CodeSymbolRequest("shared"))
+
+    assert result.symbol is None
+    assert "ambiguous_symbol" in result.warnings
