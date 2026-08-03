@@ -387,6 +387,14 @@ class SQLiteCodeProjectionStore:
         manifest_repositories = set(manifest.repository_ids)
         if set(manifest_revisions) != manifest_repositories:
             return "source revisions do not match repository IDs"
+        all_repository_rows = connection.execute("SELECT repository_id, source_revision FROM repositories").fetchall()
+        all_repository_ids = {str(row["repository_id"]) for row in all_repository_rows}
+        if all_repository_ids != manifest_repositories:
+            return "repository IDs do not match stored repositories"
+        all_file_rows = connection.execute("SELECT file_id FROM files").fetchall()
+        all_file_ids = {str(row["file_id"]) for row in all_file_rows}
+        if all_file_ids != set(manifest.file_ids):
+            return "file IDs do not match stored files"
         placeholders = ",".join("?" for _ in manifest.repository_ids)
         repositories = connection.execute(
             f"SELECT repository_id, source_revision FROM repositories WHERE repository_id IN ({placeholders})",
