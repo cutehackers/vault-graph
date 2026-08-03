@@ -104,7 +104,7 @@ class HarnessGuidanceService:
                 preview=True,
                 content=next_content,
             )
-        backup_path = self._resolve_backup_path(request, target_path)
+        backup_path = self._resolve_backup_path(request, target_path, action="install")
         _write_atomically(backup_path, current)
         _write_atomically(target_path, next_content)
         return HarnessGuidanceReport(
@@ -117,6 +117,8 @@ class HarnessGuidanceService:
         )
 
     def remove(self, request: HarnessGuidanceRequest) -> HarnessGuidanceReport:
+        if request.backup_path is not None:
+            raise HarnessGuidanceError("harness_guidance_remove_backup_not_supported")
         target_path = self._resolve_instruction_path(request)
         current = _read_instruction(target_path)
         marker_state = _marker_state(current)
@@ -134,7 +136,7 @@ class HarnessGuidanceService:
                 preview=True,
                 content=next_content,
             )
-        backup_path = self._resolve_backup_path(request, target_path)
+        backup_path = self._resolve_backup_path(request, target_path, action="remove")
         _write_atomically(backup_path, current)
         _write_atomically(target_path, next_content)
         return HarnessGuidanceReport(
@@ -147,6 +149,8 @@ class HarnessGuidanceService:
         )
 
     def _resolve_instruction_path(self, request: HarnessGuidanceRequest) -> Path:
+        if not self._vault_roots:
+            raise HarnessGuidanceError("harness_guidance_vault_scope_required")
         if request.file_name not in SUPPORTED_INSTRUCTION_FILES:
             raise HarnessGuidanceError("harness_guidance_unsupported_file_name")
         target = _canonical_existing_directory(request.target)
@@ -156,8 +160,14 @@ class HarnessGuidanceService:
         self._assert_outside_vaults(instruction_path)
         return instruction_path
 
-    def _resolve_backup_path(self, request: HarnessGuidanceRequest, target_path: Path) -> Path:
-        raw_backup = request.backup_path or target_path.with_name(f"{target_path.name}.bak")
+    def _resolve_backup_path(
+        self,
+        request: HarnessGuidanceRequest,
+        target_path: Path,
+        *,
+        action: Literal["install", "remove"],
+    ) -> Path:
+        raw_backup = request.backup_path or target_path.with_name(f"{target_path.name}.{action}.bak")
         backup = _canonical_new_file_path(raw_backup)
         if backup.exists():
             raise HarnessGuidanceError("harness_guidance_backup_exists")

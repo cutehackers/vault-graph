@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from tests.test_setup_service import RecordingIndexFactory
 from vault_graph.app.setup_service import SetupRequest, SetupService
 from vault_graph.cli.main import app
+from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
 
 runner = CliRunner()
 
@@ -66,3 +67,27 @@ def test_harness_cli_rejects_registered_vault_target(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert "harness_guidance_target_inside_vault" in result.stdout
+
+
+def test_harness_remove_command_does_not_offer_backup_flag() -> None:
+    result = runner.invoke(app, ["harness", "guidance", "remove", "--help"])
+
+    assert result.exit_code == 0
+    assert "--backup" not in result.stdout
+
+
+def test_default_mcp_startup_does_not_write_instruction_files(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    state = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault), "--state", str(state)]).exit_code == 0
+    project = tmp_path / "project"
+    project.mkdir()
+    instruction = project / "AGENTS.md"
+    instruction.write_text("# Existing project instruction\n", encoding="utf-8")
+
+    create_mcp_server(McpServerConfig(state_path=state))
+
+    assert instruction.read_text(encoding="utf-8") == "# Existing project instruction\n"
+    assert not (project / "AGENTS.md.install.bak").exists()
+    assert not (project / "AGENTS.md.remove.bak").exists()

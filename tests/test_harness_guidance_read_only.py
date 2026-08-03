@@ -11,12 +11,14 @@ def test_preview_does_not_write_instruction_or_backup(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
 
-    report = HarnessGuidanceService().preview(HarnessGuidanceRequest(target=project, file_name="AGENTS.md"))
+    report = HarnessGuidanceService(vault_roots=(tmp_path / "vault",)).preview(
+        HarnessGuidanceRequest(target=project, file_name="AGENTS.md")
+    )
 
     assert report.changed is True
     assert report.preview is True
     assert not (project / "AGENTS.md").exists()
-    assert not (project / "AGENTS.md.bak").exists()
+    assert not (project / "AGENTS.md.install.bak").exists()
 
 
 def test_guidance_rejects_targets_inside_vault_and_symlink_paths(tmp_path: Path) -> None:
@@ -34,10 +36,11 @@ def test_guidance_rejects_targets_inside_vault_and_symlink_paths(tmp_path: Path)
         service.install(HarnessGuidanceRequest(target=link, file_name="AGENTS.md"))
 
 
-def test_default_harness_service_construction_performs_no_writes(tmp_path: Path) -> None:
+def test_harness_service_without_vault_scope_rejects_instruction_operations(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
 
-    HarnessGuidanceService(vault_roots=())
+    with pytest.raises(HarnessGuidanceError, match="harness_guidance_vault_scope_required"):
+        HarnessGuidanceService(vault_roots=()).preview(HarnessGuidanceRequest(target=project, file_name="AGENTS.md"))
 
     assert list(project.iterdir()) == []
