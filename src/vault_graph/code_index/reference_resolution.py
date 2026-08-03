@@ -76,6 +76,7 @@ class CodeReferenceResolver:
         import_references = self._imports_by_file(references)
         valid_previous = self._validate_previous_pending(file_by_id, previous_pending)
         previous_by_reference = {(pending.repository_id, pending.reference_id): pending for pending in valid_previous}
+        self._validate_reference_scope(references)
         changed = set(changed_file_ids) if changed_file_ids is not None else None
         edges: list[CodeEdgeRecord] = []
         pending: list[PendingCodeReference] = []
@@ -215,6 +216,15 @@ class CodeReferenceResolver:
             files_by_id=files_by_id,
         )
 
+    @staticmethod
+    def _validate_reference_scope(references: tuple[CodeReferenceRecord, ...]) -> None:
+        seen: set[tuple[str, str]] = set()
+        for reference in references:
+            scope = (reference.repository_id, reference.reference_id)
+            if scope in seen:
+                raise ValueError(f"duplicate reference identity: {reference.repository_id}/{reference.reference_id}")
+            seen.add(scope)
+
     def _validate_previous_pending(
         self,
         file_by_id: dict[str, CodeFileSnapshot],
@@ -222,10 +232,15 @@ class CodeReferenceResolver:
     ) -> tuple[PendingCodeReference, ...]:
         valid: list[PendingCodeReference] = []
         seen_ids: set[str] = set()
+        seen_scopes: set[tuple[str, str]] = set()
         for pending in previous_pending:
             if pending.pending_id in seen_ids:
                 raise ValueError(f"duplicate pending reference identity: {pending.pending_id}")
             seen_ids.add(pending.pending_id)
+            scope = (pending.repository_id, pending.reference_id)
+            if scope in seen_scopes:
+                raise ValueError(f"duplicate pending reference scope: {pending.repository_id}/{pending.reference_id}")
+            seen_scopes.add(scope)
             if pending.parser_spec_version != self._parser_spec_version:
                 raise ValueError("pending reference parser_spec_version is incompatible")
             source_file = file_by_id.get(pending.source_file_id)
