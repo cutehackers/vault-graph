@@ -510,6 +510,26 @@ class SQLiteCodeProjectionStore:
                 file_ids=file_ids,
             )
 
+    def pending_paths(self, repository_ids: tuple[str, ...]) -> tuple[str, ...]:
+        """Return deterministic source paths for pending references."""
+
+        requested = _normalize_repository_ids(repository_ids)
+        if not requested or not self._database_path.exists():
+            return ()
+        with self._connect_readonly() as connection:
+            placeholders = ",".join("?" for _ in requested)
+            rows = connection.execute(
+                f"""
+                SELECT DISTINCT f.relative_path
+                FROM pending_references p
+                JOIN files f ON f.file_id = p.source_file_id
+                WHERE p.repository_id IN ({placeholders})
+                ORDER BY f.relative_path
+                """,
+                requested,
+            ).fetchall()
+        return tuple(str(row["relative_path"]) for row in rows)
+
     def apply_reconcile_plan(self, plan: CodeReconcilePlan) -> CodeApplyResult:
         if self._read_only:
             raise PermissionError("code projection store is read-only")
