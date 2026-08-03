@@ -653,6 +653,46 @@ def test_sqlite_code_store_reports_manifest_file_identity_health_failure(tmp_pat
     assert "manifest" in health.message
 
 
+def test_sqlite_code_store_reports_manifest_repository_omission_health_failure(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    first = _plan()
+    other_file = replace(first.files[0], repository_id="repo-b", relative_path="lib/other.py")
+    other_file_id = code_file_identity("repo-b", "lib/other.py")
+    complete_manifest = replace(
+        first.manifest,
+        repository_ids=("repo-a", "repo-b"),
+        source_revisions=(("repo-a", first.files[0].source_revision), ("repo-b", other_file.source_revision)),
+        file_ids=(first.manifest.file_ids[0], other_file_id),
+    )
+    store.apply_reconcile_plan(
+        CodeReconcilePlan(
+            manifest=complete_manifest,
+            files=(*first.files, other_file),
+            symbols=first.symbols,
+            edges=first.edges,
+            run_id="complete-manifest-health",
+        )
+    )
+    with sqlite3.connect(path) as connection:
+        manifest_row = connection.execute("SELECT value FROM code_metadata WHERE key = 'manifest_json'").fetchone()
+        assert manifest_row is not None
+        payload = json.loads(str(manifest_row[0]))
+        payload["repository_ids"] = ["repo-a"]
+        payload["source_revisions"] = [["repo-a", first.files[0].source_revision]]
+        payload["file_ids"] = [first.manifest.file_ids[0]]
+        connection.execute(
+            "UPDATE code_metadata SET value = ? WHERE key = 'manifest_json'",
+            (json.dumps(payload),),
+        )
+
+    health = SQLiteCodeProjectionStore.open_read_only(path).health()
+
+    assert health.ok is False
+    assert health.schema_compatible is False
+    assert "repository IDs" in health.message
+
+
 def test_sqlite_code_store_reports_manifest_source_revision_health_failure(tmp_path: Path) -> None:
     path = tmp_path / "code.sqlite3"
     store = SQLiteCodeProjectionStore.open_writable(path)
