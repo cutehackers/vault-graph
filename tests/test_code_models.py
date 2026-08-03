@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import FrozenInstanceError, fields
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -226,17 +227,17 @@ def test_nested_sequences_are_normalized_to_immutable_tuples() -> None:
         generation_id="generation-1",
         schema_version=CODE_PROJECTION_SCHEMA_VERSION,
         parser_spec_version=CODE_PARSER_SPEC_VERSION,
-        repository_ids=["demo"],  # type: ignore[arg-type]
+        repository_ids=cast(tuple[str, ...], ["demo"]),
         policy_revision="policy-1",
-        source_revisions=[["demo", "rev-1"]],  # type: ignore[list-item]
-        file_ids=["file-1"],  # type: ignore[arg-type]
+        source_revisions=cast(tuple[tuple[str, str], ...], [["demo", "rev-1"]]),
+        file_ids=cast(tuple[str, ...], ["file-1"]),
     )
     request = CodeRepositoryAddRequest(
         repository_id="demo",
         root_path=Path("/tmp/demo"),
         display_name="Demo",
-        languages=languages,  # type: ignore[arg-type]
-        include_globs=include_globs,  # type: ignore[arg-type]
+        languages=cast(tuple[str, ...], languages),
+        include_globs=cast(tuple[str, ...], include_globs),
     )
     languages.append("dart")
     include_globs.append("**/*.dart")
@@ -256,7 +257,7 @@ def test_manifest_rejects_malformed_revision_and_file_identity_entries() -> None
             parser_spec_version=CODE_PARSER_SPEC_VERSION,
             repository_ids=("demo",),
             policy_revision="policy-1",
-            source_revisions=(("demo",),),  # type: ignore[assignment]
+            source_revisions=cast(tuple[tuple[str, str], ...], (("demo",),)),
         )
     with pytest.raises(ValueError, match="source_revisions.revision"):
         CodeManifest(
