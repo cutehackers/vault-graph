@@ -63,6 +63,11 @@ or local HTTP acceptance tests.
 | Get Open Questions | - | `get_open_questions(scope=None, limit=20)` | `vault://{vault_id}/issues/{id}` | Open questions and unresolved follow-ups |
 | Get Recent Changes | - | `get_recent_changes(since=None, scope=None, limit=20)` | `vault://{vault_id}/timeline/recent` | Recent indexed document snapshot and projection changes |
 | Explain Result | - | `explain_result(result_id)` | - | Retrieval reason, evidence, scores, warnings |
+| Register Code Repository | `vg code repository add ID --path PATH --language LANGUAGE` | - | - | Read-only repository catalog entry |
+| Index And Query Code | `vg code index`, `vg code search`, `vg code symbol`, `vg code outline`, `vg code callers`, `vg code callees`, `vg code impact` | - | `vg-source://{repository_id}/{path}#L{start}-L{end}` | Bounded symbols, source links, traversal, freshness warnings |
+| Bind Project Authorities | `vg project bind REPOSITORY_ID --vault-id ID`, `vg project bindings` | - | - | Explicit Graph-owned repository-to-Vault selection |
+| Explore Project | - | `explore_project(task, project_path=None, repository_id=None, max_tokens=None, depth=2, limit=20)` | repository and Vault evidence links | Bounded code, tests, impact, Vault evidence, revisions, freshness, warnings |
+| Install Harness Guidance | `vg harness guidance preview/install/remove` | - | - | Explicit marker-fenced `AGENTS.md` or `CLAUDE.md` guidance outside Vault |
 | Serve MCP | `vg serve --mcp` | - | all MCP resources | MCP server for agents |
 | Serve HTTP | `vg serve --http` | - | - | HTTP access surface |
 
@@ -129,6 +134,38 @@ Only service-backed tools are registered. `ask_vault` and the memory projection
 tools are registered because their backing application services now exist.
 Future MCP tools must follow the same rule and stay out of the surface until a
 stable application-service boundary exists.
+
+`explore_project` is the preferred coding entry point. It requires a registered
+repository and an explicit Graph-owned binding to one or more Vaults; it never
+guesses an active Vault. When code indexing is unavailable, it returns a
+deterministic Vault-only result with a visible warning rather than stale code.
+
+## Code And Project Context Features
+
+Code projection is read-only and rebuildable. Register a repository, index it,
+and bind it explicitly to the Vault authority that carries its durable project
+knowledge:
+
+```bash
+vg code repository add demo --path /path/to/repository --language python --language dart
+vg code index --repository-id demo
+vg project bind demo --vault-id main --scope wiki
+vg code impact calculate_total --repository-id demo
+```
+
+Code links identify bounded current lines through `vg-source://` URIs. They do
+not embed source bodies in stored projections or MCP output. `vg code status
+--verify` reports drift; stale, partial, or unavailable results remain visible
+as warnings.
+
+For an agent connected through MCP, call `explore_project` first. It combines
+current code structure, impact and related tests with bounded relevant Vault
+evidence. The response remains working evidence: confirm changed source lines
+before editing, and publish durable conclusions only through the Vault workflow.
+
+Harness guidance is an explicit opt-in command. It only changes the selected
+non-Vault `AGENTS.md` or `CLAUDE.md`, previews before mutation when requested,
+backs up the original before a write, and can remove only its own marker block.
 
 ## Evidence-First Ask And Reasoning
 

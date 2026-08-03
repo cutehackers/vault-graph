@@ -601,6 +601,35 @@ Core modules:
 The answer package composes application services. It must not query storage
 backends directly, mutate Vault Graph indexes, or write Vault content.
 
+### 6.13 `code_index` and `project_context`
+
+`code_index` owns deterministic, rebuildable projections for registered Python
+and Dart repositories. `CodeQueryService` exposes symbols, outlines, callers,
+callees, and impact through a read-only application boundary; it reads bounded
+current source lines only after verifying the indexed fingerprint. It stores no
+source excerpts.
+
+`project_context` owns the higher-level `ProjectContextService`. The service
+uses an explicit Graph-owned `ProjectBinding` from one registered repository to
+one or more registered Vault IDs, then composes the code-query, context-pack,
+Vault-status, and relation-lookup interfaces. It cannot infer an active Vault
+or depend on MCP or storage implementations. Missing code projection is a
+deterministic Vault-only fallback with a warning.
+
+The service returns compact evidence references, not source bodies. Code links
+use validated `vg-source://` URIs; Vault and code evidence retain separate IDs,
+revisions, and freshness values. Combined freshness is fresh only when every
+selected authority is fresh.
+
+### 6.14 `harness`
+
+`harness` owns the sole opt-in exception to the normal no-write adapter rule:
+installing or removing a marker-fenced static guidance block in an explicitly
+selected `AGENTS.md` or `CLAUDE.md`. It never runs on MCP startup, rejects Vault
+paths and symlinks, preserves unrelated content, and uses an atomic replacement
+with a collision-safe backup. The guidance directs coding harnesses to call
+`explore_project` first and to use `vg code` commands only as a fallback.
+
 ## 7. Runtime Configuration
 
 Runtime configuration should be explicit about:
@@ -1509,6 +1538,7 @@ Current MCP tools:
 - `get_recent_changes(since=None, scope=None, limit=20)`
 - `explain_result(result_id)`
 - `check_index_status(scope=None)`
+- `explore_project(task, project_path=None, repository_id=None, max_tokens=None, depth=2, limit=20)`
 
 Tools call application services and return structured, evidence-linked data.
 They must not write to Vault.
@@ -1517,6 +1547,11 @@ Tool `scope` arguments use `QueryScope`. Without scope, tools query only the
 active Vault. Cross-Vault retrieval requires explicit Vault IDs.
 The listed MCP tool set stays service-backed; future tools remain out of the
 surface until a stable application service exists.
+
+`explore_project` calls `ProjectContextService` only. It does not open SQLite,
+read repository files, or choose a Vault on behalf of the caller. Its structured
+response includes bounded evidence, revisions, freshness, warnings, and safe
+repository evidence URIs; no source body or absolute path is serialized.
 
 ### 15.3 Prompts
 
@@ -1574,6 +1609,12 @@ Command behavior:
 - `vg decision-trace`: renders decision traces
 - `vg serve --mcp`: starts the MCP server
 - `vg serve --http`: starts the HTTP server
+- `vg code ...`: registers, indexes, queries, and checks the freshness of a
+  source repository without editing it
+- `vg project bind ...`: stores the explicit repository-to-Vault binding in
+  Graph-owned state
+- `vg harness guidance ...`: previews, installs, or removes explicit static
+  harness guidance outside Vault
 
 All commands should print active Vault ID, Vault path, and state path when the
 operation could otherwise be ambiguous. Commands that operate across Vaults must
@@ -1756,6 +1797,8 @@ Integration tests should cover:
 - context-pack JSON contract
 - CLI status output
 - MCP tool response shape
+- deterministic project-context call/token/recall benchmark over a Python,
+  Dart, and Vault fixture, including stale and code-index-unavailable cases
 
 ## 22. Implementation Order
 
@@ -1787,6 +1830,9 @@ Before a phase is considered complete, verify:
 - application services depend on storage interfaces rather than concrete
   backends
 - local-first operation works without hosted services
+- `explore_project` needs fewer orchestration calls and fewer instruction tokens
+  than the scripted multi-tool baseline without reduced relevant-evidence recall
+  or hidden stale evidence
 
 ## 24. Acceptance Criteria
 

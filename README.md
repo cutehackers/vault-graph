@@ -67,6 +67,21 @@ vg context --state ~/.vault-graph "Implement GraphRAG MVP"
 vg status --state ~/.vault-graph
 ```
 
+To add current source-code evidence to an agent task, register the repository
+and bind it explicitly to the Vault that owns durable project knowledge:
+
+```bash
+vg code repository add demo --path /path/to/repository --language python --language dart --state ~/.vault-graph
+vg code index --repository-id demo --state ~/.vault-graph
+vg project bind demo --vault-id default --scope wiki --state ~/.vault-graph
+vg code impact calculate_total --repository-id demo --state ~/.vault-graph
+```
+
+Repository code remains authoritative for current behavior; Vault remains
+authoritative for durable decisions. The code index is a local, rebuildable,
+read-only projection and does not write source files or copy source bodies into
+Vault.
+
 Vault Graph builds local metadata, keyword, vector, and graph projections. It
 uses local storage and local embeddings by default; it does not require hosted
 services for normal use. The first indexing run may download the pinned local
@@ -92,6 +107,11 @@ registration so it can load the new server.
 | Build a context pack | `vg context --state ~/.vault-graph "goal"` |
 | Find related items | `vg related --state ~/.vault-graph GraphRAG` |
 | Trace a decision | `vg decision-trace --state ~/.vault-graph GraphRAG` |
+| Register a code repository | `vg code repository add demo --path /path/to/repository --language python --language dart --state ~/.vault-graph` |
+| Build/update a code projection | `vg code index --repository-id demo --state ~/.vault-graph` |
+| Inspect code impact | `vg code impact SYMBOL --repository-id demo --state ~/.vault-graph` |
+| Bind repository to Vault | `vg project bind demo --vault-id default --scope wiki --state ~/.vault-graph` |
+| Preview harness guidance | `vg harness guidance preview --target /path/to/repository --file-name AGENTS.md --state ~/.vault-graph` |
 
 Commands that accept `--vault-id` operate on one registered Vault. Commands that
 accept `--all-vaults` expand to all enabled registered Vaults. Commands without
@@ -143,6 +163,19 @@ Once connected, the agent can use these MCP tools:
 - `get_open_questions`
 - `get_recent_changes`
 - `ask_vault`
+- `explore_project`
+
+For a coding task, call `explore_project` first with the task and a registered
+`repository_id` (or a registered `project_path`). It returns bounded current
+code evidence, related tests and impact, selected Vault decisions, revisions,
+and freshness warnings in one read-only response. If only one repository has an
+explicit Vault binding, the repository scope may be omitted; otherwise MCP
+returns a recovery hint instead of guessing.
+
+`explore_project` output is working evidence. Re-read source lines if a warning
+reports drift, and publish durable conclusions through Vault's normal workflow.
+When MCP is unavailable, use the `vg code search`, `vg code symbol`, `vg code
+outline`, `vg code callers`, `vg code callees`, and `vg code impact` commands.
 
 Vault Graph provides evidence-first working context and evidence-first answers
 through `ask_vault` and `vg ask`.
