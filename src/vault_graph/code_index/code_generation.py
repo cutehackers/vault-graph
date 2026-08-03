@@ -156,7 +156,7 @@ class CodeProjectionGenerationManager:
         return candidate
 
     def _assert_roots_are_local(self) -> None:
-        for root in (self._projection_root, self._generations_root):
+        for root in (self._state_path / "projections", self._projection_root, self._generations_root):
             if root.is_symlink():
                 raise CodeGenerationError("code projection state directories must not be symlinks")
 
