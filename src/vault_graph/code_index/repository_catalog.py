@@ -171,7 +171,11 @@ class CodeRepositoryCatalogService:
             state_namespaces.add(namespace_key)
             if not normalized.root_path.exists() or not normalized.root_path.is_dir():
                 raise CatalogError(f"repository root does not exist or is not a directory: {normalized.root_path}")
-            if normalized.root_path == self.state_path or self.state_path in normalized.root_path.parents:
+            if (
+                normalized.root_path == self.state_path
+                or self.state_path in normalized.root_path.parents
+                or normalized.root_path in self.state_path.parents
+            ):
                 raise CatalogError(f"code repository root must stay outside Graph state: {normalized.root_path}")
             assert_target_outside_vaults(target_path=normalized.root_path, vault_roots=vault_roots)
             _validate_entry_policy(normalized)
