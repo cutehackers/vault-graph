@@ -369,6 +369,13 @@ class DartCodeParserAdapter:
             elif node.type in {"class_definition", "mixin_declaration", "extension_declaration"}:
                 for relation, target_node in _dart_inheritance_nodes(node):
                     add(target_node, relation, node_text(target_node), source_symbol_id)
+            elif node.type in {"new_expression", "const_object_expression"}:
+                target = _dart_constructor_call_target(node)
+                if target:
+                    add(node, "CALLS", target, source_symbol_id)
+                    source_symbol = symbols_by_id[source_symbol_id]
+                    if source_symbol.kind == "test":
+                        add(node, "TESTS", target, source_symbol_id)
             elif node.type == "selector" and _dart_selector_is_call(node):
                 target = _dart_call_target(node)
                 if target:
@@ -516,6 +523,16 @@ def _dart_selector_is_call(node: Any) -> bool:
     return any(child.type == "argument_part" for child in walk(node))
 
 
+def _dart_constructor_call_target(node: Any) -> str:
+    type_node = next((child for child in node.named_children if child.type == "type_identifier"), None)
+    if type_node is None:
+        return ""
+    identifiers = [child for child in node.named_children if child.type == "identifier"]
+    if identifiers:
+        return f"{node_text(type_node)}.{node_text(identifiers[-1])}"
+    return node_text(type_node)
+
+
 def _dart_call_target(node: Any) -> str:
     parent = node.parent
     if parent is not None:
@@ -524,6 +541,8 @@ def _dart_call_target(node: Any) -> str:
             previous = parent.children[index - 1]
             if _contains_anonymous_function(previous):
                 return ""
+            if previous.type in {"identifier", "type_identifier"}:
+                return node_text(previous)
             previous_ids = _callee_identifiers(previous)
             if previous_ids:
                 return node_text(previous_ids[-1])
