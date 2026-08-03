@@ -1,5 +1,10 @@
 """Deterministic, read-only code projection contracts and services."""
 
+from vault_graph.code_index.code_generation import (
+    CodeGenerationError,
+    CodeGenerationLayout,
+    CodeProjectionGenerationManager,
+)
 from vault_graph.code_index.code_models import (
     CODE_DART_GRAMMAR_REVISION,
     CODE_DART_GRAMMAR_SOURCE,
@@ -109,6 +114,9 @@ __all__ = [
     "CodeRelationKind",
     "CodeSymbolKind",
     "CodeTraversalDirection",
+    "CodeGenerationError",
+    "CodeGenerationLayout",
+    "CodeProjectionGenerationManager",
     "CodeRepositoryCatalog",
     "CodeRepositoryCatalogService",
     "SUPPORTED_CODE_LANGUAGES",
