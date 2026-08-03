@@ -43,6 +43,15 @@ def test_code_active_manifest_rejects_unsafe_generation_paths(tmp_path: Path) ->
         CodeProjectionGenerationManager(tmp_path).active_layout(("repo-a",))
 
 
+def test_code_active_layout_rejects_dangling_active_manifest_symlink(tmp_path: Path) -> None:
+    manifest = tmp_path / "projections" / "code" / "active.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.symlink_to(tmp_path / "missing-active.json")
+
+    with pytest.raises(CodeGenerationError, match="manifest must not be a symlink"):
+        CodeProjectionGenerationManager(tmp_path).active_layout(())
+
+
 def test_code_discard_removes_only_uncommitted_generation(tmp_path: Path) -> None:
     manager = CodeProjectionGenerationManager(tmp_path)
     staged = manager.stage(("repo-a",))

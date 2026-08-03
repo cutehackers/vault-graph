@@ -58,10 +58,10 @@ class CodeProjectionGenerationManager:
 
     def active_layout(self, repository_ids: tuple[str, ...]) -> CodeGenerationLayout | None:
         repositories = _normalize_repository_ids(repository_ids)
-        if not self._active_manifest.exists():
-            return None
         if self._active_manifest.is_symlink():
             raise CodeGenerationError("code active manifest must not be a symlink")
+        if not self._active_manifest.exists():
+            return None
         try:
             payload = json.loads(self._active_manifest.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
