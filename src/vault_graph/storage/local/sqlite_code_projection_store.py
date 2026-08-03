@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from collections import deque
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -675,54 +674,64 @@ class SQLiteCodeProjectionStore:
             root = connection.execute("SELECT * FROM symbols WHERE symbol_id = ?", (query.symbol_id,)).fetchone()
             if root is None:
                 return CodeTraversalResult(root_symbol_id=query.symbol_id, direction=query.direction, hits=())
+            if query.repository_id is not None and root["repository_id"] != query.repository_id:
+                return CodeTraversalResult(root_symbol_id=query.symbol_id, direction=query.direction, hits=())
             visited = {query.symbol_id}
-            frontier: deque[tuple[str, int]] = deque([(query.symbol_id, 0)])
+            frontier = [query.symbol_id]
             hits: list[CodeSymbolHit] = []
             edges: list[CodeEdgeRecord] = []
             warnings: list[str] = []
-            while frontier and len(hits) < query.limit:
-                current, depth = frontier.popleft()
-                if depth >= query.depth:
-                    continue
-                if query.direction == "outbound":
-                    rows = connection.execute(
-                        "SELECT * FROM edges WHERE source_symbol_id = ? ORDER BY edge_id", (current,)
-                    ).fetchall()
-                    target_column = "target_symbol_id"
-                else:
-                    rows = connection.execute(
-                        "SELECT * FROM edges WHERE target_symbol_id = ? ORDER BY edge_id", (current,)
-                    ).fetchall()
-                    target_column = "source_symbol_id"
-                for row in rows:
-                    edge = _edge_from_row(row)
-                    if query.relation_kinds and edge.relation_kind not in query.relation_kinds:
+            for _distance in range(1, query.depth + 1):
+                candidates: list[tuple[CodeEdgeRecord, CodeSymbolHit]] = []
+                for current in frontier:
+                    if query.direction == "outbound":
+                        rows = connection.execute(
+                            "SELECT * FROM edges WHERE source_symbol_id = ?", (current,)
+                        ).fetchall()
+                        target_column = "target_symbol_id"
+                    else:
+                        rows = connection.execute(
+                            "SELECT * FROM edges WHERE target_symbol_id = ?", (current,)
+                        ).fetchall()
+                        target_column = "source_symbol_id"
+                    for row in rows:
+                        edge = _edge_from_row(row)
+                        if query.relation_kinds and edge.relation_kind not in query.relation_kinds:
+                            continue
+                        if edge.extraction_status == "inferred" and not query.include_uncertain:
+                            continue
+                        if edge.extraction_status in {"ambiguous", "unresolved"}:
+                            if query.include_uncertain:
+                                warnings.append(f"untraversable uncertain edge: {edge.edge_id}")
+                            continue
+                        target_id = row[target_column]
+                        if target_id is None or target_id in visited:
+                            continue
+                        target = connection.execute(
+                            """
+                            SELECT s.*, f.relative_path
+                            FROM symbols s JOIN files f ON f.file_id = s.file_id
+                            WHERE s.symbol_id = ?
+                            """,
+                            (target_id,),
+                        ).fetchone()
+                        if target is None or (query.repository_id and target["repository_id"] != query.repository_id):
+                            continue
+                        candidates.append((edge, _symbol_hit_from_row(target)))
+                candidates.sort(key=_traversal_candidate_key)
+                next_frontier: list[str] = []
+                for edge, target in candidates:
+                    if target.symbol_id in visited:
                         continue
-                    if edge.extraction_status not in ("extracted", "inferred"):
-                        if query.include_uncertain:
-                            warnings.append(f"uncertain edge excluded from traversal: {edge.edge_id}")
-                        continue
-                    target_id = row[target_column]
-                    if target_id is None or target_id in visited:
-                        continue
-                    target = connection.execute(
-                        """
-                        SELECT s.*, f.relative_path
-                        FROM symbols s JOIN files f ON f.file_id = s.file_id
-                        WHERE s.symbol_id = ?
-                        """,
-                        (target_id,),
-                    ).fetchone()
-                    if target is None:
-                        continue
-                    if query.repository_id and target["repository_id"] != query.repository_id:
-                        continue
-                    visited.add(str(target_id))
-                    hits.append(_symbol_hit_from_row(target))
+                    visited.add(target.symbol_id)
+                    hits.append(target)
                     edges.append(edge)
-                    frontier.append((str(target_id), depth + 1))
+                    next_frontier.append(target.symbol_id)
                     if len(hits) >= query.limit:
                         break
+                frontier = next_frontier
+                if not frontier or len(hits) >= query.limit:
+                    break
         return CodeTraversalResult(
             root_symbol_id=query.symbol_id,
             direction=query.direction,
@@ -1365,6 +1374,19 @@ def _edge_from_row(row: sqlite3.Row) -> CodeEdgeRecord:
         anchor_start_line=int(row["anchor_start_line"]),
         anchor_start_column=int(row["anchor_start_column"]),
         parser_spec_version=str(row["parser_spec_version"]),
+    )
+
+
+def _traversal_candidate_key(candidate: tuple[CodeEdgeRecord, CodeSymbolHit]) -> tuple[object, ...]:
+    edge, target = candidate
+    status_rank = 0 if edge.extraction_status == "extracted" else 1
+    return (
+        status_rank,
+        target.repository_id,
+        target.relative_path,
+        target.start_line,
+        target.symbol_id,
+        edge.edge_id,
     )
 
 

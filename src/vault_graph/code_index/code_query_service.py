@@ -88,6 +88,7 @@ class CodeQueryService:
         symbol, warnings = self._resolve_symbol(request.symbol_id, request.repository_id, request.relative_path)
         freshness = self._freshness(self._scope((request.repository_id,) if request.repository_id else ()))
         source_uri = None
+        source_relative_path = None
         source_lines: tuple[str, ...] = ()
         if symbol is not None and request.include_source:
             relative_path = self._relative_path(symbol)
@@ -96,12 +97,14 @@ class CodeQueryService:
             else:
                 evidence = self._source_reader.read(symbol, relative_path=relative_path, max_lines=request.max_lines)
                 source_uri = evidence.source_uri
+                source_relative_path = evidence.relative_path
                 source_lines = evidence.lines
                 warnings = (*warnings, *evidence.warnings)
         return CodeSymbolResponse(
             symbol=symbol,
             freshness=freshness.state,
             source_uri=source_uri,
+            source_relative_path=source_relative_path,
             source_lines=source_lines,
             warnings=tuple(
                 sorted(set((*self._redact_warnings(freshness.warnings), *warnings))),
@@ -206,8 +209,10 @@ class CodeQueryService:
         return matches[0], ()
 
     def _matches(self, symbol: CodeSymbolRecord, repository_id: str | None, relative_path: str | None) -> bool:
-        return (repository_id is None or symbol.repository_id == repository_id) and (
-            relative_path is None or self._relative_path(symbol) == relative_path
+        return (
+            (not self._repository_ids or symbol.repository_id in self._repository_ids)
+            and (repository_id is None or symbol.repository_id == repository_id)
+            and (relative_path is None or self._relative_path(symbol) == relative_path)
         )
 
     def _relative_path(self, symbol: CodeSymbolRecord) -> str | None:

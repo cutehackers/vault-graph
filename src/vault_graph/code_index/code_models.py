@@ -869,6 +869,7 @@ class CodeSymbolResponse:
     symbol: CodeSymbolRecord | None
     freshness: CodeFreshnessState
     source_uri: str | None = None
+    source_relative_path: str | None = None
     source_lines: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     output_format: CodeOutputFormat = "text"
@@ -877,6 +878,8 @@ class CodeSymbolResponse:
         _normalize_tuple_attr(self, "source_lines")
         _normalize_tuple_attr(self, "warnings")
         _require_freshness(self.freshness)
+        if self.source_relative_path is not None:
+            _require_relative_path(self.source_relative_path)
         _require_tuple(self.source_lines, "source_lines")
         _require_tuple(self.warnings, "warnings")
         _require_output_format(self.output_format)

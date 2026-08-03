@@ -727,3 +727,38 @@ def test_sqlite_code_store_traverses_confident_edges(tmp_path: Path) -> None:
 
     assert [hit.symbol_id for hit in result.hits] == ["symbol-b"]
     assert [edge.edge_id for edge in result.edges] == ["edge-a-b"]
+
+
+def test_sqlite_code_store_excludes_inferred_edges_unless_requested(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    plan = _plan()
+    store.apply_reconcile_plan(replace(plan, edges=(replace(plan.edges[0], extraction_status="inferred"),)))
+
+    default = store.traverse(CodeTraversalQuery("symbol-a", direction="outbound"))
+    requested = store.traverse(CodeTraversalQuery("symbol-a", direction="outbound", include_uncertain=True))
+
+    assert default.hits == ()
+    assert [hit.symbol_id for hit in requested.hits] == ["symbol-b"]
+
+
+def test_sqlite_code_store_orders_traversal_by_status_then_source_location(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    plan = _plan()
+    symbol_c = replace(
+        plan.symbols[1],
+        symbol_id="symbol-c",
+        name="gamma",
+        qualified_name="example.gamma",
+        start_line=3,
+        end_line=3,
+    )
+    inferred = replace(plan.edges[0], edge_id="a-inferred", extraction_status="inferred")
+    extracted = replace(plan.edges[0], edge_id="z-extracted", target_symbol_id="symbol-c")
+    store.apply_reconcile_plan(replace(plan, symbols=(*plan.symbols, symbol_c), edges=(inferred, extracted)))
+
+    result = store.traverse(CodeTraversalQuery("symbol-a", direction="outbound", include_uncertain=True))
+
+    assert [hit.symbol_id for hit in result.hits] == ["symbol-c", "symbol-b"]
+    assert [edge.edge_id for edge in result.edges] == ["z-extracted", "a-inferred"]

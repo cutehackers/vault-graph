@@ -17,6 +17,7 @@ class SourceEvidence:
     """Live source lines and a stable non-executable evidence reference."""
 
     source_uri: str | None
+    relative_path: str | None = None
     lines: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
 
@@ -36,24 +37,28 @@ class SourceEvidenceReader:
             return SourceEvidence(None, warnings=("source_unavailable",))
         path = _repository_path(entry.root_path, relative)
         if path is None:
-            return SourceEvidence(None, warnings=("source_unavailable",))
+            return SourceEvidence(None, relative, warnings=("source_unavailable",))
         try:
             before = path.read_bytes()
         except OSError:
-            return SourceEvidence(None, warnings=("source_unavailable",))
+            return SourceEvidence(None, relative, warnings=("source_unavailable",))
         if hashlib.sha256(before).hexdigest() != symbol.content_hash:
-            return SourceEvidence(None, warnings=("source_changed_since_index",))
+            return SourceEvidence(None, relative, warnings=("source_changed_since_index",))
         lines = before.decode("utf-8").splitlines()
         count = min(max(1, max_lines), MAX_SOURCE_LINES, symbol.end_line - symbol.start_line + 1)
         selected = tuple(lines[symbol.start_line - 1 : symbol.start_line - 1 + count])
         try:
             after = path.read_bytes()
         except OSError:
-            return SourceEvidence(None, warnings=("source_unavailable",))
+            return SourceEvidence(None, relative, warnings=("source_unavailable",))
         if hashlib.sha256(after).hexdigest() != symbol.content_hash or after != before:
-            return SourceEvidence(None, warnings=("source_changed_since_index",))
+            return SourceEvidence(None, relative, warnings=("source_changed_since_index",))
         end_line = symbol.start_line + len(selected) - 1
-        return SourceEvidence(_source_uri(symbol.repository_id, relative, symbol.start_line, end_line), selected)
+        return SourceEvidence(
+            _source_uri(symbol.repository_id, relative, symbol.start_line, end_line),
+            relative,
+            selected,
+        )
 
 
 def _validated_relative_path(relative_path: str) -> str | None:

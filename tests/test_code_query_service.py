@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
+import pytest
+
+from vault_graph.code_index.code_freshness import CodeFreshnessService
 from vault_graph.code_index.code_models import (
     CodeFileOutlineRequest,
     CodeIndexRequest,
@@ -12,6 +17,7 @@ from vault_graph.code_index.code_models import (
 )
 from vault_graph.code_index.code_projection_service import CodeProjectionService
 from vault_graph.code_index.code_query_service import CodeQueryService
+from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
 
 
 def _entry(root: Path) -> CodeRepositoryEntry:
@@ -72,7 +78,57 @@ def test_callers_stay_within_repository_and_follow_resolved_edges(tmp_path: Path
     service, _ = _service(tmp_path)
     second = service.search_symbols(CodeSymbolSearchRequest(query_text="second")).results[0]
 
-    result = service.get_callers(CodeTraversalRequest(symbol_id=second.symbol_id, depth=2))
+    result = service.get_callers(CodeTraversalRequest(symbol_id=second.symbol_id, depth=2, include_uncertain=True))
 
     assert [hit.name for hit in result.result.hits] == ["first"]
     assert result.result.direction == "inbound"
+
+
+def test_scoped_query_rejects_direct_ids_and_outlines_outside_its_repository(tmp_path: Path) -> None:
+    from vault_graph.code_index.code_models import CodeFreshnessReport, CodeSymbolRecord
+
+    repository_a = tmp_path / "repository-a"
+    repository_b = tmp_path / "repository-b"
+    repository_a.mkdir()
+    repository_b.mkdir()
+    entry_a = _entry(repository_a)
+    entry_b = replace(entry_a, repository_id="other", root_path=repository_b, state_namespace="code/other")
+    foreign = CodeSymbolRecord(
+        symbol_id="foreign-symbol",
+        repository_id="other",
+        file_id="foreign-file",
+        kind="function",
+        language_kind="function_definition",
+        name="foreign",
+        qualified_name="foreign",
+        signature=None,
+        start_line=1,
+        end_line=1,
+        start_column=0,
+        end_column=1,
+        content_hash="0" * 64,
+        source_revision="content-hash:foreign",
+        parser_spec_version="parser-v1",
+    )
+
+    class Store:
+        def get_symbol(self, symbol_id: str) -> CodeSymbolRecord | None:
+            return foreign if symbol_id == foreign.symbol_id else None
+
+    class Freshness:
+        def status(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport:
+            return CodeFreshnessReport(repository_ids=repository_ids, state="fresh")
+
+    service = CodeQueryService(
+        catalog=(entry_a, entry_b),
+        store=cast(CodeProjectionStore, Store()),
+        freshness_service=cast(CodeFreshnessService | CodeProjectionService, Freshness()),
+        repository_ids=("demo",),
+    )
+
+    direct = service.get_symbol(CodeSymbolRequest("foreign-symbol"))
+
+    assert direct.symbol is None
+    assert "symbol_scope_mismatch" in direct.warnings
+    with pytest.raises(ValueError, match="outside the query service scope"):
+        service.get_file_outline(CodeFileOutlineRequest(repository_id="other", relative_path="sample.py"))
