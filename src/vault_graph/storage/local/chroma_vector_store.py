@@ -67,6 +67,7 @@ class ChromaVectorStore(VectorStore):
                 embeddings=[list(record.embedding.values) for record in grouped_records],
                 metadatas=[_metadata_for_record(record) for record in grouped_records],
             )
+        self._persist_vector_payloads(records=records, tombstones=tombstones)
 
     def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:
         if self._read_only and not self._database_path.exists():
@@ -321,6 +322,22 @@ class ChromaVectorStore(VectorStore):
         vectors: dict[str, tuple[float, ...]] = {}
         try:
             with self._connect_readonly() as connection:
+                if "vault_graph_vector_payloads" in {
+                    str(row["name"])
+                    for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+                }:
+                    for batch in _batched(vector_ids, SQLITE_VECTOR_ID_BATCH_SIZE):
+                        placeholders = ", ".join("?" for _ in batch)
+                        rows = connection.execute(
+                            f"SELECT vector_id, vector FROM vault_graph_vector_payloads "
+                            f"WHERE vector_id IN ({placeholders})",
+                            batch,
+                        ).fetchall()
+                        vectors.update(
+                            {str(row["vector_id"]): _decode_vector_blob(row["vector"], "FLOAT32") for row in rows}
+                        )
+                    if len(vectors) == len(vector_ids):
+                        return vectors
                 for batch in _batched(vector_ids, SQLITE_VECTOR_ID_BATCH_SIZE):
                     placeholders = ", ".join("?" for _ in batch)
                     rows = connection.execute(
@@ -344,6 +361,30 @@ class ChromaVectorStore(VectorStore):
         except sqlite3.Error as exc:
             raise VectorStoreError(f"vector search unavailable: {exc}") from exc
         return vectors
+
+    def _persist_vector_payloads(
+        self,
+        *,
+        records: tuple[VectorEmbeddingRecord, ...],
+        tombstones: tuple[VectorTombstone, ...],
+    ) -> None:
+        with sqlite3.connect(self._database_path) as connection:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS vault_graph_vector_payloads ("
+                "vector_id TEXT PRIMARY KEY, vector BLOB NOT NULL)"
+            )
+            connection.executemany(
+                "DELETE FROM vault_graph_vector_payloads WHERE vector_id = ?",
+                ((tombstone.vector_id,) for tombstone in tombstones),
+            )
+            connection.executemany(
+                "INSERT INTO vault_graph_vector_payloads(vector_id, vector) VALUES (?, ?) "
+                "ON CONFLICT(vector_id) DO UPDATE SET vector = excluded.vector",
+                (
+                    (record.vector_id, struct.pack(f"<{len(record.embedding.values)}f", *record.embedding.values))
+                    for record in records
+                ),
+            )
 
     def _client_or_none(self) -> Any | None:
         try:

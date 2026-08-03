@@ -12,6 +12,7 @@ from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.app.graph_retrieval_service import GraphRetrievalService
 from vault_graph.app.index_service import IndexService, StatusReport
 from vault_graph.app.local_index_service_factory import LocalIndexServiceFactory
+from vault_graph.app.projection_generation import ProjectionGenerationManager
 from vault_graph.app.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.context import (
@@ -656,12 +657,16 @@ def projection_audit(
         typer.echo("unsupported_format")
         raise typer.Exit(1)
     config, catalog = _exit_on_domain_error(lambda: _catalog(state))
+    active_layout = _exit_on_domain_error(lambda: ProjectionGenerationManager(config.state_path).active_layout())
     report = _exit_on_domain_error(
         lambda: ProjectionHygieneService(
             metadata_path=config.metadata_path,
             vector_path=config.vector_path,
             graph_path=config.graph_path,
-        ).audit(scope=catalog.scope_for_all_enabled())
+        ).audit(
+            scope=catalog.scope_for_all_enabled(),
+            active_generation_id=active_layout.generation_id if active_layout is not None else None,
+        )
     )
     if output_format == "json":
         typer.echo(json.dumps(report.to_dict(), sort_keys=True, indent=2))

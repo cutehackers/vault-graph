@@ -282,9 +282,11 @@ class RetrievalService:
         family = (
             family_reader(vault_id=evidence.vault_id, provenance_family_id=family_id) if callable(family_reader) else ()
         )
-        supporting = tuple(item for item in family if item.source_role in ("source_manifest", "raw_evidence"))
-        audit = tuple(
-            item for item in family if item.source_role in ("generated_view", "operation_log", "audit_record")
+        supporting = _one_reference_per_document(
+            tuple(item for item in family if item.source_role in ("source_manifest", "raw_evidence"))
+        )
+        audit = _one_reference_per_document(
+            tuple(item for item in family if item.source_role in ("generated_view", "operation_log", "audit_record"))
         )
         return _retrieval_result_for_candidate(
             candidate=candidate,
@@ -533,6 +535,13 @@ def _family_duplication(results: tuple[RetrievalResult, ...]) -> float:
         return 0.0
     distinct = {(result.vault_id, result.provenance_family_id) for result in results}
     return (len(results) - len(distinct)) / len(results)
+
+
+def _one_reference_per_document(evidence: tuple[EvidenceReference, ...]) -> tuple[EvidenceReference, ...]:
+    by_document: dict[tuple[str, str], EvidenceReference] = {}
+    for item in evidence:
+        by_document.setdefault((item.vault_id, item.document_id), item)
+    return tuple(by_document.values())
 
 
 def _result_store_revisions(*, candidate: _FusedCandidate, evidence: EvidenceReference) -> tuple[StoreRevision, ...]:
