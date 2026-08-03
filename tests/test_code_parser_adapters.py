@@ -229,6 +229,16 @@ def test_dart_adapter_excludes_call_arguments_from_callee_targets() -> None:
     assert "arg" not in targets
 
 
+def test_dart_adapter_preserves_all_receiver_selectors_as_dynamic_targets() -> None:
+    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+
+    result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/receiver_calls.dart", language="dart"))
+    targets = {reference.target_key for reference in result.references if reference.relation_kind == "CALLS"}
+
+    assert {'dynamic:"x".trim', "dynamic:this.run", "dynamic:(foo()).bar"}.issubset(targets)
+    assert "run" in targets
+
+
 def test_dart_adapter_extracts_new_and_const_constructor_calls() -> None:
     from vault_graph.code_index.dart_parser import DartCodeParserAdapter
 
