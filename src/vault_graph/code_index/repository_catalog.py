@@ -107,7 +107,7 @@ class CodeRepositoryCatalogService:
             return ()
         try:
             loaded = yaml.safe_load(self.config_path.read_text(encoding="utf-8")) or {}
-        except (OSError, yaml.YAMLError) as exc:
+        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
             raise CatalogError(f"cannot read code repository catalog: {self.config_path}") from exc
         if not isinstance(loaded, dict):
             raise CatalogError(f"code repository catalog must be a mapping: {self.config_path}")
@@ -157,6 +157,7 @@ class CodeRepositoryCatalogService:
     def _validate_entries(self, entries: Iterable[CodeRepositoryEntry], *, vault_catalog: VaultCatalog) -> None:
         entries_tuple = tuple(entries)
         by_id: set[str] = set()
+        state_namespaces: set[str] = set()
         canonical_roots: list[Path] = []
         vault_roots = tuple(entry.root_path for entry in vault_catalog.entries())
         for entry in entries_tuple:
@@ -164,8 +165,14 @@ class CodeRepositoryCatalogService:
             if normalized.repository_id in by_id:
                 raise CatalogError(f"duplicate repository_id: {normalized.repository_id}")
             by_id.add(normalized.repository_id)
+            namespace_key = _state_namespace_key(normalized.state_namespace)
+            if namespace_key in state_namespaces:
+                raise CatalogError(f"duplicate state_namespace: {normalized.state_namespace}")
+            state_namespaces.add(namespace_key)
             if not normalized.root_path.exists() or not normalized.root_path.is_dir():
                 raise CatalogError(f"repository root does not exist or is not a directory: {normalized.root_path}")
+            if normalized.root_path == self.state_path or self.state_path in normalized.root_path.parents:
+                raise CatalogError(f"code repository root must stay outside Graph state: {normalized.root_path}")
             assert_target_outside_vaults(target_path=normalized.root_path, vault_roots=vault_roots)
             _validate_entry_policy(normalized)
             for previous_root in canonical_roots:
@@ -274,6 +281,10 @@ def _validate_state_namespace(value: str, *, repository_id: str) -> None:
     path = Path(value)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
         raise CatalogError(f"state_namespace must stay inside Graph state: {repository_id}")
+
+
+def _state_namespace_key(value: str) -> str:
+    return "/".join(Path(value).parts)
 
 
 def _validate_glob_pattern(pattern: str, *, field_name: str) -> None:
