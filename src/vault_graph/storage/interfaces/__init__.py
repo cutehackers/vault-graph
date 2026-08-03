@@ -1,5 +1,6 @@
 """Storage interface contracts."""
 
+from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
 from vault_graph.storage.interfaces.graph_store import (
     GraphEntityIdentity,
     GraphEntityMatch,
@@ -24,4 +25,5 @@ __all__ = [
     "KeywordHit",
     "KeywordIndex",
     "KeywordQuery",
+    "CodeProjectionStore",
 ]
