@@ -62,11 +62,13 @@ from vault_graph.code_index.code_models import (
     CodeTraversalResponse,
     CodeTraversalResult,
     PendingCodeReference,
+    ResolutionResult,
     code_file_identity,
 )
 from vault_graph.code_index.dart_parser import DartCodeParserAdapter, DartParserAdapter
 from vault_graph.code_index.parser_adapter import CodeParserAdapter
 from vault_graph.code_index.python_parser import PythonCodeParserAdapter, PythonParserAdapter
+from vault_graph.code_index.reference_resolution import CodeReferenceResolver
 from vault_graph.code_index.repository_catalog import (
     SUPPORTED_CODE_LANGUAGES,
     CodeRepositoryCatalog,
@@ -105,6 +107,8 @@ __all__ = [
     "CodeTraversalQuery",
     "CodeTraversalResult",
     "PendingCodeReference",
+    "ResolutionResult",
+    "CodeReferenceResolver",
     "code_file_identity",
     "CodeRepositoryId",
     "CodeExtractionStatus",

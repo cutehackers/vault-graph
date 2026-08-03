@@ -394,6 +394,28 @@ class PendingCodeReference:
 
 
 @dataclass(frozen=True)
+class ResolutionResult:
+    """Deterministic graph edges plus references that still need a retry.
+
+    The resolver never stores source text.  A pending record keeps only the
+    source identity and target namespace required to retry an unresolved
+    syntax candidate after an incremental run changes the relevant files.
+    """
+
+    edges: tuple[CodeEdgeRecord, ...] = ()
+    pending_references: tuple[PendingCodeReference, ...] = ()
+    retried_reference_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _normalize_tuple_attr(self, "edges")
+        _normalize_tuple_attr(self, "pending_references")
+        _normalize_tuple_attr(self, "retried_reference_ids")
+        _require_tuple(self.edges, "edges")
+        _require_tuple(self.pending_references, "pending_references")
+        _require_tuple(self.retried_reference_ids, "retried_reference_ids")
+
+
+@dataclass(frozen=True)
 class CodeManifest:
     generation_id: str
     schema_version: str
