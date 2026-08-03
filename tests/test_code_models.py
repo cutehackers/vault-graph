@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import FrozenInstanceError, fields
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from vault_graph.code_index.code_models import (
     CodeParseDiagnostic,
     CodeReconcilePlan,
     CodeReferenceRecord,
+    CodeRepositoryAddRequest,
     CodeRepositoryEntry,
     CodeRunReport,
     CodeSymbolHit,
@@ -187,6 +189,93 @@ def test_edge_rejects_invalid_extraction_status_and_anchor() -> None:
             anchor_start_column=0,
             parser_spec_version=CODE_PARSER_SPEC_VERSION,
         )
+
+
+def test_file_input_rejects_content_hash_mismatch() -> None:
+    content = b"def hello():\n    return 1\n"
+    with pytest.raises(ValueError, match="content_hash does not match content"):
+        CodeFileInput(
+            repository_id="demo",
+            relative_path="lib/example.py",
+            language="python",
+            content=content,
+            content_hash="a" * 64,
+            source_revision="content-hash:a",
+            is_test_file=False,
+            parser_spec_version=CODE_PARSER_SPEC_VERSION,
+        )
+
+    valid = CodeFileInput(
+        repository_id="demo",
+        relative_path="lib/example.py",
+        language="python",
+        content=content,
+        content_hash=hashlib.sha256(content).hexdigest(),
+        source_revision="content-hash:valid",
+        is_test_file=False,
+        parser_spec_version=CODE_PARSER_SPEC_VERSION,
+    )
+    assert valid.snapshot().content_hash == hashlib.sha256(content).hexdigest()
+
+
+def test_nested_sequences_are_normalized_to_immutable_tuples() -> None:
+    languages = ["python"]
+    include_globs = ["**/*.py"]
+    manifest = CodeManifest(
+        generation_id="generation-1",
+        schema_version=CODE_PROJECTION_SCHEMA_VERSION,
+        parser_spec_version=CODE_PARSER_SPEC_VERSION,
+        repository_ids=["demo"],  # type: ignore[arg-type]
+        policy_revision="policy-1",
+        source_revisions=[["demo", "rev-1"]],  # type: ignore[list-item]
+        file_ids=["file-1"],  # type: ignore[arg-type]
+    )
+    request = CodeRepositoryAddRequest(
+        repository_id="demo",
+        root_path=Path("/tmp/demo"),
+        display_name="Demo",
+        languages=languages,  # type: ignore[arg-type]
+        include_globs=include_globs,  # type: ignore[arg-type]
+    )
+    languages.append("dart")
+    include_globs.append("**/*.dart")
+
+    assert request.languages == ("python",)
+    assert request.include_globs == ("**/*.py",)
+    assert manifest.repository_ids == ("demo",)
+    assert manifest.source_revisions == (("demo", "rev-1"),)
+    assert manifest.file_ids == ("file-1",)
+
+
+def test_bool_fields_reject_integer_values() -> None:
+    with pytest.raises(ValueError, match="enabled must be a bool"):
+        CodeRepositoryEntry(
+            repository_id="demo",
+            root_path=Path("/tmp/demo"),
+            display_name="Demo",
+            enabled=1,  # type: ignore[arg-type]
+            include_globs=(),
+            exclude_globs=(),
+            languages=(),
+            state_namespace="code/demo",
+            git_revision_policy="head",
+            watch=False,
+        )
+    with pytest.raises(ValueError, match="full must be a bool"):
+        CodeIndexRequest(full=1)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="changed must be a bool"):
+        from vault_graph.code_index.code_models import CodeRepositoryMutationResponse
+
+        CodeRepositoryMutationResponse(repository_id="demo", changed=1)  # type: ignore[arg-type]
+
+
+def test_repository_add_request_validates_optional_catalog_values() -> None:
+    with pytest.raises(ValueError, match="display_name"):
+        CodeRepositoryAddRequest(repository_id="demo", root_path=Path("/tmp/demo"), display_name=" ")
+    with pytest.raises(ValueError, match="languages"):
+        CodeRepositoryAddRequest(repository_id="demo", root_path=Path("/tmp/demo"), languages=[""])  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="include_globs"):
+        CodeRepositoryAddRequest(repository_id="demo", root_path=Path("/tmp/demo"), include_globs=[""])  # type: ignore[arg-type]
 
 
 def test_boundary_records_are_available_without_duplicate_module_types() -> None:
