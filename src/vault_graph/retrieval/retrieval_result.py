@@ -65,6 +65,9 @@ class RetrievalResult:
     relationship_status: RelationshipStatus
     warnings: tuple[RetrievalWarning, ...]
     store_revisions: tuple[StoreRevision, ...]
+    provenance_family_id: str = "legacy"
+    supporting_evidence: tuple[EvidenceReference, ...] = ()
+    audit_records: tuple[EvidenceReference, ...] = ()
 
     def __post_init__(self) -> None:
         _require_non_empty(self.result_id, "result_id")

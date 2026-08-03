@@ -6,6 +6,7 @@ from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbedding
 from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec
 from vault_graph.errors import CatalogError, VectorStoreError
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.interfaces.vector_store import (
@@ -39,6 +40,8 @@ def make_record(
     content_scope: str,
     model_spec: EmbeddingModelSpec = SPEC,
     vector_index_revision: str = "vector-1",
+    source_role: DocumentRole = "canonical_knowledge",
+    provenance_family_id: str = "family:test",
 ) -> VectorEmbeddingRecord:
     embeddings = DeterministicTextEmbeddings(model_spec)
     embedding = embeddings.embed((EmbeddingInput(input_id=f"{vault_id}:{path}", text=text),))[0]
@@ -55,6 +58,8 @@ def make_record(
         metadata_index_revision="metadata-1",
         vector_index_revision=vector_index_revision,
         backend_schema_version="memory-vector-v1",
+        source_role=source_role,
+        provenance_family_id=provenance_family_id,
     )
 
 
@@ -320,6 +325,42 @@ def test_search_with_valid_different_model_spec_returns_no_hits() -> None:
     )
 
     assert hits == ()
+
+
+def test_source_role_filter_applies_before_limit() -> None:
+    store = InMemoryVectorStore()
+    raw = make_record(
+        vault_id="default",
+        path="raw/page.md",
+        text="alpha",
+        content_scope="raw",
+        source_role="raw_evidence",
+    )
+    canonical = make_record(
+        vault_id="default",
+        path="wiki/page.md",
+        text="alpha",
+        content_scope="wiki",
+        source_role="canonical_knowledge",
+    )
+    store.apply_vector_revision(vector_index_revision="vector-1", records=(raw, canonical), tombstones=())
+
+    query = make_query(
+        text="alpha",
+        scope=QueryScope(vault_ids=("default",), content_scopes=("raw", "wiki")),
+        limit=1,
+    )
+    hits = store.search(
+        VectorQuery(
+            query_vector=query.query_vector,
+            scope=query.scope,
+            limit=query.limit,
+            embedding_spec=query.embedding_spec,
+            source_roles=("canonical_knowledge",),
+        )
+    )
+
+    assert tuple(hit.source_role for hit in hits) == ("canonical_knowledge",)
 
 
 def test_vector_query_rejects_query_vector_model_spec_mismatch() -> None:

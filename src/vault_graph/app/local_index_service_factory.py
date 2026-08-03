@@ -7,6 +7,7 @@ from pathlib import Path
 from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.app.index_service import IndexService
+from vault_graph.app.projection_generation import ProjectionGenerationManager, ProjectionLayout
 from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
 from vault_graph.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.ingestion.vault_catalog import VaultCatalog
@@ -17,14 +18,25 @@ from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore
 
 
-@dataclass(frozen=True)
+@dataclass
 class LocalIndexServiceBundle:
     catalog_service: CatalogService
     catalog: VaultCatalog
     index_service: IndexService
+    generation_manager: ProjectionGenerationManager | None = None
+    staged_generation: ProjectionLayout | None = None
+    projection_committed: bool = False
+
+    def commit_projection(self) -> None:
+        if self.generation_manager is None or self.staged_generation is None:
+            return
+        self.generation_manager.activate(self.staged_generation)
+        self.projection_committed = True
 
     def close(self) -> None:
         self.index_service.close()
+        if self.generation_manager is not None and self.staged_generation is not None and not self.projection_committed:
+            self.generation_manager.discard(self.staged_generation)
 
 
 TextEmbeddingsFactory = Callable[[CatalogService], FastEmbedTextEmbeddings]
@@ -34,9 +46,19 @@ class LocalIndexServiceFactory:
     def __init__(self, *, text_embeddings_factory: TextEmbeddingsFactory | None = None) -> None:
         self._text_embeddings_factory = text_embeddings_factory or _default_text_embeddings
 
-    def open(self, *, state_path: Path, initialize_store: bool) -> LocalIndexServiceBundle:
+    def open(
+        self,
+        *,
+        state_path: Path,
+        initialize_store: bool,
+        transactional_full: bool = False,
+    ) -> LocalIndexServiceBundle:
         catalog_service = CatalogService(state_path=state_path)
         catalog = catalog_service.load_catalog()
+        generation_manager = ProjectionGenerationManager(catalog_service.state_path) if transactional_full else None
+        staged_generation = generation_manager.stage() if generation_manager is not None else None
+        if staged_generation is not None:
+            _use_projection_root(catalog_service, staged_generation.root_path)
         if initialize_store:
             self._assert_write_targets_safe(catalog_service=catalog_service, catalog=catalog)
         metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=initialize_store)
@@ -71,6 +93,8 @@ class LocalIndexServiceFactory:
                     expected_spec=current_graph_extraction_spec(),
                 ),
             ),
+            generation_manager=generation_manager,
+            staged_generation=staged_generation,
         )
 
     def _assert_write_targets_safe(self, *, catalog_service: CatalogService, catalog: VaultCatalog) -> None:
@@ -84,3 +108,11 @@ class LocalIndexServiceFactory:
 
 def _default_text_embeddings(catalog_service: CatalogService) -> FastEmbedTextEmbeddings:
     return FastEmbedTextEmbeddings(config=FastEmbedTextEmbeddingsConfig(cache_dir=catalog_service.embedding_cache_path))
+
+
+def _use_projection_root(catalog_service: CatalogService, root_path: Path) -> None:
+    catalog_service.metadata_path = root_path / "metadata" / "metadata.sqlite3"
+    catalog_service.vector_path = root_path / "vector" / "chroma"
+    catalog_service.vector_status_path = root_path / "vector" / "status.json"
+    catalog_service.graph_path = root_path / "graph" / "graph.sqlite3"
+    catalog_service.graph_status_path = root_path / "graph" / "status.json"

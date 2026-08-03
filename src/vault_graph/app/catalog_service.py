@@ -7,6 +7,7 @@ from vault_graph.app.path_guard import (
     assert_target_outside_vaults,
     assert_write_target_allowed,
 )
+from vault_graph.app.projection_generation import ProjectionGenerationManager
 from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
 
 
@@ -14,11 +15,13 @@ class CatalogService:
     def __init__(self, *, state_path: Path, embedding_cache_path: Path | None = None) -> None:
         self.state_path = state_path.expanduser().resolve()
         self.config_path = self.state_path / "configs" / "vaults.yaml"
-        self.metadata_path = self.state_path / "metadata" / "metadata.sqlite3"
-        self.vector_path = self.state_path / "vector" / "chroma"
-        self.vector_status_path = self.state_path / "vector" / "status.json"
-        self.graph_path = self.state_path / "graph" / "graph.sqlite3"
-        self.graph_status_path = self.state_path / "graph" / "status.json"
+        active = ProjectionGenerationManager(self.state_path).active_layout()
+        projection_path = active.root_path if active is not None else self.state_path
+        self.metadata_path = projection_path / "metadata" / "metadata.sqlite3"
+        self.vector_path = projection_path / "vector" / "chroma"
+        self.vector_status_path = projection_path / "vector" / "status.json"
+        self.graph_path = projection_path / "graph" / "graph.sqlite3"
+        self.graph_status_path = projection_path / "graph" / "status.json"
         self.embedding_cache_path = (
             embedding_cache_path.expanduser().resolve()
             if embedding_cache_path is not None

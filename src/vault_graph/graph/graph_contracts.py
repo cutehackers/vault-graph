@@ -84,7 +84,7 @@ class GraphExtractionSpec:
 def current_graph_extraction_spec() -> GraphExtractionSpec:
     return GraphExtractionSpec.from_payload(
         {
-            "spec_version": "graph-extraction-spec-v2",
+            "spec_version": "graph-extraction-spec-v3",
             "entity_schema_version": "entity-schema-v1",
             "relationship_schema_version": "relationship-schema-v1",
             "entity_extractor_name": "local-deterministic-entity-extractor",
@@ -110,7 +110,6 @@ class GraphEvidenceRef:
     section: str | None = None
     anchor: str | None = None
     path: str | None = None
-    excerpt: str | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty(self.evidence_ref_id, "evidence_ref_id")

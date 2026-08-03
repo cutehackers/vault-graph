@@ -5,7 +5,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from vault_graph.ingestion.document_normalizer import NormalizedDocument
@@ -146,4 +146,4 @@ def _normalize_relation_path(value: str) -> str | None:
 
 def _family_id(*, vault_id: str, seed: str) -> str:
     digest = hashlib.sha256(":".join(("provenance-family", vault_id, seed)).encode()).hexdigest()
-    return cast(str, digest)
+    return digest

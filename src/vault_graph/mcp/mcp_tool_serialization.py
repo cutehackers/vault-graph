@@ -54,6 +54,7 @@ def search_response_to_payload(response: SearchResponse) -> dict[str, object]:
         "degraded": response.degraded,
         "store_revisions": [_search_store_revision_to_dict(revision) for revision in response.store_revisions],
         "generated_at": response.generated_at,
+        "result_family_duplication": response.result_family_duplication,
     }
 
 
@@ -473,6 +474,9 @@ def _retrieval_result_to_dict(result: RetrievalResult) -> dict[str, object]:
         "relationship_status": result.relationship_status,
         "warnings": [retrieval_warning_to_dict(warning) for warning in result.warnings],
         "store_revisions": [_store_revision_to_dict(revision) for revision in result.store_revisions],
+        "provenance_family_id": result.provenance_family_id,
+        "supporting_evidence": [evidence_to_dict(evidence) for evidence in result.supporting_evidence],
+        "audit_records": [evidence_to_dict(evidence) for evidence in result.audit_records],
     }
 
 

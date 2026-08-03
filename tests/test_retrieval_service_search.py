@@ -127,6 +127,62 @@ def test_keyword_only_search_returns_evidence_chunk(tmp_path: Path) -> None:
     assert response.warnings[0].code == "vector_unavailable"
 
 
+def test_knowledge_search_collapses_family_and_attaches_source_references(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    family_id = "family:shared"
+    first_document = replace(
+        make_document("default", "wiki/first.md", "first"),
+        source_role="canonical_knowledge",
+        provenance_family_id=family_id,
+    )
+    second_document = replace(
+        make_document("default", "wiki/second.md", "second"),
+        source_role="canonical_knowledge",
+        provenance_family_id=family_id,
+    )
+    source_document = replace(
+        make_document("default", "raw/source.md", "source"),
+        source_role="raw_evidence",
+        provenance_family_id=family_id,
+    )
+    documents = (first_document, second_document, source_document)
+    chunks = tuple(
+        replace(
+            make_chunk("default", document.document_id, document.path, text="alpha"),
+            source_role=document.source_role,
+            provenance_family_id=family_id,
+        )
+        for document in documents
+    )
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=list(documents),
+        chunks=list(chunks),
+        tombstones=[],
+    )
+    hits = tuple(
+        replace(
+            _keyword_hit(document.document_id, chunk.chunk_id, rank),
+            provenance_family_id=family_id,
+        )
+        for rank, (document, chunk) in enumerate(zip(documents[:2], chunks[:2], strict=True), start=1)
+    )
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=InMemoryKeywordIndex(hits),
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+    )
+
+    response = service.search(query_text="alpha", requested_scope=catalog.default_scope())
+
+    assert response.result_count == 1
+    assert response.result_family_duplication == 0.0
+    assert response.results[0].provenance_family_id == family_id
+    assert {item.path for item in response.results[0].supporting_evidence} == {"raw/source.md"}
+
+
 def test_empty_query_fails_before_candidate_lookup(tmp_path: Path) -> None:
     catalog = _catalog(tmp_path)
     store, document_id, chunk_id = _metadata_store(tmp_path)

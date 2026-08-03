@@ -552,7 +552,7 @@ def apply_metadata_refs(store: SQLiteMetadataStore, refs: tuple[GraphEvidenceRef
         chunk_key = (ref.evidence_vault_id, ref.chunk_id)
         if chunk_key not in seen_chunks:
             document = documents_by_key[document_key]
-            chunk = make_chunk(document, text=ref.excerpt or "relationship evidence")
+            chunk = make_chunk(document, text="relationship evidence")
             chunks.append(replace(chunk, chunk_id=ref.chunk_id, content_hash=ref.content_hash))
             seen_chunks.add(chunk_key)
     if documents or chunks:

@@ -457,6 +457,29 @@ class SQLiteMetadataStore:
             message="ok",
         )
 
+    def list_family_evidence(self, *, vault_id: str, provenance_family_id: str) -> tuple[EvidenceReference, ...]:
+        if not self._database_path.exists():
+            return ()
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT d.vault_id, d.document_id, c.chunk_id, d.path, c.section, c.anchor,
+                       c.content_hash, d.raw_sha256, c.index_revision, d.vault_revision,
+                       c.source_role, c.provenance_family_id
+                FROM documents d
+                INNER JOIN chunks c
+                  ON c.vault_id = d.vault_id
+                 AND c.document_id = d.document_id
+                 AND c.path = d.path
+                WHERE d.vault_id = ?
+                  AND c.provenance_family_id = ?
+                  AND d.is_tombstoned = 0
+                ORDER BY d.path, c.rowid
+                """,
+                (vault_id, provenance_family_id),
+            ).fetchall()
+        return tuple(_evidence_reference_from_row(row) for row in rows)
+
     def export_documents(self) -> tuple[dict[str, Any], ...]:
         if not self._database_path.exists():
             return ()

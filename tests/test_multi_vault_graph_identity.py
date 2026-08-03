@@ -69,7 +69,6 @@ def test_cross_vault_relationship_preserves_source_target_and_evidence_vaults() 
         section=None,
         anchor=None,
         path="wiki/context-pack.md",
-        excerpt=None,
     )
 
     relationship = RelationshipRecord(

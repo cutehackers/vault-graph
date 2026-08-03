@@ -46,7 +46,9 @@ class InMemoryVectorStore:
         scoped_records = tuple(
             record
             for record in self._records.values()
-            if record.embedding.model_spec == query.embedding_spec and _record_in_scope(record, query.scope)
+            if record.embedding.model_spec == query.embedding_spec
+            and _record_in_scope(record, query.scope)
+            and (not query.source_roles or record.source_role in query.source_roles)
         )
         scored = sorted(
             ((_dot_product(query.query_vector, record.embedding), record) for record in scoped_records),
@@ -65,6 +67,8 @@ class InMemoryVectorStore:
                 metadata_index_revision=record.metadata_index_revision,
                 vector_index_revision=record.vector_index_revision,
                 backend="memory-vector",
+                source_role=record.source_role,
+                provenance_family_id=record.provenance_family_id,
             )
             for rank, (score, record) in enumerate(scored[: query.limit], start=1)
         )
@@ -97,6 +101,8 @@ class InMemoryVectorStore:
                 vector_index_revision=record.vector_index_revision,
                 backend="memory-vector",
                 backend_schema_version=record.backend_schema_version,
+                source_role=record.source_role,
+                provenance_family_id=record.provenance_family_id,
             )
             for record in records
         )

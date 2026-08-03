@@ -8,6 +8,7 @@ from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.retrieval.retrieval_result import RetrievalResult, RetrievalSeverity
 
 SearchOutputFormat = Literal["text", "json"]
+SearchMode = Literal["knowledge", "evidence", "operating", "audit", "all"]
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class SearchRequest:
     output_format: SearchOutputFormat
     include_graph: bool = False
     include_cross_vault: bool = False
+    mode: SearchMode = "knowledge"
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -60,6 +62,8 @@ class SearchRequest:
             raise SearchError("limit must be positive")
         if self.output_format not in ("text", "json"):
             raise SearchError("unsupported_format")
+        if self.mode not in ("knowledge", "evidence", "operating", "audit", "all"):
+            raise SearchError("unsupported_search_mode")
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,7 @@ class SearchResponse:
     degraded: bool
     store_revisions: tuple[SearchStoreRevision, ...]
     generated_at: str
+    result_family_duplication: float = 0.0
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

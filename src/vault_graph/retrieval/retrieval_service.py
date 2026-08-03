@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, TextEmbeddings
 from vault_graph.errors import KeywordIndexError, SearchError, TextEmbeddingsError, VectorStoreError
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph_candidates import GraphCandidateProvider, GraphCandidateResult
@@ -18,6 +19,7 @@ from vault_graph.retrieval.retrieval_result import (
 )
 from vault_graph.retrieval.search_readiness import SearchReadiness, SearchReadinessReport
 from vault_graph.retrieval.search_response import (
+    SearchMode,
     SearchOutputFormat,
     SearchRequest,
     SearchResponse,
@@ -29,6 +31,21 @@ from vault_graph.storage.interfaces.vector_store import VectorHit, VectorQuery, 
 
 RANK_CONSTANT = 60.0
 SIGNAL_WEIGHTS: dict[RetrievalSignalKind, float] = {"keyword": 1.0, "vector": 1.0, "graph": 0.75}
+SEARCH_MODE_ROLES: dict[SearchMode, tuple[DocumentRole, ...]] = {
+    "knowledge": ("canonical_knowledge",),
+    "evidence": ("source_manifest", "raw_evidence"),
+    "operating": ("operating_contract",),
+    "audit": ("generated_view", "operation_log", "audit_record"),
+    "all": (
+        "raw_evidence",
+        "canonical_knowledge",
+        "source_manifest",
+        "operating_contract",
+        "generated_view",
+        "operation_log",
+        "audit_record",
+    ),
+}
 
 
 class RetrievalService:
@@ -60,6 +77,7 @@ class RetrievalService:
         output_format: SearchOutputFormat = "text",
         include_graph: bool = False,
         include_cross_vault: bool = False,
+        mode: SearchMode = "knowledge",
     ) -> SearchResponse:
         normalized_query = query_text.strip()
         graph_requested_scope = _requested_scope_for_search(
@@ -75,6 +93,7 @@ class RetrievalService:
             output_format=output_format,
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
+            mode=mode,
         )
         return self._search_request(request)
 
@@ -96,7 +115,7 @@ class RetrievalService:
         warnings.extend(graph_result.warnings)
         signal_candidates = keyword_candidates + vector_candidates + graph_result.candidates
         candidates = _fuse_candidates(candidates=signal_candidates)
-        results, dropped, missing_warnings = self._resolve_results(candidates=candidates)
+        results, dropped, missing_warnings = self._resolve_results(candidates=candidates, mode=request.mode)
         warnings.extend(missing_warnings)
         limited_results = tuple(results[: request.limit])
         return SearchResponse(
@@ -112,6 +131,7 @@ class RetrievalService:
             degraded=bool(warnings),
             store_revisions=readiness.store_revisions + graph_result.store_revisions,
             generated_at=datetime.now(UTC).isoformat(),
+            result_family_duplication=_family_duplication(results),
         )
 
     def _keyword_candidates(self, *, request: SearchRequest, candidate_limit: int) -> tuple[RetrievalCandidate, ...]:
@@ -120,7 +140,12 @@ class RetrievalService:
             for scope in request.actual_scopes:
                 hits.extend(
                     self._keyword_index.search(
-                        KeywordQuery(query_text=request.query_text, scope=scope, limit=candidate_limit)
+                        KeywordQuery(
+                            query_text=request.query_text,
+                            scope=scope,
+                            limit=candidate_limit,
+                            source_roles=SEARCH_MODE_ROLES[request.mode],
+                        )
                     )
                 )
         except KeywordIndexError as exc:
@@ -152,6 +177,7 @@ class RetrievalService:
                             scope=scope,
                             limit=candidate_limit,
                             embedding_spec=self._text_embeddings.model_spec(),
+                            source_roles=SEARCH_MODE_ROLES[request.mode],
                         )
                     )
                 )
@@ -182,6 +208,7 @@ class RetrievalService:
         self,
         *,
         candidates: tuple[_FusedCandidate, ...],
+        mode: SearchMode,
     ) -> tuple[tuple[RetrievalResult, ...], int, tuple[SearchWarning, ...]]:
         dropped = 0
         warnings: list[SearchWarning] = []
@@ -206,6 +233,8 @@ class RetrievalService:
                     )
                 )
                 continue
+            if evidence.source_role not in SEARCH_MODE_ROLES[mode]:
+                continue
             resolved.append((candidate, evidence, _excerpt(chunk.text)))
 
         sorted_resolved = sorted(
@@ -218,11 +247,54 @@ class RetrievalService:
                 item[0].chunk_id,
             ),
         )
+        if mode == "knowledge":
+            seen_families: set[tuple[str, str]] = set()
+            sorted_resolved = [
+                item
+                for item in sorted_resolved
+                if _take_family_once(
+                    seen_families,
+                    vault_id=item[1].vault_id,
+                    family_id=item[1].provenance_family_id or item[1].document_id,
+                )
+            ]
         results = tuple(
-            _retrieval_result_for_candidate(candidate=candidate, evidence=evidence, summary=summary, rank=rank)
+            self._retrieval_result_for_candidate(
+                candidate=candidate,
+                evidence=evidence,
+                summary=summary,
+                rank=rank,
+            )
             for rank, (candidate, evidence, summary) in enumerate(sorted_resolved, start=1)
         )
         return results, dropped, tuple(warnings)
+
+    def _retrieval_result_for_candidate(
+        self,
+        *,
+        candidate: _FusedCandidate,
+        evidence: EvidenceReference,
+        summary: str,
+        rank: int,
+    ) -> RetrievalResult:
+        family_id = evidence.provenance_family_id or evidence.document_id
+        family_reader = getattr(self._metadata_store, "list_family_evidence", None)
+        family = (
+            family_reader(vault_id=evidence.vault_id, provenance_family_id=family_id) if callable(family_reader) else ()
+        )
+        supporting = tuple(item for item in family if item.source_role in ("source_manifest", "raw_evidence"))
+        audit = tuple(
+            item for item in family if item.source_role in ("generated_view", "operation_log", "audit_record")
+        )
+        return _retrieval_result_for_candidate(
+            candidate=candidate,
+            evidence=evidence,
+            summary=summary,
+            rank=rank,
+            provenance_family_id=family_id,
+            supporting_evidence=supporting,
+            audit_records=audit,
+        )
 
 
 def _requested_scope_for_search(*, requested_scope: QueryScope, include_cross_vault: bool) -> QueryScope:
@@ -426,6 +498,9 @@ def _retrieval_result_for_candidate(
     evidence: EvidenceReference,
     summary: str,
     rank: int,
+    provenance_family_id: str = "legacy",
+    supporting_evidence: tuple[EvidenceReference, ...] = (),
+    audit_records: tuple[EvidenceReference, ...] = (),
 ) -> RetrievalResult:
     return RetrievalResult(
         result_id=f"{candidate.vault_id}:{candidate.chunk_id}:rank-{rank}",
@@ -439,7 +514,25 @@ def _retrieval_result_for_candidate(
         relationship_status="not_applicable",
         warnings=(),
         store_revisions=_result_store_revisions(candidate=candidate, evidence=evidence),
+        provenance_family_id=provenance_family_id,
+        supporting_evidence=supporting_evidence,
+        audit_records=audit_records,
     )
+
+
+def _take_family_once(seen: set[tuple[str, str]], *, vault_id: str, family_id: str) -> bool:
+    key = (vault_id, family_id)
+    if key in seen:
+        return False
+    seen.add(key)
+    return True
+
+
+def _family_duplication(results: tuple[RetrievalResult, ...]) -> float:
+    if not results:
+        return 0.0
+    distinct = {(result.vault_id, result.provenance_family_id) for result in results}
+    return (len(results) - len(distinct)) / len(results)
 
 
 def _result_store_revisions(*, candidate: _FusedCandidate, evidence: EvidenceReference) -> tuple[StoreRevision, ...]:

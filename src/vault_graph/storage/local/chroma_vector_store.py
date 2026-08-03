@@ -6,10 +6,11 @@ import sqlite3
 import struct
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from vault_graph.embeddings.text_embeddings import EmbeddingModelSpec
 from vault_graph.errors import VectorStoreError
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.interfaces.vector_store import (
@@ -21,7 +22,7 @@ from vault_graph.storage.interfaces.vector_store import (
     VectorTombstone,
 )
 
-CHROMA_VECTOR_SCHEMA_VERSION = "chroma-vector-v1"
+CHROMA_VECTOR_SCHEMA_VERSION = "chroma-vector-v2"
 CHROMA_BACKEND = "chroma"
 COLLECTION_PREFIX = "vault_graph"
 SQLITE_VECTOR_ID_BATCH_SIZE = 500
@@ -82,7 +83,11 @@ class ChromaVectorStore(VectorStore):
             collection = self._get_collection_if_exists(client, query.embedding_spec)
             if collection is None:
                 return ()
-            scoped_ids = self._scoped_ids(collection=collection, scope=query.scope)
+            scoped_ids = self._scoped_ids(
+                collection=collection,
+                scope=query.scope,
+                source_roles=query.source_roles,
+            )
             if not scoped_ids:
                 return ()
             result = collection.query(
@@ -111,6 +116,8 @@ class ChromaVectorStore(VectorStore):
                     metadata_index_revision=str(metadata["metadata_index_revision"]),
                     vector_index_revision=str(metadata["vector_index_revision"]),
                     backend=CHROMA_BACKEND,
+                    source_role=cast(DocumentRole, str(metadata["source_role"])),
+                    provenance_family_id=str(metadata["provenance_family_id"]),
                 )
             )
         return tuple(hits)
@@ -273,7 +280,10 @@ class ChromaVectorStore(VectorStore):
         if not health.ok or not health.schema_compatible:
             raise VectorStoreError(f"vector search unavailable: {health.message}")
         manifest = tuple(
-            row for row in self._export_manifest_sqlite(query.scope) if row.embedding_spec == query.embedding_spec
+            row
+            for row in self._export_manifest_sqlite(query.scope)
+            if row.embedding_spec == query.embedding_spec
+            and (not query.source_roles or row.source_role in query.source_roles)
         )
         if not manifest:
             return ()
@@ -299,6 +309,8 @@ class ChromaVectorStore(VectorStore):
                 metadata_index_revision=row.metadata_index_revision,
                 vector_index_revision=row.vector_index_revision,
                 backend=CHROMA_BACKEND,
+                source_role=row.source_role,
+                provenance_family_id=row.provenance_family_id,
             )
             for rank, (score, row) in enumerate(ranked[: query.limit], start=1)
         )
@@ -366,12 +378,19 @@ class ChromaVectorStore(VectorStore):
             collection for collection in client.list_collections() if collection.name.startswith(COLLECTION_PREFIX)
         )
 
-    def _scoped_ids(self, *, collection: Any, scope: QueryScope) -> list[str]:
+    def _scoped_ids(
+        self,
+        *,
+        collection: Any,
+        scope: QueryScope,
+        source_roles: tuple[DocumentRole, ...] = (),
+    ) -> list[str]:
         loaded = collection.get(include=["metadatas"])
         return [
             str(vector_id)
             for vector_id, metadata in zip(loaded.get("ids") or [], loaded.get("metadatas") or [], strict=True)
             if _metadata_in_scope(metadata, scope)
+            and (not source_roles or str(metadata["source_role"]) in source_roles)
         ]
 
 
@@ -409,6 +428,8 @@ def _metadata_for_record(record: VectorEmbeddingRecord) -> dict[str, str | int]:
         "metadata_index_revision": record.metadata_index_revision,
         "vector_index_revision": record.vector_index_revision,
         "backend_schema_version": CHROMA_VECTOR_SCHEMA_VERSION,
+        "source_role": record.source_role,
+        "provenance_family_id": record.provenance_family_id,
     }
 
 
@@ -426,6 +447,8 @@ def _manifest_record_from_metadata(*, vector_id: str, metadata: dict[str, Any]) 
         vector_index_revision=str(metadata["vector_index_revision"]),
         backend=CHROMA_BACKEND,
         backend_schema_version=str(metadata["backend_schema_version"]),
+        source_role=cast(DocumentRole, str(metadata["source_role"])),
+        provenance_family_id=str(metadata["provenance_family_id"]),
     )
 
 
