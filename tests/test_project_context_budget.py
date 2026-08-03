@@ -47,7 +47,11 @@ def test_project_context_compaction_summarizes_all_oversized_arrays() -> None:
         }
     )
 
-    assert all(len(compacted[field]) == 9 for field in ("vault_ids", "content_scopes", "evidence_mappings"))
-    assert all(
-        "omitted_count" in compacted[field][-1] for field in ("vault_ids", "content_scopes", "evidence_mappings")
-    )
+    assert isinstance(compacted, dict)
+    for field in ("vault_ids", "content_scopes", "evidence_mappings"):
+        values = compacted[field]
+        assert isinstance(values, (tuple, list))
+        assert len(values) == 9
+        marker = values[-1]
+        assert isinstance(marker, dict)
+        assert "omitted_count" in marker
