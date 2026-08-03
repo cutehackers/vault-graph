@@ -149,6 +149,16 @@ def test_sqlite_code_store_reconciles_and_searches_deterministically(tmp_path: P
     assert readonly.current_manifest(("repo-a",)).file_ids == plan.manifest.file_ids
 
 
+def test_sqlite_code_store_treats_path_prefix_wildcards_literally(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    store.apply_reconcile_plan(_plan())
+
+    hits = store.search_symbols(CodeSymbolQuery("example", path_prefix="lib/_"))
+
+    assert hits == ()
+
+
 def test_sqlite_code_store_rejects_dangling_or_cross_repository_edges(tmp_path: Path) -> None:
     path = tmp_path / "code.sqlite3"
     store = SQLiteCodeProjectionStore.open_writable(path)
@@ -253,6 +263,7 @@ def test_sqlite_code_store_rejects_edge_and_pending_parser_mismatch(tmp_path: Pa
     pending = PendingCodeReference(
         pending_id="pending-parser-mismatch",
         repository_id="repo-a",
+        source_file_id=plan.manifest.file_ids[0],
         reference_id="reference-parser-mismatch",
         source_revision="working-tree:1",
         relation_kind="CALLS",
@@ -312,6 +323,7 @@ def test_sqlite_code_store_rejects_duplicate_pending_id_before_transaction(tmp_p
     pending = PendingCodeReference(
         pending_id="pending-1",
         repository_id="repo-a",
+        source_file_id=plan.manifest.file_ids[0],
         reference_id="reference-1",
         source_revision="working-tree:1",
         relation_kind="CALLS",
@@ -347,9 +359,12 @@ def test_sqlite_code_store_rejects_cross_repository_symbol_identity_collision(tm
     other_manifest = replace(
         first.manifest,
         generation_id="generation-2",
-        repository_ids=("repo-b",),
-        file_ids=(other_file_id,),
-        source_revisions=(("repo-b", other_file.source_revision),),
+        repository_ids=("repo-a", "repo-b"),
+        file_ids=(first.manifest.file_ids[0], other_file_id),
+        source_revisions=(
+            ("repo-a", first.files[0].source_revision),
+            ("repo-b", other_file.source_revision),
+        ),
     )
     second = CodeReconcilePlan(
         manifest=other_manifest,
@@ -370,6 +385,7 @@ def test_sqlite_code_store_rejects_cross_repository_edge_and_pending_identity_co
     initial_pending = PendingCodeReference(
         pending_id="pending-1",
         repository_id="repo-a",
+        source_file_id=first.manifest.file_ids[0],
         reference_id="repo-a-reference",
         source_revision=first.files[0].source_revision,
         relation_kind="CALLS",
@@ -384,9 +400,12 @@ def test_sqlite_code_store_rejects_cross_repository_edge_and_pending_identity_co
     other_manifest = replace(
         first.manifest,
         generation_id="generation-2",
-        repository_ids=("repo-b",),
-        file_ids=(other_file_id,),
-        source_revisions=(("repo-b", other_file.source_revision),),
+        repository_ids=("repo-a", "repo-b"),
+        file_ids=(first.manifest.file_ids[0], other_file_id),
+        source_revisions=(
+            ("repo-a", first.files[0].source_revision),
+            ("repo-b", other_file.source_revision),
+        ),
     )
     edge_collision = replace(
         first.edges[0],
@@ -409,6 +428,7 @@ def test_sqlite_code_store_rejects_cross_repository_edge_and_pending_identity_co
     pending_collision = PendingCodeReference(
         pending_id="pending-1",
         repository_id="repo-b",
+        source_file_id=other_file_id,
         reference_id="repo-b-reference",
         source_revision=other_file.source_revision,
         relation_kind="CALLS",
@@ -449,8 +469,34 @@ def test_sqlite_code_store_rejects_deletion_outside_manifest_repository_scope(tm
         run_id="cross-repository-deletion",
     )
 
-    with pytest.raises(ValueError, match="deleted file.*repository scope"):
+    with pytest.raises(ValueError, match="manifest must include all existing repositories"):
         store.apply_reconcile_plan(deletion_plan)
+
+
+def test_sqlite_code_store_rejects_repo_only_manifest_that_discards_existing_repo(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    first = _plan()
+    store.apply_reconcile_plan(first)
+    other_file = replace(first.files[0], repository_id="repo-b", relative_path="lib/other.py")
+    other_file_id = code_file_identity("repo-b", "lib/other.py")
+    repo_only_manifest = replace(
+        first.manifest,
+        generation_id="generation-2",
+        repository_ids=("repo-b",),
+        source_revisions=(("repo-b", other_file.source_revision),),
+        file_ids=(other_file_id,),
+    )
+    repo_only_plan = CodeReconcilePlan(
+        manifest=repo_only_manifest,
+        files=(other_file,),
+        symbols=(),
+        edges=(),
+        run_id="repo-only-manifest",
+    )
+
+    with pytest.raises(ValueError, match="manifest must include all existing repositories"):
+        store.apply_reconcile_plan(repo_only_plan)
 
 
 def test_sqlite_code_store_rejects_duplicate_manifest_repository_ids(tmp_path: Path) -> None:
@@ -503,6 +549,63 @@ def test_sqlite_code_store_allows_incremental_plan_with_complete_manifest_file_i
 
     assert result.file_count == 2
     assert store.current_manifest(("repo-a",)).file_ids == (first.manifest.file_ids[0], new_file_id)
+
+
+def test_sqlite_code_store_clears_pending_for_modified_file_only(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    first = _plan()
+    second_file = replace(first.files[0], relative_path="lib/other.py")
+    second_file_id = code_file_identity("repo-a", "lib/other.py")
+    manifest = replace(
+        first.manifest,
+        file_ids=(first.manifest.file_ids[0], second_file_id),
+    )
+    pending_first = PendingCodeReference(
+        pending_id="pending-first",
+        repository_id="repo-a",
+        source_file_id=first.manifest.file_ids[0],
+        reference_id="reference-first",
+        source_revision=first.files[0].source_revision,
+        relation_kind="CALLS",
+        target_key="missing.first",
+        reason="unresolved",
+        parser_spec_version=CODE_PARSER_SPEC_VERSION,
+    )
+    pending_second = replace(
+        pending_first,
+        pending_id="pending-second",
+        source_file_id=second_file_id,
+        reference_id="reference-second",
+        target_key="missing.second",
+    )
+    initial = CodeReconcilePlan(
+        manifest=manifest,
+        files=(*first.files, second_file),
+        symbols=first.symbols,
+        edges=first.edges,
+        pending_references=(pending_first, pending_second),
+        run_id="pending-initial",
+    )
+    store.apply_reconcile_plan(initial)
+    modified_first = replace(first.files[0], content_hash=_digest("modified-source"), byte_count=16)
+    modified_manifest = replace(manifest, generation_id="generation-2")
+    incremental = CodeReconcilePlan(
+        manifest=modified_manifest,
+        files=(modified_first,),
+        symbols=(),
+        edges=(),
+        pending_references=(),
+        run_id="pending-modified",
+    )
+
+    store.apply_reconcile_plan(incremental)
+
+    with sqlite3.connect(path) as connection:
+        pending_ids = {
+            str(row[0]) for row in connection.execute("SELECT pending_id FROM pending_references ORDER BY pending_id")
+        }
+    assert pending_ids == {"pending-second"}
 
 
 def test_sqlite_code_store_read_only_open_does_not_create_missing_state(tmp_path: Path) -> None:
