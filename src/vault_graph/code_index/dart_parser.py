@@ -593,12 +593,10 @@ def _dart_dynamic_selector_target(node: Any) -> str:
         return ""
     if index == 0:
         return ""
-    receiver_node = parent.children[index - 1]
-    if receiver_node.type == "selector":
-        receiver_target = _dart_dynamic_selector_target(receiver_node)
-        receiver = receiver_target.removeprefix("dynamic:") if receiver_target else ""
-    else:
-        receiver = node_text(receiver_node).strip()
+    # The receiver is every expression child before the method selector. This
+    # preserves call-expression receivers such as ``getObj().run()`` and
+    # ``foo().bar()`` instead of reducing them to the final method name.
+    receiver = "".join(node_text(child) for child in parent.children[:index]).strip()
     if not receiver:
         return ""
     return f"dynamic:{receiver}.{method}"

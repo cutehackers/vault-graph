@@ -9,6 +9,11 @@ class Receiver {
     "x".trim();
     this.run();
     (foo()).bar();
+    getObj().run();
+    foo().bar();
     run();
   }
 }
+
+Receiver getObj() => Receiver();
+Receiver foo() => Receiver();
