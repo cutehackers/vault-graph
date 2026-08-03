@@ -377,7 +377,7 @@ class DartCodeParserAdapter:
                     if source_symbol.kind == "test":
                         add(node, "TESTS", target, source_symbol_id)
             elif node.type == "selector" and _dart_selector_is_call(node):
-                target = _dart_call_target(node)
+                target = _dart_constructor_call_target(node) or _dart_call_target(node)
                 if target:
                     add(node, "CALLS", target, source_symbol_id)
                     source_symbol = symbols_by_id[source_symbol_id]
@@ -524,13 +524,34 @@ def _dart_selector_is_call(node: Any) -> bool:
 
 
 def _dart_constructor_call_target(node: Any) -> str:
-    type_node = next((child for child in node.named_children if child.type == "type_identifier"), None)
-    if type_node is None:
+    parts = [node_text(child) for child in node.named_children if child.type in {"type_identifier", "identifier"}]
+    if parts:
+        return ".".join(parts)
+    if node.type != "selector":
         return ""
-    identifiers = [child for child in node.named_children if child.type == "identifier"]
-    if identifiers:
-        return f"{node_text(type_node)}.{node_text(identifiers[-1])}"
-    return node_text(type_node)
+    chain = _dart_selector_chain(node)
+    if len(chain) >= 2 and chain[-2][:1].isupper():
+        return ".".join(chain)
+    return ""
+
+
+def _dart_selector_chain(node: Any) -> list[str]:
+    parent = node.parent
+    if parent is None:
+        return []
+    try:
+        index = next(index for index, child in enumerate(parent.children) if child == node)
+    except StopIteration:
+        return []
+    parts: list[str] = []
+    for child in parent.children[:index]:
+        if child.type in {"identifier", "type_identifier"}:
+            parts.append(node_text(child))
+        elif child.type == "selector":
+            text = node_text(child).lstrip(".")
+            if text and text != "()":
+                parts.append(text)
+    return parts
 
 
 def _dart_call_target(node: Any) -> str:
