@@ -517,19 +517,42 @@ def _dart_selector_is_call(node: Any) -> bool:
 
 
 def _dart_call_target(node: Any) -> str:
-    text = node_text(node)
-    identifiers = [child for child in walk(node) if child.type in {"identifier", "type_identifier"}]
-    if identifiers:
-        return node_text(identifiers[-1])
     parent = node.parent
     if parent is not None:
         index = next((index for index, child in enumerate(parent.children) if child == node), -1)
         if index > 0:
             previous = parent.children[index - 1]
-            previous_ids = [child for child in walk(previous) if child.type in {"identifier", "type_identifier"}]
+            if _contains_anonymous_function(previous):
+                return ""
+            previous_ids = _callee_identifiers(previous)
             if previous_ids:
                 return node_text(previous_ids[-1])
+    identifiers = _callee_identifiers(node)
+    if identifiers:
+        return node_text(identifiers[-1])
+    text = node_text(node)
     return text.strip("().")
+
+
+def _callee_identifiers(node: Any) -> list[Any]:
+    identifiers: list[Any] = []
+    for candidate in walk(node):
+        if candidate.type not in {"identifier", "type_identifier"}:
+            continue
+        ancestor = candidate.parent
+        is_argument = False
+        while ancestor is not None and ancestor != node:
+            if ancestor.type in {"argument", "arguments", "argument_part"}:
+                is_argument = True
+                break
+            ancestor = ancestor.parent
+        if not is_argument:
+            identifiers.append(candidate)
+    return identifiers
+
+
+def _contains_anonymous_function(node: Any) -> bool:
+    return any(candidate.type == "function_expression" for candidate in walk(node))
 
 
 def _symbol_sort_key(symbol: CodeSymbolRecord) -> tuple[int, int, str, str]:

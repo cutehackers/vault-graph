@@ -208,6 +208,27 @@ def test_dart_adapter_reports_unmodeled_top_level_variables() -> None:
     assert any(diagnostic.code == "unsupported-construct" for diagnostic in result.diagnostics)
 
 
+def test_dart_adapter_does_not_infer_anonymous_function_call_targets() -> None:
+    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+
+    result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/anonymous.dart", language="dart"))
+    assert not any(
+        reference.relation_kind == "CALLS" and reference.target_key == "local" for reference in result.references
+    )
+
+
+def test_dart_adapter_excludes_call_arguments_from_callee_targets() -> None:
+    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+
+    result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/calls.dart", language="dart"))
+    targets = {reference.target_key for reference in result.references if reference.relation_kind == "CALLS"}
+    assert "bar" in targets
+    assert "named" in targets
+    assert "greet" in targets
+    assert "y" not in targets
+    assert "arg" not in targets
+
+
 def test_adapters_reject_a_file_for_the_wrong_language() -> None:
     from vault_graph.code_index.dart_parser import DartCodeParserAdapter
 
