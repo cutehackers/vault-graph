@@ -3,8 +3,10 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-from pathlib import Path
+import re
+from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import quote, unquote, urlsplit
 
 from vault_graph.app.index_service import StatusReport
 from vault_graph.context.context_pack import ContextEvidence, ContextPack, ContextPackSignal, ContextPackWarning
@@ -71,7 +73,9 @@ def project_context_to_payload(context: ProjectContext) -> dict[str, object]:
     service's deterministic contract even for verbose user-controlled metadata.
     """
 
-    compacted = compact_project_context_value(dataclasses.asdict(context))
+    raw_payload = dataclasses.asdict(context)
+    _redact_unsafe_project_context_paths(raw_payload)
+    compacted = compact_project_context_value(raw_payload)
     if not isinstance(compacted, dict):  # pragma: no cover - dataclass input guarantees a mapping
         raise TypeError("project context payload must be an object")
     return compacted
@@ -88,7 +92,11 @@ def resource_links_for_project_context(context: ProjectContext) -> tuple[McpReso
         if evidence.source_uri is None:
             continue
         if evidence.authority == "code":
-            if not _is_safe_repository_evidence_uri(evidence.source_uri, evidence.relative_path):
+            if not _is_safe_repository_evidence_uri(
+                evidence.source_uri,
+                evidence.repository_id,
+                evidence.relative_path,
+            ):
                 continue
             links.append(
                 McpResourceLink(
@@ -976,13 +984,67 @@ def _optional_positive_int(value: object, field_name: str) -> int | None:
     return value
 
 
-def _is_safe_repository_evidence_uri(uri: str, relative_path: str | None) -> bool:
-    """Allow only the service's opaque, relative-path repository URI scheme."""
+_SOURCE_LINE_FRAGMENT = re.compile(r"L([1-9][0-9]{0,9})-L([1-9][0-9]{0,9})\Z")
 
-    if not uri.startswith("vg-source://") or relative_path is None:
+
+def _redact_unsafe_project_context_paths(payload: dict[str, Any]) -> None:
+    for field_name in ("code_evidence", "impact_evidence", "test_evidence"):
+        records = payload.get(field_name)
+        if not isinstance(records, tuple | list):
+            continue
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            repository_id = record.get("repository_id")
+            relative_path = record.get("relative_path")
+            source_uri = record.get("source_uri")
+            path_is_safe = _is_safe_repository_relative_path(relative_path)
+            uri_is_safe = (
+                isinstance(source_uri, str)
+                and isinstance(repository_id, str)
+                and path_is_safe
+                and _is_safe_repository_evidence_uri(source_uri, repository_id, relative_path)
+            )
+            if not path_is_safe:
+                record["relative_path"] = None
+            if not uri_is_safe:
+                record["source_uri"] = None
+
+
+def _is_safe_repository_evidence_uri(
+    uri: str,
+    repository_id: str | None,
+    relative_path: str | None,
+) -> bool:
+    """Validate the exact opaque repository URI emitted by SourceEvidenceReader."""
+
+    if not isinstance(repository_id, str) or not _is_safe_repository_relative_path(relative_path):
         return False
-    path = Path(relative_path)
-    return not path.is_absolute() and ".." not in path.parts and "\\" not in relative_path
+    parsed = urlsplit(uri)
+    if (
+        parsed.scheme != "vg-source"
+        or parsed.netloc != quote(repository_id, safe="")
+        or parsed.query
+        or not parsed.path.startswith("/")
+        or parsed.path.startswith("//")
+    ):
+        return False
+    decoded_path = unquote(parsed.path[1:])
+    if decoded_path != relative_path or not _is_safe_repository_relative_path(decoded_path):
+        return False
+    if quote(decoded_path, safe="/") != parsed.path[1:]:
+        return False
+    match = _SOURCE_LINE_FRAGMENT.fullmatch(parsed.fragment)
+    if match is None:
+        return False
+    return int(match.group(1)) <= int(match.group(2))
+
+
+def _is_safe_repository_relative_path(value: object) -> bool:
+    if not isinstance(value, str) or not value or "\\" in value:
+        return False
+    path = PurePosixPath(value)
+    return not path.is_absolute() and ".." not in path.parts and path.as_posix() == value
 
 
 def _json_value(value: object) -> object:
