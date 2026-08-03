@@ -47,6 +47,7 @@ class CodeQueryService:
         entries = catalog.entries() if hasattr(catalog, "entries") else tuple(catalog)
         self._entries = tuple(sorted(entries, key=lambda entry: entry.repository_id))
         self._entry_ids = {entry.repository_id for entry in self._entries}
+        self._registered_repository_ids = tuple(sorted(self._entry_ids))
         self._store = store
         self._freshness_service = freshness_service
         self._repository_ids = self._validate_scope(repository_ids)
@@ -209,12 +210,13 @@ class CodeQueryService:
         return matches[0], ()
 
     def _symbols_for_scope(self, scope: tuple[str, ...]) -> tuple[CodeSymbolRecord, ...]:
-        repository_ids = scope or tuple(sorted(self._entry_ids))
+        repository_ids = scope or self._registered_repository_ids
         return self._store.symbols(repository_ids)
 
     def _matches(self, symbol: CodeSymbolRecord, repository_id: str | None, relative_path: str | None) -> bool:
         return (
-            (not self._repository_ids or symbol.repository_id in self._repository_ids)
+            symbol.repository_id in self._registered_repository_ids
+            and (not self._repository_ids or symbol.repository_id in self._repository_ids)
             and (repository_id is None or symbol.repository_id == repository_id)
             and (relative_path is None or self._relative_path(symbol) == relative_path)
         )
@@ -226,7 +228,7 @@ class CodeQueryService:
         return None
 
     def _scope(self, requested: tuple[str, ...]) -> tuple[str, ...]:
-        scope = self._validate_scope(requested or self._repository_ids)
+        scope = self._validate_scope(requested or self._repository_ids or self._registered_repository_ids)
         if self._repository_ids and not set(scope).issubset(self._repository_ids):
             raise ValueError("repository_id is outside the query service scope")
         return scope

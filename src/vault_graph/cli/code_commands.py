@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
+from functools import wraps
 from pathlib import Path
 from typing import Any, cast
 
@@ -30,7 +31,22 @@ repository_app = typer.Typer(no_args_is_help=True)
 code_app.add_typer(repository_app, name="repository")
 
 
+def _render_code_errors[**P, R](command: Callable[P, R]) -> Callable[P, R]:
+    """Convert code-command domain validation into concise CLI failures."""
+
+    @wraps(command)
+    def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return command(*args, **kwargs)
+        except (ValueError, VaultGraphError) as exc:
+            typer.echo(str(exc))
+            raise typer.Exit(1) from exc
+
+    return wrapped
+
+
 @repository_app.command("add")
+@_render_code_errors
 def repository_add(
     repository_id: str,
     path: Path = typer.Option(..., "--path"),
@@ -43,6 +59,7 @@ def repository_add(
 
 
 @repository_app.command("list")
+@_render_code_errors
 def repository_list(
     state: Path = typer.Option(Path(".vault-graph"), "--state"),
     output_format: str = typer.Option("text", "--format"),
@@ -52,6 +69,7 @@ def repository_list(
 
 
 @repository_app.command("remove")
+@_render_code_errors
 def repository_remove(
     repository_id: str,
     state: Path = typer.Option(Path(".vault-graph"), "--state"),
@@ -63,6 +81,7 @@ def repository_remove(
 
 
 @code_app.command("index")
+@_render_code_errors
 def index(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     full: bool = typer.Option(False, "--full"),
@@ -80,6 +99,7 @@ def index(
 
 
 @code_app.command("status")
+@_render_code_errors
 def status(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     verify: bool = typer.Option(False, "--verify"),
@@ -97,6 +117,7 @@ def status(
 
 
 @code_app.command("search")
+@_render_code_errors
 def search(
     query: str,
     repository_id: str | None = typer.Option(None, "--repository-id"),
@@ -115,6 +136,7 @@ def search(
 
 
 @code_app.command("symbol")
+@_render_code_errors
 def symbol(
     symbol_or_id: str,
     repository_id: str | None = typer.Option(None, "--repository-id"),
@@ -133,6 +155,7 @@ def symbol(
 
 
 @code_app.command("outline")
+@_render_code_errors
 def outline(
     path: str,
     repository_id: str | None = typer.Option(None, "--repository-id"),
@@ -174,6 +197,7 @@ def _traversal_command(
 
 
 @code_app.command("callers")
+@_render_code_errors
 def callers(
     symbol_or_id: str,
     repository_id: str | None = typer.Option(None, "--repository-id"),
@@ -186,6 +210,7 @@ def callers(
 
 
 @code_app.command("callees")
+@_render_code_errors
 def callees(
     symbol_or_id: str,
     repository_id: str | None = typer.Option(None, "--repository-id"),
@@ -198,6 +223,7 @@ def callees(
 
 
 @code_app.command("impact")
+@_render_code_errors
 def impact(
     symbol_or_id: str,
     repository_id: str | None = typer.Option(None, "--repository-id"),
