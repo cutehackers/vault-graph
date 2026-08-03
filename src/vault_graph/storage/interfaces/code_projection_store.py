@@ -30,6 +30,11 @@ class CodeProjectionStore(Protocol):
 
         ...
 
+    def pending_paths(self, repository_ids: tuple[str, ...]) -> tuple[str, ...]:
+        """Return source-relative paths that still have unresolved references."""
+
+        ...
+
     def apply_reconcile_plan(self, plan: CodeReconcilePlan) -> CodeApplyResult:
         """Apply one complete desired-state transaction to the code projection."""
 

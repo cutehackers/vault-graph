@@ -75,6 +75,29 @@ from vault_graph.code_index.repository_catalog import (
     CodeRepositoryCatalogService,
     repository_policy_revision,
 )
+from vault_graph.code_index.source_scanning import (
+    CodeScanResult,
+    CodeSourceScanError,
+    CodeSourceScanner,
+    ScanResult,
+    SourceScanner,
+    scan_repository,
+)
+
+
+def __getattr__(name: str) -> object:
+    """Load orchestration services lazily to keep storage imports acyclic."""
+
+    if name in {"CodeFreshness", "CodeFreshnessService"}:
+        from vault_graph.code_index.code_freshness import CodeFreshness, CodeFreshnessService
+
+        return {"CodeFreshness": CodeFreshness, "CodeFreshnessService": CodeFreshnessService}[name]
+    if name == "CodeProjectionService":
+        from vault_graph.code_index.code_projection_service import CodeProjectionService
+
+        return CodeProjectionService
+    raise AttributeError(name)
+
 
 __all__ = [
     "CODE_DART_GRAMMAR_REVISION",
@@ -121,6 +144,15 @@ __all__ = [
     "CodeGenerationError",
     "CodeGenerationLayout",
     "CodeProjectionGenerationManager",
+    "CodeFreshness",
+    "CodeFreshnessService",
+    "CodeProjectionService",
+    "CodeScanResult",
+    "CodeSourceScanError",
+    "CodeSourceScanner",
+    "ScanResult",
+    "SourceScanner",
+    "scan_repository",
     "CodeRepositoryCatalog",
     "CodeRepositoryCatalogService",
     "SUPPORTED_CODE_LANGUAGES",
