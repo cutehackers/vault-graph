@@ -378,7 +378,7 @@ class SQLiteCodeProjectionStore:
         if manifest.parser_spec_version != self._expected_parser_spec_version:
             return "parser spec version mismatch"
         metadata_policy = _metadata(connection, "policy_revision")
-        if metadata_policy is not None and manifest.policy_revision != metadata_policy:
+        if metadata_policy != manifest.policy_revision:
             return "policy revision mismatch"
         if len(manifest_revisions) != len(manifest.source_revisions):
             return "contains duplicate source revisions"
