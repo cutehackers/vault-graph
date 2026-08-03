@@ -61,9 +61,12 @@ def test_code_repository_add_renders_validation_and_duplicate_errors(tmp_path: P
         app,
         ["code", "repository", "add", "demo", "--path", str(repository), "--language", "python", "--state", str(state)],
     )
+    missing = runner.invoke(app, ["code", "repository", "remove", "missing", "--state", str(state)])
 
     assert invalid.exit_code != 0
     assert "unsupported language" in invalid.output
     assert first.exit_code == 0, first.output
     assert duplicate.exit_code != 0
     assert "duplicate repository_id" in duplicate.output
+    assert missing.exit_code != 0
+    assert "unknown repository_id" in missing.output

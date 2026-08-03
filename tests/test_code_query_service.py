@@ -230,3 +230,53 @@ def test_unscoped_name_reports_ambiguity_across_registered_repositories(tmp_path
 
     assert result.symbol is None
     assert "ambiguous_symbol" in result.warnings
+
+
+def test_aggregate_query_excludes_projection_records_outside_the_registered_catalog(tmp_path: Path) -> None:
+    from vault_graph.code_index.code_models import CodeFreshnessReport, CodeSymbolHit, CodeSymbolQuery, CodeSymbolRecord
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    entry = _entry(repository)
+    stale = CodeSymbolRecord(
+        symbol_id="stale-symbol",
+        repository_id="removed-repository",
+        file_id="stale-file",
+        kind="function",
+        language_kind="function_definition",
+        name="stale",
+        qualified_name="stale",
+        signature=None,
+        start_line=1,
+        end_line=1,
+        start_column=0,
+        end_column=1,
+        content_hash="2" * 64,
+        source_revision="content-hash:stale",
+        parser_spec_version="parser-v1",
+    )
+
+    class Store:
+        def search_symbols(self, query: CodeSymbolQuery) -> tuple[CodeSymbolHit, ...]:
+            assert query.repository_ids == ("demo",)
+            return ()
+
+        def get_symbol(self, symbol_id: str) -> CodeSymbolRecord | None:
+            return stale if symbol_id == stale.symbol_id else None
+
+    class Freshness:
+        def status(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport:
+            return CodeFreshnessReport(repository_ids=repository_ids, state="fresh")
+
+    service = CodeQueryService(
+        catalog=(entry,),
+        store=cast(CodeProjectionStore, Store()),
+        freshness_service=cast(CodeFreshnessService | CodeProjectionService, Freshness()),
+    )
+
+    search = service.search_symbols(CodeSymbolSearchRequest("stale"))
+    direct = service.get_symbol(CodeSymbolRequest("stale-symbol"))
+
+    assert search.results == ()
+    assert direct.symbol is None
+    assert "symbol_scope_mismatch" in direct.warnings
