@@ -285,6 +285,26 @@ def test_sqlite_code_store_rejects_duplicate_edge_id_before_transaction(tmp_path
         assert connection.execute("SELECT COUNT(*) FROM edges").fetchone()[0] == 0
 
 
+def test_sqlite_code_store_rejects_duplicate_logical_edge_before_transaction(tmp_path: Path) -> None:
+    path = tmp_path / "code.sqlite3"
+    store = SQLiteCodeProjectionStore.open_writable(path)
+    plan = _plan()
+    duplicate_logical_edge = replace(plan.edges[0], edge_id="edge-a-b-copy")
+    duplicate_edges = CodeReconcilePlan(
+        manifest=plan.manifest,
+        files=plan.files,
+        symbols=plan.symbols,
+        edges=(plan.edges[0], duplicate_logical_edge),
+        run_id="duplicate-logical-edge-run",
+    )
+
+    with pytest.raises(ValueError, match="duplicate logical edge"):
+        store.apply_reconcile_plan(duplicate_edges)
+
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM edges").fetchone()[0] == 0
+
+
 def test_sqlite_code_store_rejects_duplicate_pending_id_before_transaction(tmp_path: Path) -> None:
     path = tmp_path / "code.sqlite3"
     store = SQLiteCodeProjectionStore.open_writable(path)

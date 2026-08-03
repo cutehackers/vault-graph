@@ -831,6 +831,7 @@ class SQLiteCodeProjectionStore:
         symbols_by_id: dict[str, CodeSymbolRecord] = {}
         files_by_id: dict[str, CodeFileSnapshot] = {}
         edge_ids: set[str] = set()
+        logical_edge_keys: set[tuple[str, str, str | None, str | None, int, int]] = set()
         pending_ids: set[str] = set()
         manifest_revisions: dict[str, str] = {}
         for repository_id, source_revision in plan.manifest.source_revisions:
@@ -880,6 +881,17 @@ class SQLiteCodeProjectionStore:
             if edge.edge_id in edge_ids:
                 raise ValueError(f"duplicate edge identity: {edge.edge_id}")
             edge_ids.add(edge.edge_id)
+            logical_edge_key = (
+                edge.source_symbol_id,
+                edge.relation_kind,
+                edge.target_symbol_id,
+                edge.unresolved_target_key,
+                edge.anchor_start_line,
+                edge.anchor_start_column,
+            )
+            if logical_edge_key in logical_edge_keys:
+                raise ValueError(f"duplicate logical edge: {edge.edge_id}")
+            logical_edge_keys.add(logical_edge_key)
             if edge.parser_spec_version != plan.manifest.parser_spec_version:
                 raise ValueError("edge parser spec version is incompatible with manifest")
             existing_repository = existing_edge_repositories.get(edge.edge_id)
