@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from vault_graph.code_index.code_models import (
@@ -133,3 +134,48 @@ def test_unavailable_source_keeps_only_a_safe_relative_path_attribution(tmp_path
     assert response.source_relative_path == "sample.py"
     assert "source_unavailable" in response.warnings
     assert str(repository) not in "\n".join(response.warnings)
+
+
+def test_non_utf8_source_returns_safe_unavailable_evidence(tmp_path: Path) -> None:
+    from vault_graph.code_index.code_models import CodeSymbolRecord
+    from vault_graph.code_index.source_evidence_reader import SourceEvidenceReader
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    payload = b"def example():\n    return 1\n# \xff\n"
+    (repository / "sample.py").write_bytes(payload)
+    entry = CodeRepositoryEntry(
+        repository_id="demo",
+        root_path=repository,
+        display_name="Demo",
+        enabled=True,
+        include_globs=("**/*.py",),
+        exclude_globs=(),
+        languages=("python",),
+        state_namespace="code/demo",
+        git_revision_policy="content-hash",
+        watch=False,
+    )
+    symbol = CodeSymbolRecord(
+        symbol_id="symbol",
+        repository_id="demo",
+        file_id="file",
+        kind="function",
+        language_kind="function_definition",
+        name="example",
+        qualified_name="example",
+        signature=None,
+        start_line=1,
+        end_line=2,
+        start_column=0,
+        end_column=1,
+        content_hash=hashlib.sha256(payload).hexdigest(),
+        source_revision="content-hash:fixture",
+        parser_spec_version="parser-v1",
+    )
+
+    evidence = SourceEvidenceReader((entry,)).read(symbol, relative_path="sample.py", max_lines=2)
+
+    assert evidence.source_uri is None
+    assert evidence.relative_path == "sample.py"
+    assert evidence.warnings == ("source_unavailable",)

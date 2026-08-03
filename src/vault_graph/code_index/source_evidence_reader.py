@@ -44,7 +44,10 @@ class SourceEvidenceReader:
             return SourceEvidence(None, relative, warnings=("source_unavailable",))
         if hashlib.sha256(before).hexdigest() != symbol.content_hash:
             return SourceEvidence(None, relative, warnings=("source_changed_since_index",))
-        lines = before.decode("utf-8").splitlines()
+        try:
+            lines = before.decode("utf-8").splitlines()
+        except UnicodeDecodeError:
+            return SourceEvidence(None, relative, warnings=("source_unavailable",))
         count = min(max(1, max_lines), MAX_SOURCE_LINES, symbol.end_line - symbol.start_line + 1)
         selected = tuple(lines[symbol.start_line - 1 : symbol.start_line - 1 + count])
         try:
