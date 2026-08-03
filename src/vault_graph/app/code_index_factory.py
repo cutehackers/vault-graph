@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from vault_graph.app.catalog_service import CatalogService
 from vault_graph.code_index.code_freshness import CodeFreshnessService
@@ -18,6 +19,9 @@ from vault_graph.code_index.repository_catalog import CodeRepositoryCatalog, Cod
 from vault_graph.code_index.source_scanning import CodeSourceScanner
 from vault_graph.errors import VaultGraphError
 from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
+
+if TYPE_CHECKING:
+    from vault_graph.project_context.project_context_service import ProjectContextService
 
 
 @dataclass(frozen=True)
@@ -98,6 +102,35 @@ class CodeIndexFactory:
             store=store,
             freshness_service=services.freshness_service,
             repository_ids=repository_ids,
+        )
+
+    def open_project_context_service(self) -> ProjectContextService:
+        """Compose project context through read-only application-service protocols."""
+
+        from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
+        from vault_graph.project_context.project_binding_catalog import ProjectBindingCatalogService
+        from vault_graph.project_context.project_context_service import IndexStatusVaultFreshness, ProjectContextService
+
+        code_services = self.open()
+        vault_services = ReadOnlyServiceFactory(state_path=self.state_path).open_read_only()
+        bindings = ProjectBindingCatalogService(
+            catalog_service=code_services.catalog_service,
+            repository_catalog=code_services.repository_catalog,
+            vault_catalog=vault_services.catalog,
+        ).load()
+        try:
+            code_query_service = self.open_query_service()
+        except VaultGraphError:
+            code_query_service = None
+        return ProjectContextService(
+            repository_catalog=code_services.repository_catalog,
+            binding_catalog=bindings,
+            code_query_service=code_query_service,
+            context_pack_builder=vault_services.context_pack_builder,
+            vault_status_service=IndexStatusVaultFreshness(
+                catalog=vault_services.catalog,
+                status_reader=ReadOnlyServiceFactory(state_path=self.state_path).open_status_service(),
+            ),
         )
 
 
