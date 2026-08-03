@@ -3,6 +3,18 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-03 - Harden Round 2 Project Context Plan Contracts
+
+**Trigger:** Independent plan review found underspecified repository↔Vault binding, scope defaults, MCP smoke gating, and harness instruction-file safety contracts.
+
+**Scope:** Round 2 project-context implementation plan, query/CLI boundary, binding catalog, MCP input scope, and harness guidance operations.
+
+**Core Values Protected:** Preserved read-only/rebuildable authority boundaries, explicit user scope, deterministic freshness, reversible setup, and production-verifiable agent context.
+
+**Changes Applied:** Added explicit binding catalog load/save and `vg project bind` flow, deterministic sole-bound-repository fallback, bounded code query/outline contracts, enabled stdio gate requirements, and atomic symlink-safe guidance install/remove semantics with unconditional backup-collision rejection.
+
+**Verification:** Second independent plan review; `git diff --check`.
+
 ## 2026-08-03 - Refine Round 1 Parser Backend Boundary
 
 **Trigger:** Round 1 design review questioned whether Python and Dart parsers
