@@ -58,6 +58,9 @@ from vault_graph.code_index.code_models import (
     CodeTraversalResult,
     PendingCodeReference,
 )
+from vault_graph.code_index.dart_parser import DartCodeParserAdapter, DartParserAdapter
+from vault_graph.code_index.parser_adapter import CodeParserAdapter
+from vault_graph.code_index.python_parser import PythonCodeParserAdapter, PythonParserAdapter
 from vault_graph.code_index.repository_catalog import (
     SUPPORTED_CODE_LANGUAGES,
     CodeRepositoryCatalog,
@@ -108,6 +111,11 @@ __all__ = [
     "CodeRepositoryCatalogService",
     "SUPPORTED_CODE_LANGUAGES",
     "repository_policy_revision",
+    "CodeParserAdapter",
+    "PythonCodeParserAdapter",
+    "PythonParserAdapter",
+    "DartCodeParserAdapter",
+    "DartParserAdapter",
     "CodeRepositoryAddRequest",
     "CodeRepositoryListRequest",
     "CodeRepositoryRemoveRequest",
