@@ -25,6 +25,12 @@ The detailed design has three goals:
   every runtime path
 - keep storage backends replaceable without changing user-facing behavior
 
+Round 0-G adds one further invariant: normalized plaintext is persisted once in
+metadata blobs. Keyword, vector, and graph stores are replaceable projections
+over stable references. Authority roles and provenance families are assigned at
+ingestion, default retrieval collapses canonical results by family, and full
+rebuilds activate through one atomic generation manifest.
+
 This document does not redefine product scope. It translates the existing
 specification into a stable design that can guide implementation.
 

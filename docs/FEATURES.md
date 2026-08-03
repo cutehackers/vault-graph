@@ -17,6 +17,12 @@ adapters.
 
 Vault Graph is a read-only, rebuildable knowledge access layer over Vault.
 
+Round 0-G makes that boundary measurable: `vg search` defaults to
+`--mode knowledge`, while `evidence`, `operating`, `audit`, and `all` provide
+explicit drill-down. Results carry provenance-family IDs and compact supporting
+references. `vg projection-audit` reports plaintext amplification, role counts,
+schema versions, and dangling keyword/vector/graph references.
+
 It can:
 
 - read Vault content
@@ -390,7 +396,7 @@ existing application services. Tools that require answer synthesis or memory
 projections are listed only when their backing services exist or are the next
 implementation target.
 
-### `search_vault(query, scope=None, limit=10)`
+### `search_vault(query, scope=None, limit=10, mode="knowledge")`
 
 Searches Vault-derived indexes and returns ranked, evidence-linked results.
 The optional `scope` is a `QueryScope`; without it, search uses the active Vault

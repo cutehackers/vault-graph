@@ -17,6 +17,24 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-08-03 - Make Metadata Blobs The Single Plaintext Owner
+
+**Question:** How should Vault Graph prevent raw, wiki, index, vector, and graph
+projections from becoming duplicated knowledge stores?
+
+**Decision:** Classify documents by authority role, connect provenance families,
+persist distinct chunk plaintext only in metadata blobs, and keep keyword,
+vector, and graph projections reference-only. Default knowledge search collapses
+families; full rebuilds activate through an atomic projection manifest.
+
+**Reason:** Vault is the durable authority. Derived stores must improve access
+without multiplying knowledge authority or repeatedly returning the same source
+lineage.
+
+**Implications:** Explicit search modes preserve drill-down, projection hygiene
+is auditable, incompatible v1 state requires a full rebuild, and Round 1 code
+indexing must reuse the same authority/reference boundary.
+
 ## 2026-07-30 - Gate Expansion On Projection Deduplication
 
 **Question:** Should Vault Graph begin code indexing immediately after accepting

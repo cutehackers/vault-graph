@@ -21,6 +21,21 @@ humans discover context, trace decisions, inspect code structure, assemble
 task-specific context, and answer questions from cited evidence without turning
 retrieval or reasoning output into durable knowledge or executable source.
 
+### Round 0-G Projection Hygiene Contract
+
+Vault Graph classifies Vault documents as canonical knowledge, raw evidence,
+source manifests, operating contracts, generated views, operation logs, or
+audit records. Provenance links connect related documents into one family.
+Default `knowledge` search returns canonical knowledge once per family and
+attaches compact references to supporting evidence and audit material.
+
+Plaintext has one persistent owner: `MetadataStore.content_blobs`. Metadata
+chunks, contentless FTS, vector metadata, and graph evidence store stable
+references plus role/family identity, not another body or excerpt. A full
+rebuild is staged in an isolated projection generation and becomes readable
+only after atomic manifest activation. `vg projection-audit` exposes blob,
+schema, duplication, and dangling-reference evidence for this contract.
+
 The goal is not simple document or code search. The goal is to make project
 evidence easier to use:
 
@@ -745,12 +760,11 @@ Graph evidence reference fields:
 - `section`
 - `anchor`
 - `path`
-- `excerpt`
 
 `owner_kind` is `entity` or `relationship`. `owner_vault_id` is the entity Vault
 ID for entity evidence and the source Vault ID for relationship evidence.
-`owner_id` is the `entity_id` or `relationship_id`. Paths and excerpts are
-rendering metadata. Relationship evidence authority comes from the evidence
+`owner_id` is the `entity_id` or `relationship_id`. Paths are navigation
+metadata. Relationship evidence authority comes from the evidence
 chunk resolved through `MetadataStore`.
 
 Allowed relationship statuses:
