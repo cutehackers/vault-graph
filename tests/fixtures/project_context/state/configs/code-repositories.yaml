@@ -1,0 +1,13 @@
+repositories:
+  - repository_id: demo
+    root_path: ../repository
+    display_name: Project Context Fixture
+    enabled: true
+    include_globs: []
+    exclude_globs: []
+    languages:
+      - python
+      - dart
+    state_namespace: demo
+    git_revision_policy: content-hash
+    watch: false

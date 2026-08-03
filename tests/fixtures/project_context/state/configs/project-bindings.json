@@ -1,0 +1,11 @@
+{
+  "bindings": [
+    {
+      "content_scopes": ["wiki"],
+      "evidence_mappings": [],
+      "repository_id": "demo",
+      "vault_ids": ["project-vault"]
+    }
+  ],
+  "schema_version": "project-bindings-v1"
+}

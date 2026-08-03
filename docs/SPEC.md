@@ -644,6 +644,25 @@ Document
 
 The final asset is still derived data. Durable knowledge remains in Vault.
 
+### 7.8 Project Context Exploration
+
+`explore_project(task, project_path=None, repository_id=None, max_tokens=None,
+depth=2, limit=20)` is the default agent entry point for a coding task. It
+returns bounded, evidence-linked current code, impact and related-test evidence,
+selected Vault evidence, explicit cross-authority relationship status, source
+revisions, freshness, and recovery warnings.
+
+The caller must select a registered repository or rely on the sole repository
+with an explicit Graph-owned repository-to-Vault binding. Vault Graph never
+guesses an active Vault from a working directory or recent query. A missing code
+projection returns a deterministic Vault-only fallback with an
+`code_index_unavailable` warning; it never presents the fallback as fresh code.
+
+Code evidence uses a validated `vg-source://{repository_id}/{relative_path}`
+line URI and is read from the current repository only after the indexed hash is
+checked. Source bodies are not persisted in the code projection or included in
+the project-context response.
+
 ## 8. Entity Model
 
 ### 8.1 Core Entities
@@ -1196,6 +1215,7 @@ Product tool surface:
 - `get_recent_changes(since=None, scope=None, limit=20)`
 - `explain_result(result_id)`
 - `check_index_status(scope=None)`
+- `explore_project(task, project_path=None, repository_id=None, max_tokens=None, depth=2, limit=20)`
 
 Tool responses must separate:
 
@@ -1211,6 +1231,11 @@ MCP registration exposes only the subset backed by existing application
 services. `ask_vault`, result explanation, and memory projection tools are
 registered because their backing application services exist; future tools must
 wait for the same service-backed boundary.
+
+`explore_project` is scoped by an explicit repository-to-Vault binding rather
+than `QueryScope`'s active-Vault default. Its adapter calls only
+`ProjectContextService`, remains read-only, and returns structured fallback
+warnings when the optional code projection is unavailable.
 
 ## 16. MCP Prompts
 
@@ -1251,6 +1276,14 @@ vg serve --mcp
 vg ask "왜 GraphRAG를 도입했지?"
 vg ask --vault-id main "..."
 vg setup --vault /path/to/vault --agent codex --mcp
+vg code repository add demo --path /path/to/repository --language python --language dart
+vg code index --repository-id demo
+vg code search pricing --repository-id demo
+vg code impact calculate_total --repository-id demo
+vg project bind demo --vault-id main --scope wiki
+vg project bindings
+vg harness guidance preview --target /path/to/repository --file-name AGENTS.md
+vg harness guidance install --target /path/to/repository --file-name AGENTS.md
 vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
 vg mcp register --agent codex --state ~/.vault-graph --config-path ~/.codex/config.toml
 vg mcp config --agent codex --state ~/.vault-graph --print
@@ -2258,6 +2291,10 @@ Vault Graph is successful when:
 - Retrieval output never bypasses Vault's durable publication workflow.
 - Answering never creates a second durable memory source or silently promotes
   generated claims to Vault truth.
+- A coding agent can use one bounded `explore_project` call instead of manually
+  orchestrating code search, source inspection, impact traversal, and Vault
+  retrieval, while retaining at least the same selected evidence and visible
+  stale warnings.
 
 ## 21. Final Vision
 
