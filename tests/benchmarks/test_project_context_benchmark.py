@@ -20,10 +20,14 @@ import yaml
 from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.code_index_factory import CodeIndexFactory
 from vault_graph.code_index.code_models import (
+    CodeFileOutlineRequest,
     CodeFreshnessRequest,
     CodeImpactRequest,
     CodeIndexRequest,
+    CodeSymbolRequest,
     CodeSymbolSearchRequest,
+    CodeTraversalRequest,
+    CodeTraversalResponse,
 )
 from vault_graph.context import (
     CONTEXT_PACK_SCHEMA_VERSION,
@@ -71,6 +75,8 @@ class BenchmarkResult:
     stale_result_misses: int
     output_tokens: int
     evidence_ids: frozenset[str]
+    warning_codes: frozenset[str]
+    wire_json: str
 
 
 SCENARIOS = (
@@ -140,6 +146,7 @@ class _Runtime:
     vault_path: Path
     code_factory: CodeIndexFactory
     project_context_service: ProjectContextService
+    vault_context_builder: _FixtureVaultContextPackBuilder
     code_indexed: bool
 
 
@@ -202,6 +209,15 @@ class _FixtureVaultContextPackBuilder:
             warnings=(),
             evidence=(evidence,),
         )
+
+    def search(self, request: ContextPackRequest) -> ContextPack:
+        return self.build(request)
+
+    def decision_trace(self, request: ContextPackRequest) -> ContextPack:
+        return self.build(request)
+
+    def related(self, request: ContextPackRequest) -> ContextPack:
+        return self.build(request)
 
 
 class _FixtureVaultStatus:
@@ -284,14 +300,23 @@ def _initialize_runtime(tmp_path: Path, *, index_code: bool) -> _Runtime:
         code_query_service = code_factory.open_query_service("demo")
     else:
         code_query_service = None
+    vault_context_builder = _FixtureVaultContextPackBuilder(vault_path)
     project_context_service = ProjectContextService(
         repository_catalog=code_factory.open().repository_catalog,
         binding_catalog=bindings.load(),
         code_query_service=code_query_service,
-        context_pack_builder=_FixtureVaultContextPackBuilder(vault_path),
+        context_pack_builder=vault_context_builder,
         vault_status_service=_FixtureVaultStatus(vault_path),
     )
-    return _Runtime(state_path, repository_path, vault_path, code_factory, project_context_service, index_code)
+    return _Runtime(
+        state_path,
+        repository_path,
+        vault_path,
+        code_factory,
+        project_context_service,
+        vault_context_builder,
+        index_code,
+    )
 
 
 def _instruction_tokens(instructions: tuple[str, ...]) -> int:
@@ -306,29 +331,12 @@ def _evidence_ids(payload: dict[str, object]) -> frozenset[str]:
     return frozenset(evidence_ids)
 
 
-def _baseline_evidence_ids(runtime: _Runtime, scenario: Scenario) -> frozenset[str]:
-    query = runtime.code_factory.open_query_service("demo")
-    roots = query.search_symbols(
-        CodeSymbolSearchRequest(scenario.task, repository_ids=("demo",), limit=scenario.limit, output_format="json")
-    ).results
-    assert roots
-    evidence_ids = {f"code:{root.symbol_id}" for root in roots[: scenario.limit]}
-    for root in roots[: scenario.limit]:
-        impact = query.get_impact(
-            CodeImpactRequest(
-                root.symbol_id,
-                repository_id="demo",
-                depth=scenario.depth,
-                limit=scenario.limit,
-                output_format="json",
-            )
-        )
-        evidence_ids.update(f"code:{hit.symbol_id}" for hit in impact.result.hits)
-    evidence_ids.add(VAULT_EVIDENCE_ID)
-    return frozenset(evidence_ids)
-
-
-def _run_explore_project(runtime: _Runtime, scenario: Scenario) -> BenchmarkResult:
+def _run_explore_project(
+    runtime: _Runtime,
+    scenario: Scenario,
+    *,
+    baseline_evidence_ids: frozenset[str],
+) -> BenchmarkResult:
     registry = McpToolRegistry(
         services=cast(Any, object()),
         service_factory=cast(Any, _ProjectContextFactory(runtime.project_context_service)),
@@ -345,32 +353,158 @@ def _run_explore_project(runtime: _Runtime, scenario: Scenario) -> BenchmarkResu
         )
     )
     evidence_ids = _evidence_ids(body.payload)
-    expected_ids = _baseline_evidence_ids(runtime, scenario) if runtime.code_indexed else frozenset({VAULT_EVIDENCE_ID})
     warnings = cast(list[dict[str, object]], body.payload["warnings"])
-    stale_miss = int(
-        scenario.requires_source_drift_warning
-        and "source_changed_since_index" not in {cast(str, warning["code"]) for warning in warnings}
-    )
+    warning_codes = frozenset(cast(str, warning["code"]) for warning in warnings)
+    stale_miss = int(scenario.requires_source_drift_warning and "source_changed_since_index" not in warning_codes)
+    wire_json = json.dumps(body.to_json_dict(), sort_keys=True, separators=(",", ":"))
     return BenchmarkResult(
         application_tool_calls=1,
         prompt_instruction_tokens=_instruction_tokens(("Call explore_project once with task and repository id.",)),
         fallback_reads=0,
-        relevant_evidence_recall=len(evidence_ids & expected_ids) / len(expected_ids),
+        relevant_evidence_recall=(
+            len(evidence_ids & baseline_evidence_ids) / len(baseline_evidence_ids) if baseline_evidence_ids else 1.0
+        ),
         stale_result_misses=stale_miss,
-        output_tokens=max(1, (len(json.dumps(body.to_json_dict(), sort_keys=True, separators=(",", ":"))) + 3) // 4),
+        output_tokens=max(1, (len(wire_json) + 3) // 4),
         evidence_ids=evidence_ids,
+        warning_codes=warning_codes,
+        wire_json=wire_json,
     )
 
 
-def _run_scripted_baseline(scenario: Scenario) -> BenchmarkResult:
+def _baseline_context_request(scenario: Scenario) -> ContextPackRequest:
+    from vault_graph.ingestion.vault_catalog import QueryScope
+
+    return ContextPackRequest(
+        goal=scenario.task,
+        requested_scope=QueryScope(vault_ids=("project-vault",), content_scopes=("wiki",)),
+        budget=ContextPackBudget(max_tokens=MAX_TOKENS),
+        retrieval_limit=scenario.limit,
+    )
+
+
+def _run_scripted_baseline(runtime: _Runtime, scenario: Scenario) -> BenchmarkResult:
+    """Execute exactly the declared multi-tool flow and keep only its evidence."""
+
+    query = runtime.code_factory.open_query_service("demo")
+    selected_symbol_id: str | None = None
+    selected_relative_path: str | None = None
+    evidence_ids: set[str] = set()
+    calls = 0
+    fallback_reads = 0
+    seen_authorities: set[str] = set()
+
+    def record_call(authority: str) -> None:
+        nonlocal calls, fallback_reads
+        calls += 1
+        if authority in seen_authorities:
+            fallback_reads += 1
+        seen_authorities.add(authority)
+
+    for tool in scenario.baseline_tools:
+        if tool == "code.search":
+            record_call("code")
+            hits = query.search_symbols(
+                CodeSymbolSearchRequest(
+                    scenario.task,
+                    repository_ids=("demo",),
+                    limit=scenario.limit,
+                    output_format="json",
+                )
+            ).results
+            assert hits
+            selected_symbol_id = hits[0].symbol_id
+            selected_relative_path = hits[0].relative_path
+            evidence_ids.update(f"code:{hit.symbol_id}" for hit in hits[: scenario.limit])
+        elif tool == "code.symbol":
+            record_call("code")
+            response = query.get_symbol(
+                CodeSymbolRequest(
+                    selected_symbol_id or scenario.task,
+                    repository_id="demo",
+                    include_source=True,
+                    output_format="json",
+                )
+            )
+            assert response.symbol is not None
+            selected_symbol_id = response.symbol.symbol_id
+            evidence_ids.add(f"code:{response.symbol.symbol_id}")
+        elif tool == "code.outline":
+            record_call("code")
+            assert selected_symbol_id is not None and selected_relative_path is not None
+            outline = query.get_file_outline(
+                CodeFileOutlineRequest("demo", selected_relative_path, output_format="json")
+            )
+            assert any(symbol.symbol_id == selected_symbol_id for symbol in outline.symbols)
+            evidence_ids.add(f"code:{selected_symbol_id}")
+        elif tool in {"code.callers", "code.callees", "code.impact"}:
+            record_call("code")
+            assert selected_symbol_id is not None
+            if tool == "code.callers":
+                traversal_response: CodeTraversalResponse = query.get_callers(
+                    CodeTraversalRequest(
+                        selected_symbol_id,
+                        repository_id="demo",
+                        depth=scenario.depth,
+                        limit=scenario.limit,
+                        output_format="json",
+                    )
+                )
+            elif tool == "code.callees":
+                traversal_response = query.get_callees(
+                    CodeTraversalRequest(
+                        selected_symbol_id,
+                        repository_id="demo",
+                        depth=scenario.depth,
+                        limit=scenario.limit,
+                        output_format="json",
+                    )
+                )
+            else:
+                traversal_response = query.get_impact(
+                    CodeImpactRequest(
+                        selected_symbol_id,
+                        repository_id="demo",
+                        depth=scenario.depth,
+                        limit=scenario.limit,
+                        output_format="json",
+                    )
+                )
+            evidence_ids.update(f"code:{hit.symbol_id}" for hit in traversal_response.result.hits)
+        elif tool == "code.status":
+            record_call("code")
+            runtime.code_factory.open_freshness_service().compare(
+                CodeFreshnessRequest(repository_ids=("demo",), verify=True)
+            )
+        elif tool in {"vault.search", "vault.context", "vault.decision_trace", "vault.related"}:
+            record_call("vault")
+            request = _baseline_context_request(scenario)
+            pack = (
+                runtime.vault_context_builder.search(request)
+                if tool == "vault.search"
+                else runtime.vault_context_builder.build(request)
+                if tool == "vault.context"
+                else runtime.vault_context_builder.decision_trace(request)
+                if tool == "vault.decision_trace"
+                else runtime.vault_context_builder.related(request)
+            )
+            evidence_ids.update(
+                f"vault:{item.ref.vault_id}:{item.ref.document_id}:{item.ref.chunk_id}" for item in pack.evidence
+            )
+        else:  # pragma: no cover - scenarios are static and exhaustively listed above
+            raise AssertionError(f"unsupported scripted baseline tool: {tool}")
+
+    assert calls == len(scenario.baseline_tools)
     return BenchmarkResult(
-        application_tool_calls=len(scenario.baseline_tools),
+        application_tool_calls=calls,
         prompt_instruction_tokens=_instruction_tokens(scenario.baseline_instructions),
-        fallback_reads=len(scenario.baseline_tools) - 1,
+        fallback_reads=fallback_reads,
         relevant_evidence_recall=1.0,
         stale_result_misses=0,
         output_tokens=MAX_TOKENS,
-        evidence_ids=frozenset(),
+        evidence_ids=frozenset(evidence_ids),
+        warning_codes=frozenset(),
+        wire_json="",
     )
 
 
@@ -406,8 +540,8 @@ def test_explore_project_uses_real_code_projection_and_meets_orchestration_thres
         assert any("content hash changed: demo/src/billing.py" == warning for warning in verified.warnings)
         repository_before = _tree_fingerprint(runtime.repository_path)
 
-    baseline = _run_scripted_baseline(scenario)
-    explored = _run_explore_project(runtime, scenario)
+    baseline = _run_scripted_baseline(runtime, scenario)
+    explored = _run_explore_project(runtime, scenario, baseline_evidence_ids=baseline.evidence_ids)
 
     assert explored.application_tool_calls < baseline.application_tool_calls
     assert explored.prompt_instruction_tokens < baseline.prompt_instruction_tokens
@@ -436,10 +570,12 @@ def test_missing_code_index_fallback_uses_actual_catalog_binding_and_vault_adapt
     vault_before = _tree_fingerprint(runtime.vault_path)
     scenario = SCENARIOS[0]
 
-    first = _run_explore_project(runtime, scenario)
-    second = _run_explore_project(runtime, scenario)
+    baseline_evidence_ids = frozenset({VAULT_EVIDENCE_ID})
+    first = _run_explore_project(runtime, scenario, baseline_evidence_ids=baseline_evidence_ids)
+    second = _run_explore_project(runtime, scenario, baseline_evidence_ids=baseline_evidence_ids)
 
     assert first.evidence_ids == frozenset({VAULT_EVIDENCE_ID})
-    assert first == second
+    assert "code_index_unavailable" in first.warning_codes
+    assert first.wire_json == second.wire_json
     assert _tree_fingerprint(runtime.repository_path) == repository_before
     assert _tree_fingerprint(runtime.vault_path) == vault_before

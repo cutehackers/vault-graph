@@ -3,6 +3,27 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-04 - Exercise Declared Project Context Baselines
+
+**Trigger:** Benchmark review found that the scripted baseline counted declared
+tools without executing their actual query paths, which could overstate
+evidence recall and fallback reads.
+
+**Scope:** Project-context integration benchmark and its verification report.
+
+**Core Values Protected:** Preserved inspectable evidence provenance,
+deterministic bounded output, and honest comparison against the existing
+multi-tool workflow.
+
+**Changes Applied:** Executed exactly each scenario's declared code and Vault
+tools, derived baseline evidence from their returned records, counted only
+non-initial authority reads as fallback, and compared code-index fallback
+canonical wire JSON while directly checking its unavailable-index warning.
+
+**Verification:** `uv run pytest -q` (1123 passed, 1 skipped); `uv run ruff
+check .`; `uv run mypy src tests`; `uv build`; `uv lock --check`; `git diff
+--check`; enabled MCP stdio smoke.
+
 ## 2026-08-04 - Close Project Context Evidence Review Gaps
 
 **Trigger:** Quality review found that live source drift did not reach impact/test evidence, cross-authority stated relations lacked an explicit mapping path, and large metadata could exceed the context budget or trigger unbounded source reads.
