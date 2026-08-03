@@ -124,7 +124,7 @@ class CodeReferenceResolver:
             if deferred:
                 assert previous is not None
                 status, target, reason = "unresolved", None, previous.reason
-            elif not candidates and self._is_dynamic(reference):
+            elif self._is_dynamic(reference):
                 status, target, reason = "ambiguous", None, "dynamic-static-target"
             elif len(candidates) > 1:
                 status, target, reason = "ambiguous", None, "multiple-static-targets"
@@ -502,7 +502,7 @@ class CodeReferenceResolver:
     def _is_dynamic(reference: CodeReferenceRecord) -> bool:
         target = reference.target_key.casefold()
         return reference.relation_kind in {"CALLS", "TESTS"} and (
-            target.startswith("dynamic:") or any(marker in target for marker in (*_DYNAMIC_MARKERS, "."))
+            target.startswith("dynamic:") or any(marker in target for marker in _DYNAMIC_MARKERS)
         )
 
 
