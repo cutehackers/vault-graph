@@ -15,6 +15,18 @@ changes remain traceable to Vault Graph's core values.
 
 **Verification:** `uv run pytest -q` (1063 passed, 1 skipped); `uv run ruff check .`; `uv run mypy src`; `uv build`; `uv lock --check`; changed-file format check; `git diff --check`.
 
+## 2026-08-04 - Bound Project Binding Metadata and Wire Compaction
+
+**Trigger:** Final quality review found that valid large mapping arrays could overflow the 512-token project context budget and that malformed mapping entries could bypass the one-to-one relation contract.
+
+**Scope:** Project binding validation, compact context serialization, and project-bind CLI input.
+
+**Core Values Protected:** Preserved deterministic bounded output, inspectable provenance, explicit one-to-one evidence relations, and reusable serializer boundaries.
+
+**Changes Applied:** Added deterministic cardinality, shape, duplicate, and identifier limits; compacted oversized arrays with omission counts and digests; exported the shared compaction helper; and added repeatable CLI evidence-mapping input with JSON round-trip coverage.
+
+**Verification:** `uv run pytest -q` (1074 passed, 1 skipped); `uv run ruff check .`; `uv run mypy src`; `uv build`; `uv lock --check`; changed-file format check; `git diff --check`.
+
 ## 2026-08-03 - Harden Round 2 Project Context Plan Contracts
 
 **Trigger:** Independent plan review found underspecified repository↔Vault binding, scope defaults, MCP smoke gating, and harness instruction-file safety contracts.

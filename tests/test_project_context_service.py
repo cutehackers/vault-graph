@@ -441,9 +441,19 @@ def test_project_context_compacts_long_binding_and_authority_metadata_within_bud
     context = _service(
         tmp_path,
         code=_Code(),
-        evidence_mappings=(("code:" + "x" * 1000, "vault:" + "y" * 1000),),
+        evidence_mappings=(("code:" + "x" * 100, "vault:vault:" + "y" * 100 + ":chunk"),),
         authority_revision="revision-" + "z" * 1000,
     ).build(ProjectContextRequest(task="Find the implementation", max_tokens=512))
+
+    assert context.budget.used_tokens <= 512
+
+
+def test_project_context_compacts_large_valid_binding_mapping_arrays_within_budget(tmp_path: Path) -> None:
+    mappings = tuple((f"code:symbol-{index}", f"vault:vault:decision-{index}:chunk-{index}") for index in range(5000))
+
+    context = _service(tmp_path, code=_Code(), evidence_mappings=mappings).build(
+        ProjectContextRequest(task="Find the implementation", max_tokens=512)
+    )
 
     assert context.budget.used_tokens <= 512
 

@@ -23,6 +23,9 @@ def bind(
     repository_id: str,
     vault_id: list[str] = typer.Option(..., "--vault-id"),
     scope: list[str] = typer.Option([], "--scope"),
+    evidence_mapping: list[str] = typer.Option(
+        [], "--evidence-mapping", help="Explicit code_id=vault_evidence_id relation; repeatable."
+    ),
     state: Path = typer.Option(Path(".vault-graph"), "--state"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
@@ -31,7 +34,12 @@ def bind(
     output_format = _validate_format(output_format)
     try:
         service = _binding_service(state)
-        binding = ProjectBinding(repository_id=repository_id, vault_ids=tuple(vault_id), content_scopes=tuple(scope))
+        binding = ProjectBinding(
+            repository_id=repository_id,
+            vault_ids=tuple(vault_id),
+            content_scopes=tuple(scope),
+            evidence_mappings=_parse_evidence_mappings(evidence_mapping),
+        )
         result = service.bind(binding).resolve(repository_id)
     except (ValueError, VaultGraphError) as exc:
         typer.echo(str(exc))
@@ -69,6 +77,16 @@ def _validate_format(output_format: str) -> str:
         typer.echo("unsupported_format")
         raise typer.Exit(1)
     return output_format
+
+
+def _parse_evidence_mappings(values: list[str]) -> tuple[tuple[str, str], ...]:
+    mappings: list[tuple[str, str]] = []
+    for value in values:
+        code_id, separator, vault_evidence_id = value.partition("=")
+        if not separator:
+            raise ValueError("evidence mapping must use code_id=vault_evidence_id")
+        mappings.append((code_id, vault_evidence_id))
+    return tuple(mappings)
 
 
 def _render(value: object, output_format: str) -> None:

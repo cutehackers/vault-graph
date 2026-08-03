@@ -94,3 +94,37 @@ def test_project_binding_catalog_rejects_unregistered_authorities(tmp_path: Path
         service.bind(ProjectBinding(repository_id="demo", vault_ids=("missing",)))
     with pytest.raises(ValueError, match="unknown repository_id"):
         service.bind(ProjectBinding(repository_id="missing", vault_ids=("main",)))
+
+
+@pytest.mark.parametrize(
+    ("mappings", "message"),
+    (
+        ((["code:run", "vault:main:decision-1:chunk-1"],), "immutable"),
+        ((("code:run",),), "exactly two"),
+        ((("code:run", "vault:main:decision-1:chunk-1", "extra"),), "exactly two"),
+        ((("run", "vault:main:decision-1:chunk-1"),), "code evidence"),
+        ((("code:run", "main:decision-1:chunk-1"),), "Vault evidence"),
+        (
+            (("code:run", "vault:main:decision-1:chunk-1"), ("code:run", "vault:main:decision-2:chunk-2")),
+            "duplicate",
+        ),
+    ),
+)
+def test_project_binding_rejects_invalid_evidence_mapping_shape(mappings: tuple[object, ...], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        ProjectBinding(repository_id="demo", vault_ids=("main",), evidence_mappings=mappings)  # type: ignore[arg-type]
+
+
+def test_project_binding_accepts_the_deterministic_mapping_cardinality_limit() -> None:
+    mappings = tuple((f"code:symbol-{index}", f"vault:main:decision-{index}:chunk-{index}") for index in range(5000))
+
+    binding = ProjectBinding(repository_id="demo", vault_ids=("main",), evidence_mappings=mappings)
+
+    assert len(binding.evidence_mappings) == 5000
+
+
+def test_project_binding_rejects_mapping_cardinality_above_the_limit() -> None:
+    mappings = tuple((f"code:symbol-{index}", f"vault:main:decision-{index}:chunk-{index}") for index in range(5001))
+
+    with pytest.raises(ValueError, match="evidence_mappings"):
+        ProjectBinding(repository_id="demo", vault_ids=("main",), evidence_mappings=mappings)
