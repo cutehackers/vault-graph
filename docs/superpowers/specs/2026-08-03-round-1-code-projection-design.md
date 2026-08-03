@@ -143,6 +143,38 @@ CodeGraph's product surface and bundled runtime are not copied. Vault Graph
 keeps its Python package, local-first dependencies, source-authority rules, and
 existing application-service boundaries.
 
+### 4.1 Parser backend decision
+
+`CodeParserAdapter` is a Python protocol and normalization boundary. It does
+not mean that Vault Graph should implement the Python or Dart grammar itself,
+nor that the indexer should execute Dart code. The Round 1 baseline uses
+Python wrappers around a proven Tree-sitter runtime:
+
+- `tree-sitter` Python bindings for the parser runtime
+- a pinned Python grammar package
+- a pinned Dart grammar artifact with an explicit ABI and grammar revision
+- Python-owned language query/extraction code that maps parser nodes into the
+  common Vault Graph symbol and reference DTOs
+
+This is the best initial fit for Vault Graph because it keeps one local runtime,
+supports incremental/error-tolerant syntax parsing, avoids requiring a Dart SDK
+or analysis server, and makes repeated rebuilds testable under one parser
+contract. The current repository does not yet ship Tree-sitter dependencies;
+implementation must add and pin them rather than relying on an ambient parser
+installation.
+
+Dart's official `analyzer` package remains a future optional semantic resolver,
+not a Round 1 baseline. It can provide higher-fidelity type and package
+resolution, but it couples indexing to Dart SDK/package configuration and an
+additional runtime. If enabled later, its edges must be labeled with a
+separate resolver version and may enrich—not replace—the deterministic
+Tree-sitter projection.
+
+The Dart grammar must pass a fixture gate for classes, mixins, extensions,
+imports, async functions, named/optional parameters, annotations, and test
+files. Unsupported constructs produce explicit diagnostics and `partial`
+freshness; they do not become guessed relationships.
+
 ## 5. Architecture
 
 ```text
@@ -187,10 +219,11 @@ never open SQLite tables directly.
 ### 5.3 `CodeParserAdapter`
 
 Hides Tree-sitter nodes, grammar queries, and language-specific AST details.
-Each adapter returns normalized file, symbol, and raw-reference records. The
-first adapters are Python and Dart with pinned grammar/parser specification
-versions. Syntax errors produce file-scoped diagnostics and partial extraction
-where safe; they do not permit the adapter to invent symbols.
+Each Python implementation returns normalized file, symbol, and raw-reference
+records. The first adapters are Python and Dart with pinned grammar/parser
+specification versions. Syntax errors produce file-scoped diagnostics and
+partial extraction where safe; they do not permit the adapter to invent
+symbols.
 
 ### 5.4 `SymbolResolver`
 
@@ -683,9 +716,10 @@ approval before implementation:
 1. **Watcher default:** keep it disabled by default and opt in with
    `vg code watch`; this avoids background work while preserving the CodeGraph
    freshness advantage.
-2. **Parser packaging:** pin Tree-sitter core and Python/Dart grammar versions
-   in the Python distribution; do not shell out to language-specific external
-   analyzers in the default path.
+2. **Parser packaging:** pin Tree-sitter core and Python/Dart grammar artifacts
+   in the Python distribution, record their ABI/spec versions, and do not
+   shell out to language-specific external analyzers in the default path. A
+   Dart Analyzer bridge remains an optional later semantic resolver.
 3. **Performance budget:** establish a fixture baseline first, then set p95
    query and incremental-sync targets in the Round 1 completion report.
 4. **Configuration location:** use a Graph-owned repository catalog file and
