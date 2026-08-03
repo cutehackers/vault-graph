@@ -51,14 +51,15 @@ fixture의 Vault와 repository 파일 트리 SHA-256 fingerprint를 호출 전�
 ## Benchmark 결과
 
 토큰은 직렬화된 응답 및 고정 지시문 길이에서 계산한 결정적 추정치다. 출력
-상한은 1,200 tokens, depth=2, limit=20이다.
+상한은 1,200 tokens이며, scenario별 실제 요청 범위는 depth=0~2,
+limit=1~2이다.
 
 | 시나리오 | 기존 호출 → 탐색 호출 | 지시 토큰 → 탐색 토큰 | fallback 읽기 → 탐색 읽기 | 증거 재현율 | stale 누락 | 탐색 출력 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 구조 설명 | 4 → 1 | 43 → 14 | 3 → 0 | 1.00 | 0 | 871 |
-| 버그 범위 | 5 → 1 | 37 → 14 | 4 → 0 | 1.00 | 0 | 1,185 |
-| 영향 분석 | 5 → 1 | 31 → 14 | 4 → 0 | 1.00 | 0 | 871 |
-| 설계·구현 일관성 | 5 → 1 | 45 → 14 | 4 → 0 | 1.00 | 0 | 866 |
+| 구조 설명 | 4 → 1 | 43 → 14 | 2 → 0 | 1.00 | 0 | 871 |
+| 버그 범위 | 5 → 1 | 37 → 14 | 3 → 0 | 1.00 | 0 | 1,185 |
+| 영향 분석 | 5 → 1 | 31 → 14 | 3 → 0 | 1.00 | 0 | 871 |
+| 설계·구현 일관성 | 5 → 1 | 45 → 14 | 3 → 0 | 1.00 | 0 | 866 |
 
 각 시나리오에서 다음 acceptance threshold를 만족한다.
 
@@ -71,7 +72,8 @@ fixture의 Vault와 repository 파일 트리 SHA-256 fingerprint를 호출 전�
   ProjectContext warning으로 전달하는 것을 확인한다. stale 결과 누락은 0이다.
 - MCP 출력은 max token/depth/limit 경계 안에 있다.
 - Vault와 repository fingerprint가 호출 전후 동일하다.
-- 코드 인덱스 미가용 fallback은 두 호출에서 동일하게 직렬화된다.
+- 코드 인덱스 미가용 fallback은 `code_index_unavailable` 경고를 직접
+  확인하고, 두 호출의 canonical wire JSON이 완전히 같은지 비교한다.
 
 ## 제품 계약 확인
 
