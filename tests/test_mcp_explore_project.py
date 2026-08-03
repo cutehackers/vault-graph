@@ -64,6 +64,7 @@ def _context() -> ProjectContext:
                 freshness="fresh",
                 source_uri="vault://main/wiki/decision.md",
                 vault_id="main",
+                relative_path="wiki/decision.md",
             ),
         ),
         relations=(),
@@ -256,3 +257,30 @@ def test_project_context_serializer_drops_and_redacts_malformed_repository_evide
     assert code_evidence[0]["source_uri"] is None
     if relative_path.startswith("/"):
         assert code_evidence[0]["relative_path"] is None
+
+
+@pytest.mark.parametrize(
+    ("source_uri", "relative_path"),
+    (
+        ("vault://main/%2Fprivate%2Fvault%2Fdecision.md", "wiki/decision.md"),
+        ("vault://other/wiki/decision.md", "wiki/decision.md"),
+        ("vault://main/wiki/decision.md#L1-L2", "wiki/decision.md"),
+        ("vault://main/%2Fprivate%2Fvault%2Fdecision.md", "/private/vault/decision.md"),
+    ),
+)
+def test_project_context_serializer_drops_and_redacts_malformed_vault_evidence(
+    source_uri: str,
+    relative_path: str,
+) -> None:
+    context = _context()
+    unsafe = replace(context.vault_evidence[0], source_uri=source_uri, relative_path=relative_path)
+    unsafe_context = replace(context, vault_evidence=(unsafe,))
+
+    payload = project_context_to_payload(unsafe_context)
+
+    assert all(link.uri != source_uri for link in resource_links_for_project_context(unsafe_context))
+    assert "/private/" not in repr(payload)
+    vault_evidence = cast(list[dict[str, object]], payload["vault_evidence"])
+    assert vault_evidence[0]["source_uri"] is None
+    if relative_path.startswith("/"):
+        assert vault_evidence[0]["relative_path"] is None
