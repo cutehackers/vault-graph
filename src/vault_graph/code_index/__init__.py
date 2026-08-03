@@ -58,6 +58,12 @@ from vault_graph.code_index.code_models import (
     CodeTraversalResult,
     PendingCodeReference,
 )
+from vault_graph.code_index.repository_catalog import (
+    SUPPORTED_CODE_LANGUAGES,
+    CodeRepositoryCatalog,
+    CodeRepositoryCatalogService,
+    repository_policy_revision,
+)
 
 __all__ = [
     "CODE_DART_GRAMMAR_REVISION",
@@ -98,6 +104,10 @@ __all__ = [
     "CodeRelationKind",
     "CodeSymbolKind",
     "CodeTraversalDirection",
+    "CodeRepositoryCatalog",
+    "CodeRepositoryCatalogService",
+    "SUPPORTED_CODE_LANGUAGES",
+    "repository_policy_revision",
     "CodeRepositoryAddRequest",
     "CodeRepositoryListRequest",
     "CodeRepositoryRemoveRequest",

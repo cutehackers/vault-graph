@@ -15,6 +15,7 @@ class CatalogService:
     def __init__(self, *, state_path: Path, embedding_cache_path: Path | None = None) -> None:
         self.state_path = state_path.expanduser().resolve()
         self.config_path = self.state_path / "configs" / "vaults.yaml"
+        self.code_config_path = self.state_path / "configs" / "repositories.yaml"
         active = ProjectionGenerationManager(self.state_path).active_layout()
         projection_path = active.root_path if active is not None else self.state_path
         self.metadata_path = projection_path / "metadata" / "metadata.sqlite3"
