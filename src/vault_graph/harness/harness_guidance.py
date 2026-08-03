@@ -155,7 +155,7 @@ class HarnessGuidanceService:
             raise HarnessGuidanceError("harness_guidance_unsupported_file_name")
         target = _canonical_existing_directory(request.target)
         instruction_path = target / request.file_name
-        if instruction_path.exists() and instruction_path.is_symlink():
+        if instruction_path.is_symlink():
             raise HarnessGuidanceError("harness_guidance_symlink_not_allowed")
         self._assert_outside_vaults(instruction_path)
         return instruction_path
@@ -232,37 +232,41 @@ def _marker_state(content: str) -> Literal["missing", "installed", "tampered"]:
     end = content.find(HARNESS_GUIDANCE_END_MARKER)
     if start > end:
         return "tampered"
-    end += len(HARNESS_GUIDANCE_END_MARKER)
-    return "installed" if content[start:end] == _GUIDANCE_BLOCK.rstrip("\n") else "tampered"
+    block_end = start + len(_GUIDANCE_BLOCK)
+    return "installed" if content[start:block_end] == _GUIDANCE_BLOCK else "tampered"
 
 
 def _with_guidance(content: str) -> str:
-    return _GUIDANCE_BLOCK if not content else f"{content.rstrip()}\n\n{_GUIDANCE_BLOCK}"
+    return _GUIDANCE_BLOCK if not content else f"{content}\n\n{_GUIDANCE_BLOCK}"
 
 
 def _without_guidance(content: str) -> str:
     start = content.find(HARNESS_GUIDANCE_START_MARKER)
-    end = content.find(HARNESS_GUIDANCE_END_MARKER) + len(HARNESS_GUIDANCE_END_MARKER)
-    before = content[:start]
-    after = content[end:]
-    if before.endswith("\n\n"):
-        before = before[:-1]
-    if after.startswith("\n"):
-        after = after[1:]
+    block_end = start + len(_GUIDANCE_BLOCK)
+    block_start = start - 2 if start >= 2 and content[start - 2 : start] == "\n\n" else start
+    before = content[:block_start]
+    after = content[block_end:]
     return before + after
 
 
 def _write_atomically(path: Path, content: str) -> None:
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    temporary_path = Path(temporary_name)
+    temporary_path: Path | None = None
+    primary_error: OSError | None = None
     try:
+        descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        temporary_path = Path(temporary_name)
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary_path, path)
     except OSError as exc:
+        primary_error = exc
         raise HarnessGuidanceError("harness_guidance_write_failed") from exc
     finally:
-        if temporary_path.exists():
-            temporary_path.unlink()
+        if temporary_path is not None and temporary_path.exists():
+            try:
+                temporary_path.unlink()
+            except OSError as cleanup_error:
+                if primary_error is None:
+                    raise HarnessGuidanceError("harness_guidance_write_failed") from cleanup_error
