@@ -530,7 +530,7 @@ def _dart_constructor_call_target(node: Any) -> str:
     if node.type != "selector":
         return ""
     chain = _dart_selector_chain(node)
-    if len(chain) >= 2 and chain[-2][:1].isupper():
+    if len(chain) >= 2 and any(part[:1].isupper() for part in chain[-2:]):
         return ".".join(chain)
     return ""
 
