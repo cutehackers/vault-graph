@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS edges (
 CREATE TABLE IF NOT EXISTS pending_references (
   pending_id TEXT PRIMARY KEY,
   repository_id TEXT NOT NULL REFERENCES repositories(repository_id),
+  source_file_id TEXT NOT NULL REFERENCES files(file_id),
   reference_id TEXT NOT NULL,
   source_revision TEXT NOT NULL,
   relation_kind TEXT NOT NULL,
@@ -208,6 +209,7 @@ _REQUIRED_COLUMNS: dict[str, set[str]] = {
     "pending_references": {
         "pending_id",
         "repository_id",
+        "source_file_id",
         "reference_id",
         "source_revision",
         "relation_kind",
@@ -382,8 +384,9 @@ class SQLiteCodeProjectionStore:
             return "policy revision mismatch"
         if len(manifest_revisions) != len(manifest.source_revisions):
             return "contains duplicate source revisions"
-        if set(manifest_revisions) - set(manifest.repository_ids):
-            return "contains an out-of-scope source revision"
+        manifest_repositories = set(manifest.repository_ids)
+        if set(manifest_revisions) != manifest_repositories:
+            return "source revisions do not match repository IDs"
         placeholders = ",".join("?" for _ in manifest.repository_ids)
         repositories = connection.execute(
             f"SELECT repository_id, source_revision FROM repositories WHERE repository_id IN ({placeholders})",
@@ -427,6 +430,20 @@ class SQLiteCodeProjectionStore:
         ).fetchone()
         if symbol_source_mismatch is not None:
             return f"symbol source identity mismatch for {symbol_source_mismatch['symbol_id']}"
+        pending_source_mismatch = connection.execute(
+            """
+            SELECT p.pending_id
+            FROM pending_references p
+            LEFT JOIN files f ON f.file_id = p.source_file_id
+            WHERE f.file_id IS NULL
+               OR p.repository_id <> f.repository_id
+               OR p.source_revision <> f.source_revision
+               OR p.parser_spec_version <> f.parser_spec_version
+            LIMIT 1
+            """
+        ).fetchone()
+        if pending_source_mismatch is not None:
+            return f"pending source identity mismatch for {pending_source_mismatch['pending_id']}"
         parser_tables = ("repositories", "files", "symbols", "edges", "pending_references", "file_fingerprints")
         for table in parser_tables:
             parser_rows = connection.execute(f"SELECT DISTINCT parser_spec_version FROM {table}").fetchall()
@@ -526,8 +543,8 @@ class SQLiteCodeProjectionStore:
             clauses.append("s.kind IN ({})".format(",".join("?" for _ in query.kinds)))
             args.extend(query.kinds)
         if query.path_prefix:
-            clauses.append("f.relative_path LIKE ?")
-            args.append(f"{query.path_prefix.rstrip('/')}%")
+            clauses.append("f.relative_path LIKE ? ESCAPE '\\'")
+            args.append(f"{_escape_like_literal(query.path_prefix.rstrip('/'))}%")
         args.append(query.limit)
         with self._connect_readonly() as connection:
             rows = connection.execute(
@@ -684,6 +701,7 @@ class SQLiteCodeProjectionStore:
                 """,
                 (file_id, file_snapshot.content_hash, file_snapshot.source_revision, file_snapshot.parser_spec_version),
             )
+        self._delete_pending_for_files(connection, {_file_id(file_snapshot) for file_snapshot in plan.files})
         for symbol in sorted(
             plan.symbols,
             key=lambda item: (item.repository_id, item.file_id, item.start_line, item.symbol_id),
@@ -740,11 +758,12 @@ class SQLiteCodeProjectionStore:
             connection.execute(
                 """
                 INSERT INTO pending_references (
-                  pending_id, repository_id, reference_id, source_revision,
+                  pending_id, repository_id, source_file_id, reference_id, source_revision,
                   relation_kind, target_key, reason, parser_spec_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(pending_id) DO UPDATE SET
                   repository_id=excluded.repository_id, reference_id=excluded.reference_id,
+                  source_file_id=excluded.source_file_id,
                   source_revision=excluded.source_revision, relation_kind=excluded.relation_kind,
                   target_key=excluded.target_key, reason=excluded.reason,
                   parser_spec_version=excluded.parser_spec_version
@@ -752,6 +771,7 @@ class SQLiteCodeProjectionStore:
                 (
                     pending.pending_id,
                     pending.repository_id,
+                    pending.source_file_id,
                     pending.reference_id,
                     pending.source_revision,
                     pending.relation_kind,
@@ -789,6 +809,7 @@ class SQLiteCodeProjectionStore:
         self._validate_integrity(connection)
 
     def _delete_file(self, connection: sqlite3.Connection, file_id: str) -> None:
+        self._delete_pending_for_files(connection, {file_id})
         self._delete_file_symbols(connection, file_id)
         connection.execute("DELETE FROM file_fingerprints WHERE file_id = ?", (file_id,))
         connection.execute("DELETE FROM files WHERE file_id = ?", (file_id,))
@@ -805,6 +826,12 @@ class SQLiteCodeProjectionStore:
                 (*symbols, *symbols),
             )
             connection.execute(f"DELETE FROM symbols WHERE symbol_id IN ({placeholders})", symbols)
+
+    def _delete_pending_for_files(self, connection: sqlite3.Connection, file_ids: set[str]) -> None:
+        if not file_ids:
+            return
+        placeholders = ",".join("?" for _ in file_ids)
+        connection.execute(f"DELETE FROM pending_references WHERE source_file_id IN ({placeholders})", tuple(file_ids))
 
     def _rebuild_fts(self, connection: sqlite3.Connection) -> None:
         connection.execute("DELETE FROM symbol_fts")
@@ -847,6 +874,12 @@ class SQLiteCodeProjectionStore:
         existing_symbol_repositories = self._existing_identity_repositories("symbols", "symbol_id")
         existing_edge_repositories = self._existing_identity_repositories("edges", "edge_id")
         existing_pending_repositories = self._existing_identity_repositories("pending_references", "pending_id")
+        existing_repositories = self._existing_repository_ids()
+        missing_repositories = existing_repositories - set(plan.manifest.repository_ids)
+        if missing_repositories:
+            raise ValueError("manifest must include all existing repositories")
+        if set(manifest_revisions) != set(plan.manifest.repository_ids):
+            raise ValueError("manifest source revisions must match repository IDs")
         for file_snapshot in plan.files:
             file_id = _file_id(file_snapshot)
             if file_id in files_by_id:
@@ -935,6 +968,22 @@ class SQLiteCodeProjectionStore:
             existing_repository = existing_pending_repositories.get(pending.pending_id)
             if existing_repository is not None and existing_repository != pending.repository_id:
                 raise ValueError("pending reference identity is owned by another repository")
+            source_file_repository = files_by_id.get(pending.source_file_id)
+            if source_file_repository is not None:
+                if source_file_repository.repository_id != pending.repository_id:
+                    raise ValueError("pending source file must belong to the same repository")
+                if pending.source_revision != source_file_repository.source_revision:
+                    raise ValueError("pending source revision is incompatible with source file")
+            else:
+                existing_source_repository, existing_source_revision = self._existing_file_identity(
+                    pending.source_file_id
+                )
+                if existing_source_repository is None:
+                    raise ValueError(f"pending source_file_id is missing: {pending.source_file_id}")
+                if existing_source_repository != pending.repository_id:
+                    raise ValueError("pending source file must belong to the same repository")
+                if existing_source_revision != pending.source_revision:
+                    raise ValueError("pending source revision is incompatible with source file")
 
     def _existing_identity_repositories(self, table: str, identity_column: str) -> dict[str, str]:
         if not self._database_path.exists():
@@ -949,14 +998,32 @@ class SQLiteCodeProjectionStore:
             return {}
 
     def _existing_file_repository(self, file_id: str) -> str | None:
+        repository, _ = self._existing_file_identity(file_id)
+        return repository
+
+    def _existing_file_identity(self, file_id: str) -> tuple[str | None, str | None]:
         if not self._database_path.exists():
-            return None
+            return None, None
         try:
             with self._connect_readonly() as connection:
-                row = connection.execute("SELECT repository_id FROM files WHERE file_id = ?", (file_id,)).fetchone()
-                return str(row["repository_id"]) if row is not None else None
+                row = connection.execute(
+                    "SELECT repository_id, source_revision FROM files WHERE file_id = ?", (file_id,)
+                ).fetchone()
+                if row is None:
+                    return None, None
+                return str(row["repository_id"]), str(row["source_revision"])
         except sqlite3.Error:
-            return None
+            return None, None
+
+    def _existing_repository_ids(self) -> set[str]:
+        if not self._database_path.exists():
+            return set()
+        try:
+            with self._connect_readonly() as connection:
+                rows = connection.execute("SELECT repository_id FROM repositories").fetchall()
+                return {str(row["repository_id"]) for row in rows}
+        except sqlite3.Error:
+            return set()
 
     def _desired_file_ids(
         self,
@@ -1195,3 +1262,7 @@ def _symbol_hit_from_row(row: sqlite3.Row) -> CodeSymbolHit:
         source_revision=str(row["source_revision"]) if row["source_revision"] is not None else None,
         parser_spec_version=str(row["parser_spec_version"]),
     )
+
+
+def _escape_like_literal(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

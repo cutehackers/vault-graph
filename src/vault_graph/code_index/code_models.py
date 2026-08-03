@@ -367,6 +367,7 @@ class CodeParseResult:
 class PendingCodeReference:
     pending_id: str
     repository_id: str
+    source_file_id: str
     reference_id: str
     source_revision: str
     relation_kind: str
@@ -378,6 +379,7 @@ class PendingCodeReference:
         for field_name in (
             "pending_id",
             "repository_id",
+            "source_file_id",
             "reference_id",
             "source_revision",
             "relation_kind",
@@ -388,6 +390,7 @@ class PendingCodeReference:
             _require_non_empty(getattr(self, field_name), field_name)
         if self.relation_kind not in CODE_RELATION_KINDS:
             raise ValueError(f"unsupported relation_kind: {self.relation_kind}")
+        _require_digest(self.source_file_id, "source_file_id")
 
 
 @dataclass(frozen=True)
