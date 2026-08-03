@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from vault_graph.ingestion.document_normalizer import DocumentNormalizer
@@ -73,3 +74,22 @@ def test_repeated_headings_produce_unique_chunk_ids(tmp_path: Path) -> None:
     assert snapshot.chunks[0].anchor == "same"
     assert snapshot.chunks[1].anchor == "same"
     assert snapshot.chunks[0].chunk_id != snapshot.chunks[1].chunk_id
+
+
+def test_yaml_dates_are_normalized_to_json_safe_frontmatter(tmp_path: Path) -> None:
+    text = "---\ndate: 2026-08-03\nnested:\n  reviewed_at: 2026-08-03T12:30:00Z\n---\nBody\n"
+    loaded = LoadedVaultDocument(
+        vault_id="default",
+        root_path=tmp_path,
+        path="wiki/dated.md",
+        text=text,
+        raw_sha256="raw",
+        content_hash="content",
+        frontmatter=read_frontmatter(text),
+    )
+
+    snapshot = DocumentNormalizer().normalize(loaded)
+
+    assert snapshot.document.frontmatter["date"] == "2026-08-03"
+    assert snapshot.document.frontmatter["nested"] == {"reviewed_at": "2026-08-03T12:30:00+00:00"}
+    json.dumps(snapshot.document.frontmatter)

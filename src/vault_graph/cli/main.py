@@ -12,6 +12,8 @@ from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.app.graph_retrieval_service import GraphRetrievalService
 from vault_graph.app.index_service import IndexService, StatusReport
 from vault_graph.app.local_index_service_factory import LocalIndexServiceFactory
+from vault_graph.app.projection_generation import ProjectionGenerationManager
+from vault_graph.app.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.context import (
     DEFAULT_CONTEXT_MAX_TOKENS,
@@ -51,6 +53,7 @@ from vault_graph.retrieval import (
     SearchWarning,
     StoreRevision,
 )
+from vault_graph.retrieval.search_response import SearchMode
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
@@ -399,11 +402,20 @@ def index(
         scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids([selected_vault_id]))
     else:
         scope = _exit_on_domain_error(catalog.default_scope)
-    config, catalog, service = _exit_on_domain_error(lambda: _service(state, initialize_store=not dry_run))
+    bundle = _exit_on_domain_error(
+        lambda: LocalIndexServiceFactory(text_embeddings_factory=_text_embeddings).open(
+            state_path=state,
+            initialize_store=not dry_run,
+            transactional_full=full and not dry_run,
+        )
+    )
+    _, catalog, service = bundle.catalog_service, bundle.catalog, bundle.index_service
     try:
         report = service.run_plan(scope=scope, full=full) if dry_run else service.run_apply(scope=scope, full=full)
+        if not dry_run and report.exit_code == 0:
+            bundle.commit_projection()
     finally:
-        service.close()
+        bundle.close()
     metadata = report.metadata
     typer.echo(f"mode: {metadata.mode}")
     typer.echo(f"vault_ids: {', '.join(metadata.vault_ids)}")
@@ -597,6 +609,7 @@ def search(
         "--include-cross-vault",
         help="Include explicit cross-Vault graph relationships.",
     ),
+    mode: str = typer.Option("knowledge", "--mode", help="Search mode: knowledge, evidence, operating, audit, or all."),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
@@ -606,6 +619,9 @@ def search(
         raise typer.Exit(1)
     if output_format not in {"text", "json"}:
         typer.echo("unsupported_format")
+        raise typer.Exit(1)
+    if mode not in {"knowledge", "evidence", "operating", "audit", "all"}:
+        typer.echo("unsupported_search_mode")
         raise typer.Exit(1)
     _, catalog, service = _exit_on_domain_error(lambda: _search_service(state, include_graph=include_graph))
     if all_vaults:
@@ -623,12 +639,46 @@ def search(
             output_format=output_format,  # type: ignore[arg-type]
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
+            mode=cast(SearchMode, mode),
         )
     )
     if output_format == "json":
         typer.echo(json.dumps(_search_response_json(response), sort_keys=True, indent=2))
     else:
         _render_search_response(response)
+
+
+@app.command("projection-audit")
+def projection_audit(
+    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+) -> None:
+    if output_format not in {"text", "json"}:
+        typer.echo("unsupported_format")
+        raise typer.Exit(1)
+    config, catalog = _exit_on_domain_error(lambda: _catalog(state))
+    active_layout = _exit_on_domain_error(lambda: ProjectionGenerationManager(config.state_path).active_layout())
+    report = _exit_on_domain_error(
+        lambda: ProjectionHygieneService(
+            metadata_path=config.metadata_path,
+            vector_path=config.vector_path,
+            graph_path=config.graph_path,
+        ).audit(
+            scope=catalog.scope_for_all_enabled(),
+            active_generation_id=active_layout.generation_id if active_layout is not None else None,
+        )
+    )
+    if output_format == "json":
+        typer.echo(json.dumps(report.to_dict(), sort_keys=True, indent=2))
+        return
+    typer.echo(f"plaintext_amplification: {report.plaintext_amplification}")
+    typer.echo(f"canonical_blob_count: {report.canonical_blob_count}")
+    typer.echo(f"canonical_blob_bytes: {report.canonical_blob_bytes}")
+    typer.echo(f"logical_chunk_bytes: {report.logical_chunk_bytes}")
+    typer.echo(f"persisted_search_projection_plaintext_bytes: {report.persisted_search_projection_plaintext_bytes}")
+    typer.echo(f"dangling_keyword_refs: {report.dangling_keyword_refs}")
+    typer.echo(f"dangling_vector_refs: {report.dangling_vector_refs}")
+    typer.echo(f"dangling_graph_refs: {report.dangling_graph_refs}")
 
 
 @app.command()
@@ -1033,6 +1083,7 @@ def _search_response_json(response: SearchResponse) -> dict[str, object]:
         "degraded": response.degraded,
         "store_revisions": [_store_revision_json(revision) for revision in response.store_revisions],
         "generated_at": response.generated_at,
+        "result_family_duplication": response.result_family_duplication,
     }
 
 
@@ -1149,6 +1200,9 @@ def _result_json(result: RetrievalResult) -> dict[str, object]:
         "relationship_status": result.relationship_status,
         "warnings": [_result_warning_json(warning) for warning in result.warnings],
         "store_revisions": [_store_revision_json(revision) for revision in result.store_revisions],
+        "provenance_family_id": result.provenance_family_id,
+        "supporting_evidence": [_evidence_json(evidence) for evidence in result.supporting_evidence],
+        "audit_records": [_evidence_json(evidence) for evidence in result.audit_records],
     }
 
 
@@ -1164,6 +1218,8 @@ def _evidence_json(evidence: EvidenceReference) -> dict[str, object]:
         "raw_sha256": evidence.raw_sha256,
         "metadata_index_revision": evidence.metadata_index_revision,
         "vault_revision": evidence.vault_revision,
+        "source_role": evidence.source_role,
+        "provenance_family_id": evidence.provenance_family_id,
     }
 
 
@@ -1223,7 +1279,6 @@ def _graph_evidence_ref_json(ref: GraphEvidenceRef) -> dict[str, object]:
         "section": ref.section,
         "anchor": ref.anchor,
         "path": ref.path,
-        "excerpt": ref.excerpt,
     }
 
 

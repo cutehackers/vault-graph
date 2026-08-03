@@ -6,10 +6,11 @@ import sqlite3
 import struct
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from vault_graph.embeddings.text_embeddings import EmbeddingModelSpec
 from vault_graph.errors import VectorStoreError
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.interfaces.vector_store import (
@@ -21,7 +22,7 @@ from vault_graph.storage.interfaces.vector_store import (
     VectorTombstone,
 )
 
-CHROMA_VECTOR_SCHEMA_VERSION = "chroma-vector-v1"
+CHROMA_VECTOR_SCHEMA_VERSION = "chroma-vector-v2"
 CHROMA_BACKEND = "chroma"
 COLLECTION_PREFIX = "vault_graph"
 SQLITE_VECTOR_ID_BATCH_SIZE = 500
@@ -66,6 +67,7 @@ class ChromaVectorStore(VectorStore):
                 embeddings=[list(record.embedding.values) for record in grouped_records],
                 metadatas=[_metadata_for_record(record) for record in grouped_records],
             )
+        self._persist_vector_payloads(records=records, tombstones=tombstones)
 
     def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:
         if self._read_only and not self._database_path.exists():
@@ -82,7 +84,11 @@ class ChromaVectorStore(VectorStore):
             collection = self._get_collection_if_exists(client, query.embedding_spec)
             if collection is None:
                 return ()
-            scoped_ids = self._scoped_ids(collection=collection, scope=query.scope)
+            scoped_ids = self._scoped_ids(
+                collection=collection,
+                scope=query.scope,
+                source_roles=query.source_roles,
+            )
             if not scoped_ids:
                 return ()
             result = collection.query(
@@ -111,6 +117,8 @@ class ChromaVectorStore(VectorStore):
                     metadata_index_revision=str(metadata["metadata_index_revision"]),
                     vector_index_revision=str(metadata["vector_index_revision"]),
                     backend=CHROMA_BACKEND,
+                    source_role=cast(DocumentRole, str(metadata["source_role"])),
+                    provenance_family_id=str(metadata["provenance_family_id"]),
                 )
             )
         return tuple(hits)
@@ -273,7 +281,10 @@ class ChromaVectorStore(VectorStore):
         if not health.ok or not health.schema_compatible:
             raise VectorStoreError(f"vector search unavailable: {health.message}")
         manifest = tuple(
-            row for row in self._export_manifest_sqlite(query.scope) if row.embedding_spec == query.embedding_spec
+            row
+            for row in self._export_manifest_sqlite(query.scope)
+            if row.embedding_spec == query.embedding_spec
+            and (not query.source_roles or row.source_role in query.source_roles)
         )
         if not manifest:
             return ()
@@ -299,6 +310,8 @@ class ChromaVectorStore(VectorStore):
                 metadata_index_revision=row.metadata_index_revision,
                 vector_index_revision=row.vector_index_revision,
                 backend=CHROMA_BACKEND,
+                source_role=row.source_role,
+                provenance_family_id=row.provenance_family_id,
             )
             for rank, (score, row) in enumerate(ranked[: query.limit], start=1)
         )
@@ -309,6 +322,22 @@ class ChromaVectorStore(VectorStore):
         vectors: dict[str, tuple[float, ...]] = {}
         try:
             with self._connect_readonly() as connection:
+                if "vault_graph_vector_payloads" in {
+                    str(row["name"])
+                    for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+                }:
+                    for batch in _batched(vector_ids, SQLITE_VECTOR_ID_BATCH_SIZE):
+                        placeholders = ", ".join("?" for _ in batch)
+                        rows = connection.execute(
+                            f"SELECT vector_id, vector FROM vault_graph_vector_payloads "
+                            f"WHERE vector_id IN ({placeholders})",
+                            batch,
+                        ).fetchall()
+                        vectors.update(
+                            {str(row["vector_id"]): _decode_vector_blob(row["vector"], "FLOAT32") for row in rows}
+                        )
+                    if len(vectors) == len(vector_ids):
+                        return vectors
                 for batch in _batched(vector_ids, SQLITE_VECTOR_ID_BATCH_SIZE):
                     placeholders = ", ".join("?" for _ in batch)
                     rows = connection.execute(
@@ -332,6 +361,30 @@ class ChromaVectorStore(VectorStore):
         except sqlite3.Error as exc:
             raise VectorStoreError(f"vector search unavailable: {exc}") from exc
         return vectors
+
+    def _persist_vector_payloads(
+        self,
+        *,
+        records: tuple[VectorEmbeddingRecord, ...],
+        tombstones: tuple[VectorTombstone, ...],
+    ) -> None:
+        with sqlite3.connect(self._database_path) as connection:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS vault_graph_vector_payloads ("
+                "vector_id TEXT PRIMARY KEY, vector BLOB NOT NULL)"
+            )
+            connection.executemany(
+                "DELETE FROM vault_graph_vector_payloads WHERE vector_id = ?",
+                ((tombstone.vector_id,) for tombstone in tombstones),
+            )
+            connection.executemany(
+                "INSERT INTO vault_graph_vector_payloads(vector_id, vector) VALUES (?, ?) "
+                "ON CONFLICT(vector_id) DO UPDATE SET vector = excluded.vector",
+                (
+                    (record.vector_id, struct.pack(f"<{len(record.embedding.values)}f", *record.embedding.values))
+                    for record in records
+                ),
+            )
 
     def _client_or_none(self) -> Any | None:
         try:
@@ -366,12 +419,19 @@ class ChromaVectorStore(VectorStore):
             collection for collection in client.list_collections() if collection.name.startswith(COLLECTION_PREFIX)
         )
 
-    def _scoped_ids(self, *, collection: Any, scope: QueryScope) -> list[str]:
+    def _scoped_ids(
+        self,
+        *,
+        collection: Any,
+        scope: QueryScope,
+        source_roles: tuple[DocumentRole, ...] = (),
+    ) -> list[str]:
         loaded = collection.get(include=["metadatas"])
         return [
             str(vector_id)
             for vector_id, metadata in zip(loaded.get("ids") or [], loaded.get("metadatas") or [], strict=True)
             if _metadata_in_scope(metadata, scope)
+            and (not source_roles or str(metadata["source_role"]) in source_roles)
         ]
 
 
@@ -409,6 +469,8 @@ def _metadata_for_record(record: VectorEmbeddingRecord) -> dict[str, str | int]:
         "metadata_index_revision": record.metadata_index_revision,
         "vector_index_revision": record.vector_index_revision,
         "backend_schema_version": CHROMA_VECTOR_SCHEMA_VERSION,
+        "source_role": record.source_role,
+        "provenance_family_id": record.provenance_family_id,
     }
 
 
@@ -426,6 +488,8 @@ def _manifest_record_from_metadata(*, vector_id: str, metadata: dict[str, Any]) 
         vector_index_revision=str(metadata["vector_index_revision"]),
         backend=CHROMA_BACKEND,
         backend_schema_version=str(metadata["backend_schema_version"]),
+        source_role=cast(DocumentRole, str(metadata["source_role"])),
+        provenance_family_id=str(metadata["provenance_family_id"]),
     )
 
 

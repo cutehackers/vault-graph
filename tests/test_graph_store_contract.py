@@ -67,7 +67,6 @@ def make_entity(
         section="GraphRAG",
         anchor="graphrag",
         path=path,
-        excerpt="GraphRAG evidence",
     )
     return EntityRecord(
         vault_id=vault_id,
@@ -118,7 +117,6 @@ def make_relationship(source: EntityRecord, target: EntityRecord) -> Relationshi
         section="Dependency",
         anchor="dependency",
         path="wiki/graphrag.md",
-        excerpt="Dependency evidence",
     )
     return RelationshipRecord(
         relationship_id=relationship_id,
@@ -211,8 +209,7 @@ def graph_store_contract(factory: Callable[[], GraphStore]) -> None:
     assert result.applied_evidence_ref_upsert_count == 3
     assert store.get_entity(vault_id="default", entity_id=source.entity_id) == source
     assert (
-        store.get_relationship(source_vault_id="default", relationship_id=relationship.relationship_id)
-        == relationship
+        store.get_relationship(source_vault_id="default", relationship_id=relationship.relationship_id) == relationship
     )
     assert store.resolve_entities((GraphEntityIdentity("default", source.entity_id),)) == (source,)
     assert store.resolve_relationships((GraphRelationshipIdentity("default", relationship.relationship_id),)) == (
@@ -399,9 +396,7 @@ def graph_store_query_filter_contract(factory: Callable[[], GraphStore]) -> None
     assert len(truncated.relationships) == 1
     assert truncated.truncated is True
 
-    scan_truncated = store.find_entities(
-        GraphEntityQuery(text="missing", actual_scopes=(scope,), scan_limit=1)
-    )
+    scan_truncated = store.find_entities(GraphEntityQuery(text="missing", actual_scopes=(scope,), scan_limit=1))
     assert scan_truncated.matches == ()
     assert scan_truncated.truncated is True
 

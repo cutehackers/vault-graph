@@ -122,7 +122,6 @@ def _graph_evidence_ref_to_dict(ref: GraphEvidenceRef) -> dict[str, object]:
         "section": ref.section,
         "anchor": ref.anchor,
         "path": ref.path,
-        "excerpt": ref.excerpt,
     }
 
 

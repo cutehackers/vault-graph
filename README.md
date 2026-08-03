@@ -61,6 +61,8 @@ Then use the indexed Vault:
 ```bash
 vg ask --state ~/.vault-graph "What changed recently?"
 vg search --state ~/.vault-graph "GraphRAG"
+vg search --state ~/.vault-graph --mode evidence "GraphRAG"
+vg projection-audit --state ~/.vault-graph --format json
 vg context --state ~/.vault-graph "Implement GraphRAG MVP"
 vg status --state ~/.vault-graph
 ```
@@ -83,6 +85,8 @@ registration so it can load the new server.
 | Index all Vaults | `vg index --all-vaults --state ~/.vault-graph` |
 | Check health | `vg status --state ~/.vault-graph` |
 | Search evidence | `vg search --state ~/.vault-graph "query"` |
+| Expand raw/source evidence | `vg search --mode evidence --state ~/.vault-graph "query"` |
+| Audit projection duplication | `vg projection-audit --state ~/.vault-graph` |
 | Include graph signals | `vg search --include-graph --state ~/.vault-graph "query"` |
 | Ask with evidence | `vg ask --state ~/.vault-graph "question"` |
 | Build a context pack | `vg context --state ~/.vault-graph "goal"` |

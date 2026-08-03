@@ -5,6 +5,7 @@ from typing import Protocol
 
 from vault_graph.embeddings.text_embeddings import EmbeddingModelSpec, EmbeddingVector
 from vault_graph.errors import CatalogError, VectorStoreError
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
@@ -22,6 +23,8 @@ class VectorEmbeddingRecord:
     metadata_index_revision: str
     vector_index_revision: str
     backend_schema_version: str
+    source_role: DocumentRole = "canonical_knowledge"
+    provenance_family_id: str = "legacy"
 
     def __post_init__(self) -> None:
         _require_non_empty(self.vector_id, "vector_id")
@@ -34,6 +37,7 @@ class VectorEmbeddingRecord:
         _require_non_empty(self.metadata_index_revision, "metadata_index_revision")
         _require_non_empty(self.vector_index_revision, "vector_index_revision")
         _require_non_empty(self.backend_schema_version, "backend_schema_version")
+        _require_non_empty(self.provenance_family_id, "provenance_family_id")
         _validate_content_scope(vault_id=self.vault_id, content_scope=self.content_scope)
 
 
@@ -56,6 +60,7 @@ class VectorQuery:
     scope: QueryScope
     limit: int
     embedding_spec: EmbeddingModelSpec
+    source_roles: tuple[DocumentRole, ...] = ()
 
     def __post_init__(self) -> None:
         if self.limit <= 0:
@@ -77,6 +82,8 @@ class VectorHit:
     metadata_index_revision: str
     vector_index_revision: str
     backend: str
+    source_role: DocumentRole = "canonical_knowledge"
+    provenance_family_id: str = "legacy"
 
     def __post_init__(self) -> None:
         _require_non_empty(self.vector_id, "vector_id")
@@ -87,6 +94,7 @@ class VectorHit:
         _require_non_empty(self.metadata_index_revision, "metadata_index_revision")
         _require_non_empty(self.vector_index_revision, "vector_index_revision")
         _require_non_empty(self.backend, "backend")
+        _require_non_empty(self.provenance_family_id, "provenance_family_id")
         if self.rank <= 0:
             raise VectorStoreError("rank must be positive")
         _validate_content_scope(vault_id=self.vault_id, content_scope=self.content_scope)
@@ -106,6 +114,8 @@ class VectorManifestRecord:
     vector_index_revision: str
     backend: str
     backend_schema_version: str
+    source_role: DocumentRole = "canonical_knowledge"
+    provenance_family_id: str = "legacy"
 
     def __post_init__(self) -> None:
         _require_non_empty(self.vector_id, "vector_id")
@@ -119,6 +129,7 @@ class VectorManifestRecord:
         _require_non_empty(self.vector_index_revision, "vector_index_revision")
         _require_non_empty(self.backend, "backend")
         _require_non_empty(self.backend_schema_version, "backend_schema_version")
+        _require_non_empty(self.provenance_family_id, "provenance_family_id")
         _validate_content_scope(vault_id=self.vault_id, content_scope=self.content_scope)
 
 

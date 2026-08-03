@@ -130,11 +130,15 @@ class VectorIndexer:
                 and row.embedding_spec != embedding_spec
             )
             tombstones.extend(_tombstone_for_row(row) for row in same_chunk_old_spec_rows)
-            if full or current is None or not _manifest_matches_chunk(
-                current,
-                chunk=chunk,
-                embedding_spec=embedding_spec,
-                backend_schema_version=backend_schema_version,
+            if (
+                full
+                or current is None
+                or not _manifest_matches_chunk(
+                    current,
+                    chunk=chunk,
+                    embedding_spec=embedding_spec,
+                    backend_schema_version=backend_schema_version,
+                )
             ):
                 if current is not None:
                     tombstones.append(_tombstone_for_row(current))
@@ -222,6 +226,8 @@ class VectorIndexer:
             metadata_index_revision=chunk.index_revision or "unknown",
             vector_index_revision=plan.vector_index_revision,
             backend_schema_version=self._vector_store.health().schema_version,
+            source_role=chunk.source_role,
+            provenance_family_id=_family_id_for_chunk(chunk),
         )
 
 
@@ -273,6 +279,8 @@ def _manifest_matches_chunk(
         and row.chunker_version == chunk.chunker_version
         and row.metadata_index_revision == (chunk.index_revision or "unknown")
         and row.backend_schema_version == backend_schema_version
+        and row.source_role == chunk.source_role
+        and row.provenance_family_id == _family_id_for_chunk(chunk)
     )
 
 
@@ -315,6 +323,10 @@ def _content_scope_for_path(path: str) -> str:
     if parent == ".":
         return path.split("/", 1)[0]
     return parent
+
+
+def _family_id_for_chunk(chunk: ChunkSnapshot) -> str:
+    return chunk.provenance_family_id or stable_id("provenance-family", chunk.vault_id, chunk.document_id)
 
 
 def _chunk_sort_key(chunk: ChunkSnapshot) -> tuple[str, str, str]:

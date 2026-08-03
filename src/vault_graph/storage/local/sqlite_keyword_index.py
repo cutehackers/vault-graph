@@ -4,15 +4,17 @@ import json
 import re
 import sqlite3
 from pathlib import Path, PurePosixPath
+from typing import cast
 
 from vault_graph.errors import KeywordIndexError
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 SQLITE_KEYWORD_BACKEND = "sqlite-fts5"
-KEYWORD_SCHEMA_VERSION = "sqlite-keyword-v1"
+KEYWORD_SCHEMA_VERSION = "sqlite-keyword-v2"
 
 KEYWORD_SCHEMA = """
 CREATE TABLE IF NOT EXISTS keyword_projection_metadata (
@@ -20,34 +22,37 @@ CREATE TABLE IF NOT EXISTS keyword_projection_metadata (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS keyword_rows (
+  rowid INTEGER PRIMARY KEY,
+  vault_id TEXT NOT NULL,
+  document_id TEXT NOT NULL,
+  chunk_id TEXT NOT NULL,
+  path TEXT NOT NULL,
+  content_scope TEXT NOT NULL,
+  source_role TEXT NOT NULL,
+  provenance_family_id TEXT NOT NULL,
+  index_revision TEXT NOT NULL,
+  UNIQUE (vault_id, chunk_id)
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS keyword_chunks USING fts5(
-  vault_id UNINDEXED,
-  document_id UNINDEXED,
-  chunk_id UNINDEXED,
   path,
   section,
-  anchor UNINDEXED,
   title,
   frontmatter,
   text,
-  content_scope UNINDEXED,
-  index_revision UNINDEXED,
+  content='',
+  contentless_delete=1,
   tokenize='unicode61'
 );
 """
 
 REQUIRED_KEYWORD_COLUMNS = (
-    "vault_id",
-    "document_id",
-    "chunk_id",
     "path",
     "section",
-    "anchor",
     "title",
     "frontmatter",
     "text",
-    "content_scope",
-    "index_revision",
 )
 
 
@@ -62,22 +67,33 @@ class SQLiteKeywordIndex:
         match_query = _match_query(query.query_text)
         vault_placeholders = ", ".join("?" for _ in query.scope.vault_ids)
         path_clause, path_args = _content_scope_clause(query.scope.content_scopes)
+        role_clause, role_args = _source_role_clause(query.source_roles)
         with self._connect_readonly() as connection:
             rows = connection.execute(
                 f"""
-                SELECT vault_id, document_id, chunk_id, path, section, title, frontmatter, text,
-                       index_revision, bm25(keyword_chunks) AS score
+                SELECT r.rowid, r.vault_id, r.document_id, r.chunk_id, r.path,
+                       r.source_role, r.provenance_family_id, r.index_revision,
+                       bm25(keyword_chunks) AS score
                 FROM keyword_chunks
+                INNER JOIN keyword_rows r ON r.rowid = keyword_chunks.rowid
                 WHERE keyword_chunks MATCH ?
-                  AND vault_id IN ({vault_placeholders})
+                  AND r.vault_id IN ({vault_placeholders})
                   AND ({path_clause})
-                ORDER BY score ASC, vault_id ASC, path ASC, chunk_id ASC
+                  AND ({role_clause})
+                ORDER BY score ASC, r.vault_id ASC, r.path ASC, r.chunk_id ASC
                 LIMIT ?
                 """,
-                (match_query, *query.scope.vault_ids, *path_args, query.limit),
+                (match_query, *query.scope.vault_ids, *path_args, *role_args, query.limit),
             ).fetchall()
-        tokens = _query_tokens(query.query_text)
-        return tuple(_keyword_hit_from_row(rank=rank, row=row, tokens=tokens) for rank, row in enumerate(rows, start=1))
+            tokens = _query_tokens(query.query_text)
+            return tuple(
+                _keyword_hit_from_row(
+                    rank=rank,
+                    row=row,
+                    matched_fields=_matched_fields(connection, rowid=int(row["rowid"]), tokens=tokens),
+                )
+                for rank, row in enumerate(rows, start=1)
+            )
 
     def index_revision(self, scope: QueryScope) -> str:
         health = self.health()
@@ -89,7 +105,7 @@ class SQLiteKeywordIndex:
             rows = connection.execute(
                 f"""
                 SELECT DISTINCT index_revision
-                FROM keyword_chunks
+                FROM keyword_rows r
                 WHERE vault_id IN ({vault_placeholders})
                   AND ({path_clause})
                 ORDER BY index_revision
@@ -114,7 +130,7 @@ class SQLiteKeywordIndex:
                     str(row["name"])
                     for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
                 }
-                missing = {"keyword_projection_metadata", "keyword_chunks"} - tables
+                missing = {"keyword_projection_metadata", "keyword_rows", "keyword_chunks"} - tables
                 if missing:
                     return StoreHealth(
                         ok=False,
@@ -178,35 +194,45 @@ def apply_keyword_revision(
 ) -> None:
     ensure_keyword_schema(connection)
     for document in documents:
-        connection.execute(
-            "DELETE FROM keyword_chunks WHERE vault_id = ? AND document_id = ?",
-            (document.vault_id, document.document_id),
-        )
+        _delete_keyword_rows(connection, vault_id=document.vault_id, document_id=document.document_id)
     for vault_id, path in tombstones:
-        connection.execute("DELETE FROM keyword_chunks WHERE vault_id = ? AND path = ?", (vault_id, path))
+        _delete_keyword_rows(connection, vault_id=vault_id, path=path)
     documents_by_id = {(document.vault_id, document.document_id): document for document in documents}
     for chunk in chunks:
         document = documents_by_id[(chunk.vault_id, chunk.document_id)]
-        connection.execute(
+        cursor = connection.execute(
             """
-            INSERT INTO keyword_chunks (
-              vault_id, document_id, chunk_id, path, section, anchor, title, frontmatter,
-              text, content_scope, index_revision
+            INSERT INTO keyword_rows (
+              vault_id, document_id, chunk_id, path, content_scope, source_role,
+              provenance_family_id, index_revision
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chunk.vault_id,
                 chunk.document_id,
                 chunk.chunk_id,
                 chunk.path,
+                _content_scope_for_path(chunk.path),
+                chunk.source_role,
+                chunk.provenance_family_id,
+                index_revision,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO keyword_chunks (
+              rowid, path, section, title, frontmatter, text
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                cursor.lastrowid,
+                chunk.path,
                 chunk.section or "",
-                chunk.anchor or "",
                 _title_for_document(document),
                 json.dumps(document.frontmatter, sort_keys=True),
                 chunk.text,
-                _content_scope_for_path(chunk.path),
-                index_revision,
             ),
         )
 
@@ -238,12 +264,12 @@ def _content_scope_clause(content_scopes: tuple[str, ...]) -> tuple[str, tuple[s
     clauses: list[str] = []
     args: list[str] = []
     for content_scope in content_scopes:
-        clauses.append("(path = ? OR path LIKE ?)")
+        clauses.append("(r.path = ? OR r.path LIKE ?)")
         args.extend((content_scope, f"{content_scope}/%"))
     return " OR ".join(clauses), tuple(args)
 
 
-def _keyword_hit_from_row(*, rank: int, row: sqlite3.Row, tokens: tuple[str, ...]) -> KeywordHit:
+def _keyword_hit_from_row(*, rank: int, row: sqlite3.Row, matched_fields: tuple[str, ...]) -> KeywordHit:
     return KeywordHit(
         vault_id=str(row["vault_id"]),
         document_id=str(row["document_id"]),
@@ -252,23 +278,69 @@ def _keyword_hit_from_row(*, rank: int, row: sqlite3.Row, tokens: tuple[str, ...
         score=float(row["score"]),
         backend=SQLITE_KEYWORD_BACKEND,
         index_revision=str(row["index_revision"]),
-        matched_fields=_matched_fields(row, tokens=tokens),
+        matched_fields=matched_fields,
+        source_role=cast(DocumentRole, str(row["source_role"])),
+        provenance_family_id=str(row["provenance_family_id"]),
     )
 
 
-def _matched_fields(row: sqlite3.Row, *, tokens: tuple[str, ...]) -> tuple[str, ...]:
-    lowered_tokens = tuple(token.casefold() for token in tokens)
+def _matched_fields(
+    connection: sqlite3.Connection,
+    *,
+    rowid: int,
+    tokens: tuple[str, ...],
+) -> tuple[str, ...]:
     matched = tuple(
         field
         for field in ("title", "section", "frontmatter", "text", "path")
-        if _field_matches_tokens(value=str(row[field] or ""), lowered_tokens=lowered_tokens)
+        if _row_matches_field(connection, rowid=rowid, field=field, tokens=tokens)
     )
     return matched or ("text",)
 
 
-def _field_matches_tokens(*, value: str, lowered_tokens: tuple[str, ...]) -> bool:
-    lowered_value = value.casefold()
-    return any(token in lowered_value for token in lowered_tokens)
+def _row_matches_field(
+    connection: sqlite3.Connection,
+    *,
+    rowid: int,
+    field: str,
+    tokens: tuple[str, ...],
+) -> bool:
+    expression = " OR ".join(f'{field}:"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens)
+    row = connection.execute(
+        "SELECT 1 FROM keyword_chunks WHERE rowid = ? AND keyword_chunks MATCH ?",
+        (rowid, expression),
+    ).fetchone()
+    return row is not None
+
+
+def _source_role_clause(source_roles: tuple[DocumentRole, ...]) -> tuple[str, tuple[str, ...]]:
+    if not source_roles:
+        return "1", ()
+    return f"r.source_role IN ({', '.join('?' for _ in source_roles)})", tuple(source_roles)
+
+
+def _delete_keyword_rows(
+    connection: sqlite3.Connection,
+    *,
+    vault_id: str,
+    document_id: str | None = None,
+    path: str | None = None,
+) -> None:
+    if document_id is not None:
+        rows = connection.execute(
+            "SELECT rowid FROM keyword_rows WHERE vault_id = ? AND document_id = ?",
+            (vault_id, document_id),
+        ).fetchall()
+    elif path is not None:
+        rows = connection.execute(
+            "SELECT rowid FROM keyword_rows WHERE vault_id = ? AND path = ?",
+            (vault_id, path),
+        ).fetchall()
+    else:
+        raise KeywordIndexError("document_id or path is required")
+    for row in rows:
+        connection.execute("DELETE FROM keyword_chunks WHERE rowid = ?", (int(row["rowid"]),))
+        connection.execute("DELETE FROM keyword_rows WHERE rowid = ?", (int(row["rowid"]),))
 
 
 def _title_for_document(document: DocumentSnapshot) -> str:

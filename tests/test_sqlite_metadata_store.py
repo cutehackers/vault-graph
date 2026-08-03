@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,7 @@ def make_document(vault_id: str, path: str, content_hash: str) -> DocumentSnapsh
         last_indexed_at=None,
         vault_revision=None,
         index_revision=None,
+        provenance_family_id=f"family:{vault_id}:{path}",
     )
 
 
@@ -43,9 +45,10 @@ def make_chunk(
         anchor="section",
         text=text,
         token_count=1,
-        content_hash="chunk",
+        content_hash=f"chunk:{text}",
         chunker_version="chunker",
         index_revision=None,
+        provenance_family_id=f"family:{vault_id}:{path}",
     )
 
 
@@ -302,6 +305,50 @@ def test_list_documents_preserves_document_snapshot_fields(tmp_path: Path) -> No
     assert listed[0].last_indexed_at is not None
     assert listed[0].vault_revision == document.vault_revision
     assert listed[0].index_revision == "metadata-1"
+
+
+def test_equal_chunk_bodies_share_one_blob_and_keep_distinct_evidence(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    first = make_document("default", "wiki/first.md", "hash-first")
+    second = make_document("default", "wiki/second.md", "hash-second")
+    first_chunk = make_chunk("default", first.document_id, first.path, chunk_id="first", text="same body")
+    second_chunk = make_chunk("default", second.document_id, second.path, chunk_id="second", text="same body")
+
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[first, second],
+        chunks=[first_chunk, second_chunk],
+        tombstones=[],
+    )
+
+    with store.connect_for_tests() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM content_blobs").fetchone()[0] == 1
+        chunk_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(chunks)")}
+    assert "text" not in chunk_columns
+    assert store.resolve_chunk(vault_id="default", chunk_id="first").text == "same body"  # type: ignore[union-attr]
+    assert store.resolve_chunk(vault_id="default", chunk_id="second").text == "same body"  # type: ignore[union-attr]
+
+
+def test_unreferenced_content_blobs_are_collected_after_replacement_and_tombstone(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    document = make_document("default", "wiki/page.md", "hash")
+    first = make_chunk("default", document.document_id, document.path, text="first body")
+    second = make_chunk("default", document.document_id, document.path, text="second body")
+    second = replace(second, content_hash="second-chunk")
+    store.apply_metadata_revision(index_revision="metadata-1", documents=[document], chunks=[first], tombstones=[])
+
+    store.apply_metadata_revision(index_revision="metadata-2", documents=[document], chunks=[second], tombstones=[])
+
+    with store.connect_for_tests() as connection:
+        assert [str(row["text"]) for row in connection.execute("SELECT text FROM content_blobs")] == ["second body"]
+    store.apply_metadata_revision(
+        index_revision="metadata-3",
+        documents=[],
+        chunks=[],
+        tombstones=[("default", document.path)],
+    )
+    with store.connect_for_tests() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM content_blobs").fetchone()[0] == 0
 
 
 def test_list_documents_filters_by_vault_id_and_content_scope(tmp_path: Path) -> None:

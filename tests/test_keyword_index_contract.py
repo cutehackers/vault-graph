@@ -25,6 +25,8 @@ def test_keyword_hit_requires_vault_scoped_identity() -> None:
         backend="sqlite-fts5",
         index_revision="metadata-1",
         matched_fields=("text", "section"),
+        source_role="canonical_knowledge",
+        provenance_family_id="family-1",
     )
 
     assert hit.vault_id == "default"
@@ -32,6 +34,8 @@ def test_keyword_hit_requires_vault_scoped_identity() -> None:
     assert hit.rank == 1
     assert hit.score == -1.25
     assert hit.matched_fields == ("text", "section")
+    assert hit.source_role == "canonical_knowledge"
+    assert hit.provenance_family_id == "family-1"
 
 
 def test_keyword_hit_rejects_unranked_candidate() -> None:
@@ -45,4 +49,6 @@ def test_keyword_hit_rejects_unranked_candidate() -> None:
             backend="sqlite-fts5",
             index_revision="metadata-1",
             matched_fields=("text",),
+            source_role="canonical_knowledge",
+            provenance_family_id="family-1",
         )

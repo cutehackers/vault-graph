@@ -154,6 +154,24 @@ def test_read_only_search_can_query_existing_chroma_state(tmp_path: Path) -> Non
     assert _tree_snapshot(path) == before
 
 
+def test_read_only_search_survives_chroma_queue_compaction(tmp_path: Path) -> None:
+    path = tmp_path / "chroma"
+    writable = ChromaVectorStore(path, initialize=True)
+    record = make_record(vault_id="default", path="wiki/page.md", text="alpha", content_scope="wiki")
+    writable.apply_vector_revision(vector_index_revision="vector-1", records=(record,), tombstones=())
+    writable.close()
+    with sqlite3.connect(path / "chroma.sqlite3") as connection:
+        connection.execute("DELETE FROM embeddings_queue")
+    before = _tree_snapshot(path)
+
+    hits = ChromaVectorStore(path, read_only=True).search(
+        make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+    )
+
+    assert tuple(hit.chunk_id for hit in hits) == (record.chunk_id,)
+    assert _tree_snapshot(path) == before
+
+
 def test_read_only_search_batches_sqlite_vector_payload_lookup(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,

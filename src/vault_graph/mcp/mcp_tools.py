@@ -25,6 +25,7 @@ from vault_graph.projection.graph_projection import (
     DEFAULT_GRAPH_RESULT_LIMIT,
     MAX_GRAPH_PROJECTION_DEPTH,
 )
+from vault_graph.retrieval.search_response import SearchMode
 
 McpToolName = Literal[
     "ask_vault",
@@ -121,6 +122,7 @@ class SearchVaultInput:
     limit: int = 10
     include_graph: bool = False
     include_cross_vault: bool = False
+    mode: SearchMode = "knowledge"
 
 
 @dataclass(frozen=True)
@@ -272,6 +274,7 @@ class McpToolRegistry:
                 output_format="json",
                 include_graph=request.include_graph,
                 include_cross_vault=request.include_cross_vault,
+                mode=request.mode,
             )
             from vault_graph.mcp.mcp_tool_serialization import (
                 explanation_records_for_search,
@@ -595,6 +598,7 @@ def register_mcp_tools(
         limit: int = 10,
         include_graph: bool = False,
         include_cross_vault: bool = False,
+        mode: str = "knowledge",
     ) -> dict[str, object]:
         request = parse_search_vault_input(
             query=query,
@@ -602,6 +606,7 @@ def register_mcp_tools(
             limit=limit,
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
+            mode=mode,
         )
         return registry.search_vault(request).to_json_dict()
 
@@ -758,6 +763,7 @@ def parse_search_vault_input(
     limit: int = 10,
     include_graph: bool = False,
     include_cross_vault: bool = False,
+    mode: str = "knowledge",
 ) -> SearchVaultInput:
     request = SearchVaultInput(
         query=_required_string(query, "query"),
@@ -765,6 +771,7 @@ def parse_search_vault_input(
         limit=_limit(limit),
         include_graph=_required_bool(include_graph, "include_graph"),
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
+        mode=cast(SearchMode, mode),
     )
     _validate_search_vault_request(request)
     return request
@@ -884,6 +891,8 @@ def _validate_search_vault_request(request: SearchVaultInput) -> None:
     _required_string(request.query, "query")
     _limit(request.limit)
     _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
+    if request.mode not in ("knowledge", "evidence", "operating", "audit", "all"):
+        raise _invalid_arguments("unsupported search mode")
 
 
 def _validate_ask_vault_request(request: AskVaultInput) -> None:

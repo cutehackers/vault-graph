@@ -420,7 +420,6 @@ def _entity_evidence_ref(*, occurrence: EntityOccurrence, entity_id: str) -> Gra
         section=occurrence.section,
         anchor=occurrence.anchor,
         path=occurrence.path,
-        excerpt=occurrence.excerpt,
     )
 
 
@@ -445,7 +444,6 @@ def _relationship_evidence_ref(*, occurrence: RelationshipOccurrence, relationsh
         section=occurrence.section,
         anchor=occurrence.anchor,
         path=occurrence.path,
-        excerpt=occurrence.excerpt,
     )
 
 
@@ -532,9 +530,7 @@ def _tombstones(
     now: str,
 ) -> tuple[tuple[GraphTombstone, ...], tuple[GraphTombstone, ...]]:
     desired_entity_keys = {(record.vault_id, record.entity_id) for record in desired_entities}
-    desired_relationship_keys = {
-        (record.source_vault_id, record.relationship_id) for record in desired_relationships
-    }
+    desired_relationship_keys = {(record.source_vault_id, record.relationship_id) for record in desired_relationships}
     scope_by_vault_id = {scope.vault_ids[0]: graph_scope_key(scope) for scope in manifest.actual_scopes}
     entity_tombstones = tuple(
         _tombstone(
@@ -693,8 +689,7 @@ def _warnings_for_unresolved_links(occurrences: tuple[EntityOccurrence, ...]) ->
         if occurrence.extraction_method == "unresolved-local-link-concept-v1"
     }
     return tuple(
-        f"{code}:{vault_id}:{path}:{chunk_id}:{message}"
-        for code, vault_id, path, chunk_id, message in sorted(warnings)
+        f"{code}:{vault_id}:{path}:{chunk_id}:{message}" for code, vault_id, path, chunk_id, message in sorted(warnings)
     )
 
 

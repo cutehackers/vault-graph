@@ -35,7 +35,7 @@ from vault_graph.storage.interfaces.graph_store import GraphEntityIdentity, Grap
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 GRAPH_SQLITE_BACKEND = "sqlite-graph"
-GRAPH_SCHEMA_VERSION = "sqlite-graph-v1"
+GRAPH_SCHEMA_VERSION = "sqlite-graph-v2"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS graph_metadata (
@@ -107,7 +107,6 @@ CREATE TABLE IF NOT EXISTS graph_evidence_refs (
   anchor TEXT,
   anchor_key TEXT NOT NULL,
   path TEXT,
-  excerpt TEXT,
   UNIQUE (owner_kind, owner_vault_id, owner_id, evidence_vault_id, document_id, chunk_id, anchor_key)
 );
 
@@ -240,7 +239,6 @@ REQUIRED_COLUMNS = {
         "anchor",
         "anchor_key",
         "path",
-        "excerpt",
     },
     "graph_record_scopes": {
         "record_kind",
@@ -330,8 +328,7 @@ class SQLiteGraphStore:
                     return _incompatible_health(f"schema incompatible: missing {', '.join(sorted(missing))}")
                 for table_name, required_columns in REQUIRED_COLUMNS.items():
                     columns = {
-                        str(row["name"])
-                        for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+                        str(row["name"]) for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()
                     }
                     missing_columns = required_columns - columns
                     if missing_columns:
@@ -848,7 +845,6 @@ def _evidence_ref_from_row(row: sqlite3.Row) -> GraphEvidenceRef:
         section=str(row["section"]) if row["section"] is not None else None,
         anchor=str(row["anchor"]) if row["anchor"] is not None else None,
         path=str(row["path"]) if row["path"] is not None else None,
-        excerpt=str(row["excerpt"]) if row["excerpt"] is not None else None,
     )
 
 
@@ -862,7 +858,7 @@ def _evidence_refs_for_owner(
     rows = connection.execute(
         """
         SELECT evidence_ref_id, owner_kind, owner_vault_id, owner_id, evidence_vault_id, document_id,
-               chunk_id, content_hash, section, anchor, path, excerpt
+               chunk_id, content_hash, section, anchor, path
         FROM graph_evidence_refs
         WHERE owner_kind = ? AND owner_vault_id = ? AND owner_id = ?
         ORDER BY evidence_ref_id
@@ -1609,9 +1605,9 @@ def _upsert_evidence_ref(connection: sqlite3.Connection, ref: GraphEvidenceRef) 
         """
         INSERT INTO graph_evidence_refs (
           evidence_ref_id, owner_kind, owner_vault_id, owner_id, evidence_vault_id, document_id,
-          chunk_id, content_hash, section, anchor, anchor_key, path, excerpt
+          chunk_id, content_hash, section, anchor, anchor_key, path
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(evidence_ref_id) DO UPDATE SET
           owner_kind = excluded.owner_kind,
           owner_vault_id = excluded.owner_vault_id,
@@ -1623,8 +1619,7 @@ def _upsert_evidence_ref(connection: sqlite3.Connection, ref: GraphEvidenceRef) 
           section = excluded.section,
           anchor = excluded.anchor,
           anchor_key = excluded.anchor_key,
-          path = excluded.path,
-          excerpt = excluded.excerpt
+          path = excluded.path
         """,
         (
             ref.evidence_ref_id,
@@ -1639,7 +1634,6 @@ def _upsert_evidence_ref(connection: sqlite3.Connection, ref: GraphEvidenceRef) 
             ref.anchor,
             ref.anchor or "",
             ref.path,
-            ref.excerpt,
         ),
     )
 

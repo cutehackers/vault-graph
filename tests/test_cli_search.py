@@ -230,10 +230,12 @@ class _FakeSearchService:
         output_format: str,
         include_graph: bool,
         include_cross_vault: bool,
+        mode: str,
     ) -> SearchResponse:
         self.include_graph = include_graph
         assert query_text == "GraphRAG"
         assert include_cross_vault is False
+        assert mode == "knowledge"
         evidence = EvidenceReference(
             vault_id="default",
             document_id="doc-1",

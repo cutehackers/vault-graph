@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from vault_graph.ingestion.document_authority import DocumentRole, classify_document_role
 from vault_graph.ingestion.markdown_parser import parse_sections
 from vault_graph.ingestion.vault_loader import LoadedVaultDocument
 
@@ -27,6 +28,8 @@ class DocumentSnapshot:
     last_indexed_at: str | None
     vault_revision: str | None
     index_revision: str | None
+    source_role: DocumentRole = "canonical_knowledge"
+    provenance_family_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,8 @@ class ChunkSnapshot:
     content_hash: str
     chunker_version: str
     index_revision: str | None
+    source_role: DocumentRole = "canonical_knowledge"
+    provenance_family_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -58,6 +63,8 @@ class DocumentNormalizer:
     def normalize(self, loaded: LoadedVaultDocument) -> NormalizedDocument:
         now = datetime.now(UTC).isoformat()
         document_id = stable_id("document", loaded.vault_id, loaded.path)
+        source_role = classify_document_role(path=loaded.path, frontmatter=loaded.frontmatter.data)
+        provenance_family_id = stable_id("provenance-family", loaded.vault_id, loaded.path)
         document = DocumentSnapshot(
             vault_id=loaded.vault_id,
             document_id=document_id,
@@ -72,6 +79,8 @@ class DocumentNormalizer:
             last_indexed_at=None,
             vault_revision=None,
             index_revision=None,
+            source_role=source_role,
+            provenance_family_id=provenance_family_id,
         )
         chunks = tuple(
             ChunkSnapshot(
@@ -86,6 +95,8 @@ class DocumentNormalizer:
                 content_hash=stable_id("chunk-content", section.text),
                 chunker_version=CHUNKER_VERSION,
                 index_revision=None,
+                source_role=source_role,
+                provenance_family_id=provenance_family_id,
             )
             for index, section in enumerate(parse_sections(loaded.frontmatter.body))
         )

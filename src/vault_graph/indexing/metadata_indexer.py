@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from vault_graph.indexing.revision_planner import MetadataIndexPreview, MetadataRevisionPlan
+from vault_graph.ingestion.document_authority import assign_provenance_families
 from vault_graph.ingestion.document_normalizer import (
     ChunkSnapshot,
     DocumentNormalizer,
@@ -50,9 +51,7 @@ class MetadataIndexer:
             for chunk in item.chunks
         )
         unchanged_chunks = tuple(
-            chunk
-            for chunk in self._metadata_store.list_chunks(scope)
-            if (chunk.vault_id, chunk.path) in unchanged_keys
+            chunk for chunk in self._metadata_store.list_chunks(scope) if (chunk.vault_id, chunk.path) in unchanged_keys
         )
         return MetadataIndexPreview(
             plan=plan,
@@ -122,7 +121,7 @@ class MetadataIndexer:
             entry = self._catalog.resolve(vault_id)
             for loaded in self._loader.load_documents(entry=entry, scope=scope):
                 normalized.append(self._normalizer.normalize(loaded))
-        return tuple(normalized)
+        return assign_provenance_families(tuple(normalized))
 
 
 def _document_changed(*, current: DocumentState, item: NormalizedDocument) -> bool:
@@ -133,6 +132,8 @@ def _document_changed(*, current: DocumentState, item: NormalizedDocument) -> bo
         or current.raw_sha256 != item.document.raw_sha256
         or current.parser_version != item.document.parser_version
         or current.chunker_version != _document_chunker_version(item)
+        or current.source_role != item.document.source_role
+        or current.provenance_family_id != item.document.provenance_family_id
     )
 
 

@@ -32,7 +32,7 @@ def test_current_graph_extraction_spec_has_canonical_digest() -> None:
         }
     )
 
-    assert spec.spec_version == "graph-extraction-spec-v2"
+    assert spec.spec_version == "graph-extraction-spec-v3"
     assert spec.entity_extractor_name == "local-deterministic-entity-extractor"
     assert spec.relationship_extractor_name == "local-deterministic-relationship-extractor"
     assert "phase" not in spec.entity_extractor_name
@@ -107,7 +107,6 @@ def test_evidence_ref_requires_owner_and_evidence_vault_identity() -> None:
         section="Decision",
         anchor="decision",
         path="wiki/decision.md",
-        excerpt="rendering hint",
     )
 
     assert ref.evidence_ref_id == evidence_ref_id
@@ -128,7 +127,6 @@ def test_invalid_relationship_status_is_rejected() -> None:
         section=None,
         anchor=None,
         path="wiki/page.md",
-        excerpt=None,
     )
 
     with pytest.raises(GraphRecordInvalid, match="unsupported relationship status"):

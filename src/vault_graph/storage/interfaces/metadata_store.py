@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
@@ -20,6 +21,8 @@ class EvidenceReference:
     raw_sha256: str
     metadata_index_revision: str | None
     vault_revision: str | None
+    source_role: DocumentRole = "canonical_knowledge"
+    provenance_family_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,8 @@ class DocumentState:
     parser_version: str | None
     chunker_version: str | None
     is_tombstoned: bool
+    source_role: DocumentRole | None = None
+    provenance_family_id: str | None = None
 
 
 class MetadataStore(Protocol):
@@ -79,5 +84,7 @@ class MetadataStore(Protocol):
         document_id: str,
         chunk_id: str,
     ) -> EvidenceReference | None: ...
+
+    def list_family_evidence(self, *, vault_id: str, provenance_family_id: str) -> tuple[EvidenceReference, ...]: ...
 
     def health(self) -> StoreHealth: ...

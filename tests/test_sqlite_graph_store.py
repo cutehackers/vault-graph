@@ -8,7 +8,7 @@ from vault_graph.errors import GraphReadOnlyViolation, GraphStoreUnavailable
 from vault_graph.extraction.entity_extractor import DeterministicEntityExtractor
 from vault_graph.extraction.graph_source_store import PreviewGraphSourceStore
 from vault_graph.extraction.relationship_extractor import DeterministicRelationshipExtractor
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.graph.graph_contracts import GraphEvidenceRef, current_graph_extraction_spec
 from vault_graph.indexing.graph_indexer import GraphIndexer
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
@@ -17,6 +17,16 @@ from vault_graph.storage.local.sqlite_graph_store import GRAPH_SCHEMA_VERSION, S
 
 def test_sqlite_graph_store_satisfies_contract(tmp_path: Path) -> None:
     graph_store_contract(lambda: SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3"))
+
+
+def test_graph_projection_does_not_persist_excerpt(tmp_path: Path) -> None:
+    store = SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3")
+
+    with store._connect() as connection:
+        columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(graph_evidence_refs)")}
+
+    assert "excerpt" not in columns
+    assert "excerpt" not in GraphEvidenceRef.__dataclass_fields__
 
 
 def test_sqlite_graph_store_persists_records(tmp_path: Path) -> None:

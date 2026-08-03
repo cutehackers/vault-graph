@@ -3,6 +3,22 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-03 - Normalize YAML Dates At The Ingestion Boundary
+
+**Trigger:** Disposable indexing of the real local Vault exposed a YAML date
+value that was not JSON serializable.
+
+**Scope:** Vault frontmatter parsing and normalization tests.
+
+**Core Values Protected:** Rebuildability, real-Vault compatibility, and one
+stable normalized metadata contract.
+
+**Changes Applied:** Recursively normalize YAML date/datetime values to ISO
+strings before snapshots enter metadata indexing.
+
+**Verification:** Date regression test, full local-Vault rebuild, projection
+audit, and unchanged Vault Git/SHA-256 fingerprints.
+
 ## 2026-07-14 - Easy MCP Setup Policy Alignment
 
 **Trigger:** User-approved setup direction changed MCP onboarding from
