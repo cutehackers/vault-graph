@@ -34,6 +34,27 @@ Use these rules when writing specs, implementation plans, or prompt templates.
 - For both logs, be short, specific, and evidence-linked. Do not copy long
   implementation-plan content into them.
 
+## Output Style & Language Rules
+
+### 1. Tone & Conciseness
+
+- Be clear, concise, and direct. Avoid unnecessary fluff, fillers, or overly polite intros/outros.
+- Focus strictly on answering the query or solving the problem.
+
+### 2. Language Switching
+
+- Match the user's input language (Respond in Korean if prompted in Korean, in English if prompted in English).
+
+### 3. Korean Natural Prose (Crucial)
+
+When responding in Korean:
+
+- **No Hybrid English-Korean Verbs/Nouns with Suffixes:** NEVER combine English terms directly with Korean particle/verb suffixes.
+  - ❌ **BAD:** "Execute합니다", "Deprecated되었습니다", "Passing하여", "Refactoring을 진행"
+  - ✅ **GOOD:** "실행합니다", "더 이상 사용되지 않습니다(Deprecated)", "전달하여", "리팩토링을 진행"
+- **Natural Grammar Structure:** Do not translate word-for-word from English thought chains. Rewrite sentences using native Korean word order (SOV) and idioms.
+- **Technical Terms:** Keep code identifiers, API/Package names, and official technical keywords in their original English form, but wrap them in proper Korean syntax.
+
 ## 🤖 Software Engineering Philosophy
 
 > **Core Principle:**
