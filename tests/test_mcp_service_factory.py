@@ -17,40 +17,40 @@ def initialized_state_for_factory(tmp_path: Path) -> Path:
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)
     (vault_root / "wiki" / "page.md").write_text("# Page\nBody\n", encoding="utf-8")
-    state_path = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
-    return state_path
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
+    return graph_home_path
 
 
 def test_mcp_factory_opens_read_only_services_without_creating_missing_state(tmp_path: Path) -> None:
     from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 
-    state_path = initialized_state_for_factory(tmp_path)
+    graph_home_path = initialized_state_for_factory(tmp_path)
     vault_root = tmp_path / "vault"
     before = file_bytes(vault_root)
 
-    services = McpServiceFactory(state_path=state_path).open_read_only()
+    services = McpServiceFactory(graph_home_path=graph_home_path).open_read_only()
 
     assert services.catalog.active_vault_id == "default"
     assert services.retrieval_service is not None
     assert services.context_pack_builder is not None
     assert file_bytes(vault_root) == before
-    assert not (state_path / "metadata").exists()
-    assert not (state_path / "vector").exists()
-    assert not (state_path / "graph").exists()
-    assert not (state_path / "projection_cache").exists()
+    assert not (graph_home_path / "metadata").exists()
+    assert not (graph_home_path / "vector").exists()
+    assert not (graph_home_path / "graph").exists()
+    assert not (graph_home_path / "projection_cache").exists()
 
 
 def test_mcp_factory_missing_catalog_fails_without_creating_state(tmp_path: Path) -> None:
-    from vault_graph.errors import CatalogError
+    from vault_graph.errors import DataHomeNotInitializedError
     from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 
-    state_path = tmp_path / "missing-state"
+    graph_home_path = tmp_path / "missing-state"
 
-    with pytest.raises(CatalogError):
-        McpServiceFactory(state_path=state_path).open_read_only()
+    with pytest.raises(DataHomeNotInitializedError, match="data_home_not_initialized"):
+        McpServiceFactory(graph_home_path=graph_home_path).open_read_only()
 
-    assert not state_path.exists()
+    assert not graph_home_path.exists()
 
 
 def test_mcp_factory_uses_read_only_store_constructors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -58,8 +58,8 @@ def test_mcp_factory_uses_read_only_store_constructors(tmp_path: Path, monkeypat
 
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
     calls: dict[str, object] = {}
 
     class FakeMetadataStore:
@@ -78,11 +78,11 @@ def test_mcp_factory_uses_read_only_store_constructors(tmp_path: Path, monkeypat
     monkeypatch.setattr("vault_graph.storage.local.sqlite_keyword_index.SQLiteKeywordIndex", FakeKeywordIndex)
     monkeypatch.setattr("vault_graph.storage.local.chroma_vector_store.ChromaVectorStore", FakeVectorStore)
 
-    McpServiceFactory(state_path=state_path).open_read_only()
+    McpServiceFactory(graph_home_path=graph_home_path).open_read_only()
 
-    assert calls["metadata"] == (state_path / "metadata" / "metadata.sqlite3", False)
-    assert calls["keyword"] == state_path / "metadata" / "metadata.sqlite3"
-    assert calls["vector"] == (state_path / "vector" / "chroma", False, True)
+    assert calls["metadata"] == (graph_home_path / "metadata" / "metadata.sqlite3", False)
+    assert calls["keyword"] == graph_home_path / "metadata" / "metadata.sqlite3"
+    assert calls["vector"] == (graph_home_path / "vector" / "chroma", False, True)
 
 
 def test_mcp_factory_opens_memory_source_reader_with_read_only_metadata_store(
@@ -93,8 +93,8 @@ def test_mcp_factory_opens_memory_source_reader_with_read_only_metadata_store(
 
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
     calls: dict[str, object] = {}
 
     class FakeMetadataStore:
@@ -103,37 +103,37 @@ def test_mcp_factory_opens_memory_source_reader_with_read_only_metadata_store(
 
     monkeypatch.setattr("vault_graph.storage.local.sqlite_metadata_store.SQLiteMetadataStore", FakeMetadataStore)
 
-    reader = McpServiceFactory(state_path=state_path).open_memory_source_reader()
+    reader = McpServiceFactory(graph_home_path=graph_home_path).open_memory_source_reader()
 
     assert reader is not None
-    assert calls["metadata"] == (state_path / "metadata" / "metadata.sqlite3", False)
+    assert calls["metadata"] == (graph_home_path / "metadata" / "metadata.sqlite3", False)
 
 
 def test_mcp_factory_opens_project_memory_service_without_creating_memory_state(tmp_path: Path) -> None:
     from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 
-    state_path = initialized_state_for_factory(tmp_path)
+    graph_home_path = initialized_state_for_factory(tmp_path)
 
-    service = McpServiceFactory(state_path=state_path).open_project_memory_service()
+    service = McpServiceFactory(graph_home_path=graph_home_path).open_project_memory_service()
 
     assert service is not None
-    assert not (state_path / "memory").exists()
-    assert not (state_path / "data" / "memory").exists()
+    assert not (graph_home_path / "memory").exists()
+    assert not (graph_home_path / "data" / "memory").exists()
 
 
 def test_mcp_factory_opens_timeline_and_health_services_without_creating_memory_state(tmp_path: Path) -> None:
     from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 
-    state_path = initialized_state_for_factory(tmp_path)
-    factory = McpServiceFactory(state_path=state_path)
+    graph_home_path = initialized_state_for_factory(tmp_path)
+    factory = McpServiceFactory(graph_home_path=graph_home_path)
 
     timeline = factory.open_timeline_memory_service()
     health = factory.open_health_explorer_service()
 
     assert timeline is not None
     assert health is not None
-    assert not (state_path / "memory").exists()
-    assert not (state_path / "data" / "memory").exists()
+    assert not (graph_home_path / "memory").exists()
+    assert not (graph_home_path / "data" / "memory").exists()
 
 
 def test_mcp_factory_memory_services_do_not_import_rustworkx_until_graph_enrichment(tmp_path: Path) -> None:
@@ -146,10 +146,10 @@ from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 vault_root.mkdir()
-state_path = Path({str(tmp_path / "state")!r})
+graph_home_path = Path({str(tmp_path / "state")!r})
 runner = CliRunner()
-runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-factory = McpServiceFactory(state_path=state_path)
+runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+factory = McpServiceFactory(graph_home_path=graph_home_path)
 factory.open_project_memory_service()
 factory.open_issue_memory_service()
 factory.open_decision_memory_service()
@@ -172,10 +172,10 @@ from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 vault_root.mkdir()
-state_path = Path({str(tmp_path / "state")!r})
+graph_home_path = Path({str(tmp_path / "state")!r})
 runner = CliRunner()
-runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-service = McpServiceFactory(state_path=state_path).open_decision_memory_service()
+runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+service = McpServiceFactory(graph_home_path=graph_home_path).open_decision_memory_service()
 if "vault_graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")
 try:
@@ -196,7 +196,7 @@ from pathlib import Path
 import sys
 from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 try:
-    McpServiceFactory(state_path=Path('/definitely/missing/state')).open_read_only()
+    McpServiceFactory(graph_home_path=Path('/definitely/missing/state')).open_read_only()
 except Exception:
     pass
 for name in ('vault_graph.projection.rustworkx_projection', 'rustworkx'):
@@ -218,10 +218,10 @@ from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 vault_root.mkdir()
-state_path = Path({str(tmp_path / "state")!r})
+graph_home_path = Path({str(tmp_path / "state")!r})
 runner = CliRunner()
-runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-McpServiceFactory(state_path=state_path).open_read_only()
+runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+McpServiceFactory(graph_home_path=graph_home_path).open_read_only()
 for name in ("chromadb", "fastembed", "huggingface_hub", "rustworkx"):
     if name in sys.modules:
         raise SystemExit(name)
@@ -242,10 +242,10 @@ from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 vault_root = Path({str(tmp_path / "vault")!r})
 (vault_root / "wiki").mkdir(parents=True)
 (vault_root / "wiki" / "page.md").write_text("# Page\\nBody\\n", encoding="utf-8")
-state_path = Path({str(tmp_path / "state")!r})
+graph_home_path = Path({str(tmp_path / "state")!r})
 runner = CliRunner()
-runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-factory = McpServiceFactory(state_path=state_path)
+runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+factory = McpServiceFactory(graph_home_path=graph_home_path)
 service = factory.open_retrieval_service(include_graph=False)
 if service is None:
     raise SystemExit("missing service")
@@ -268,10 +268,10 @@ from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 vault_root = Path({str(tmp_path / "vault")!r})
 (vault_root / "wiki").mkdir(parents=True)
 (vault_root / "wiki" / "page.md").write_text("# Page\\nBody\\n", encoding="utf-8")
-state_path = Path({str(tmp_path / "state")!r})
+graph_home_path = Path({str(tmp_path / "state")!r})
 runner = CliRunner()
-runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-factory = McpServiceFactory(state_path=state_path)
+runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+factory = McpServiceFactory(graph_home_path=graph_home_path)
 factory.open_context_pack_builder(include_graph=False)
 if "vault_graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")
@@ -298,10 +298,10 @@ from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 vault_root = Path({str(tmp_path / "vault")!r})
 (vault_root / "wiki").mkdir(parents=True)
 (vault_root / "wiki" / "page.md").write_text("# Page\\nBody\\n", encoding="utf-8")
-state_path = Path({str(tmp_path / "state")!r})
+graph_home_path = Path({str(tmp_path / "state")!r})
 runner = CliRunner()
-runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-factory = McpServiceFactory(state_path=state_path)
+runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+factory = McpServiceFactory(graph_home_path=graph_home_path)
 factory.open_read_only()
 if "vault_graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")
@@ -328,10 +328,10 @@ from vault_graph.mcp.mcp_service_factory import McpServiceFactory
 vault_root = Path({str(tmp_path / "vault")!r})
 (vault_root / "wiki").mkdir(parents=True)
 (vault_root / "wiki" / "page.md").write_text("# Page\\nBody\\n", encoding="utf-8")
-state_path = Path({str(tmp_path / "state")!r})
+graph_home_path = Path({str(tmp_path / "state")!r})
 runner = CliRunner()
-runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-factory = McpServiceFactory(state_path=state_path)
+runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+factory = McpServiceFactory(graph_home_path=graph_home_path)
 factory.open_read_only()
 if "vault_graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")

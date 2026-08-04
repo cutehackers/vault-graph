@@ -36,6 +36,18 @@ rebuild is staged in an isolated projection generation and becomes readable
 only after atomic manifest activation. `vg projection-audit` exposes blob,
 schema, duplication, and dangling-reference evidence for this contract.
 
+### Projection Bundle Lifecycle
+
+Vault Graph builds a new projection generation under
+`projections/generations/<generation-id>` instead of changing the active files
+in place. Full and incremental runs use the current generation as a
+copy-on-write baseline. Metadata, vector, and graph components write their own
+manifest with the source snapshot, contract, schema, and revision. A bundle
+manifest and the two active-generation pointers are published only after all
+enabled components pass validation. A failed run leaves the previous active
+generation readable and records a diagnostic under `runs/`; readers resolve
+the active generation once and keep all stores on that generation.
+
 The goal is not simple document or code search. The goal is to make project
 evidence easier to use:
 
@@ -151,7 +163,7 @@ Everything created by Vault Graph is a projection from registered authorities:
 - Code freshness state
 - Combined project context
 
-Deleting all Vault Graph state and rebuilding from the same Vault and repository
+Deleting all Vault Graph Data Home and rebuilding from the same Vault and repository
 revisions should produce functionally equivalent results for the same version
 of the parser, chunker, embedding model, graph extraction spec, and code
 extraction spec.
@@ -174,10 +186,12 @@ Default retrieval groups records from the same provenance family and returns
 one canonical result with supporting evidence links. Raw sources, generated
 navigation, and audit reports are not co-equal default answer candidates.
 
-This is the accepted Round 0 target contract. The current metadata, FTS, graph,
-and default content-scope implementation does not yet satisfy it. Code indexing
-must not begin until the Round 0 design, migration, and measurable completion
-gate are implemented and verified.
+This is the accepted Round 0 target contract. Round 0-V, Round 0-G, and the
+joint completion metrics have been implemented and verified in the current
+worktree. Round 1 code indexing is now in progress. Before the first public
+release, legacy Data Home layouts are not a compatibility contract: they fail
+closed and are rebuilt from Vault in a new Data Home rather than migrated or
+merged.
 
 ### Principle 4: Agents Consume Evidence-Linked Context
 
@@ -1149,7 +1163,7 @@ If indexing detects an unregistered source, source drift, deleted source, possib
 The project must enforce read-only behavior at multiple levels:
 
 - CLI operations are read-only with respect to Vault.
-- File operations are restricted to configured Vault Graph state directories.
+- File operations are restricted to configured Vault Graph Data Home directories.
 - Tests assert that indexing does not mutate Vault files.
 - MCP tools that return context do not write to Vault.
 - Any future "capture back to Vault" feature must produce an explicit draft artifact or command suggestion, not silently edit Vault.
@@ -1284,15 +1298,15 @@ vg project bind demo --vault-id main --scope wiki
 vg project bindings
 vg harness guidance preview --target /path/to/repository --file-name AGENTS.md
 vg harness guidance install --target /path/to/repository --file-name AGENTS.md
-vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
-vg mcp register --agent codex --state ~/.vault-graph --config-path ~/.codex/config.toml
-vg mcp config --agent codex --state ~/.vault-graph --print
+vg mcp register --agent codex --graph-home ~/.vault-graph --config-path /path/to/agent-config.json
+vg mcp register --agent codex --graph-home ~/.vault-graph --config-path ~/.codex/config.toml
+vg mcp config --agent codex --graph-home ~/.vault-graph --print
 vg watch
 vg serve --http
 ```
 
-CLI commands should be explicit about which Vault ID, Vault path, and index state
-path they use. Commands that accept `--vault-id` operate on one registered Vault.
+CLI commands should be explicit about which Vault ID, Vault path, and Vault Graph
+Data Home path they use. Commands that accept `--vault-id` operate on one registered Vault.
 Commands that accept `--all-vaults` must expand to visible selected Vault IDs in
 their output. Commands without either option use the active Vault. Implemented
 commands are covered by acceptance tests and keep Vault content read-only.
@@ -1304,8 +1318,23 @@ may register Codex automatically at `$CODEX_HOME/config.toml` or
 `~/.codex/config.toml` because that default-path policy has been accepted. The
 registration must preserve unrelated config, back up an existing config before
 changing the `vault-graph` server entry, and remain explicit through the
-`--mcp` flag. `vg setup` should use `~/.vault-graph` as its default state path
-when `--state` is omitted.
+`--mcp` flag. `vg setup` should use `~/.vault-graph` as its default Vault Graph
+Data Home path when `--graph-home` is omitted.
+The canonical first-run path is:
+
+```bash
+vg setup --vault /path/to/vault --agent codex --mcp
+vg status
+```
+
+`vg setup` must initialize one Data Home, register the Vault, publish the
+baseline projection, report readiness and optional capabilities, and write the
+normalized absolute MCP configuration path. Re-running it for the same
+`vault_id` and Vault root is idempotent. If a known pre-release Data Home
+layout is found, setup must return `legacy_data_home_detected` without reading
+or modifying that derived directory; the recovery path is a new
+`--graph-home` and a full rebuild from Vault. No migration command is part of
+the first release.
 Detailed implementation design for `vg ask` and the CLI onboarding targets lives in
 `docs/superpowers/specs/2026-06-24-cli-todo-command-implementation-design.md`.
 The canonical answer-layer contract for `vg ask` and `ask_vault` lives in
@@ -1607,7 +1636,7 @@ Embedding throughput tuning:
   continue.
 - `vg index --dry-run` reports planned embedding counts and configured tuning
   values without loading the model, creating Chroma collections, or writing
-  Vault Graph state.
+  Vault Graph Data Home.
 
 Required implementation capabilities:
 
@@ -1676,7 +1705,7 @@ Accepted Phase 2C decisions:
   candidates.
 - `vg search` must never auto-index. It reads existing Vault Graph projections
   only. If required projections are missing or stale, it reports warnings or
-  recovery guidance instead of mutating Vault Graph state.
+  recovery guidance instead of mutating Vault Graph Data Home.
 - Phase 2C keeps the existing Markdown `heading-section-v1` chunks. It must not
   introduce `markdown-block-window-v2`, `hierarchical-retrieval-v3`, or any
   chunker migration. Those remain later retrieval-policy or chunking migrations.
@@ -1923,7 +1952,7 @@ Phase 3 slices:
 Phase 3 invariants:
 
 - Vault remains the durable source of truth. Graph records, evidence refs,
-  manifests, revisions, and projection caches are derived Vault Graph state.
+  manifests, revisions, and projection caches are derived Vault Graph Data Home.
 - The canonical graph evidence unit is the `MetadataStore` evidence chunk:
   `(vault_id, document_id, chunk_id)`.
 - User-visible graph output must resolve evidence through `MetadataStore` before

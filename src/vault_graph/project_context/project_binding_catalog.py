@@ -39,11 +39,13 @@ class ProjectBindingCatalogService:
         self._catalog_service = catalog_service
         self._repository_catalog = repository_catalog
         self._vault_catalog = vault_catalog
-        self.state_path = catalog_service.state_path
-        self.config_path = self.state_path / "configs" / "project-bindings.json"
+        self.graph_home_path = catalog_service.graph_home_path
+        self.config_path = self.graph_home_path / "configs" / "project-bindings.json"
 
     def load(self) -> ProjectBindingCatalog:
-        self._catalog_service.assert_write_target_safe(target_path=self.config_path, catalog=self._vault_catalog)
+        self._catalog_service.assert_graph_home_write_target_safe(
+            target_path=self.config_path, catalog=self._vault_catalog
+        )
         bindings = self._read()
         self._validate(bindings)
         return _ProjectBindingCatalog(bindings)
@@ -85,7 +87,9 @@ class ProjectBindingCatalogService:
             raise ValueError("invalid project binding catalog entry") from exc
 
     def _write(self, bindings: tuple[ProjectBinding, ...]) -> None:
-        self._catalog_service.assert_write_target_safe(target_path=self.config_path, catalog=self._vault_catalog)
+        self._catalog_service.assert_graph_home_write_target_safe(
+            target_path=self.config_path, catalog=self._vault_catalog
+        )
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         payload: dict[str, Any] = {
             "schema_version": PROJECT_BINDING_SCHEMA_VERSION,
@@ -100,7 +104,7 @@ class ProjectBindingCatalogService:
             ],
         }
         temporary = self.config_path.with_name(f".{self.config_path.name}.tmp")
-        self._catalog_service.assert_write_target_safe(target_path=temporary, catalog=self._vault_catalog)
+        self._catalog_service.assert_graph_home_write_target_safe(target_path=temporary, catalog=self._vault_catalog)
         try:
             with temporary.open("w", encoding="utf-8") as handle:
                 json.dump(payload, handle, sort_keys=True, indent=2)

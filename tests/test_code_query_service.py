@@ -43,7 +43,7 @@ def _service(tmp_path: Path) -> tuple[CodeQueryService, Path]:
         "def first():\n    return second()\n\ndef second():\n    return 2\n",
         encoding="utf-8",
     )
-    projection = CodeProjectionService.for_testing(state_path=tmp_path / "state", entries=(_entry(repository),))
+    projection = CodeProjectionService.for_testing(graph_home_path=tmp_path / "state", entries=(_entry(repository),))
     projection.apply(CodeIndexRequest(full=True))
     active = projection.generation_manager.active_layout(())
     assert active is not None
@@ -92,7 +92,7 @@ def test_query_reads_persisted_status_without_scanning_the_repository(tmp_path: 
     repository.mkdir()
     (repository / "sample.py").write_text("def example():\n    return 1\n", encoding="utf-8")
     entry = _entry(repository)
-    projection = CodeProjectionService.for_testing(state_path=tmp_path / "state", entries=(entry,))
+    projection = CodeProjectionService.for_testing(graph_home_path=tmp_path / "state", entries=(entry,))
     projection.apply(CodeIndexRequest(full=True))
     active = projection.generation_manager.active_layout(())
     assert active is not None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -36,6 +37,10 @@ class ProjectionHygieneReport:
     result_family_duplication: float | None
     schema_versions: tuple[SchemaVersion, ...]
     active_generation_id: str | None = None
+    bundle_manifest_valid: bool = False
+    component_capabilities: tuple[str, ...] = ()
+    source_snapshot_id: str | None = None
+    component_revisions: tuple[tuple[str, str], ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -90,6 +95,7 @@ class ProjectionHygieneService:
         graph_version = _projection_version(self._graph_path, "graph_metadata")
         vector_version = vector.health().schema_version
         amplification = 1.0
+        bundle = _bundle_manifest(self._metadata_path.parent.parent)
         return ProjectionHygieneReport(
             role_counts=role_counts,
             canonical_blob_count=int(canonical_blob_count),
@@ -108,7 +114,19 @@ class ProjectionHygieneService:
                 SchemaVersion("graph", graph_version),
             ),
             active_generation_id=active_generation_id,
+            bundle_manifest_valid=bundle.valid,
+            component_capabilities=bundle.components,
+            source_snapshot_id=bundle.source_snapshot_id,
+            component_revisions=bundle.revisions,
         )
+
+
+@dataclass(frozen=True)
+class _BundleManifestAudit:
+    valid: bool
+    components: tuple[str, ...] = ()
+    source_snapshot_id: str | None = None
+    revisions: tuple[tuple[str, str], ...] = ()
 
 
 def _connect_readonly(path: Path) -> sqlite3.Connection:
@@ -136,3 +154,51 @@ def _dangling_graph_refs(path: Path, chunk_keys: set[tuple[str, str]]) -> int:
     with _connect_readonly(path) as connection:
         refs = connection.execute("SELECT evidence_vault_id, chunk_id FROM graph_evidence_refs").fetchall()
     return sum((str(row[0]), str(row[1])) not in chunk_keys for row in refs)
+
+
+def _bundle_manifest(root_path: Path) -> _BundleManifestAudit:
+    manifest_path = root_path / "bundle-manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        return _BundleManifestAudit(valid=False)
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return _BundleManifestAudit(valid=False)
+    if not isinstance(payload, dict) or payload.get("format") != "vault-graph-projection-bundle-v1":
+        return _BundleManifestAudit(valid=False)
+    components = payload.get("components")
+    source_snapshot_id = payload.get("source_snapshot_id")
+    if (
+        not isinstance(components, list)
+        or not components
+        or not all(isinstance(component, str) for component in components)
+        or not isinstance(source_snapshot_id, str)
+    ):
+        return _BundleManifestAudit(valid=False)
+    revisions_payload = payload.get("component_revisions")
+    if not isinstance(revisions_payload, dict) or not all(
+        isinstance(component, str) and isinstance(revision, str) for component, revision in revisions_payload.items()
+    ):
+        return _BundleManifestAudit(valid=False)
+    root_components = tuple(sorted(set(components)))
+    for component in root_components:
+        component_manifest = root_path / component / "manifest.json"
+        if component_manifest.is_symlink() or not component_manifest.is_file():
+            return _BundleManifestAudit(valid=False)
+        try:
+            component_payload = json.loads(component_manifest.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return _BundleManifestAudit(valid=False)
+        if (
+            not isinstance(component_payload, dict)
+            or component_payload.get("status") != "ready"
+            or component_payload.get("source_snapshot_id") != source_snapshot_id
+            or component_payload.get("revision") != revisions_payload.get(component)
+        ):
+            return _BundleManifestAudit(valid=False)
+    return _BundleManifestAudit(
+        valid=True,
+        components=root_components,
+        source_snapshot_id=source_snapshot_id,
+        revisions=tuple(sorted((str(component), str(revision)) for component, revision in revisions_payload.items())),
+    )

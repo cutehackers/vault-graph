@@ -105,7 +105,7 @@ registers the `vault-graph` stdio server in `$CODEX_HOME/config.toml` or
 `~/.codex/config.toml`, and explicit `--mcp-config-path` remains available.
 
 **Reason:** MCP must be easy enough for normal onboarding, while hidden writes
-outside Vault Graph state remain unacceptable.
+outside Vault Graph Data Home remain unacceptable.
 
 **Implications:**
 
@@ -201,7 +201,7 @@ agent MCP registration.
 
 - README must distinguish current source-checkout install paths from the future
   public PyPI install path.
-- `vg setup` defaults omitted `--state` to `~/.vault-graph`.
+- `vg setup` defaults omitted `--graph-home` to `~/.vault-graph`.
 - MCP registration commands configure agents to run `vg serve --mcp`; they must
   not describe MCP registration as MCP server installation.
 - PyPI publication can be handled as a release task, not as a blocker for local
@@ -223,7 +223,7 @@ without adding a destructive command prematurely.
 
 - Acceptance must prove metadata, keyword, vector, and graph state rebuild from
   Vault while Vault file hashes stay unchanged.
-- Any manual deletion guidance is limited to Vault Graph state directories, not
+- Any manual deletion guidance is limited to Vault Graph Data Home directories, not
   registered Vault roots or Vault content.
 - A future reset command must call an application service with path-safety
   checks, not delete backend files directly.
@@ -494,3 +494,56 @@ directly under `src/`?
 namespace. Keeping the namespace avoids generic import names such as
 `ingestion`, `storage`, `indexing`, and `cli`, and preserves a clearer package
 boundary for testing, installation, and future scale-up.
+
+## 2026-08-04 - Name The Derived Data Root Vault Graph Data Home
+
+**Question:** What user-facing term should describe the local, rebuildable root
+that contains Vault Graph catalogs, projection generations, manifests, and
+diagnostics?
+
+**Decision:** Use **Vault Graph Data Home** as the canonical user-facing and
+architecture term. Use `--graph-home PATH` as the only explicit CLI override;
+do not retain a `--state` alias. Keep `~/.vault-graph` as the default path.
+
+**Reason:** `state` is ambiguous to users and suggests transient runtime state.
+Data Home describes the actual boundary: Vault Graph-owned derived data that is
+rebuildable and must never replace Vault or a registered repository as a source
+of truth.
+
+**Implications:**
+
+- New specifications, CLI help, MCP registration, and onboarding use Vault
+  Graph Data Home and `--graph-home`.
+- Internal names use `GraphHomeResolver` and Data Home manifest terminology.
+- Existing project-local `.vault-graph` data is never discovered, read, or
+  merged implicitly. Before the first release, choose a new `--graph-home`
+  path and rebuild from Vault instead of migrating it.
+- The implementation must remove `--state` from the supported public surface.
+
+## 2026-08-04 - Rebuild Pre-Release Legacy Data Instead Of Shipping Migration
+
+**Question:** Should the first Vault Graph release include a user-facing legacy
+Data Home migration command?
+
+**Decision:** No. Before the first public release, known legacy Data Home
+layouts are detected and rejected without being read, copied, or merged. The
+canonical recovery path is to choose a new `--graph-home` (or move the
+rebuildable old directory aside) and run `vg setup` to rebuild projections from
+Vault. New-user onboarding through `vg setup --vault PATH --agent codex --mcp`
+is required for the release.
+
+**Reason:** Vault Graph has no released compatibility contract yet, and its
+Data Home contains rebuildable derived data rather than an authority. Shipping
+migration now would add schema, catalog-conflict, and duplicate-projection
+complexity before it is needed. Fail-closed detection still protects users
+from accidentally opening two Data Homes or treating an old projection as a
+source of truth.
+
+**Implications:**
+
+- `legacy_data_home_detected` is a recovery state, not a migration workflow.
+- `setup`, `status`, MCP, and HTTP expose deterministic setup/rebuild hints.
+- No `vg data-home migrate` or automatic adoption command is part of the first
+  release; compatibility can be reconsidered after real release evidence.
+- Historical design artifacts are not rewritten to fabricate a migration
+  history; current code and canonical docs use the guard-and-rebuild policy.

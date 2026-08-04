@@ -22,7 +22,7 @@ def test_setup_service_does_not_install_harness_guidance_by_default(tmp_path: Pa
     SetupService(index_factory=cast(Any, RecordingIndexFactory())).setup(
         request=SetupRequest(
             vault_path=vault,
-            state_path=tmp_path / "state",
+            graph_home_path=tmp_path / "state",
             agent=None,
         )
     )
@@ -34,21 +34,41 @@ def test_harness_cli_preview_and_install_require_explicit_target(tmp_path: Path)
     vault = tmp_path / "vault"
     vault.mkdir()
     state = tmp_path / "state"
-    result = runner.invoke(app, ["init", "--vault", str(vault), "--state", str(state)])
+    result = runner.invoke(app, ["init", "--vault", str(vault), "--graph-home", str(state)])
     assert result.exit_code == 0
     project = tmp_path / "project"
     project.mkdir()
 
     preview = runner.invoke(
         app,
-        ["harness", "guidance", "preview", "--target", str(project), "--file-name", "AGENTS.md", "--state", str(state)],
+        [
+            "harness",
+            "guidance",
+            "preview",
+            "--target",
+            str(project),
+            "--file-name",
+            "AGENTS.md",
+            "--graph-home",
+            str(state),
+        ],
     )
     assert preview.exit_code == 0
     assert not (project / "AGENTS.md").exists()
 
     install = runner.invoke(
         app,
-        ["harness", "guidance", "install", "--target", str(project), "--file-name", "AGENTS.md", "--state", str(state)],
+        [
+            "harness",
+            "guidance",
+            "install",
+            "--target",
+            str(project),
+            "--file-name",
+            "AGENTS.md",
+            "--graph-home",
+            str(state),
+        ],
     )
     assert install.exit_code == 0
     assert (project / "AGENTS.md").exists()
@@ -58,11 +78,21 @@ def test_harness_cli_rejects_registered_vault_target(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()
     state = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault), "--state", str(state)]).exit_code == 0
+    assert runner.invoke(app, ["init", "--vault", str(vault), "--graph-home", str(state)]).exit_code == 0
 
     result = runner.invoke(
         app,
-        ["harness", "guidance", "install", "--target", str(vault), "--file-name", "AGENTS.md", "--state", str(state)],
+        [
+            "harness",
+            "guidance",
+            "install",
+            "--target",
+            str(vault),
+            "--file-name",
+            "AGENTS.md",
+            "--graph-home",
+            str(state),
+        ],
     )
 
     assert result.exit_code == 1
@@ -80,13 +110,13 @@ def test_default_mcp_startup_does_not_write_instruction_files(tmp_path: Path) ->
     vault = tmp_path / "vault"
     vault.mkdir()
     state = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault), "--state", str(state)]).exit_code == 0
+    assert runner.invoke(app, ["init", "--vault", str(vault), "--graph-home", str(state)]).exit_code == 0
     project = tmp_path / "project"
     project.mkdir()
     instruction = project / "AGENTS.md"
     instruction.write_text("# Existing project instruction\n", encoding="utf-8")
 
-    create_mcp_server(McpServerConfig(state_path=state))
+    create_mcp_server(McpServerConfig(graph_home_path=state))
 
     assert instruction.read_text(encoding="utf-8") == "# Existing project instruction\n"
     assert not (project / "AGENTS.md.install.bak").exists()

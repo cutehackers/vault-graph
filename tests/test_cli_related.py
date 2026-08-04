@@ -38,7 +38,7 @@ def test_cli_related_text_renders_evidence_linked_items(tmp_path: Path, monkeypa
         fake_graph_service_factory(tmp_path, fake_service),
     )
 
-    result = runner.invoke(app, ["related", "--state", str(tmp_path / "state"), "GraphRAG"])
+    result = runner.invoke(app, ["related", "--graph-home", str(tmp_path / "state"), "GraphRAG"])
 
     assert result.exit_code == 0
     assert fake_service.calls[0]["target"] == "GraphRAG"
@@ -62,7 +62,7 @@ def test_cli_related_text_renders_cross_vault_actual_scope(tmp_path: Path, monke
 
     result = runner.invoke(
         app,
-        ["related", "--state", str(tmp_path / "state"), "--all-vaults", "--include-cross-vault", "GraphRAG"],
+        ["related", "--graph-home", str(tmp_path / "state"), "--all-vaults", "--include-cross-vault", "GraphRAG"],
     )
 
     assert result.exit_code == 0
@@ -80,7 +80,7 @@ def test_cli_related_json_uses_related_response_contract(tmp_path: Path, monkeyp
 
     result = runner.invoke(
         app,
-        ["related", "--state", str(tmp_path / "state"), "--format", "json", "GraphRAG"],
+        ["related", "--graph-home", str(tmp_path / "state"), "--format", "json", "GraphRAG"],
     )
 
     assert result.exit_code == 0
@@ -105,7 +105,7 @@ def test_cli_related_json_uses_related_response_contract(tmp_path: Path, monkeyp
 def test_cli_related_rejects_include_cross_vault_without_all_vaults(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
-        ["related", "--state", str(tmp_path / "state"), "--include-cross-vault", "GraphRAG"],
+        ["related", "--graph-home", str(tmp_path / "state"), "--include-cross-vault", "GraphRAG"],
     )
 
     assert result.exit_code == 1
@@ -145,7 +145,7 @@ def test_cli_related_ambiguous_target_exits_zero_with_warning(tmp_path: Path, mo
 
     result = runner.invoke(
         app,
-        ["related", "--state", str(tmp_path / "state"), "--all-vaults", "GraphRAG"],
+        ["related", "--graph-home", str(tmp_path / "state"), "--all-vaults", "GraphRAG"],
     )
 
     assert result.exit_code == 0
@@ -157,19 +157,19 @@ def test_cli_related_ambiguous_target_exits_zero_with_warning(tmp_path: Path, mo
 def test_cli_related_real_factory_does_not_create_missing_state_files(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    init_result = runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    before = state_tree(state_path)
+    graph_home_path = tmp_path / "state"
+    init_result = runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    before = state_tree(graph_home_path)
 
-    result = runner.invoke(app, ["related", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["related", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert init_result.exit_code == 0
     assert result.exit_code == 0
     assert "warning: graph_missing [default]" in result.stdout
-    assert state_tree(state_path) == before
-    assert not (state_path / "metadata" / "metadata.sqlite3").exists()
-    assert not (state_path / "graph" / "graph.sqlite3").exists()
-    assert not (state_path / "data" / "projection_cache").exists()
+    assert state_tree(graph_home_path) == before
+    assert not (graph_home_path / "metadata" / "metadata.sqlite3").exists()
+    assert not (graph_home_path / "graph" / "graph.sqlite3").exists()
+    assert not (graph_home_path / "data" / "projection_cache").exists()
 
 
 def related_response(*, include_cross_vault: bool = False) -> RelatedResponse:

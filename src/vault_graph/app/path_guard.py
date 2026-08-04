@@ -6,22 +6,22 @@ from pathlib import Path
 from vault_graph.errors import ReadOnlyBoundaryError
 
 
-def assert_state_outside_vaults(*, state_path: Path, vault_roots: Iterable[Path]) -> None:
-    resolved_state = state_path.expanduser().resolve()
+def assert_graph_home_outside_vaults(*, graph_home: Path, vault_roots: Iterable[Path]) -> None:
+    resolved_graph_home = graph_home.expanduser().resolve()
     for vault_root in vault_roots:
         resolved_vault = vault_root.expanduser().resolve()
-        if resolved_state == resolved_vault or resolved_vault in resolved_state.parents:
+        if resolved_graph_home == resolved_vault or resolved_vault in resolved_graph_home.parents:
             raise ReadOnlyBoundaryError(
-                f"Vault Graph state path must not be inside a registered Vault: {resolved_state}"
+                f"Vault Graph Data Home must not be inside a registered Vault: {resolved_graph_home}"
             )
 
 
-def assert_write_target_allowed(*, state_path: Path, target_path: Path, vault_roots: Iterable[Path]) -> None:
-    resolved_state = state_path.expanduser().resolve()
+def assert_graph_home_write_target_allowed(*, graph_home: Path, target_path: Path, vault_roots: Iterable[Path]) -> None:
+    resolved_graph_home = graph_home.expanduser().resolve()
     resolved_target = target_path.expanduser().resolve(strict=False)
-    if resolved_target != resolved_state and resolved_state not in resolved_target.parents:
-        raise ReadOnlyBoundaryError(f"Vault Graph write target must stay inside the state path: {resolved_target}")
-    assert_state_outside_vaults(state_path=state_path, vault_roots=vault_roots)
+    if resolved_target != resolved_graph_home and resolved_graph_home not in resolved_target.parents:
+        raise ReadOnlyBoundaryError(f"Vault Graph write target must stay inside the Data Home: {resolved_target}")
+    assert_graph_home_outside_vaults(graph_home=graph_home, vault_roots=vault_roots)
     for vault_root in vault_roots:
         resolved_vault = vault_root.expanduser().resolve()
         if resolved_target == resolved_vault or resolved_vault in resolved_target.parents:

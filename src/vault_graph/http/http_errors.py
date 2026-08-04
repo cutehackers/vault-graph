@@ -3,17 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from vault_graph.errors import ResultExplanationError, VaultGraphError
+from vault_graph.errors import (
+    DataHomeManifestError,
+    DataHomeNotInitializedError,
+    LegacyDataHomeDetectedError,
+    ResultExplanationError,
+    VaultGraphError,
+)
 
 
 @dataclass(frozen=True)
 class HttpServerConfig:
-    state_path: Path
+    graph_home_path: Path
     host: str = "127.0.0.1"
     port: int = 8765
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "state_path", self.state_path.expanduser().resolve())
+        object.__setattr__(self, "graph_home_path", self.graph_home_path.expanduser().resolve())
         if self.host != "127.0.0.1":
             raise HttpRequestError(
                 code="remote_http_not_supported",
@@ -61,6 +67,30 @@ class HttpRequestError(VaultGraphError):
 def map_exception_to_http_error(exc: Exception) -> HttpRequestError:
     if isinstance(exc, HttpRequestError):
         return exc
+    if isinstance(exc, DataHomeNotInitializedError):
+        return HttpRequestError(
+            code="data_home_not_initialized",
+            message=str(exc),
+            status_code=400,
+            recovery_hint="Run `vg setup --vault PATH --graph-home PATH` before starting the HTTP server.",
+        )
+    if isinstance(exc, LegacyDataHomeDetectedError):
+        return HttpRequestError(
+            code="legacy_data_home_detected",
+            message=str(exc),
+            status_code=400,
+            recovery_hint=(
+                "Choose a new --graph-home PATH or move the rebuildable pre-release directory aside, "
+                "then run `vg setup --vault PATH --graph-home PATH`."
+            ),
+        )
+    if isinstance(exc, DataHomeManifestError):
+        return HttpRequestError(
+            code=_prefixed_domain_code(str(exc)) or "data_home_manifest_error",
+            message=str(exc),
+            status_code=400,
+            recovery_hint="Inspect the Data Home path with `vg status --graph-home PATH` and rerun setup if needed.",
+        )
     if isinstance(exc, ResultExplanationError):
         return _map_result_explanation_error(exc)
     if isinstance(exc, VaultGraphError):
@@ -68,7 +98,7 @@ def map_exception_to_http_error(exc: Exception) -> HttpRequestError:
             code=_snake_case_error_code(type(exc).__name__),
             message=str(exc),
             status_code=400,
-            recovery_hint="Check Vault Graph state with vg status.",
+            recovery_hint="Check the Vault Graph Data Home with `vg status`.",
         )
     return HttpRequestError(
         code="internal_error",
@@ -105,7 +135,15 @@ def _prefixed_domain_code(message: str) -> str | None:
     if ":" not in message:
         return None
     prefix = message.split(":", 1)[0].strip()
-    if prefix in {"result_explanation_not_found", "invalid_result_id"}:
+    if prefix in {
+        "result_explanation_not_found",
+        "invalid_result_id",
+        "data_home_manifest_invalid",
+        "data_home_manifest_incompatible",
+        "data_home_manifest_identity_mismatch",
+        "data_home_generation_invalid",
+        "data_home_path_invalid",
+    }:
         return prefix
     return None
 

@@ -14,7 +14,7 @@ def test_cli_project_binding_persists_and_lists_explicit_authorities(tmp_path: P
     repository.mkdir()
     state = tmp_path / "state"
     runner = CliRunner()
-    assert runner.invoke(app, ["init", "--vault", str(vault), "--state", str(state)]).exit_code == 0
+    assert runner.invoke(app, ["init", "--vault", str(vault), "--graph-home", str(state)]).exit_code == 0
     assert (
         runner.invoke(
             app,
@@ -27,7 +27,7 @@ def test_cli_project_binding_persists_and_lists_explicit_authorities(tmp_path: P
                 str(repository),
                 "--language",
                 "python",
-                "--state",
+                "--graph-home",
                 str(state),
             ],
         ).exit_code
@@ -46,13 +46,13 @@ def test_cli_project_binding_persists_and_lists_explicit_authorities(tmp_path: P
             "wiki",
             "--evidence-mapping",
             "code:run=vault:default:decision-1:chunk-1",
-            "--state",
+            "--graph-home",
             str(state),
             "--format",
             "json",
         ],
     )
-    listed = runner.invoke(app, ["project", "bindings", "--state", str(state), "--format", "json"])
+    listed = runner.invoke(app, ["project", "bindings", "--graph-home", str(state), "--format", "json"])
 
     assert bound.exit_code == 0, bound.output
     assert listed.exit_code == 0, listed.output
@@ -68,7 +68,7 @@ def test_cli_project_binding_accepts_explicit_evidence_mapping(tmp_path: Path) -
     repository.mkdir()
     state = tmp_path / "state"
     runner = CliRunner()
-    assert runner.invoke(app, ["init", "--vault", str(vault), "--state", str(state)]).exit_code == 0
+    assert runner.invoke(app, ["init", "--vault", str(vault), "--graph-home", str(state)]).exit_code == 0
     assert (
         runner.invoke(
             app,
@@ -81,7 +81,7 @@ def test_cli_project_binding_accepts_explicit_evidence_mapping(tmp_path: Path) -
                 str(repository),
                 "--language",
                 "python",
-                "--state",
+                "--graph-home",
                 str(state),
             ],
         ).exit_code
@@ -98,7 +98,7 @@ def test_cli_project_binding_accepts_explicit_evidence_mapping(tmp_path: Path) -
             "default",
             "--evidence-mapping",
             "code:run=vault:default:decision-1:chunk-1",
-            "--state",
+            "--graph-home",
             str(state),
             "--format",
             "json",

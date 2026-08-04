@@ -205,8 +205,7 @@ class SearchContextPackBuilder:
                         builder_warning(
                             code="invalid_evidence_path",
                             message=(
-                                "Evidence path must be Vault-relative and inside the actual scope: "
-                                f"{resolved.path}"
+                                f"Evidence path must be Vault-relative and inside the actual scope: {resolved.path}"
                             ),
                             affected_vault_ids=(ref.vault_id,),
                             evidence_refs=(ref,),
@@ -385,8 +384,7 @@ def _context_item_from_planned(
 
 def _item_id(result: RetrievalResult, item_type: str) -> str:
     identity = "|".join(
-        [item_type, result.result_id]
-        + [f"{ref.vault_id}:{ref.document_id}:{ref.chunk_id}" for ref in result.evidence]
+        [item_type, result.result_id] + [f"{ref.vault_id}:{ref.document_id}:{ref.chunk_id}" for ref in result.evidence]
     )
     return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
@@ -565,9 +563,7 @@ def _has_revision(response: SearchResponse, kind: str) -> bool:
 
 def _store_revisions(*, response: SearchResponse, include_graph: bool) -> tuple[ContextPackStoreRevision, ...]:
     allowed_kinds = (
-        {"metadata", "keyword", "vector", "graph", "projection"}
-        if include_graph
-        else {"metadata", "keyword", "vector"}
+        {"metadata", "keyword", "vector", "graph", "projection"} if include_graph else {"metadata", "keyword", "vector"}
     )
     return tuple(
         ContextPackStoreRevision(

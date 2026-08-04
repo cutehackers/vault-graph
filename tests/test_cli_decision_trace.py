@@ -39,7 +39,7 @@ def test_cli_decision_trace_text_renders_steps(tmp_path: Path, monkeypatch: Monk
         fake_graph_service_factory(tmp_path, fake_service),
     )
 
-    result = runner.invoke(app, ["decision-trace", "--state", str(tmp_path / "state"), "Use GraphRAG"])
+    result = runner.invoke(app, ["decision-trace", "--graph-home", str(tmp_path / "state"), "Use GraphRAG"])
 
     assert result.exit_code == 0
     assert fake_service.calls[0]["topic"] == "Use GraphRAG"
@@ -68,7 +68,7 @@ def test_cli_decision_trace_json_uses_response_contract(tmp_path: Path, monkeypa
 
     result = runner.invoke(
         app,
-        ["decision-trace", "--state", str(tmp_path / "state"), "--format", "json", "Use GraphRAG"],
+        ["decision-trace", "--graph-home", str(tmp_path / "state"), "--format", "json", "Use GraphRAG"],
     )
 
     assert result.exit_code == 0
@@ -94,7 +94,7 @@ def test_cli_decision_trace_topic_trace_warning_is_visible(tmp_path: Path, monke
         fake_graph_service_factory(tmp_path, fake_service),
     )
 
-    result = runner.invoke(app, ["decision-trace", "--state", str(tmp_path / "state"), "GraphRAG"])
+    result = runner.invoke(app, ["decision-trace", "--graph-home", str(tmp_path / "state"), "GraphRAG"])
 
     assert result.exit_code == 0
     assert "warning: topic_not_durable_decision [default]" in result.stdout
@@ -104,19 +104,19 @@ def test_cli_decision_trace_topic_trace_warning_is_visible(tmp_path: Path, monke
 def test_cli_decision_trace_real_factory_does_not_create_missing_state_files(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    init_result = runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    before = state_tree(state_path)
+    graph_home_path = tmp_path / "state"
+    init_result = runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    before = state_tree(graph_home_path)
 
-    result = runner.invoke(app, ["decision-trace", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["decision-trace", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert init_result.exit_code == 0
     assert result.exit_code == 0
     assert "warning: graph_missing [default]" in result.stdout
-    assert state_tree(state_path) == before
-    assert not (state_path / "metadata" / "metadata.sqlite3").exists()
-    assert not (state_path / "graph" / "graph.sqlite3").exists()
-    assert not (state_path / "data" / "projection_cache").exists()
+    assert state_tree(graph_home_path) == before
+    assert not (graph_home_path / "metadata" / "metadata.sqlite3").exists()
+    assert not (graph_home_path / "graph" / "graph.sqlite3").exists()
+    assert not (graph_home_path / "data" / "projection_cache").exists()
 
 
 def decision_trace_response(*, trace_kind: str = "decision") -> DecisionTraceResponse:

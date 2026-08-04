@@ -13,6 +13,8 @@ from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from tests.test_read_only_boundary import file_bytes
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from tests.test_vector_indexer import SPEC
+from vault_graph.app.graph_home import GraphHomeResolver
+from vault_graph.app.projection_generation import ProjectionGenerationManager
 from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.cli.main import app
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector
@@ -84,7 +86,7 @@ def test_deleted_vault_graph_index_state_rebuilds_from_vault_without_mutating_va
     monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _fake_text_embeddings)
     runner = CliRunner()
     vault_root = tmp_path / "vault"
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     _write_page(
         vault_root,
         "wiki/project.md",
@@ -93,18 +95,22 @@ def test_deleted_vault_graph_index_state_rebuilds_from_vault_without_mutating_va
     assert (
         runner.invoke(
             app,
-            ["init", "--vault", str(vault_root), "--state", str(state_path)],
+            ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)],
         ).exit_code
         == 0
     )
-    assert runner.invoke(app, ["index", "--state", str(state_path), "--vault-id", "default"]).exit_code == 0
+    assert runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--vault-id", "default"]).exit_code == 0
     before = file_bytes(vault_root)
 
+    active = ProjectionGenerationManager(graph_home_path).active_layout()
+    assert active is not None
     for index_state_dir in ("metadata", "vector", "graph"):
-        shutil.rmtree(state_path / index_state_dir)
+        shutil.rmtree(active.root_path / index_state_dir)
 
-    rebuild = runner.invoke(app, ["index", "--state", str(state_path), "--vault-id", "default"])
-    status = runner.invoke(app, ["status", "--state", str(state_path), "--vault-id", "default", "--format", "json"])
+    rebuild = runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--vault-id", "default"])
+    status = runner.invoke(
+        app, ["status", "--graph-home", str(graph_home_path), "--vault-id", "default", "--format", "json"]
+    )
 
     assert rebuild.exit_code == 0
     assert status.exit_code == 0
@@ -117,14 +123,19 @@ def test_deleted_vault_graph_index_state_rebuilds_from_vault_without_mutating_va
     assert payload["graph"]["stale_count"] == 0
 
     scope = QueryScope(vault_ids=("default",), content_scopes=("raw", "wiki", "docs", "scratch/reports"))
-    metadata_store = SQLiteMetadataStore(state_path / "metadata" / "metadata.sqlite3")
+    active = ProjectionGenerationManager(graph_home_path).active_layout()
+    assert active is not None
+    metadata_path = active.root_path / "metadata" / "metadata.sqlite3"
+    metadata_store = SQLiteMetadataStore(metadata_path)
     document_state = metadata_store.document_state("default", "wiki/project.md")
     assert document_state.document_id is not None
-    keyword_hits = SQLiteKeywordIndex(state_path / "metadata" / "metadata.sqlite3").search(
+    keyword_hits = SQLiteKeywordIndex(metadata_path).search(
         query=KeywordQuery(query_text="GraphRAG", scope=scope, limit=10)
     )
-    vector_manifest = ChromaVectorStore(state_path / "vector" / "chroma", read_only=True).export_manifest(scope)
-    graph_manifest = SQLiteGraphStore.open_read_only(state_path / "graph" / "graph.sqlite3").current_manifest((scope,))
+    vector_manifest = ChromaVectorStore(active.root_path / "vector" / "chroma", read_only=True).export_manifest(scope)
+    graph_manifest = SQLiteGraphStore.open_read_only(active.root_path / "graph" / "graph.sqlite3").current_manifest(
+        (scope,)
+    )
 
     assert keyword_hits
     assert vector_manifest
@@ -191,7 +202,7 @@ def test_mcp_document_resources_keep_same_relative_paths_separate_by_vault_id(tm
     work = tmp_path / "work"
     main.mkdir()
     work.mkdir()
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     catalog = VaultCatalog.from_entries(
         entries=(
             VaultCatalogEntry.from_root(vault_id="main", root_path=main, display_name="Main"),
@@ -199,10 +210,11 @@ def test_mcp_document_resources_keep_same_relative_paths_separate_by_vault_id(tm
         ),
         active_vault_id="main",
     )
-    catalog.save(state_path / "configs" / "vaults.yaml")
+    GraphHomeResolver().initialize(graph_home_path, vault_roots=(main, work))
+    catalog.save(graph_home_path / "configs" / "vaults.yaml")
     main_doc = make_document("main", "wiki/same.md", "main-hash")
     work_doc = make_document("work", "wiki/same.md", "work-hash")
-    metadata_store = SQLiteMetadataStore(state_path / "metadata" / "metadata.sqlite3", initialize=True)
+    metadata_store = SQLiteMetadataStore(graph_home_path / "metadata" / "metadata.sqlite3", initialize=True)
     metadata_store.apply_metadata_revision(
         index_revision="metadata-1",
         documents=[main_doc, work_doc],
@@ -212,7 +224,7 @@ def test_mcp_document_resources_keep_same_relative_paths_separate_by_vault_id(tm
         ],
         tombstones=[],
     )
-    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+    registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
     main_body = registered.resource_registry.read(McpResourceRequest(uri="vault://main/documents/wiki%2Fsame.md"))
     work_body = registered.resource_registry.read(McpResourceRequest(uri="vault://work/documents/wiki%2Fsame.md"))

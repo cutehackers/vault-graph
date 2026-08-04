@@ -38,9 +38,9 @@ class McpServices:
 
 
 class McpServiceFactory:
-    def __init__(self, *, state_path: Path) -> None:
-        self._state_path = state_path
-        self._read_only_factory = ReadOnlyServiceFactory(state_path=state_path)
+    def __init__(self, *, graph_home_path: Path) -> None:
+        self._graph_home_path = graph_home_path
+        self._read_only_factory = ReadOnlyServiceFactory(graph_home_path=graph_home_path)
 
     def open_read_only(self) -> McpServices:
         services = self._read_only_factory.open_read_only()
@@ -97,4 +97,4 @@ class McpServiceFactory:
 
         from vault_graph.app.code_index_factory import CodeIndexFactory
 
-        return CodeIndexFactory(state_path=self._state_path).open_project_context_service()
+        return CodeIndexFactory(graph_home_path=self._graph_home_path).open_project_context_service()

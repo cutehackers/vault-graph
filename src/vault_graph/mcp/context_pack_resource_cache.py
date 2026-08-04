@@ -66,11 +66,7 @@ class ContextPackResourceCache:
 
 def _requested_scope_key(pack: ContextPack) -> str:
     requested = pack.scope.requested
-    return (
-        f"{','.join(requested.vault_ids)}:"
-        f"{','.join(requested.content_scopes)}:"
-        f"cross={requested.include_cross_vault}"
-    )
+    return f"{','.join(requested.vault_ids)}:{','.join(requested.content_scopes)}:cross={requested.include_cross_vault}"
 
 
 def _utc_isoformat(value: datetime) -> str:

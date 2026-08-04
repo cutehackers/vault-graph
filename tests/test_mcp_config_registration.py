@@ -15,12 +15,12 @@ from vault_graph.mcp.mcp_config_registration import (
 
 
 def test_mcp_config_renderer_outputs_installed_vg_command(tmp_path: Path) -> None:
-    rendered = McpConfigRenderer().render(McpConfigRequest(agent="codex", state_path=tmp_path / "state"))
+    rendered = McpConfigRenderer().render(McpConfigRequest(agent="codex", graph_home_path=tmp_path / "state"))
     payload = json.loads(rendered)
 
     server = payload["mcpServers"]["vault-graph"]
     assert server["command"] == "vg"
-    assert server["args"][:3] == ["serve", "--mcp", "--state"]
+    assert server["args"][:3] == ["serve", "--mcp", "--graph-home"]
     assert server["args"][3] == str((tmp_path / "state").resolve())
 
 
@@ -32,7 +32,7 @@ def test_mcp_config_register_preserves_unrelated_servers(tmp_path: Path) -> None
     )
 
     report = McpConfigRegistrar(backup_suffix_factory=lambda: "bak").register(
-        McpRegistrationRequest(agent="codex", state_path=tmp_path / "state", config_path=config_path)
+        McpRegistrationRequest(agent="codex", graph_home_path=tmp_path / "state", config_path=config_path)
     )
 
     payload = json.loads(config_path.read_text(encoding="utf-8"))
@@ -48,7 +48,7 @@ def test_mcp_config_register_dry_run_writes_nothing(tmp_path: Path) -> None:
     report = McpConfigRegistrar().register(
         McpRegistrationRequest(
             agent="codex",
-            state_path=tmp_path / "state",
+            graph_home_path=tmp_path / "state",
             config_path=config_path,
             dry_run=True,
         )
@@ -63,7 +63,7 @@ def test_mcp_config_register_rejects_missing_parent(tmp_path: Path) -> None:
         McpConfigRegistrar().register(
             McpRegistrationRequest(
                 agent="codex",
-                state_path=tmp_path / "state",
+                graph_home_path=tmp_path / "state",
                 config_path=tmp_path / "missing" / "codex.json",
             )
         )

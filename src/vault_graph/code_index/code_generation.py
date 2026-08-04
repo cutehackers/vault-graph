@@ -37,9 +37,9 @@ class CodeGenerationLayout:
 class CodeProjectionGenerationManager:
     """Stage and atomically activate code projection generations."""
 
-    def __init__(self, state_path: Path) -> None:
-        self._state_path = state_path.expanduser().resolve()
-        self._projection_root = self._state_path / "projections" / "code"
+    def __init__(self, graph_home_path: Path) -> None:
+        self._graph_home_path = graph_home_path.expanduser().resolve()
+        self._projection_root = self._graph_home_path / "projections" / "code"
         self._generations_root = self._projection_root / "generations"
         self._active_manifest = self._projection_root / "active.json"
 
@@ -88,7 +88,7 @@ class CodeProjectionGenerationManager:
         self._projection_root.mkdir(parents=True, exist_ok=True)
         payload = {
             "generation_id": staged.generation_id,
-            "generation_path": candidate.relative_to(self._state_path).as_posix(),
+            "generation_path": candidate.relative_to(self._graph_home_path).as_posix(),
             "repository_ids": list(staged.repository_ids),
         }
         descriptor, temporary_name = tempfile.mkstemp(
@@ -130,9 +130,9 @@ class CodeProjectionGenerationManager:
         if raw_path.is_symlink():
             raise CodeGenerationError("staged code generation must not be a symlink")
         try:
-            relative_path = raw_path.resolve().relative_to(self._state_path).as_posix()
+            relative_path = raw_path.resolve().relative_to(self._graph_home_path).as_posix()
         except ValueError as exc:
-            raise CodeGenerationError("staged code generation escapes state root") from exc
+            raise CodeGenerationError("staged code generation escapes Data Home root") from exc
         candidate = self._validated_generation_path(relative_path)
         if candidate != staged.root_path.expanduser().resolve() or not candidate.is_dir():
             raise CodeGenerationError("staged code generation is invalid")
@@ -141,12 +141,12 @@ class CodeProjectionGenerationManager:
     def _validated_generation_path(self, relative_path: str) -> Path:
         raw = Path(relative_path)
         if raw.is_absolute() or ".." in raw.parts:
-            raise CodeGenerationError("code generation path escapes state root")
+            raise CodeGenerationError("code generation path escapes Data Home root")
         expected_prefix = Path("projections") / "code" / "generations"
         if raw.parent != expected_prefix or not raw.name or not _is_safe_generation_id(raw.name):
             raise CodeGenerationError("code generation path is not a direct generation child")
         self._assert_roots_are_local()
-        raw_candidate = self._state_path / raw
+        raw_candidate = self._graph_home_path / raw
         if raw_candidate.is_symlink():
             raise CodeGenerationError("code generation path must not be a symlink")
         candidate = raw_candidate.resolve()
@@ -156,9 +156,9 @@ class CodeProjectionGenerationManager:
         return candidate
 
     def _assert_roots_are_local(self) -> None:
-        for root in (self._state_path / "projections", self._projection_root, self._generations_root):
+        for root in (self._graph_home_path / "projections", self._projection_root, self._generations_root):
             if root.is_symlink():
-                raise CodeGenerationError("code projection state directories must not be symlinks")
+                raise CodeGenerationError("code projection Data Home directories must not be symlinks")
 
 
 def _normalize_repository_ids(repository_ids: object) -> tuple[str, ...]:

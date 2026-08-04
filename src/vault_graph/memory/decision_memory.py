@@ -260,9 +260,7 @@ class DecisionMemoryService:
                     decisions.append(
                         replace(
                             item,
-                            matched_signals=tuple(
-                                dict.fromkeys((*item.matched_signals, "graph_decision_trace"))
-                            ),
+                            matched_signals=tuple(dict.fromkeys((*item.matched_signals, "graph_decision_trace"))),
                         )
                     )
                 else:

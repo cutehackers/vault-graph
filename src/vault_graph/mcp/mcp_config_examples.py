@@ -24,7 +24,7 @@ CODEX_STDIO_CONFIG_EXAMPLE: CodexMcpConfig = {
                 "vg",
                 "serve",
                 "--mcp",
-                "--state",
+                "--graph-home",
                 "/path/to/.vault-graph",
             ],
         }

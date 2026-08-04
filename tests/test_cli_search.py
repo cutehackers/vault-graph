@@ -42,11 +42,11 @@ def test_cli_search_uses_active_vault_by_default(tmp_path: Path, monkeypatch: Mo
     monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["search", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert result.exit_code == 0
     assert "default" in result.stdout
@@ -62,11 +62,11 @@ def test_cli_search_text_output_prints_resolved_scope_for_zero_results(
     monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _unavailable_search_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "missing"])
+    result = runner.invoke(app, ["search", "--graph-home", str(graph_home_path), "missing"])
 
     assert result.exit_code == 0
     assert "vault_ids: default" in result.stdout
@@ -79,11 +79,11 @@ def test_cli_search_json_uses_search_response_contract(tmp_path: Path, monkeypat
     monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "--format", "json", "GraphRAG"])
+    result = runner.invoke(app, ["search", "--graph-home", str(graph_home_path), "--format", "json", "GraphRAG"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -102,11 +102,11 @@ def test_cli_search_after_graph_indexing_does_not_expose_graph_expansion(
     monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    index_result = runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    index_result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["search", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert index_result.exit_code == 0
     assert result.exit_code == 0
@@ -130,11 +130,11 @@ def test_cli_search_without_include_graph_does_not_open_graph_store(
     monkeypatch.setattr("vault_graph.cli.main._graph_retrieval_service", fail_graph_open)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["search", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert result.exit_code == 0
     assert "wiki/page.md" in result.stdout
@@ -157,7 +157,7 @@ def test_cli_search_include_graph_renders_graph_signal(tmp_path: Path, monkeypat
 
     monkeypatch.setattr("vault_graph.cli.main._search_service", fake_search_service)
 
-    result = runner.invoke(app, ["search", "--state", str(tmp_path / "state"), "--include-graph", "GraphRAG"])
+    result = runner.invoke(app, ["search", "--graph-home", str(tmp_path / "state"), "--include-graph", "GraphRAG"])
 
     assert result.exit_code == 0
     assert fake_service.include_graph is True
@@ -167,11 +167,11 @@ def test_cli_search_include_graph_renders_graph_signal(tmp_path: Path, monkeypat
 def test_cli_search_include_cross_vault_requires_include_graph_and_all_vaults(tmp_path: Path) -> None:
     without_graph = runner.invoke(
         app,
-        ["search", "--state", str(tmp_path / "state"), "--include-cross-vault", "GraphRAG"],
+        ["search", "--graph-home", str(tmp_path / "state"), "--include-cross-vault", "GraphRAG"],
     )
     without_all_vaults = runner.invoke(
         app,
-        ["search", "--state", str(tmp_path / "state"), "--include-graph", "--include-cross-vault", "GraphRAG"],
+        ["search", "--graph-home", str(tmp_path / "state"), "--include-graph", "--include-cross-vault", "GraphRAG"],
     )
 
     assert without_graph.exit_code == 1
@@ -183,11 +183,11 @@ def test_cli_search_include_cross_vault_requires_include_graph_and_all_vaults(tm
 def test_cli_search_scope_flags_are_mutually_exclusive(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
     result = runner.invoke(
-        app, ["search", "--state", str(state_path), "--vault-id", "default", "--all-vaults", "GraphRAG"]
+        app, ["search", "--graph-home", str(graph_home_path), "--vault-id", "default", "--all-vaults", "GraphRAG"]
     )
 
     assert result.exit_code == 1
@@ -197,20 +197,20 @@ def test_cli_search_scope_flags_are_mutually_exclusive(tmp_path: Path) -> None:
 def test_cli_search_missing_keyword_projection_exits_nonzero_without_writes(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["search", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert result.exit_code == 1
     assert "keyword_index_unavailable" in result.stdout or "metadata_unavailable" in result.stdout
-    assert not (state_path / "metadata" / "metadata.sqlite3").exists()
+    assert not (graph_home_path / "metadata" / "metadata.sqlite3").exists()
 
 
 def test_search_text_embeddings_uses_local_files_only(tmp_path: Path) -> None:
     from vault_graph.app.catalog_service import CatalogService
 
-    config = CatalogService(state_path=tmp_path / "state", embedding_cache_path=tmp_path / "embedding-cache")
+    config = CatalogService(graph_home_path=tmp_path / "state", embedding_cache_path=tmp_path / "embedding-cache")
 
     embeddings = _search_text_embeddings(config)
 

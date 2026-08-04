@@ -13,7 +13,7 @@ def test_watch_runs_incremental_index_until_max_iterations(tmp_path: Path) -> No
     sleeps: list[float] = []
 
     report = WatchService(
-        state_path=tmp_path / "state",
+        graph_home_path=tmp_path / "state",
         index_factory=cast(Any, factory),
         sleep=sleeps.append,
     ).run(
@@ -33,7 +33,7 @@ def test_watch_sleeps_between_iterations(tmp_path: Path) -> None:
     sleeps: list[float] = []
 
     WatchService(
-        state_path=tmp_path / "state",
+        graph_home_path=tmp_path / "state",
         index_factory=cast(Any, factory),
         sleep=sleeps.append,
     ).run(

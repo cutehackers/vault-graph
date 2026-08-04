@@ -34,8 +34,8 @@ def _service(tmp_path: Path) -> tuple[ProjectBindingCatalogService, Path]:
         entries=(VaultCatalogEntry.from_root(vault_id="main", root_path=vault_root),),
         active_vault_id="main",
     )
-    state_path = tmp_path / "state"
-    catalog_service = CatalogService(state_path=state_path)
+    graph_home_path = tmp_path / "state"
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog_service.save_catalog(catalog)
     repository = CodeRepositoryEntry(
         repository_id="demo",
@@ -55,12 +55,12 @@ def _service(tmp_path: Path) -> tuple[ProjectBindingCatalogService, Path]:
             repository_catalog=_Repositories(repository),
             vault_catalog=catalog,
         ),
-        state_path,
+        graph_home_path,
     )
 
 
 def test_project_binding_catalog_round_trips_versioned_state(tmp_path: Path) -> None:
-    service, state_path = _service(tmp_path)
+    service, graph_home_path = _service(tmp_path)
 
     catalog = service.bind(
         ProjectBinding(
@@ -73,7 +73,7 @@ def test_project_binding_catalog_round_trips_versioned_state(tmp_path: Path) -> 
 
     assert catalog.resolve("demo").vault_ids == ("main",)
     assert catalog.resolve("demo").evidence_mappings == (("code:run", "vault:main:decision-1:chunk-1"),)
-    payload = json.loads((state_path / "configs" / "project-bindings.json").read_text(encoding="utf-8"))
+    payload = json.loads((graph_home_path / "configs" / "project-bindings.json").read_text(encoding="utf-8"))
     assert payload["schema_version"] == "project-bindings-v1"
     assert service.load().resolve("demo").content_scopes == ("wiki",)
 

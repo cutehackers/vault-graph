@@ -198,7 +198,9 @@ def test_cli_context_json_uses_context_pack_contract(tmp_path: Path, monkeypatch
     builder = _RecordingContextPackBuilder(make_pack_with_warning())
     _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder)
 
-    result = runner.invoke(app, ["context", "--state", str(tmp_path / "state"), "--format", "json", "Build context"])
+    result = runner.invoke(
+        app, ["context", "--graph-home", str(tmp_path / "state"), "--format", "json", "Build context"]
+    )
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -218,7 +220,7 @@ def test_cli_context_uses_injected_renderer_for_markdown_and_preserves_warnings(
     renderer = _SentinelRenderer()
     _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder, renderer=renderer)
 
-    result = runner.invoke(app, ["context", "--state", str(tmp_path / "state"), "Build context"])
+    result = runner.invoke(app, ["context", "--graph-home", str(tmp_path / "state"), "Build context"])
 
     assert result.exit_code == 0
     assert result.stdout == "SENTINEL MARKDOWN\n"
@@ -231,7 +233,9 @@ def test_cli_context_uses_injected_renderer_for_json(tmp_path: Path, monkeypatch
     renderer = _SentinelRenderer()
     _install_fake_context(monkeypatch=monkeypatch, tmp_path=tmp_path, builder=builder, renderer=renderer)
 
-    result = runner.invoke(app, ["context", "--state", str(tmp_path / "state"), "--format", "json", "Build context"])
+    result = runner.invoke(
+        app, ["context", "--graph-home", str(tmp_path / "state"), "--format", "json", "Build context"]
+    )
 
     assert result.exit_code == 0
     assert result.stdout == '{"sentinel":"json"}\n'
@@ -246,7 +250,7 @@ def test_cli_context_passes_limit_budget_and_graph_flags(tmp_path: Path, monkeyp
         app,
         [
             "context",
-            "--state",
+            "--graph-home",
             str(tmp_path / "state"),
             "--all-vaults",
             "--include-graph",
@@ -278,17 +282,15 @@ def test_cli_context_validates_options_before_opening_stores(tmp_path: Path, mon
 
     invalid_format = runner.invoke(
         app,
-        ["context", "--state", str(tmp_path / "state"), "--format", "xml", "Build"],
+        ["context", "--graph-home", str(tmp_path / "state"), "--format", "xml", "Build"],
     )
     assert invalid_format.exit_code == 1
     assert "unsupported_format" in invalid_format.stdout
-    empty_goal = runner.invoke(app, ["context", "--state", str(tmp_path / "state"), "   "])
+    empty_goal = runner.invoke(app, ["context", "--graph-home", str(tmp_path / "state"), "   "])
     budget_too_small = runner.invoke(
-        app, ["context", "--state", str(tmp_path / "state"), "--max-tokens", "999", "Build"]
+        app, ["context", "--graph-home", str(tmp_path / "state"), "--max-tokens", "999", "Build"]
     )
-    invalid_limit = runner.invoke(
-        app, ["context", "--state", str(tmp_path / "state"), "--limit", "0", "Build"]
-    )
+    invalid_limit = runner.invoke(app, ["context", "--graph-home", str(tmp_path / "state"), "--limit", "0", "Build"])
     assert empty_goal.exit_code == 1
     assert "empty_goal" in empty_goal.stdout
     assert budget_too_small.exit_code == 1
@@ -300,15 +302,15 @@ def test_cli_context_validates_options_before_opening_stores(tmp_path: Path, mon
 def test_cli_context_rejects_invalid_scope_flag_combinations(tmp_path: Path) -> None:
     both_scope_flags = runner.invoke(
         app,
-        ["context", "--state", str(tmp_path / "state"), "--vault-id", "default", "--all-vaults", "Build"],
+        ["context", "--graph-home", str(tmp_path / "state"), "--vault-id", "default", "--all-vaults", "Build"],
     )
     cross_without_graph = runner.invoke(
         app,
-        ["context", "--state", str(tmp_path / "state"), "--all-vaults", "--include-cross-vault", "Build"],
+        ["context", "--graph-home", str(tmp_path / "state"), "--all-vaults", "--include-cross-vault", "Build"],
     )
     cross_without_all_vaults = runner.invoke(
         app,
-        ["context", "--state", str(tmp_path / "state"), "--include-graph", "--include-cross-vault", "Build"],
+        ["context", "--graph-home", str(tmp_path / "state"), "--include-graph", "--include-cross-vault", "Build"],
     )
 
     assert both_scope_flags.exit_code == 1
@@ -325,8 +327,8 @@ def test_cli_context_unknown_vault_does_not_open_builder_or_graph(
 ) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
     def fail_context_builder(*_: object, **__: object) -> object:
         raise AssertionError("unknown vault must not open context builder dependencies")
@@ -339,7 +341,7 @@ def test_cli_context_unknown_vault_does_not_open_builder_or_graph(
 
     result = runner.invoke(
         app,
-        ["context", "--state", str(state_path), "--vault-id", "missing", "--include-graph", "Build"],
+        ["context", "--graph-home", str(graph_home_path), "--vault-id", "missing", "--include-graph", "Build"],
     )
 
     assert result.exit_code == 1
@@ -352,8 +354,8 @@ def test_cli_context_rejects_single_vault_cross_vault_before_opening_builder_or_
 ) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
     def fail_context_builder(*_: object, **__: object) -> object:
         raise AssertionError("invalid single-vault cross-vault scope must not open context builder dependencies")
@@ -368,8 +370,8 @@ def test_cli_context_rejects_single_vault_cross_vault_before_opening_builder_or_
         app,
         [
             "context",
-            "--state",
-            str(state_path),
+            "--graph-home",
+            str(graph_home_path),
             "--all-vaults",
             "--include-graph",
             "--include-cross-vault",
@@ -391,12 +393,12 @@ def test_cli_context_without_include_graph_does_not_open_graph_state(tmp_path: P
     monkeypatch.setattr("vault_graph.cli.main._graph_retrieval_service", fail_graph_open)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
     before = file_bytes(vault_root)
 
-    result = runner.invoke(app, ["context", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["context", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert result.exit_code == 0
     assert "wiki/page.md" in result.stdout
@@ -406,40 +408,40 @@ def test_cli_context_without_include_graph_does_not_open_graph_state(tmp_path: P
 def test_cli_context_missing_metadata_exits_nonzero_without_creating_projection_files(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    before_state = state_tree(state_path)
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    before_state = state_tree(graph_home_path)
 
-    result = runner.invoke(app, ["context", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["context", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert result.exit_code == 1
     assert "metadata_unavailable" in result.stdout or "keyword_index_unavailable" in result.stdout
-    assert state_tree(state_path) == before_state
-    assert not (state_path / "metadata" / "metadata.sqlite3").exists()
-    assert not (state_path / "vector").exists()
-    assert not (state_path / "graph").exists()
-    assert not (state_path / "projection_cache").exists()
-    assert not (state_path / "data" / "projection_cache").exists()
+    assert state_tree(graph_home_path) == before_state
+    assert not (graph_home_path / "metadata" / "metadata.sqlite3").exists()
+    assert not (graph_home_path / "vector").exists()
+    assert not (graph_home_path / "graph").exists()
+    assert not (graph_home_path / "projection_cache").exists()
+    assert not (graph_home_path / "data" / "projection_cache").exists()
 
 
 def test_cli_context_missing_keyword_projection_exits_nonzero_without_creating_extra_state(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    metadata_store = SQLiteMetadataStore(CatalogService(state_path=state_path).metadata_path, initialize=True)
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    metadata_store = SQLiteMetadataStore(CatalogService(graph_home_path=graph_home_path).metadata_path, initialize=True)
     with metadata_store.connect_for_tests() as connection:
         connection.execute("DROP TABLE keyword_projection_metadata")
         connection.execute("DROP TABLE keyword_chunks")
-    before_state = state_tree(state_path)
+    before_state = state_tree(graph_home_path)
 
-    result = runner.invoke(app, ["context", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["context", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert result.exit_code == 1
     assert "keyword_index_unavailable" in result.stdout
-    assert state_tree(state_path) == before_state
-    assert not (state_path / "vector").exists()
-    assert not (state_path / "graph").exists()
+    assert state_tree(graph_home_path) == before_state
+    assert not (graph_home_path / "vector").exists()
+    assert not (graph_home_path / "graph").exists()
 
 
 def test_cli_context_all_vaults_preserves_requested_vault_ids(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
@@ -448,7 +450,7 @@ def test_cli_context_all_vaults_preserves_requested_vault_ids(tmp_path: Path, mo
 
     result = runner.invoke(
         app,
-        ["context", "--state", str(tmp_path / "state"), "--all-vaults", "--format", "json", "Build"],
+        ["context", "--graph-home", str(tmp_path / "state"), "--all-vaults", "--format", "json", "Build"],
     )
 
     assert result.exit_code == 0
@@ -464,7 +466,7 @@ def test_cli_context_all_vaults_preserves_evidence_warning_and_revision_vault_id
 
     result = runner.invoke(
         app,
-        ["context", "--state", str(tmp_path / "state"), "--all-vaults", "--format", "json", "Build"],
+        ["context", "--graph-home", str(tmp_path / "state"), "--all-vaults", "--format", "json", "Build"],
     )
 
     assert result.exit_code == 0
@@ -491,12 +493,14 @@ def test_cli_context_all_vaults_uses_real_retrieval_and_preserves_evidence_vault
     second = tmp_path / "second"
     write_page(first, "wiki/first.md", "# First\nGraphRAG shared evidence from first vault\n")
     write_page(second, "wiki/second.md", "# Second\nGraphRAG shared evidence from second vault\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(first), "--state", str(state_path)])
-    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--state", str(state_path)])
-    index_result = runner.invoke(app, ["index", "--state", str(state_path), "--all-vaults"])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(first), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--graph-home", str(graph_home_path)])
+    index_result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--all-vaults"])
 
-    result = runner.invoke(app, ["context", "--state", str(state_path), "--all-vaults", "--format", "json", "GraphRAG"])
+    result = runner.invoke(
+        app, ["context", "--graph-home", str(graph_home_path), "--all-vaults", "--format", "json", "GraphRAG"]
+    )
 
     assert index_result.exit_code == 0
     assert result.exit_code == 0
@@ -515,11 +519,11 @@ def test_cli_context_vector_unavailable_returns_keyword_pack_with_warning(
     monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _unavailable_search_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    index_result = runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    index_result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["context", "--state", str(state_path), "--format", "json", "GraphRAG"])
+    result = runner.invoke(app, ["context", "--graph-home", str(graph_home_path), "--format", "json", "GraphRAG"])
 
     assert index_result.exit_code == 0
     assert result.exit_code == 0
@@ -553,16 +557,16 @@ def test_cli_context_include_graph_preserves_graph_unavailable_warning(
 
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
     before_vault = file_bytes(vault_root)
-    before_state = state_tree(state_path)
+    before_state = state_tree(graph_home_path)
     monkeypatch.setattr("vault_graph.cli.main._graph_retrieval_service", graph_factory)
 
     result = runner.invoke(
         app,
-        ["context", "--state", str(state_path), "--include-graph", "--format", "json", "GraphRAG"],
+        ["context", "--graph-home", str(graph_home_path), "--include-graph", "--format", "json", "GraphRAG"],
     )
 
     assert result.exit_code == 0
@@ -570,7 +574,7 @@ def test_cli_context_include_graph_preserves_graph_unavailable_warning(
     assert any(warning["code"] == "graph_unavailable" for warning in payload["warnings"])
     assert payload["backend"]["graph_store"]["used"] is False
     assert file_bytes(vault_root) == before_vault
-    assert state_tree(state_path) == before_state
+    assert state_tree(graph_home_path) == before_state
 
 
 def test_cli_context_all_vaults_does_not_modify_registered_vault_files(
@@ -581,9 +585,9 @@ def test_cli_context_all_vaults_does_not_modify_registered_vault_files(
     second = tmp_path / "second"
     write_page(first, "wiki/page.md", "# First\nGraphRAG evidence\n")
     write_page(second, "wiki/page.md", "# Second\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(first), "--state", str(state_path)])
-    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(first), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--graph-home", str(graph_home_path)])
     before_first = file_bytes(first)
     before_second = file_bytes(second)
     builder = _RecordingContextPackBuilder(make_multi_vault_pack())
@@ -599,7 +603,7 @@ def test_cli_context_all_vaults_does_not_modify_registered_vault_files(
 
     monkeypatch.setattr("vault_graph.cli.main._context_builder_service", fake_context_builder_service)
 
-    result = runner.invoke(app, ["context", "--state", str(state_path), "--all-vaults", "GraphRAG"])
+    result = runner.invoke(app, ["context", "--graph-home", str(graph_home_path), "--all-vaults", "GraphRAG"])
 
     assert result.exit_code == 0
     assert builder.calls[0].requested_scope.vault_ids == ("default", "second")

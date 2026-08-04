@@ -45,21 +45,21 @@ class CodeRepositoryCatalogService:
     def __init__(
         self,
         *,
-        state_path: Path | None = None,
+        graph_home_path: Path | None = None,
         catalog_service: CatalogService | None = None,
     ) -> None:
-        if catalog_service is not None and state_path is not None:
-            if catalog_service.state_path != state_path.expanduser().resolve():
-                raise ValueError("state_path and catalog_service must refer to the same state")
+        if catalog_service is not None and graph_home_path is not None:
+            if catalog_service.graph_home_path != graph_home_path.expanduser().resolve():
+                raise ValueError("graph_home_path and catalog_service must refer to the same state")
         self.catalog_service = catalog_service or CatalogService(
-            state_path=state_path if state_path is not None else Path("~/.local/state/vault-graph")
+            graph_home_path=graph_home_path if graph_home_path is not None else Path("~/.local/state/vault-graph")
         )
-        self.state_path = self.catalog_service.state_path
+        self.graph_home_path = self.catalog_service.graph_home_path
         self.config_path = self.catalog_service.code_config_path
 
     def load(self) -> CodeRepositoryCatalog:
         vault_catalog = self._load_vault_catalog()
-        self.catalog_service.assert_write_target_safe(target_path=self.config_path, catalog=vault_catalog)
+        self.catalog_service.assert_graph_home_write_target_safe(target_path=self.config_path, catalog=vault_catalog)
         entries = self._read_entries()
         self._validate_entries(entries, vault_catalog=vault_catalog)
         return _YamlCodeRepositoryCatalog(entries=entries, service=self)
@@ -127,7 +127,7 @@ class CodeRepositoryCatalogService:
     def _write_entries(self, entries: tuple[CodeRepositoryEntry, ...]) -> None:
         vault_catalog = self._load_vault_catalog()
         self._validate_entries(entries, vault_catalog=vault_catalog)
-        self.catalog_service.assert_write_target_safe(target_path=self.config_path, catalog=vault_catalog)
+        self.catalog_service.assert_graph_home_write_target_safe(target_path=self.config_path, catalog=vault_catalog)
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "repositories": [
@@ -147,7 +147,7 @@ class CodeRepositoryCatalogService:
             ]
         }
         temporary_path = self.config_path.with_name(f".{self.config_path.name}.tmp")
-        self.catalog_service.assert_write_target_safe(target_path=temporary_path, catalog=vault_catalog)
+        self.catalog_service.assert_graph_home_write_target_safe(target_path=temporary_path, catalog=vault_catalog)
         try:
             temporary_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
             temporary_path.replace(self.config_path)
@@ -173,11 +173,11 @@ class CodeRepositoryCatalogService:
             if not normalized.root_path.exists() or not normalized.root_path.is_dir():
                 raise CatalogError(f"repository root does not exist or is not a directory: {normalized.root_path}")
             if (
-                normalized.root_path == self.state_path
-                or self.state_path in normalized.root_path.parents
-                or normalized.root_path in self.state_path.parents
+                normalized.root_path == self.graph_home_path
+                or self.graph_home_path in normalized.root_path.parents
+                or normalized.root_path in self.graph_home_path.parents
             ):
-                raise CatalogError(f"code repository root must stay outside Graph state: {normalized.root_path}")
+                raise CatalogError(f"code repository root must stay outside Graph Data Home: {normalized.root_path}")
             assert_target_outside_vaults(target_path=normalized.root_path, vault_roots=vault_roots)
             _validate_entry_policy(normalized)
             for previous_root in canonical_roots:
@@ -288,7 +288,7 @@ def _validate_entry_policy(entry: CodeRepositoryEntry) -> None:
 def _validate_state_namespace(value: str, *, repository_id: str) -> None:
     path = Path(value)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
-        raise CatalogError(f"state_namespace must stay inside Graph state: {repository_id}")
+        raise CatalogError(f"data_home_namespace must stay inside Graph Data Home: {repository_id}")
 
 
 def _state_namespace_key(value: str) -> str:

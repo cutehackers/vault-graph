@@ -1152,8 +1152,8 @@ def _memory_projection_error_to_mcp_error(
 def _map_tool_exception(exc: Exception, *, service_factory: McpServiceFactory) -> McpProtocolError:
     if isinstance(exc, McpProtocolError):
         return exc
-    state_path = getattr(service_factory, "_state_path", None)
-    return map_exception_to_mcp_error(exc, user_state_path=state_path)
+    graph_home_path = getattr(service_factory, "_graph_home_path", None)
+    return map_exception_to_mcp_error(exc, user_graph_home_path=graph_home_path)
 
 
 def _invalid_arguments(message: str) -> McpProtocolError:

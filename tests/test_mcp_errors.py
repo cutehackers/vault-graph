@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vault_graph.errors import CatalogError, MemoryProjectionError, ResultExplanationError, VectorStoreError
+from vault_graph.errors import (
+    CatalogError,
+    DataHomeNotInitializedError,
+    LegacyDataHomeDetectedError,
+    MemoryProjectionError,
+    ResultExplanationError,
+    VectorStoreError,
+)
 from vault_graph.mcp.mcp_errors import McpProtocolError, map_exception_to_mcp_error
 
 
@@ -22,6 +29,16 @@ def test_backend_error_maps_to_execution_error() -> None:
     assert error.kind == "execution"
     assert error.payload.code == "vector_store_error"
     assert error.payload.message == "vector search unavailable: not initialized"
+
+
+def test_data_home_errors_include_onboarding_recovery_hints() -> None:
+    missing = map_exception_to_mcp_error(DataHomeNotInitializedError("data_home_not_initialized: setup required"))
+    legacy = map_exception_to_mcp_error(LegacyDataHomeDetectedError("legacy_data_home_detected: old layout"))
+
+    assert missing.payload.code == "data_home_not_initialized"
+    assert "vg setup" in (missing.payload.recovery_hint or "")
+    assert legacy.payload.code == "legacy_data_home_detected"
+    assert "new --graph-home" in (legacy.payload.recovery_hint or "")
 
 
 def test_result_explanation_not_found_maps_to_mcp_not_found() -> None:
@@ -75,14 +92,14 @@ def test_internal_error_does_not_leak_arbitrary_absolute_path(tmp_path: Path) ->
     assert str(secret_path) not in error.payload.message
 
 
-def test_internal_error_may_include_user_state_path(tmp_path: Path) -> None:
-    state_path = tmp_path / "state"
+def test_internal_error_may_include_user_graph_home_path(tmp_path: Path) -> None:
+    graph_home_path = tmp_path / "state"
     secret_path = tmp_path / "vault" / "wiki" / "page.md"
     error = map_exception_to_mcp_error(
-        RuntimeError(f"failed at {state_path}; checked {secret_path}"),
-        user_state_path=state_path,
+        RuntimeError(f"failed at {graph_home_path}; checked {secret_path}"),
+        user_graph_home_path=graph_home_path,
     )
 
-    assert str(state_path) in error.payload.message
+    assert str(graph_home_path) in error.payload.message
     assert str(secret_path) not in error.payload.message
     assert "<redacted-path>" in error.payload.message

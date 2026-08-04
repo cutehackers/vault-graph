@@ -2,6 +2,22 @@ class VaultGraphError(Exception):
     """Base error for Vault Graph domain failures."""
 
 
+class DataHomeError(VaultGraphError):
+    """Raised when the Vault Graph Data Home contract cannot be satisfied."""
+
+
+class DataHomeNotInitializedError(DataHomeError):
+    """Raised when a command needs an initialized Data Home."""
+
+
+class LegacyDataHomeDetectedError(DataHomeError):
+    """Raised when an unsupported pre-release Data Home layout is present."""
+
+
+class DataHomeManifestError(DataHomeError):
+    """Raised when the Data Home manifest is missing, corrupt, or unsafe."""
+
+
 class CatalogError(VaultGraphError):
     """Raised when Vault catalog configuration is invalid."""
 

@@ -38,12 +38,12 @@ class WatchService:
     def __init__(
         self,
         *,
-        state_path: Path,
+        graph_home_path: Path,
         index_factory: LocalIndexServiceFactory | None = None,
         sleep: Callable[[float], None] = default_sleep,
         stop_requested: Callable[[], bool] | None = None,
     ) -> None:
-        self._state_path = state_path
+        self._graph_home_path = graph_home_path
         self._index_factory = index_factory or LocalIndexServiceFactory()
         self._sleep = sleep
         self._stop_requested = stop_requested or (lambda: False)
@@ -63,9 +63,18 @@ class WatchService:
         count = 0
         while not self._stop_requested():
             count += 1
-            bundle = self._index_factory.open(state_path=self._state_path, initialize_store=True)
+            bundle = self._index_factory.open(
+                graph_home_path=self._graph_home_path,
+                initialize_store=True,
+                transactional=True,
+                full=full,
+            )
             try:
                 report = bundle.index_service.run_apply(scope=scope, full=full)
+                if report.exit_code == 0:
+                    commit_projection = getattr(bundle, "commit_projection", None)
+                    if commit_projection is not None:
+                        commit_projection(report)
             finally:
                 bundle.close()
             iterations.append(_iteration_report(count, report))

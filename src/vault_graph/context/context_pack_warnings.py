@@ -53,11 +53,7 @@ def evidence_ref_from_metadata(reference: EvidenceReference) -> ContextEvidenceR
 
 def context_warning_from_search(warning: SearchWarning) -> ContextPackWarning:
     evidence_refs: tuple[ContextEvidenceRef, ...] = ()
-    if (
-        warning.document_id is not None
-        and warning.chunk_id is not None
-        and len(warning.affected_vault_ids) == 1
-    ):
+    if warning.document_id is not None and warning.chunk_id is not None and len(warning.affected_vault_ids) == 1:
         evidence_refs = (
             ContextEvidenceRef(
                 vault_id=warning.affected_vault_ids[0],
