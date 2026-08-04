@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
 from tests.test_vector_indexer import SPEC
+from vault_graph.app.projection_generation import ProjectionGenerationManager
 from vault_graph.cli.main import app
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.errors import TextEmbeddingsError
@@ -49,16 +50,16 @@ def test_cli_index_dry_run_reports_graph_plan_without_graph_db(
     monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["index", "--state", str(state_path), "--dry-run"])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--dry-run"])
 
     assert result.exit_code == 0
     assert "graph_mode: incremental" in result.stdout
     assert "graph_entities_upserted:" in result.stdout
     assert "graph_failed: False" in result.stdout
-    assert not (state_path / "graph" / "graph.sqlite3").exists()
+    assert not (graph_home_path / "graph" / "graph.sqlite3").exists()
 
 
 def test_cli_index_applies_graph_and_status_becomes_fresh(
@@ -68,17 +69,28 @@ def test_cli_index_applies_graph_and_status_becomes_fresh(
     monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["index", "--state", str(state_path)])
-    status = runner.invoke(app, ["status", "--state", str(state_path), "--format", "json"])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
+    status = runner.invoke(app, ["status", "--graph-home", str(graph_home_path), "--format", "json"])
 
     assert result.exit_code == 0
     assert "graph_relationships_upserted:" in result.stdout
     assert "graph_failed: False" in result.stdout
-    assert (state_path / "graph" / "graph.sqlite3").exists()
-    assert json.loads(status.stdout)["graph"]["freshness"] == "fresh"
+    active = ProjectionGenerationManager(graph_home_path).active_layout()
+    assert active is not None
+    assert (active.root_path / "graph" / "graph.sqlite3").exists()
+    bundle_manifest = json.loads((active.root_path / "bundle-manifest.json").read_text(encoding="utf-8"))
+    assert bundle_manifest["generation_id"] == active.generation_id
+    assert bundle_manifest["components"] == ["graph", "metadata", "vector"]
+    assert all((active.root_path / component / "manifest.json").exists() for component in bundle_manifest["components"])
+    status_payload = json.loads(status.stdout)
+    assert status_payload["graph"]["freshness"] == "fresh"
+    assert status_payload["active_generation"]["id"] == active.generation_id
+    assert status_payload["active_generation"]["path"] == str(active.root_path)
+    assert status_payload["projection_bundle"]["valid"] is True
+    assert status_payload["projection_bundle"]["components"] == ["graph", "metadata", "vector"]
 
 
 def test_cli_index_graph_failure_returns_nonzero_and_records_status(
@@ -92,12 +104,12 @@ def test_cli_index_graph_failure_returns_nonzero_and_records_status(
     )
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["index", "--state", str(state_path)])
-    status_text = runner.invoke(app, ["status", "--state", str(state_path)])
-    status_json = runner.invoke(app, ["status", "--state", str(state_path), "--format", "json"])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
+    status_text = runner.invoke(app, ["status", "--graph-home", str(graph_home_path)])
+    status_json = runner.invoke(app, ["status", "--graph-home", str(graph_home_path), "--format", "json"])
 
     assert result.exit_code == 1
     assert "index_revision: metadata-" in result.stdout
@@ -113,10 +125,10 @@ def test_cli_index_vector_failure_still_prints_graph_success(
     monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _failing_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["index", "--state", str(state_path)])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
     assert result.exit_code == 1
     assert "vector_failed: True" in result.stdout

@@ -21,7 +21,8 @@ Round 0-G makes that boundary measurable: `vg search` defaults to
 `--mode knowledge`, while `evidence`, `operating`, `audit`, and `all` provide
 explicit drill-down. Results carry provenance-family IDs and compact supporting
 references. `vg projection-audit` reports plaintext amplification, role counts,
-schema versions, and dangling keyword/vector/graph references.
+schema versions, dangling keyword/vector/graph references, active bundle
+capabilities, source-snapshot identity, and component revisions.
 
 It can:
 
@@ -49,7 +50,8 @@ or local HTTP acceptance tests.
 
 | Feature | CLI | MCP Tool | MCP Resource | Output |
 | --- | --- | --- | --- | --- |
-| Initialize Vault Graph | `vg init --vault /path/to/vault` | - | - | Default Vault path and state setup |
+| First-run onboarding | `vg setup --vault PATH --agent codex --mcp` | - | - | One Data Home, Vault registration, baseline index, MCP config, readiness and recovery hints |
+| Initialize Vault Graph | `vg init --vault /path/to/vault` | - | - | Default Vault path and Data Home setup |
 | Register Vault | `vg vault add ID --path /path/to/vault`, `vg vault list` | - | - | Vault catalog entries |
 | Index Vault | `vg index`, `vg index --vault-id ID`, `vg index --all-vaults`, `vg index --full`, `vg index --dry-run` | - | - | Index revision, change plan, warnings |
 | Watch Vault | `vg watch` | - | - | Continuous index refresh |
@@ -200,6 +202,28 @@ The implementation value is:
 
 ## CLI Features
 
+### First-run onboarding
+
+The supported first-run path is:
+
+```bash
+vg setup --vault /path/to/vault --agent codex --mcp
+vg status
+```
+
+`setup` creates the canonical `~/.vault-graph` Data Home (or the explicit
+`--graph-home` path), registers the Vault, publishes the baseline projection,
+and writes the normalized absolute MCP configuration path. Re-running setup for
+the same Vault ID and root is idempotent: it updates the existing catalog entry
+and generation instead of creating another Data Home. `--dry-run` performs the
+same preflight without writing the Data Home, Vault, or agent configuration.
+
+Vault Graph is pre-release. If setup detects a known legacy Data Home layout, it
+returns `legacy_data_home_detected` and does not read, merge, copy, or modify
+the old derived files. Choose a new `--graph-home` (or move the rebuildable
+directory aside) and rerun setup to rebuild from Vault. There is no migration
+command in the first release.
+
 ### Initialize
 
 ```bash
@@ -209,10 +233,10 @@ vg vault add work --path /path/to/other-vault
 vg vault list
 ```
 
-Configures one or more Vault roots and the Vault Graph state location. If no
+Configures one or more Vault roots and the Vault Graph Data Home location. If no
 Vault ID is provided, `vg init --vault /path/to/vault` creates the active entry
 with `vault_id: default`. Commands should be explicit about which Vault ID,
-Vault path, and index state path they use.
+Vault path, and Vault Graph Data Home path they use.
 
 Commands that support Vault selection use the active Vault by default.
 `--vault-id ID` selects one Vault. `--all-vaults` expands to all enabled Vault
@@ -282,7 +306,7 @@ Reports operational status.
 The status surface should show:
 
 - configured Vault IDs and paths
-- configured index state path
+- configured Vault Graph Data Home path
 - backend health
 - schema compatibility
 - index revision freshness
@@ -295,6 +319,9 @@ The status surface should show:
   `GraphExtractionSpec`, graph revisions by Vault/actual scope, stale graph
   record counts, tombstone counts, last graph failure, and graph projection cache
   freshness
+- active generation identity, projection bundle validity, enabled component
+  capabilities, common source-snapshot identity, and component revisions
+- projection recovery hints when no active bundle exists or a publication failed
 - stale or invalid vector/graph cache warnings
 
 By default, freshness fields use the active Vault. `--vault-id ID` reports one

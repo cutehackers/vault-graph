@@ -22,12 +22,22 @@ def test_cli_surface_exposes_context_and_answer_command() -> None:
 def test_cli_status_exposes_vector_fields(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["status", "--state", str(state_path)])
+    result = runner.invoke(app, ["status", "--graph-home", str(graph_home_path)])
 
     assert result.exit_code == 0
     assert "metadata_ok:" in result.stdout
     assert "vector_ok:" in result.stdout
     assert "vector_schema_compatible:" in result.stdout
+
+
+def test_cli_uses_graph_home_without_state_alias() -> None:
+    help_result = runner.invoke(app, ["status", "--help"])
+    legacy_result = runner.invoke(app, ["status", "--state", "/tmp/legacy-state"])
+
+    assert "--graph-home" in help_result.stdout
+    assert "--state" not in help_result.stdout
+    assert legacy_result.exit_code != 0
+    assert "No such option: --state" in legacy_result.output

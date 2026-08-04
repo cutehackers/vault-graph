@@ -70,8 +70,7 @@ def extract(doc: DocumentSnapshot, source_chunk: ChunkSnapshot, *documents: Docu
         spec=current_graph_extraction_spec(),
     )
     return tuple(
-        f"{occurrence.entity_type}:{occurrence.name}:{occurrence.extraction_method}"
-        for occurrence in occurrences
+        f"{occurrence.entity_type}:{occurrence.name}:{occurrence.extraction_method}" for occurrence in occurrences
     )
 
 

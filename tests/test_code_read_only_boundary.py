@@ -28,8 +28,8 @@ def _entry(root: Path) -> CodeRepositoryEntry:
 def test_code_repository_root_equal_or_inside_vault_is_rejected(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    catalog_service = CatalogService(state_path=state_path)
+    graph_home_path = tmp_path / "state"
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog_service.create_default_catalog(vault_root=vault_root)
     service = CodeRepositoryCatalogService(catalog_service=catalog_service)
 
@@ -45,18 +45,18 @@ def test_code_repository_root_equal_or_inside_vault_is_rejected(tmp_path: Path) 
 def test_code_repository_root_equal_or_inside_graph_state_is_rejected(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    catalog_service = CatalogService(state_path=state_path)
+    graph_home_path = tmp_path / "state"
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog_service.create_default_catalog(vault_root=vault_root)
     service = CodeRepositoryCatalogService(catalog_service=catalog_service)
 
-    state_path.mkdir(parents=True, exist_ok=True)
-    with pytest.raises(CatalogError, match="Graph state"):
-        service.add(_entry(state_path))
+    graph_home_path.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(CatalogError, match="Graph Data Home"):
+        service.add(_entry(graph_home_path))
 
-    nested = state_path / "nested-repository"
+    nested = graph_home_path / "nested-repository"
     nested.mkdir()
-    with pytest.raises(CatalogError, match="Graph state"):
+    with pytest.raises(CatalogError, match="Graph Data Home"):
         service.add(_entry(nested))
 
 
@@ -65,20 +65,20 @@ def test_code_repository_root_containing_graph_state_is_rejected(tmp_path: Path)
     vault_root.mkdir()
     repository_root = tmp_path / "repository"
     repository_root.mkdir()
-    state_path = repository_root / "state"
-    catalog_service = CatalogService(state_path=state_path)
+    graph_home_path = repository_root / "state"
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog_service.create_default_catalog(vault_root=vault_root)
     service = CodeRepositoryCatalogService(catalog_service=catalog_service)
 
-    with pytest.raises(CatalogError, match="Graph state"):
+    with pytest.raises(CatalogError, match="Graph Data Home"):
         service.add(_entry(repository_root))
 
 
 def test_catalog_mutations_never_modify_or_delete_repository_files(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    catalog_service = CatalogService(state_path=state_path)
+    graph_home_path = tmp_path / "state"
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog_service.create_default_catalog(vault_root=vault_root)
     repository_root = tmp_path / "repository"
     repository_root.mkdir()
@@ -93,15 +93,15 @@ def test_catalog_mutations_never_modify_or_delete_repository_files(tmp_path: Pat
     assert source.exists()
     assert source.read_bytes() == before
     assert repository_root.exists()
-    assert catalog_service.code_config_path == state_path / "configs" / "repositories.yaml"
+    assert catalog_service.code_config_path == graph_home_path / "configs" / "repositories.yaml"
     assert not (vault_root / "repositories.yaml").exists()
 
 
 def test_code_catalog_rejects_config_symlink_into_vault(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     (vault_root / "docs").mkdir(parents=True)
-    state_path = tmp_path / "state"
-    catalog_service = CatalogService(state_path=state_path)
+    graph_home_path = tmp_path / "state"
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog_service.create_default_catalog(vault_root=vault_root)
     config_path = catalog_service.code_config_path
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -109,5 +109,5 @@ def test_code_catalog_rejects_config_symlink_into_vault(tmp_path: Path) -> None:
 
     service = CodeRepositoryCatalogService(catalog_service=catalog_service)
 
-    with pytest.raises(ReadOnlyBoundaryError, match="state path"):
+    with pytest.raises(ReadOnlyBoundaryError, match="Data Home"):
         service.load()

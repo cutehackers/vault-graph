@@ -41,9 +41,7 @@ def _first_json_object_after_heading(path: Path, heading: str) -> dict[str, Any]
     lines = path.read_text(encoding="utf-8").splitlines()
     start_index = next(index for index, line in enumerate(lines) if line.strip() == f"{heading}:")
     fence_start = next(
-        index
-        for index, line in enumerate(lines[start_index + 1 :], start=start_index + 1)
-        if line.strip() == "```json"
+        index for index, line in enumerate(lines[start_index + 1 :], start=start_index + 1) if line.strip() == "```json"
     )
     fence_end = next(
         index for index, line in enumerate(lines[fence_start + 1 :], start=fence_start + 1) if line.strip() == "```"

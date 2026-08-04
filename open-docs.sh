@@ -123,12 +123,13 @@ fi
 URL="http://127.0.0.1:${PORT}/"
 (
   cd "${DOCS_PATH}"
-  node -e "const http=require('node:http'),fs=require('node:fs'),path=require('node:path');const root=process.cwd();const port=Number(process.argv[1]);const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp'};http.createServer((req,res)=>{const url=new URL(req.url,'http://127.0.0.1');let pathname;try{pathname=decodeURIComponent(url.pathname);}catch(_error){res.writeHead(400);res.end('Bad request');return;}let file=path.resolve(root,'.'+pathname);const relative=path.relative(root,file);if(relative.startsWith('..')||path.isAbsolute(relative)){res.writeHead(403);res.end('Forbidden');return;}if(fs.existsSync(file)&&fs.statSync(file).isDirectory())file=path.join(file,'index.html');if(!fs.existsSync(file)){res.writeHead(404);res.end('Not found');return;}res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream'});fs.createReadStream(file).pipe(res);}).listen(port,'127.0.0.1');" "${PORT}"
+  node -e "const http=require('node:http'),fs=require('node:fs'),path=require('node:path');const root=fs.realpathSync(process.cwd());const port=Number(process.argv[1]);const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.webp':'image/webp'};http.createServer((req,res)=>{const url=new URL(req.url,'http://127.0.0.1');let pathname;try{pathname=decodeURIComponent(url.pathname);}catch(_error){res.writeHead(400);res.end('Bad request');return;}let file=path.resolve(root,'.'+pathname);let relative=path.relative(root,file);if(relative.startsWith('..')||path.isAbsolute(relative)){res.writeHead(403);res.end('Forbidden');return;}if(fs.existsSync(file)&&fs.statSync(file).isDirectory())file=path.join(file,'index.html');if(!fs.existsSync(file)){res.writeHead(404);res.end('Not found');return;}try{file=fs.realpathSync(file);}catch(error){res.writeHead(error.code==='ENOENT'?404:403);res.end(error.code==='ENOENT'?'Not found':'Forbidden');return;}relative=path.relative(root,file);if(relative.startsWith('..')||path.isAbsolute(relative)){res.writeHead(403);res.end('Forbidden');return;}if(!fs.statSync(file).isFile()){res.writeHead(404);res.end('Not found');return;}res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream'});fs.createReadStream(file).pipe(res);}).listen(port,'127.0.0.1');" "${PORT}"
 ) &
 SERVER_PID=$!
 
 cleanup() {
   if kill -0 "${SERVER_PID}" >/dev/null 2>&1; then
+    pkill -TERM -P "${SERVER_PID}" >/dev/null 2>&1 || true
     kill "${SERVER_PID}" >/dev/null 2>&1 || true
     wait "${SERVER_PID}" >/dev/null 2>&1 || true
   fi
@@ -146,7 +147,7 @@ for _ in $(seq 1 80); do
   sleep 0.25
 done
 
-if command -v open >/dev/null 2>&1; then
+if [[ "${STENC_OPEN_BROWSER:-1}" -eq 1 ]] && command -v open >/dev/null 2>&1; then
   open "${URL}"
 fi
 

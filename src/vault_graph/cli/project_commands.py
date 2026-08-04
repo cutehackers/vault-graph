@@ -26,7 +26,7 @@ def bind(
     evidence_mapping: list[str] = typer.Option(
         [], "--evidence-mapping", help="Explicit code_id=vault_evidence_id relation; repeatable."
     ),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     """Persist an explicit, Graph-owned repository-to-Vault binding."""
@@ -49,7 +49,7 @@ def bind(
 
 @project_app.command("bindings")
 def bindings(
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     """List explicit project bindings without choosing an active Vault."""
@@ -64,10 +64,10 @@ def bindings(
 
 
 def _binding_service(state: Path) -> ProjectBindingCatalogService:
-    catalog_service = CatalogService(state_path=state)
+    catalog_service = CatalogService(graph_home_path=state)
     return ProjectBindingCatalogService(
         catalog_service=catalog_service,
-        repository_catalog=CodeIndexFactory(state_path=state).open().repository_catalog,
+        repository_catalog=CodeIndexFactory(graph_home_path=state).open().repository_catalog,
         vault_catalog=catalog_service.load_catalog(),
     )
 

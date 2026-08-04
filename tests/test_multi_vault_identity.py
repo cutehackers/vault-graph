@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.test_vector_indexer import SPEC
+from vault_graph.app.projection_generation import ProjectionGenerationManager
 from vault_graph.cli.main import app
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
@@ -30,16 +31,22 @@ def test_two_vaults_with_same_relative_path_do_not_collide(tmp_path: Path, monke
     (second / "wiki").mkdir(parents=True)
     (first / "wiki" / "same.md").write_text("# Same\nFirst body\n", encoding="utf-8")
     (second / "wiki" / "same.md").write_text("# Same\nSecond body\n", encoding="utf-8")
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     runner = CliRunner()
 
-    init_result = runner.invoke(app, ["init", "--vault-id", "first", "--vault", str(first), "--state", str(state_path)])
-    add_result = runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--state", str(state_path)])
+    init_result = runner.invoke(
+        app, ["init", "--vault-id", "first", "--vault", str(first), "--graph-home", str(graph_home_path)]
+    )
+    add_result = runner.invoke(
+        app, ["vault", "add", "second", "--path", str(second), "--graph-home", str(graph_home_path)]
+    )
     assert init_result.exit_code == 0
     assert add_result.exit_code == 0
-    assert runner.invoke(app, ["index", "--all-vaults", "--state", str(state_path)]).exit_code == 0
+    assert runner.invoke(app, ["index", "--all-vaults", "--graph-home", str(graph_home_path)]).exit_code == 0
 
-    store = SQLiteMetadataStore(state_path / "metadata" / "metadata.sqlite3")
+    active = ProjectionGenerationManager(graph_home_path).active_layout()
+    assert active is not None
+    store = SQLiteMetadataStore(active.root_path / "metadata" / "metadata.sqlite3")
     first_state = store.document_state("first", "wiki/same.md")
     second_state = store.document_state("second", "wiki/same.md")
 

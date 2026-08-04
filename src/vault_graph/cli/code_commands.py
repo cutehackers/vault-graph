@@ -51,7 +51,7 @@ def repository_add(
     repository_id: str,
     path: Path = typer.Option(..., "--path"),
     language: list[str] = typer.Option([], "--language"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
@@ -61,7 +61,7 @@ def repository_add(
 @repository_app.command("list")
 @_render_code_errors
 def repository_list(
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
@@ -72,7 +72,7 @@ def repository_list(
 @_render_code_errors
 def repository_remove(
     repository_id: str,
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
@@ -86,7 +86,7 @@ def index(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     full: bool = typer.Option(False, "--full"),
     dry_run: bool = typer.Option(False, "--dry-run"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
@@ -103,7 +103,7 @@ def index(
 def status(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     verify: bool = typer.Option(False, "--verify"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
@@ -123,7 +123,7 @@ def search(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     kind: list[str] = typer.Option([], "--kind"),
     limit: int = typer.Option(20, "--limit"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
@@ -142,7 +142,7 @@ def symbol(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     path: str | None = typer.Option(None, "--path"),
     source: bool = typer.Option(False, "--source"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
@@ -159,7 +159,7 @@ def symbol(
 def outline(
     path: str,
     repository_id: str | None = typer.Option(None, "--repository-id"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     output_format = _validate_format(output_format)
@@ -203,7 +203,7 @@ def callers(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     path: str | None = typer.Option(None, "--path"),
     depth: int = typer.Option(1, "--depth"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     _traversal_command("callers", symbol_or_id, repository_id, path, depth, state, output_format)
@@ -216,7 +216,7 @@ def callees(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     path: str | None = typer.Option(None, "--path"),
     depth: int = typer.Option(1, "--depth"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     _traversal_command("callees", symbol_or_id, repository_id, path, depth, state, output_format)
@@ -229,7 +229,7 @@ def impact(
     repository_id: str | None = typer.Option(None, "--repository-id"),
     path: str | None = typer.Option(None, "--path"),
     depth: int = typer.Option(3, "--depth"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
     output_format: str = typer.Option("text", "--format"),
 ) -> None:
     _traversal_command("impact", symbol_or_id, repository_id, path, depth, state, output_format)
@@ -237,7 +237,7 @@ def impact(
 
 def _services(state: Path) -> CodeIndexServices:
     try:
-        return CodeIndexFactory(state_path=state).open()
+        return CodeIndexFactory(graph_home_path=state).open()
     except (ValueError, VaultGraphError) as exc:
         typer.echo(str(exc))
         raise typer.Exit(1) from exc
@@ -272,7 +272,7 @@ def _code_operation[T](operation: Callable[[], T]) -> T:
 
 def _query(state: Path, repository_id: str | None) -> CodeQueryService:
     try:
-        return CodeIndexFactory(state_path=state).open_query_service(repository_id)
+        return CodeIndexFactory(graph_home_path=state).open_query_service(repository_id)
     except (ValueError, VaultGraphError) as exc:
         typer.echo(str(exc))
         raise typer.Exit(1) from exc

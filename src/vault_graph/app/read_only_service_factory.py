@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from vault_graph.app.catalog_service import CatalogService
+from vault_graph.app.graph_home import GraphHomeResolver
 from vault_graph.ingestion.vault_catalog import VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
@@ -51,8 +52,8 @@ class _RetrievalComponents:
 
 
 class ReadOnlyServiceFactory:
-    def __init__(self, *, state_path: Path) -> None:
-        self._state_path = state_path
+    def __init__(self, *, graph_home_path: Path) -> None:
+        self._graph_home_path = graph_home_path
 
     def open_read_only(self) -> ReadOnlyServices:
         from vault_graph.context.context_pack_renderer import DefaultContextPackRenderer
@@ -319,7 +320,8 @@ class ReadOnlyServiceFactory:
         )
 
     def _catalog(self) -> tuple[CatalogService, VaultCatalog]:
-        catalog_service = CatalogService(state_path=self._state_path)
+        descriptor = GraphHomeResolver().require_initialized(self._graph_home_path)
+        catalog_service = CatalogService(graph_home_path=descriptor.root_path)
         catalog = catalog_service.load_catalog()
         return catalog_service, catalog
 

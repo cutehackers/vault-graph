@@ -439,9 +439,7 @@ def test_default_pack_does_not_mark_graph_backends_used(tmp_path: Path) -> None:
         response=make_search_response(),
         resolver=StaticResolver({ref: make_resolved(ref)}),
     )
-    pack = builder.build(
-        ContextPackRequest(goal="Build context", requested_scope=QueryScope(vault_ids=("main",)))
-    )
+    pack = builder.build(ContextPackRequest(goal="Build context", requested_scope=QueryScope(vault_ids=("main",))))
 
     assert pack.backend.graph_store.used is False
     assert pack.backend.graph_projection.used is False

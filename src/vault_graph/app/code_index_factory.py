@@ -41,16 +41,16 @@ class CodeIndexServices:
 class CodeIndexFactory:
     """Build the code application graph for CLI, MCP, and tests."""
 
-    def __init__(self, *, state_path: Path) -> None:
-        self.state_path = state_path.expanduser().resolve()
+    def __init__(self, *, graph_home_path: Path) -> None:
+        self.graph_home_path = graph_home_path.expanduser().resolve()
 
     def open(self) -> CodeIndexServices:
-        catalog_service = CatalogService(state_path=self.state_path)
+        catalog_service = CatalogService(graph_home_path=self.graph_home_path)
         repository_catalog_service = CodeRepositoryCatalogService(catalog_service=catalog_service)
         repository_catalog = repository_catalog_service.load()
         scanner = CodeSourceScanner(parser_spec_version=CODE_PARSER_SPEC_VERSION)
         resolver = CodeReferenceResolver(parser_spec_version=CODE_PARSER_SPEC_VERSION)
-        generation_manager = CodeProjectionGenerationManager(catalog_service.state_path)
+        generation_manager = CodeProjectionGenerationManager(catalog_service.graph_home_path)
         projection_service = CodeProjectionService(
             catalog=repository_catalog,
             scanner=scanner,
@@ -116,7 +116,7 @@ class CodeIndexFactory:
         )
 
         code_services = self.open()
-        vault_services = ReadOnlyServiceFactory(state_path=self.state_path).open_read_only()
+        vault_services = ReadOnlyServiceFactory(graph_home_path=self.graph_home_path).open_read_only()
         bindings = ProjectBindingCatalogService(
             catalog_service=code_services.catalog_service,
             repository_catalog=code_services.repository_catalog,
@@ -133,11 +133,13 @@ class CodeIndexFactory:
             context_pack_builder=vault_services.context_pack_builder,
             vault_status_service=IndexStatusVaultFreshness(
                 catalog=vault_services.catalog,
-                status_reader=ReadOnlyServiceFactory(state_path=self.state_path).open_status_service(),
+                status_reader=ReadOnlyServiceFactory(graph_home_path=self.graph_home_path).open_status_service(),
             ),
             graph_relation_lookup=VaultGraphRelationLookup(
                 retrieval_service=vault_services.retrieval_service,
-                graph_service=ReadOnlyServiceFactory(state_path=self.state_path).open_graph_retrieval_service(),
+                graph_service=ReadOnlyServiceFactory(
+                    graph_home_path=self.graph_home_path
+                ).open_graph_retrieval_service(),
             ),
         )
 

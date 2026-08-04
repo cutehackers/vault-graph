@@ -38,16 +38,13 @@ EXPECTED_RESOURCE_TEMPLATES = {
 def initialized_state(tmp_path: Path) -> Path:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    assert runner.invoke(
-        app,
-        ["init", "--vault", str(vault_root), "--state", str(state_path)]
-    ).exit_code == 0
-    return state_path
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
+    return graph_home_path
 
 
 def initialized_registered_server(tmp_path: Path) -> RegisteredMcpServer:
-    return create_mcp_server(McpServerConfig(state_path=initialized_state(tmp_path)))
+    return create_mcp_server(McpServerConfig(graph_home_path=initialized_state(tmp_path)))
 
 
 def initialized_multi_vault_registered_server(tmp_path: Path) -> RegisteredMcpServer:
@@ -55,8 +52,8 @@ def initialized_multi_vault_registered_server(tmp_path: Path) -> RegisteredMcpSe
     work = tmp_path / "work"
     main.mkdir()
     work.mkdir()
-    state_path = tmp_path / "state"
-    service = CatalogService(state_path=state_path)
+    graph_home_path = tmp_path / "state"
+    service = CatalogService(graph_home_path=graph_home_path)
     service.save_catalog(
         VaultCatalog.from_entries(
             entries=(
@@ -66,7 +63,7 @@ def initialized_multi_vault_registered_server(tmp_path: Path) -> RegisteredMcpSe
             active_vault_id="main",
         )
     )
-    return create_mcp_server(McpServerConfig(state_path=state_path))
+    return create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
 
 def test_create_mcp_server_exposes_resource_cache_and_registry(tmp_path: Path) -> None:
@@ -122,12 +119,12 @@ def test_server_reads_context_pack_resource_with_public_fastmcp_api(tmp_path: Pa
 
 
 def test_server_reads_encoded_document_resource_with_public_fastmcp_api(tmp_path: Path) -> None:
-    state_path = initialized_state(tmp_path)
+    graph_home_path = initialized_state(tmp_path)
     document = make_document("default", "wiki/page.md", "hash")
     chunk = make_chunk("default", document.document_id, document.path, chunk_id="chunk-1", text="Indexed body")
-    store = SQLiteMetadataStore(state_path / "metadata" / "metadata.sqlite3", initialize=True)
+    store = SQLiteMetadataStore(graph_home_path / "metadata" / "metadata.sqlite3", initialize=True)
     store.apply_metadata_revision(index_revision="metadata-1", documents=[document], chunks=[chunk], tombstones=[])
-    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+    registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
     async def run() -> None:
         contents = list(await registered.server.read_resource("vault://default/documents/wiki%2Fpage.md"))
@@ -153,10 +150,10 @@ def test_missing_context_pack_resource_raises_not_found(tmp_path: Path) -> None:
 
 def test_current_context_resource_is_per_vault_not_all_vault_summary(tmp_path: Path) -> None:
     registered = initialized_multi_vault_registered_server(tmp_path)
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     main_doc = make_document("main", "docs/status.md", "main")
     work_doc = make_document("work", "docs/status.md", "work")
-    store = SQLiteMetadataStore(state_path / "metadata" / "metadata.sqlite3", initialize=True)
+    store = SQLiteMetadataStore(graph_home_path / "metadata" / "metadata.sqlite3", initialize=True)
     store.apply_metadata_revision(
         index_revision="metadata-1",
         documents=[main_doc, work_doc],

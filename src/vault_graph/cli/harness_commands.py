@@ -22,7 +22,7 @@ def install(
     file_name: str = typer.Option(..., "--file-name"),
     backup: Path | None = typer.Option(None, "--backup"),
     preview: bool = typer.Option(False, "--preview"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
 ) -> None:
     _run("install", target, file_name, backup, preview, state)
 
@@ -32,7 +32,7 @@ def remove(
     target: Path = typer.Option(..., "--target"),
     file_name: str = typer.Option(..., "--file-name"),
     preview: bool = typer.Option(False, "--preview"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
 ) -> None:
     _run("remove", target, file_name, None, preview, state)
 
@@ -41,7 +41,7 @@ def remove(
 def preview(
     target: Path = typer.Option(..., "--target"),
     file_name: str = typer.Option(..., "--file-name"),
-    state: Path = typer.Option(Path(".vault-graph"), "--state"),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
 ) -> None:
     _run("preview", target, file_name, None, True, state)
 
@@ -79,7 +79,7 @@ def _run(
 
 
 def _vault_roots(state: Path) -> tuple[Path, ...]:
-    catalog = CatalogService(state_path=state).load_catalog()
+    catalog = CatalogService(graph_home_path=state).load_catalog()
     return tuple(entry.root_path for entry in catalog.entries())
 
 

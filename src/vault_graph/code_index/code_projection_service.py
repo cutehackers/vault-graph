@@ -79,14 +79,14 @@ class CodeProjectionService:
     def for_testing(
         cls,
         *,
-        state_path: Path,
+        graph_home_path: Path,
         entries: Iterable[CodeRepositoryEntry],
         parsers: Mapping[str, CodeParserAdapter] | None = None,
     ) -> CodeProjectionService:
         return cls(
             catalog=tuple(entries),
             parsers=parsers,
-            generation_manager=CodeProjectionGenerationManager(state_path),
+            generation_manager=CodeProjectionGenerationManager(graph_home_path),
         )
 
     def plan(self, request: CodeIndexRequest) -> CodeIndexPlan:

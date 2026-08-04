@@ -7,6 +7,7 @@ import pytest
 
 from vault_graph.app.index_service import IndexRunReport
 from vault_graph.app.setup_service import SetupRequest, SetupService
+from vault_graph.errors import LegacyDataHomeDetectedError
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
 from vault_graph.ingestion.vault_catalog import QueryScope
 
@@ -66,7 +67,7 @@ def test_setup_dry_run_writes_nothing(tmp_path: Path) -> None:
     report = SetupService(index_factory=cast(Any, factory)).setup(
         SetupRequest(
             vault_path=make_vault(tmp_path),
-            state_path=tmp_path / "state",
+            graph_home_path=tmp_path / "state",
             vault_id="main",
             dry_run=True,
             agent=None,
@@ -85,24 +86,61 @@ def test_setup_creates_catalog_and_runs_index(tmp_path: Path) -> None:
     report = SetupService(index_factory=cast(Any, factory)).setup(
         SetupRequest(
             vault_path=make_vault(tmp_path),
-            state_path=tmp_path / "state",
+            graph_home_path=tmp_path / "state",
             vault_id="main",
             agent=None,
         )
     )
 
     assert report.indexed is True
+    assert report.ready is True
+    assert report.recovery_hint is None
     assert factory.calls[0]["initialize_store"] is True
     scope = cast(QueryScope, factory.index_service.calls[0]["scope"])
     assert scope.vault_ids == ("main",)
     assert factory.bundles[0].closed is True
 
 
+def test_setup_dry_run_reports_next_step_without_writing(tmp_path: Path) -> None:
+    report = SetupService(index_factory=cast(Any, RecordingIndexFactory())).setup(
+        SetupRequest(
+            vault_path=make_vault(tmp_path),
+            graph_home_path=tmp_path / "state",
+            vault_id="main",
+            dry_run=True,
+            agent=None,
+        )
+    )
+
+    assert report.ready is False
+    assert report.recovery_hint is not None
+    assert "without --dry-run" in report.recovery_hint
+
+
+def test_setup_refuses_legacy_home_even_in_dry_run(tmp_path: Path) -> None:
+    graph_home_path = tmp_path / "legacy"
+    (graph_home_path / "configs").mkdir(parents=True)
+    legacy_catalog = graph_home_path / "configs" / "vaults.yaml"
+    legacy_catalog.write_text("vaults: []\n", encoding="utf-8")
+
+    with pytest.raises(LegacyDataHomeDetectedError, match="legacy_data_home_detected"):
+        SetupService(index_factory=cast(Any, RecordingIndexFactory())).setup(
+            SetupRequest(
+                vault_path=make_vault(tmp_path),
+                graph_home_path=graph_home_path,
+                dry_run=True,
+                agent=None,
+            )
+        )
+
+    assert legacy_catalog.read_text(encoding="utf-8") == "vaults: []\n"
+
+
 def test_setup_with_agent_prints_config_warning_when_no_config_path(tmp_path: Path) -> None:
     report = SetupService(index_factory=cast(Any, RecordingIndexFactory())).setup(
         SetupRequest(
             vault_path=make_vault(tmp_path),
-            state_path=tmp_path / "state",
+            graph_home_path=tmp_path / "state",
             vault_id="main",
             agent="codex",
         )
@@ -122,7 +160,7 @@ def test_setup_with_mcp_auto_registers_default_codex_config(tmp_path: Path, monk
     report = SetupService(index_factory=cast(Any, RecordingIndexFactory())).setup(
         SetupRequest(
             vault_path=make_vault(tmp_path),
-            state_path=tmp_path / "state",
+            graph_home_path=tmp_path / "state",
             vault_id="main",
             agent="codex",
             register_mcp=True,
@@ -138,4 +176,4 @@ def test_setup_with_mcp_auto_registers_default_codex_config(tmp_path: Path, monk
     assert 'model = "gpt-5"' in config_text
     assert "[mcp_servers.vault-graph]" in config_text
     assert 'command = "vg"' in config_text
-    assert 'args = ["serve", "--mcp", "--state", ' in config_text
+    assert 'args = ["serve", "--mcp", "--graph-home", ' in config_text

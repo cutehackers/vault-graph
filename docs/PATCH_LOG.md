@@ -3,6 +3,76 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-04 - Replace Pre-Release Legacy Migration With Rebuild Guard
+
+**Trigger:** Release-scope review found that Vault Graph is not yet released,
+so a compatibility migration command would add schema and catalog-merging
+complexity before a public contract exists.
+
+**Scope:** Legacy Data Home detection, setup preflight, onboarding readiness,
+status recovery output, MCP/HTTP error mapping, and canonical plan/spec wording.
+
+**Core Values Protected:** Preserved one canonical Data Home, rebuildability,
+read-only source authorities, no duplicate projections, and deterministic user
+recovery.
+
+**Changes Applied:** Replaced the public migration-required error with
+`legacy_data_home_detected`; legacy layouts now fail closed without being read
+or merged. `vg setup` reports readiness and next steps, dry-run matches real
+preflight behavior, status exposes projection recovery hints, and MCP/HTTP
+errors include setup or rebuild guidance. Updated the approved Stenc plan/spec,
+README, and decision record to make onboarding mandatory and migration a
+post-release consideration.
+
+**Verification:** Focused onboarding and legacy tests (52 passed); full suite
+(`1148 passed, 1 skipped`), static checks, package build, and Stenc validation
+completed after documentation alignment.
+
+## 2026-08-04 - Publish Complete Projection Bundles
+
+**Trigger:** Projection lifecycle implementation review found that an index run
+needed an explicit component-level publication boundary, run diagnostics, and
+rollback evidence in addition to the active-generation pointers.
+
+**Scope:** Full and incremental staging, metadata/vector/graph component
+manifests, atomic activation, failed-run cleanup, reader generation pinning,
+and projection hygiene output.
+
+**Core Values Protected:** Preserved one canonical derived-data home,
+read-only source authorities, rebuildability, non-mixed readers, and
+inspectable recovery.
+
+**Changes Applied:** Added `ProjectionBundlePublisher`, copy-on-write staging
+for both indexing modes, source-snapshot and contract manifests, bundle
+validation, durable run diagnostics, previous-generation rollback, and
+component capability fields in `projection-audit`. Index, setup, and watch now
+publish only a successful report and discard failed staging.
+
+**Verification:** `uv run pytest -q` (1141 passed, 1 skipped); `uv run ruff
+check .`; `uv run ruff format --check .`; `uv run mypy src`; `uv build`; `uv
+lock --check`; `git diff --check`.
+
+## 2026-08-04 - Fail Closed On Data Home And Generation Drift
+
+**Trigger:** Verification found that read-only MCP/HTTP startup could reach a
+legacy or uninitialized root, and that the two active-generation manifests
+could disagree during a publication boundary.
+
+**Scope:** Data Home initialization, read-only startup, projection generation
+selection, and user-facing path-boundary errors.
+
+**Core Values Protected:** Preserved one canonical derived-data home,
+read-only Vault boundaries, deterministic recovery, and non-mixed projections.
+
+**Changes Applied:** Required an initialized Data Home for read-only factories,
+initialized catalogs through the resolver, rejected mismatched generation
+manifests, exposed the active generation in status, and replaced remaining
+public state-path wording with Data Home terminology.
+
+**Verification:** `uv run pytest -q` (1136 passed, 1 skipped); `uv run ruff
+check .`; `uv run mypy src`; `uv build`; `uv lock --check`; `git diff --check`;
+Stenc source and rendered-page validation.
+
 ## 2026-08-04 - Exercise Declared Project Context Baselines
 
 **Trigger:** Benchmark review found that the scripted baseline counted declared

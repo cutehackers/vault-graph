@@ -141,7 +141,7 @@ SCENARIOS = (
 
 @dataclass(frozen=True)
 class _Runtime:
-    state_path: Path
+    graph_home_path: Path
     repository_path: Path
     vault_path: Path
     code_factory: CodeIndexFactory
@@ -268,12 +268,12 @@ def _initialize_runtime(tmp_path: Path, *, index_code: bool) -> _Runtime:
 
     repository_path = tmp_path / "repository"
     vault_path = tmp_path / "vault"
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     shutil.copytree(FIXTURE_ROOT / "repository", repository_path)
     shutil.copytree(FIXTURE_ROOT / "vault", vault_path)
-    shutil.copytree(FIXTURE_ROOT / "state", state_path)
+    shutil.copytree(FIXTURE_ROOT / "state", graph_home_path)
 
-    catalog_service = CatalogService(state_path=state_path)
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog_service.create_default_catalog(vault_root=vault_path, vault_id="project-vault")
     template = yaml.safe_load(catalog_service.code_config_path.read_text(encoding="utf-8"))
     if not isinstance(template, dict):  # pragma: no cover - fixture is versioned
@@ -284,7 +284,7 @@ def _initialize_runtime(tmp_path: Path, *, index_code: bool) -> _Runtime:
     repositories[0]["root_path"] = str(repository_path)
     catalog_service.code_config_path.write_text(yaml.safe_dump(template, sort_keys=False), encoding="utf-8")
 
-    code_factory = CodeIndexFactory(state_path=state_path)
+    code_factory = CodeIndexFactory(graph_home_path=graph_home_path)
     code_services = code_factory.open()
     assert code_services.repository_catalog.resolve("demo").root_path == repository_path.resolve()
     bindings = ProjectBindingCatalogService(
@@ -309,7 +309,7 @@ def _initialize_runtime(tmp_path: Path, *, index_code: bool) -> _Runtime:
         vault_status_service=_FixtureVaultStatus(vault_path),
     )
     return _Runtime(
-        state_path,
+        graph_home_path,
         repository_path,
         vault_path,
         code_factory,

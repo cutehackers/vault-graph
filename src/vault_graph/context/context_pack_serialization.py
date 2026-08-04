@@ -55,13 +55,16 @@ def context_pack_to_dict(pack: ContextPack) -> dict[str, Any]:
 
 def render_context_pack_json(pack: ContextPack) -> str:
     try:
-        return json.dumps(
-            context_pack_to_dict(pack),
-            ensure_ascii=False,
-            sort_keys=True,
-            indent=2,
-            allow_nan=False,
-        ) + "\n"
+        return (
+            json.dumps(
+                context_pack_to_dict(pack),
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+                allow_nan=False,
+            )
+            + "\n"
+        )
     except ValueError as exc:
         raise ContextPackError(f"context pack JSON serialization failed: {exc}") from exc
 

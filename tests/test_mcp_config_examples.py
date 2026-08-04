@@ -18,7 +18,7 @@ def test_codex_stdio_config_example_uses_only_local_stdio() -> None:
         "vg",
         "serve",
         "--mcp",
-        "--state",
+        "--graph-home",
         "/path/to/.vault-graph",
     ]
     assert "url" not in server
@@ -28,11 +28,8 @@ def test_codex_stdio_config_example_uses_only_local_stdio() -> None:
 def test_codex_stdio_config_json_matches_documented_example() -> None:
     rendered = codex_stdio_config_json()
     parsed = json.loads(rendered)
-    docs_example = json.loads(
-        Path("docs/superpowers/specs/phase-5/codex-local-stdio-config.example.json").read_text(encoding="utf-8")
-    )
 
-    assert parsed == docs_example
+    assert parsed == CODEX_STDIO_CONFIG_EXAMPLE
     assert str(Path.home()) not in rendered
     assert str(Path.cwd()) not in rendered
     assert "/path/to/.vault-graph" in rendered

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 import typer
 
 from vault_graph.app.catalog_service import CatalogService
+from vault_graph.app.graph_home import GraphHomeResolver
 from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.app.graph_retrieval_service import GraphRetrievalService
 from vault_graph.app.index_service import IndexService, StatusReport
@@ -77,14 +78,15 @@ app.add_typer(harness_app, name="harness")
 
 
 def _catalog(state: Path) -> tuple[CatalogService, VaultCatalog]:
-    config = CatalogService(state_path=state)
+    descriptor = GraphHomeResolver().require_initialized(state)
+    config = CatalogService(graph_home_path=descriptor.root_path)
     catalog = config.load_catalog()
     return config, catalog
 
 
 def _service(state: Path, *, initialize_store: bool) -> tuple[CatalogService, VaultCatalog, IndexService]:
     bundle = LocalIndexServiceFactory(text_embeddings_factory=_text_embeddings).open(
-        state_path=state,
+        graph_home_path=state,
         initialize_store=initialize_store,
     )
     return bundle.catalog_service, bundle.catalog, bundle.index_service
@@ -256,20 +258,21 @@ def _search_text_embeddings(config: CatalogService) -> FastEmbedTextEmbeddings:
 @app.command()
 def init(
     vault: Path = typer.Option(..., "--vault", help="Vault repository root."),
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str = typer.Option("default", "--vault-id", help="Registered Vault ID."),
 ) -> None:
-    config = CatalogService(state_path=state)
+    descriptor = _exit_on_domain_error(lambda: GraphHomeResolver().initialize(state, vault_roots=(vault,)))
+    config = CatalogService(graph_home_path=descriptor.root_path)
     catalog = _exit_on_domain_error(lambda: config.create_default_catalog(vault_root=vault, vault_id=vault_id))
     typer.echo(f"initialized vault_id: {catalog.active_vault_id}")
-    typer.echo(f"state: {config.state_path}")
+    typer.echo(f"graph_home: {config.graph_home_path}")
 
 
 @vault_app.command("add")
 def vault_add(
     vault_id: str,
     path: Path = typer.Option(..., "--path", help="Vault repository root."),
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
 ) -> None:
     config, catalog = _exit_on_domain_error(lambda: _catalog(state))
     entries = list(catalog.entries())
@@ -282,7 +285,9 @@ def vault_add(
 
 
 @vault_app.command("list")
-def vault_list(state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path.")) -> None:
+def vault_list(
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
+) -> None:
     _, catalog = _exit_on_domain_error(lambda: _catalog(state))
     for entry in catalog.entries():
         active = " active" if entry.vault_id == catalog.active_vault_id else ""
@@ -291,7 +296,7 @@ def vault_list(state: Path = typer.Option(Path(".vault-graph"), "--state", help=
 
 @mcp_app.command("config")
 def mcp_config(
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     agent: str = typer.Option("codex", "--agent", help="Agent config format."),
     print_config: bool = typer.Option(False, "--print", help="Print config JSON to stdout."),
 ) -> None:
@@ -302,7 +307,7 @@ def mcp_config(
 
     rendered = _exit_on_domain_error(
         lambda: McpConfigRenderer().render(
-            McpConfigRequest(agent=cast(McpAgent, agent), state_path=state),
+            McpConfigRequest(agent=cast(McpAgent, agent), graph_home_path=state),
         )
     )
     typer.echo(rendered, nl=False)
@@ -310,7 +315,7 @@ def mcp_config(
 
 @mcp_app.command("register")
 def mcp_register(
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     agent: str = typer.Option("codex", "--agent", help="Agent config format."),
     config_path: Path = typer.Option(..., "--config-path", help="Explicit agent MCP config file path."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Report changes without writing config."),
@@ -321,7 +326,7 @@ def mcp_register(
         lambda: McpConfigRegistrar().register(
             McpRegistrationRequest(
                 agent=cast(McpAgent, agent),
-                state_path=state,
+                graph_home_path=state,
                 config_path=config_path,
                 dry_run=dry_run,
             )
@@ -339,7 +344,7 @@ def mcp_register(
 @app.command()
 def setup(
     vault: Path = typer.Option(..., "--vault", help="Vault repository root."),
-    state: Path = typer.Option(Path.home() / ".vault-graph", "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str = typer.Option("default", "--vault-id", help="Registered Vault ID."),
     agent: str | None = typer.Option("codex", "--agent", help="Agent config format."),
     mcp: bool = typer.Option(False, "--mcp", help="Register the MCP server in the selected agent config."),
@@ -354,7 +359,7 @@ def setup(
         lambda: SetupService().setup(
             SetupRequest(
                 vault_path=vault,
-                state_path=state,
+                graph_home_path=state,
                 vault_id=vault_id,
                 agent=cast(McpAgent, agent) if agent is not None else None,
                 register_mcp=mcp,
@@ -364,11 +369,12 @@ def setup(
             )
         )
     )
-    typer.echo(f"state: {report.state_path}")
+    typer.echo(f"graph_home: {report.graph_home_path}")
     typer.echo(f"vault_id: {report.vault_id}")
     typer.echo(f"vault_path: {report.vault_path}")
     typer.echo(f"created_catalog: {report.created_catalog}")
     typer.echo(f"indexed: {report.indexed}")
+    typer.echo(f"ready: {report.ready}")
     typer.echo(f"dry_run: {report.dry_run}")
     if report.index_report is not None:
         typer.echo(f"index_revision: {report.index_report.metadata.index_revision}")
@@ -382,6 +388,8 @@ def setup(
             typer.echo(f"mcp_backup_path: {report.mcp_registration.backup_path}")
     for warning in report.warnings:
         typer.echo(f"warning: {warning}")
+    if report.recovery_hint is not None:
+        typer.echo(f"recovery_hint: {report.recovery_hint}")
     if report.mcp_config is not None:
         typer.echo("mcp_config:")
         typer.echo(report.mcp_config, nl=False)
@@ -391,11 +399,11 @@ def setup(
 
 @app.command()
 def index(
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Index one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Index all enabled registered Vaults."),
     full: bool = typer.Option(False, "--full", help="Rebuild selected metadata projection."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Plan changes without mutating Vault Graph state."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Plan changes without mutating the Data Home."),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
@@ -410,16 +418,17 @@ def index(
         scope = _exit_on_domain_error(catalog.default_scope)
     bundle = _exit_on_domain_error(
         lambda: LocalIndexServiceFactory(text_embeddings_factory=_text_embeddings).open(
-            state_path=state,
+            graph_home_path=state,
             initialize_store=not dry_run,
-            transactional_full=full and not dry_run,
+            transactional=not dry_run,
+            full=full,
         )
     )
     _, catalog, service = bundle.catalog_service, bundle.catalog, bundle.index_service
     try:
         report = service.run_plan(scope=scope, full=full) if dry_run else service.run_apply(scope=scope, full=full)
         if not dry_run and report.exit_code == 0:
-            bundle.commit_projection()
+            bundle.commit_projection(report)
     finally:
         bundle.close()
     metadata = report.metadata
@@ -472,7 +481,7 @@ def index(
 @app.command()
 def ask(
     question: str = typer.Argument(..., help="Natural-language question."),
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Ask one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Ask all enabled registered Vaults."),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
@@ -536,7 +545,7 @@ def ask(
 @app.command()
 def context(
     goal: str = typer.Argument(..., help="Concrete task or goal."),
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Build context for one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Build context for all enabled registered Vaults."),
     output_format: str = typer.Option("markdown", "--format", help="Output format: json or markdown."),
@@ -604,7 +613,7 @@ def context(
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Search query text."),
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Search one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Search all enabled registered Vaults."),
     limit: int = typer.Option(10, "--limit", help="Maximum number of final results."),
@@ -656,14 +665,14 @@ def search(
 
 @app.command("projection-audit")
 def projection_audit(
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
 ) -> None:
     if output_format not in {"text", "json"}:
         typer.echo("unsupported_format")
         raise typer.Exit(1)
     config, catalog = _exit_on_domain_error(lambda: _catalog(state))
-    active_layout = _exit_on_domain_error(lambda: ProjectionGenerationManager(config.state_path).active_layout())
+    active_layout = _exit_on_domain_error(lambda: ProjectionGenerationManager(config.graph_home_path).active_layout())
     report = _exit_on_domain_error(
         lambda: ProjectionHygieneService(
             metadata_path=config.metadata_path,
@@ -685,12 +694,15 @@ def projection_audit(
     typer.echo(f"dangling_keyword_refs: {report.dangling_keyword_refs}")
     typer.echo(f"dangling_vector_refs: {report.dangling_vector_refs}")
     typer.echo(f"dangling_graph_refs: {report.dangling_graph_refs}")
+    typer.echo(f"bundle_manifest_valid: {report.bundle_manifest_valid}")
+    typer.echo(f"component_capabilities: {', '.join(report.component_capabilities)}")
+    typer.echo(f"source_snapshot_id: {report.source_snapshot_id}")
 
 
 @app.command()
 def related(
     target: str = typer.Argument(..., help="Graph target entity, path, alias, or entity ID."),
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Search one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Search all enabled registered Vaults."),
     include_cross_vault: bool = typer.Option(
@@ -744,7 +756,7 @@ def related(
 @app.command("decision-trace")
 def decision_trace(
     topic: str = typer.Argument(..., help="Decision entity, topic, path, alias, or entity ID."),
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Search one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Search all enabled registered Vaults."),
     include_cross_vault: bool = typer.Option(
@@ -789,7 +801,7 @@ def decision_trace(
 
 @app.command()
 def watch(
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Watch one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Watch all enabled registered Vaults."),
     interval: float = typer.Option(5.0, "--interval", help="Polling interval in seconds."),
@@ -812,7 +824,7 @@ def watch(
     else:
         scope = _exit_on_domain_error(catalog.default_scope)
     report = _exit_on_domain_error(
-        lambda: WatchService(state_path=state).run(scope=scope, interval_seconds=interval, full=full)
+        lambda: WatchService(graph_home_path=state).run(scope=scope, interval_seconds=interval, full=full)
     )
     for iteration in report.iterations:
         typer.echo(f"iteration: {iteration.iteration}")
@@ -830,7 +842,7 @@ def watch(
 
 @app.command()
 def status(
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str | None = typer.Option(None, "--vault-id", help="Report one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Report all enabled registered Vaults."),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
@@ -854,11 +866,21 @@ def status(
         report = service.status(scope=scope)
     finally:
         service.close()
+    active_generation = _exit_on_domain_error(
+        lambda: ProjectionGenerationManager(config.graph_home_path).active_layout()
+    )
     if output_format == "json":
         payload = _status_report_json(report, config=config, selected_scope=scope)
         typer.echo(json.dumps(payload, sort_keys=True, indent=2))
         return
-    typer.echo(f"state: {config.state_path}")
+    typer.echo(f"graph_home: {config.graph_home_path}")
+    typer.echo(f"active_generation_id: {active_generation.generation_id if active_generation is not None else None}")
+    typer.echo(f"active_generation_path: {active_generation.root_path if active_generation is not None else None}")
+    bundle_status = _projection_bundle_status(active_generation)
+    typer.echo(f"projection_bundle_valid: {bundle_status['valid']}")
+    typer.echo(f"projection_components: {', '.join(cast(list[str], bundle_status['components']))}")
+    typer.echo(f"projection_source_snapshot_id: {bundle_status['source_snapshot_id']}")
+    typer.echo(f"projection_recovery_hint: {bundle_status['recovery_hint']}")
     typer.echo(f"active_vault_id: {report.active_vault_id}")
     for report_vault_id, root_path in report.vaults:
         typer.echo(f"{report_vault_id} {root_path}")
@@ -906,7 +928,7 @@ def status(
 
 @app.command()
 def serve(
-    state: Path = typer.Option(Path(".vault-graph"), "--state", help="Vault Graph state path."),
+    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     mcp: bool = typer.Option(False, "--mcp", help="Start the local stdio MCP server."),
     http: bool = typer.Option(False, "--http", help="Start the local read-only HTTP server."),
     host: str = typer.Option("127.0.0.1", "--host", help="HTTP bind host. Only 127.0.0.1 is supported."),
@@ -919,7 +941,9 @@ def serve(
         from vault_graph.http.http_errors import HttpServerConfig
         from vault_graph.http.http_server import run_http_server
 
-        http_config = _exit_on_domain_error_stderr(lambda: HttpServerConfig(state_path=state, host=host, port=port))
+        http_config = _exit_on_domain_error_stderr(
+            lambda: HttpServerConfig(graph_home_path=state, host=host, port=port)
+        )
         _exit_on_domain_error_stderr(lambda: run_http_server(http_config))
         return
     if not mcp:
@@ -927,7 +951,7 @@ def serve(
         raise typer.Exit(1)
     from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server, run_mcp_server
 
-    mcp_config = _exit_on_domain_error_stderr(lambda: McpServerConfig(state_path=state))
+    mcp_config = _exit_on_domain_error_stderr(lambda: McpServerConfig(graph_home_path=state))
     registered = _exit_on_domain_error_stderr(lambda: create_mcp_server(mcp_config))
     _exit_on_domain_error_stderr(lambda: run_mcp_server(registered, config=mcp_config))
 
@@ -1108,8 +1132,14 @@ def _status_report_json(
     selected_scope: QueryScope,
 ) -> dict[str, object]:
     graph = report.graph_readiness
+    active_generation = ProjectionGenerationManager(config.graph_home_path).active_layout()
     return {
-        "state": str(config.state_path),
+        "graph_home": str(config.graph_home_path),
+        "active_generation": {
+            "id": active_generation.generation_id if active_generation is not None else None,
+            "path": str(active_generation.root_path) if active_generation is not None else None,
+        },
+        "projection_bundle": _projection_bundle_status(active_generation),
         "active_vault_id": report.active_vault_id,
         "vaults": [{"vault_id": vault_id, "root_path": root_path} for vault_id, root_path in report.vaults],
         "selected_scope": _scope_json(selected_scope),
@@ -1170,6 +1200,61 @@ def _status_report_json(
             "warnings": list(graph.warnings),
             "recovery_hint": graph.recovery_hint,
         },
+    }
+
+
+def _projection_bundle_status(active_layout: object) -> dict[str, object]:
+    if active_layout is None:
+        return {
+            "valid": False,
+            "components": [],
+            "source_snapshot_id": None,
+            "revisions": {},
+            "recovery_hint": "run `vg index --graph-home PATH` to publish a projection bundle",
+        }
+    root_path = getattr(active_layout, "root_path", None)
+    if not isinstance(root_path, Path):
+        return {
+            "valid": False,
+            "components": [],
+            "source_snapshot_id": None,
+            "revisions": {},
+            "recovery_hint": "active projection generation is unavailable",
+        }
+    manifest_path = root_path / "bundle-manifest.json"
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {
+            "valid": False,
+            "components": [],
+            "source_snapshot_id": None,
+            "revisions": {},
+            "recovery_hint": "run `vg index --graph-home PATH` to rebuild the active bundle",
+        }
+    if not isinstance(payload, dict):
+        return {
+            "valid": False,
+            "components": [],
+            "source_snapshot_id": None,
+            "revisions": {},
+            "recovery_hint": "active projection bundle manifest is invalid",
+        }
+    components = payload.get("components")
+    revisions = payload.get("component_revisions")
+    valid = (
+        payload.get("format") == "vault-graph-projection-bundle-v1"
+        and payload.get("generation_id") == getattr(active_layout, "generation_id", None)
+        and isinstance(components, list)
+        and all(isinstance(component, str) for component in components)
+        and isinstance(revisions, dict)
+    )
+    return {
+        "valid": valid,
+        "components": sorted(set(components)) if isinstance(components, list) else [],
+        "source_snapshot_id": payload.get("source_snapshot_id"),
+        "revisions": revisions if isinstance(revisions, dict) else {},
+        "recovery_hint": None if valid else "run `vg index --graph-home PATH` to rebuild the active bundle",
     }
 
 

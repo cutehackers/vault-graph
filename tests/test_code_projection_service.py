@@ -43,7 +43,7 @@ def _entry_for(
 def test_full_then_incremental_build_and_delete(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
-    service = CodeProjectionService.for_testing(state_path=tmp_path / "state", entries=(_entry(tmp_path),))
+    service = CodeProjectionService.for_testing(graph_home_path=tmp_path / "state", entries=(_entry(tmp_path),))
 
     first = service.apply(CodeIndexRequest(full=True))
     source.write_text("def main():\n    return 2\n", encoding="utf-8")
@@ -62,24 +62,24 @@ def test_full_then_incremental_build_and_delete(tmp_path: Path) -> None:
 def test_dry_run_does_not_create_or_activate_code_state(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
-    state_path = tmp_path / "state"
-    service = CodeProjectionService.for_testing(state_path=state_path, entries=(_entry(tmp_path),))
+    graph_home_path = tmp_path / "state"
+    service = CodeProjectionService.for_testing(graph_home_path=graph_home_path, entries=(_entry(tmp_path),))
 
     report = service.apply(CodeIndexRequest(dry_run=True))
 
     assert report.status == "stale"
-    assert not (state_path / "projections" / "code" / "active.json").exists()
-    assert not (state_path / "projections" / "code" / "generations").exists()
+    assert not (graph_home_path / "projections" / "code" / "active.json").exists()
+    assert not (graph_home_path / "projections" / "code" / "generations").exists()
 
 
 def test_dry_run_uses_active_snapshot_in_a_fresh_service(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     entry = _entry(tmp_path)
-    first = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    first = CodeProjectionService.for_testing(graph_home_path=graph_home_path, entries=(entry,))
     first.apply(CodeIndexRequest(full=True))
-    second = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    second = CodeProjectionService.for_testing(graph_home_path=graph_home_path, entries=(entry,))
     before = second.generation_manager.active_layout(())
     assert before is not None
 
@@ -94,9 +94,9 @@ def test_dry_run_uses_active_snapshot_in_a_fresh_service(tmp_path: Path) -> None
 def test_sqlite_failure_returns_partial_and_marks_active_generation(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     entry = _entry(tmp_path)
-    service = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    service = CodeProjectionService.for_testing(graph_home_path=graph_home_path, entries=(entry,))
     service.apply(CodeIndexRequest(full=True))
 
     def fail_store(_database_path: Path, _policy_revision: str) -> CodeProjectionStore:
@@ -112,8 +112,8 @@ def test_sqlite_failure_returns_partial_and_marks_active_generation(tmp_path: Pa
 def test_status_reads_active_projection_without_rewriting_database(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
-    state_path = tmp_path / "state"
-    service = CodeProjectionService.for_testing(state_path=state_path, entries=(_entry(tmp_path),))
+    graph_home_path = tmp_path / "state"
+    service = CodeProjectionService.for_testing(graph_home_path=graph_home_path, entries=(_entry(tmp_path),))
     service.apply(CodeIndexRequest(full=True))
     layout = service.generation_manager.active_layout(("demo",))
     assert layout is not None
@@ -136,7 +136,7 @@ def test_scoped_run_preserves_untouched_repository_namespace(tmp_path: Path) -> 
     first_source.write_text("def first():\n    return 1\n", encoding="utf-8")
     second_source.write_text("def second():\n    return 1\n", encoding="utf-8")
     service = CodeProjectionService.for_testing(
-        state_path=tmp_path / "state",
+        graph_home_path=tmp_path / "state",
         entries=(_entry_for("first", first), _entry_for("second", second)),
     )
     service.apply(CodeIndexRequest(full=True))
@@ -159,7 +159,7 @@ def test_scoped_run_preserves_untouched_repository_namespace(tmp_path: Path) -> 
 def test_verify_checks_the_staged_manifest(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
-    service = CodeProjectionService.for_testing(state_path=tmp_path / "state", entries=(_entry(tmp_path),))
+    service = CodeProjectionService.for_testing(graph_home_path=tmp_path / "state", entries=(_entry(tmp_path),))
 
     report = service.apply(CodeIndexRequest(full=True, verify=True))
 
@@ -169,7 +169,7 @@ def test_verify_checks_the_staged_manifest(tmp_path: Path) -> None:
 def test_partial_run_is_not_reported_fresh_by_status(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main(:\n", encoding="utf-8")
-    service = CodeProjectionService.for_testing(state_path=tmp_path / "state", entries=(_entry(tmp_path),))
+    service = CodeProjectionService.for_testing(graph_home_path=tmp_path / "state", entries=(_entry(tmp_path),))
 
     report = service.apply(CodeIndexRequest(full=True))
 
@@ -181,7 +181,7 @@ def test_head_revision_policy_still_detects_content_drift(tmp_path: Path) -> Non
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
     entry = _entry_for("demo", tmp_path, git_revision_policy="head")
-    service = CodeProjectionService.for_testing(state_path=tmp_path / "state", entries=(entry,))
+    service = CodeProjectionService.for_testing(graph_home_path=tmp_path / "state", entries=(entry,))
     service.apply(CodeIndexRequest(full=True))
     source.write_text("def main():\n    return 2\n", encoding="utf-8")
 
@@ -191,7 +191,7 @@ def test_head_revision_policy_still_detects_content_drift(tmp_path: Path) -> Non
 def test_failed_staging_keeps_previous_code_generation_active(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
-    service = CodeProjectionService.for_testing(state_path=tmp_path / "state", entries=(_entry(tmp_path),))
+    service = CodeProjectionService.for_testing(graph_home_path=tmp_path / "state", entries=(_entry(tmp_path),))
     first = service.apply(CodeIndexRequest(full=True))
     previous = service.generation_manager.active_layout(("demo",))
     assert previous is not None
@@ -210,14 +210,14 @@ def test_failed_staging_keeps_previous_code_generation_active(tmp_path: Path) ->
 def test_failed_run_persists_partial_marker_for_new_service(tmp_path: Path) -> None:
     source = tmp_path / "main.py"
     source.write_text("def main():\n    return 1\n", encoding="utf-8")
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     entry = _entry(tmp_path)
-    service = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    service = CodeProjectionService.for_testing(graph_home_path=graph_home_path, entries=(entry,))
     service.apply(CodeIndexRequest(full=True))
     service.fail_next_apply = True
 
     failed = service.apply(CodeIndexRequest())
-    fresh_process = CodeProjectionService.for_testing(state_path=state_path, entries=(entry,))
+    fresh_process = CodeProjectionService.for_testing(graph_home_path=graph_home_path, entries=(entry,))
 
     assert failed.status == "partial"
     assert service.status(()).state == "partial"

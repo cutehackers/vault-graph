@@ -16,8 +16,8 @@ from vault_graph.errors import CatalogError
 def _vault_and_service(tmp_path: Path) -> tuple[Path, CodeRepositoryCatalogService]:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    catalog_service = CatalogService(state_path=state_path)
+    graph_home_path = tmp_path / "state"
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog_service.create_default_catalog(vault_root=vault_root)
     return vault_root, CodeRepositoryCatalogService(catalog_service=catalog_service)
 

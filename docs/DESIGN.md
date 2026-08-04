@@ -31,6 +31,19 @@ over stable references. Authority roles and provenance families are assigned at
 ingestion, default retrieval collapses canonical results by family, and full
 rebuilds activate through one atomic generation manifest.
 
+The projection lifecycle stages full and incremental runs copy-on-write,
+records a manifest for each enabled projection, validates one common source
+snapshot, and publishes the bundle only after every enabled component passes.
+Readers pin the selected generation when they open their stores; failed runs
+remain isolated and are recorded under the Data Home `runs/` directory.
+
+Before the first public release, legacy Data Home layouts are not a compatibility
+surface. `GraphHomeResolver` detects known pre-release root-level stores and
+fails closed with a new-Data-Home recovery hint. It never reads, copies, or
+merges legacy derived data. The supported recovery is to choose a new
+`--graph-home` (or move the rebuildable directory aside) and run the canonical
+`vg setup --vault PATH --agent codex --mcp` flow to rebuild from Vault.
+
 This document does not redefine product scope. It translates the existing
 specification into a stable design that can guide implementation.
 
@@ -50,7 +63,7 @@ The design follows these authority rules:
 - Vault remains the durable knowledge source of truth.
 - Each registered source repository remains the source of truth for its current
   executable code.
-- Vault Graph state is always derived from registered authorities and can be
+- Vault Graph Data Home is always derived from registered authorities and can be
   deleted.
 - Context packs, summaries, graph relationships, code projections, embeddings,
   and indexes are working context, not durable knowledge or executable source.
@@ -121,7 +134,7 @@ fixtures.
 ### 4.1 Read-Only Source Boundaries
 
 Vault Graph may read registered Vault and source-repository paths. It may write
-only to the configured Vault Graph state directory, except for explicit,
+only to the configured Vault Graph Data Home, except for explicit,
 user-requested harness registration that follows the existing backup and
 preservation contract.
 
@@ -131,7 +144,6 @@ Allowed writes:
 - `data/vector/`
 - `data/graph/`
 - `data/projection_cache/`
-- `data/migrations/`
 - configured equivalents outside the repository
 
 Forbidden writes:
@@ -144,7 +156,7 @@ Forbidden writes:
 - registered repository source files
 - registered repository tests and manifests
 - registered repository Git metadata
-- any path outside the configured Vault Graph state directory
+- any path outside the configured Vault Graph Data Home
 
 Vault evidence and code evidence remain logically distinct even when they share
 the same label or content hash. Physical deduplication may reuse derived storage,
@@ -412,7 +424,7 @@ Core modules:
 - `incremental_indexer.py`: orchestrates scan, parse, extract, store update,
   and projection invalidation
 
-The indexer is the only package that should mutate Vault Graph state during
+The indexer is the only package that should mutate Vault Graph Data Home during
 normal indexing.
 
 ### 6.6 `storage.interfaces`
@@ -635,7 +647,7 @@ with a collision-safe backup. The guidance directs coding harnesses to call
 Runtime configuration should be explicit about:
 
 - Vault catalog entries
-- Vault Graph state path
+- Vault Graph Data Home path
 - active Vault ID
 - content scopes
 - entity schema
@@ -695,7 +707,7 @@ Configuration loading order:
 4. command-line overrides
 
 Command-line overrides should be visible in status output so users can inspect
-which Vault IDs, Vault paths, and state paths are active.
+which Vault IDs, Vault paths, and Vault Graph Data Home paths are active.
 
 ## 8. Domain Records
 
@@ -1071,11 +1083,20 @@ Indexing has two modes: planning and applying.
 
 Planning is read-only. It scans Vault and compares file state, parser versions,
 chunker versions, embedding model specs, graph extraction specs, store schema
-versions, and projection versions against current Vault Graph state.
+versions, and projection versions against current Vault Graph Data Home.
 
-Applying mutates only Vault Graph state. It updates metadata, vectors, graph
+Applying mutates only Vault Graph Data Home. It updates metadata, vectors, graph
 records, revision rows, and projection caches as each phase enables those
 projections.
+
+Each apply run uses `ProjectionBundlePublisher` to create a staging generation.
+The publisher writes component manifests and then `bundle-manifest.json` only
+after component identity, schema, status, and common source-snapshot checks
+pass. It activates `projections/active.json` and the matching
+`data-home.json` pointer with durable temporary-file replacement. If a step
+fails, the staging directory is discarded, a run diagnostic is retained, and
+the previous generation remains active. `ProjectionGenerationManager.rollback`
+can restore the generation saved before the last activation.
 
 ### 10.1 Full Rebuild
 
@@ -1120,7 +1141,7 @@ revision planner should expand the affected set accordingly.
 3. validate backend availability
 4. report planned document, chunk, and enabled projection changes
 5. report warnings
-6. exit without mutating Vault Graph state
+6. exit without mutating Vault Graph Data Home
 
 Dry-run output is an operational planning artifact, not durable knowledge.
 
@@ -1583,7 +1604,7 @@ Recommended common options:
 - `--vault-id ID`
 - `--all-vaults`
 - `--vault PATH`
-- `--state PATH`
+- `--graph-home PATH`
 - `--config PATH`
 - `--json`
 - `--verbose`
@@ -1612,11 +1633,11 @@ Command behavior:
 - `vg code ...`: registers, indexes, queries, and checks the freshness of a
   source repository without editing it
 - `vg project bind ...`: stores the explicit repository-to-Vault binding in
-  Graph-owned state
+  Graph-owned derived data
 - `vg harness guidance ...`: previews, installs, or removes explicit static
   harness guidance outside Vault
 
-All commands should print active Vault ID, Vault path, and state path when the
+All commands should print active Vault ID, Vault path, and Vault Graph Data Home path when the
 operation could otherwise be ambiguous. Commands that operate across Vaults must
 make the selected Vault IDs visible.
 
@@ -1669,7 +1690,7 @@ Errors should be raised at clear boundaries:
 - evidence resolution errors before rendering unsupported results
 
 When possible, user-facing errors should include the active Vault ID, active
-Vault path, active state path, backend name, revision metadata, and a suggested
+Vault path, active Vault Graph Data Home path, backend name, revision metadata, and a suggested
 safe next command.
 
 ## 19. Read-Only Enforcement
@@ -1679,7 +1700,7 @@ Read-only behavior should be enforced in three layers.
 ### 19.1 Path Guard
 
 All write operations must go through a path guard that allows writes only under
-the configured Vault Graph state path. The guard should reject writes to every
+the configured Vault Graph Data Home. The guard should reject writes to every
 registered Vault path.
 
 ### 19.2 Store Boundary
@@ -1696,10 +1717,10 @@ assert that Vault file hashes do not change.
 Required coverage:
 
 - indexing does not mutate Vault
-- dry-run does not mutate Vault Graph state
+- dry-run does not mutate Vault Graph Data Home
 - MCP tools do not mutate Vault
 - context-pack generation does not mutate Vault
-- projection cache writes stay under the state path
+- projection cache writes stay under the Vault Graph Data Home
 
 ## 20. Versioning And Freshness
 
@@ -1779,7 +1800,7 @@ Boundary tests should cover:
 - no Vault mutation during indexing
 - no Vault mutation during MCP tool calls
 - no Vault mutation during context-pack generation
-- no writes outside the state path
+- no writes outside the Vault Graph Data Home
 - dry-run planning without store mutation
 - projection cache invalidation on revision changes
 - partial indexing does not mark unrelated Vault IDs stale

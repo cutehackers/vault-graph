@@ -33,7 +33,7 @@ def test_querying_live_source_does_not_mutate_repository_or_projection(tmp_path:
         git_revision_policy="content-hash",
         watch=False,
     )
-    projection = CodeProjectionService.for_testing(state_path=state, entries=(entry,))
+    projection = CodeProjectionService.for_testing(graph_home_path=state, entries=(entry,))
     projection.apply(CodeIndexRequest(full=True))
     active = projection.generation_manager.active_layout(())
     assert active is not None
@@ -75,7 +75,7 @@ def test_changed_source_keeps_only_a_safe_relative_path_attribution(tmp_path: Pa
         git_revision_policy="content-hash",
         watch=False,
     )
-    projection = CodeProjectionService.for_testing(state_path=state, entries=(entry,))
+    projection = CodeProjectionService.for_testing(graph_home_path=state, entries=(entry,))
     projection.apply(CodeIndexRequest(full=True))
     active = projection.generation_manager.active_layout(())
     assert active is not None
@@ -116,7 +116,7 @@ def test_unavailable_source_keeps_only_a_safe_relative_path_attribution(tmp_path
         git_revision_policy="content-hash",
         watch=False,
     )
-    projection = CodeProjectionService.for_testing(state_path=state, entries=(entry,))
+    projection = CodeProjectionService.for_testing(graph_home_path=state, entries=(entry,))
     projection.apply(CodeIndexRequest(full=True))
     active = projection.generation_manager.active_layout(())
     assert active is not None

@@ -16,14 +16,14 @@ McpAgent = Literal["codex"]
 @dataclass(frozen=True)
 class McpConfigRequest:
     agent: McpAgent
-    state_path: Path
+    graph_home_path: Path
     server_name: str = "vault-graph"
 
 
 @dataclass(frozen=True)
 class McpRegistrationRequest:
     agent: McpAgent
-    state_path: Path
+    graph_home_path: Path
     config_path: Path
     dry_run: bool = False
     server_name: str = "vault-graph"
@@ -51,8 +51,8 @@ class McpConfigRenderer:
                     "args": [
                         "serve",
                         "--mcp",
-                        "--state",
-                        str(request.state_path.expanduser().resolve()),
+                        "--graph-home",
+                        str(request.graph_home_path.expanduser().resolve()),
                     ],
                 }
             }
@@ -78,7 +78,7 @@ class McpConfigRegistrar:
         rendered = self._renderer.render(
             McpConfigRequest(
                 agent=request.agent,
-                state_path=request.state_path,
+                graph_home_path=request.graph_home_path,
                 server_name=request.server_name,
             )
         )
@@ -130,7 +130,7 @@ class McpConfigRegistrar:
             raise McpConfigError("mcp_config_parent_missing: config parent directory does not exist")
         desired_block = _codex_toml_server_block(
             server_name=request.server_name,
-            state_path=request.state_path.expanduser().resolve(),
+            graph_home_path=request.graph_home_path.expanduser().resolve(),
         )
         current_text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
         _validate_toml_config(current_text)
@@ -204,9 +204,9 @@ def _mcp_servers(payload: dict[str, object]) -> dict[str, object]:
     return raw_servers
 
 
-def _codex_toml_server_block(*, server_name: str, state_path: Path) -> str:
+def _codex_toml_server_block(*, server_name: str, graph_home_path: Path) -> str:
     _validate_server_name(server_name)
-    args = ["serve", "--mcp", "--state", str(state_path)]
+    args = ["serve", "--mcp", "--graph-home", str(graph_home_path)]
     rendered_args = ", ".join(json.dumps(arg) for arg in args)
     return f'[mcp_servers.{server_name}]\ncommand = "vg"\nargs = [{rendered_args}]\n'
 
