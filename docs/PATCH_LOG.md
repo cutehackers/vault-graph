@@ -3,6 +3,23 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-05 - Make CLI Help Assertions Terminal-Independent
+
+**Trigger:** GitHub Actions rendered Typer/Rich help and error output with ANSI
+styles that split option labels in raw `CliRunner` output, hiding
+`--graph-home` and `--state` from substring assertions.
+
+**Scope:** `tests/test_cli_surface_boundary.py` help and rejected-option checks.
+
+**Core Values Protected:** Preserved deterministic CLI contract verification and
+the removal of the legacy `--state` alias.
+
+**Changes Applied:** Strip ANSI escape sequences before asserting CLI option and
+error text, matching the existing terminal-output test convention.
+
+**Verification:** Exact GitHub Actions environment test, full test suite, Ruff,
+Mypy, lock verification, package build, and distribution metadata checks pass.
+
 ## 2026-08-04 - Replace Pre-Release Legacy Migration With Rebuild Guard
 
 **Trigger:** Release-scope review found that Vault Graph is not yet released,
