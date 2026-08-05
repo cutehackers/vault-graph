@@ -355,8 +355,11 @@ def setup(
     from vault_graph.app.setup_service import SetupRequest, SetupService
     from vault_graph.mcp.mcp_config_registration import McpAgent
 
+    setup_service = SetupService(
+        index_factory=LocalIndexServiceFactory(text_embeddings_factory=_text_embeddings),
+    )
     report = _exit_on_domain_error(
-        lambda: SetupService().setup(
+        lambda: setup_service.setup(
             SetupRequest(
                 vault_path=vault,
                 graph_home_path=state,
