@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -5,6 +6,7 @@ from typer.testing import CliRunner
 from vault_graph.cli.main import app
 
 runner = CliRunner()
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def test_cli_surface_exposes_context_and_answer_command() -> None:
@@ -36,8 +38,10 @@ def test_cli_status_exposes_vector_fields(tmp_path: Path) -> None:
 def test_cli_uses_graph_home_without_state_alias() -> None:
     help_result = runner.invoke(app, ["status", "--help"])
     legacy_result = runner.invoke(app, ["status", "--state", "/tmp/legacy-state"])
+    help_output = ANSI_ESCAPE.sub("", help_result.stdout)
+    legacy_output = ANSI_ESCAPE.sub("", legacy_result.output)
 
-    assert "--graph-home" in help_result.stdout
-    assert "--state" not in help_result.stdout
+    assert "--graph-home" in help_output
+    assert "--state" not in help_output
     assert legacy_result.exit_code != 0
-    assert "No such option: --state" in legacy_result.output
+    assert "No such option: --state" in legacy_output
