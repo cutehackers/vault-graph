@@ -39,14 +39,14 @@ class McpServer(Protocol):
 
 @dataclass(frozen=True)
 class McpServerConfig:
-    state_path: Path
+    graph_home_path: Path
     transport: McpTransport = "stdio"
     server_name: str = "vault-graph"
     server_version: str = __version__
 
     def __post_init__(self) -> None:
-        resolved_state_path = self.state_path.expanduser().resolve()
-        object.__setattr__(self, "state_path", resolved_state_path)
+        resolved_graph_home_path = self.graph_home_path.expanduser().resolve()
+        object.__setattr__(self, "graph_home_path", resolved_graph_home_path)
         if self.transport != "stdio":
             raise CatalogError(f"unsupported MCP transport for Phase 5A: {self.transport}")
         if not self.server_name.strip():
@@ -77,11 +77,12 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
     from vault_graph.mcp.mcp_tools import register_mcp_tools
     from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
 
-    factory = McpServiceFactory(state_path=config.state_path)
+    factory = McpServiceFactory(graph_home_path=config.graph_home_path)
     services = factory.open_read_only()
     instructions = (
-        "Vault Graph exposes read-only, rebuildable, evidence-first working context over configured Vaults. "
-        "Treat all output as context, not durable knowledge."
+        "Vault Graph exposes read-only, rebuildable, evidence-first working context over configured Vaults and "
+        "registered repositories. For coding tasks, call explore_project first. Treat all output as working "
+        "context, not durable knowledge or executable source."
     )
     server = FastMCP(
         config.server_name,

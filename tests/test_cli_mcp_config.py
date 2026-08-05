@@ -13,7 +13,7 @@ runner = CliRunner()
 
 
 def test_cli_mcp_config_prints_codex_stdio_config(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["mcp", "config", "--state", str(tmp_path / "state"), "--print"])
+    result = runner.invoke(app, ["mcp", "config", "--graph-home", str(tmp_path / "state"), "--print"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -21,7 +21,7 @@ def test_cli_mcp_config_prints_codex_stdio_config(tmp_path: Path) -> None:
 
 
 def test_cli_mcp_config_requires_print(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["mcp", "config", "--state", str(tmp_path / "state")])
+    result = runner.invoke(app, ["mcp", "config", "--graph-home", str(tmp_path / "state")])
 
     assert result.exit_code == 1
     assert "mcp_config_requires_print" in result.stdout
@@ -32,7 +32,7 @@ def test_cli_mcp_register_writes_explicit_config_path(tmp_path: Path) -> None:
 
     result = runner.invoke(
         app,
-        ["mcp", "register", "--state", str(tmp_path / "state"), "--config-path", str(config_path)],
+        ["mcp", "register", "--graph-home", str(tmp_path / "state"), "--config-path", str(config_path)],
     )
 
     assert result.exit_code == 0
@@ -48,7 +48,7 @@ def test_cli_mcp_register_dry_run_writes_nothing(tmp_path: Path) -> None:
         [
             "mcp",
             "register",
-            "--state",
+            "--graph-home",
             str(tmp_path / "state"),
             "--config-path",
             str(config_path),

@@ -29,6 +29,10 @@ dependencies = [
   "rustworkx>=0.17,<1.0",
   "typer>=0.12.5",
   "uvicorn>=0.30,<1",
+  "tree-sitter==0.25.2",
+  "tree-sitter-python==0.25.0",
+  "tree-sitter-dart==0.1.0",
+  "watchfiles==1.2.0",
 ]
 
 [dependency-groups]
@@ -63,6 +67,9 @@ select = ["B", "E", "F", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/vault_graph/cli/main.py" = ["B008"]
+"src/vault_graph/cli/code_commands.py" = ["B008"]
+"src/vault_graph/cli/harness_commands.py" = ["B008"]
+"src/vault_graph/cli/project_commands.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.12"

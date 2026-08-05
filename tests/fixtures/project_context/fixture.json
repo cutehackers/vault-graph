@@ -1,0 +1,23 @@
+{
+  "repository_catalog": {
+    "repository_id": "demo",
+    "root": "repository",
+    "languages": ["python", "dart"],
+    "state_namespace": "demo"
+  },
+  "project_binding": {
+    "repository_id": "demo",
+    "vault_ids": ["project-vault"],
+    "content_scopes": ["wiki"]
+  },
+  "vault": {
+    "vault_id": "project-vault",
+    "root": "vault",
+    "decision": "wiki/pricing-decision.md"
+  },
+  "stale_case": {
+    "symbol_id": "calculate_total",
+    "expected_warning": "source_changed_since_index",
+    "reason": "The source fingerprint changed after the indexed revision."
+  }
+}

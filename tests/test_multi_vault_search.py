@@ -17,12 +17,14 @@ def test_all_vault_search_keeps_identical_paths_separate(tmp_path: Path, monkeyp
     second = tmp_path / "second"
     write_page(first, "wiki/same.md", "# Same\nGraphRAG from first\n")
     write_page(second, "wiki/same.md", "# Same\nGraphRAG from second\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault-id", "first", "--vault", str(first), "--state", str(state_path)])
-    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path), "--all-vaults"])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault-id", "first", "--vault", str(first), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--all-vaults"])
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "--all-vaults", "--format", "json", "GraphRAG"])
+    result = runner.invoke(
+        app, ["search", "--graph-home", str(graph_home_path), "--all-vaults", "--format", "json", "GraphRAG"]
+    )
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -41,14 +43,14 @@ def test_single_vault_search_does_not_leak_other_vault_results(tmp_path: Path, m
     second = tmp_path / "second"
     write_page(first, "wiki/same.md", "# Same\nGraphRAG from first\n")
     write_page(second, "wiki/same.md", "# Same\nGraphRAG from second\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault-id", "first", "--vault", str(first), "--state", str(state_path)])
-    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path), "--all-vaults"])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault-id", "first", "--vault", str(first), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--all-vaults"])
 
     result = runner.invoke(
         app,
-        ["search", "--state", str(state_path), "--vault-id", "second", "--format", "json", "GraphRAG"],
+        ["search", "--graph-home", str(graph_home_path), "--vault-id", "second", "--format", "json", "GraphRAG"],
     )
 
     assert result.exit_code == 0

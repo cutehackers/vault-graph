@@ -1,0 +1,456 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding-design",
+  "slug": "2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding-design",
+  "status": "approved",
+  "language": "ko",
+  "title": "Vault Graph Data Home, Projection Lifecycle, And Onboarding SPEC",
+  "description": "Vault Graph Data Home 경로를 하나로 고정하고 프로젝션 생성, 실패, 복구, 온보딩을 같은 원자적 계약으로 묶는다.",
+  "owner": "Vault Graph architecture",
+  "createdAt": "2026-08-04",
+  "updatedAt": "2026-08-04",
+  "links": {
+    "sourceOfTruth": [
+      "docs/SPEC.md",
+      "docs/DESIGN.md",
+      "docs/FEATURES.md",
+      "docs/CONVENTIONS.md",
+      "docs/DECISIONS.md",
+      "src/vault_graph/app/catalog_service.py",
+      "src/vault_graph/app/projection_generation.py",
+      "src/vault_graph/app/local_index_service_factory.py",
+      "src/vault_graph/app/index_service.py",
+      "src/vault_graph/cli/main.py"
+    ],
+    "relatedPlans": [],
+    "relatedDecisions": ["docs/DECISIONS.md"]
+  },
+  "page": {
+    "humanSummary": "모든 CLI와 MCP가 같은 Vault Graph Data Home을 사용하고, 모든 인덱싱은 검증된 Projection Bundle만 원자적으로 공개한다.",
+    "agentSummary": "명시적 --graph-home 경로가 없으면 ~/.vault-graph를 사용한다. pre-release legacy Data Home은 자동 병합하지 않고 fail closed하며, 모든 전체 및 증분 인덱싱은 staging bundle로 만든 뒤 active manifest를 교체한다.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "Vault Graph의 모든 명령과 MCP 서버가 동일한 Vault Graph Data Home을 해석하도록 만들고, Vault와 등록 저장소를 변경하지 않으면서 메타데이터, 키워드, 벡터, 그래프, 코드 프로젝션을 하나의 일관된 생성 단위로 공개한다. 사용자는 현재 작업 디렉터리에 따라 다른 .vault-graph를 만들지 않고 한 번의 setup으로 등록, 초기 인덱싱, MCP 연결을 완료해야 한다.",
+    "problem": "현재 vg setup은 ~/.vault-graph를 기본값으로 사용하지만 대부분의 명령은 현재 디렉터리의 .vault-graph를 기본값으로 사용한다. 따라서 같은 Vault를 초기화한 뒤 다른 디렉터리에서 status, index, search, MCP를 실행하면 서로 다른 인덱스 결과를 보거나 결과를 찾지 못할 수 있다. 또한 증분 인덱싱은 메타데이터, 벡터, 그래프를 순차적으로 갱신하므로 실행 중 서로 다른 revision이 함께 보일 수 있다. 출시 전에는 기존 파생 데이터를 호환·병합하기보다 명확히 거부하고 Vault에서 재생성하는 것이 안전하다. Vault Graph Data Home, Projection Bundle, 온보딩의 소유권과 실패 경계를 하나의 계약으로 고정한다.",
+    "scope": {
+      "in": [
+        "Vault Graph Data Home 해석과 self-describing Data Home manifest",
+        "catalog, project binding, projection generation, run diagnostic의 Data Home 소유 경계",
+        "전체 및 증분 인덱싱의 staging, 검증, 원자적 active manifest 공개",
+        "reader가 한 요청 동안 하나의 active generation을 고정하는 규칙",
+        "pre-release legacy Data Home 감지, fail-closed guard, 재생성 recovery 흐름",
+        "vg setup, init, index, status, serve, MCP 설정의 동일한 Data Home 경로 사용",
+        "Vault, 등록 저장소, 선택적 벡터와 그래프 의존성의 degraded 상태 표현"
+      ],
+      "out": [
+        "Vault 또는 등록 저장소의 파일 편집, 복사, 이동, 삭제",
+        "Vault Graph Data Home을 durable knowledge source로 승격하는 기능",
+        "원격 또는 hosted Data Home backend",
+        "새 코드 파서, 코드 인덱스 질의, MCP explore_project 구현",
+        "자동 legacy Data Home 병합과 임의의 중복 지식 통합",
+        "사용자 승인 전 docs/DECISIONS.md의 결정 추가"
+      ]
+    },
+    "architecture": {
+      "summary": "GraphHomeResolver가 모든 실행 표면의 경로를 정규화하고 Data Home manifest로 인스턴스를 식별한다. ProjectionBundlePublisher는 active generation을 읽기 전용 기준으로 삼아 새 bundle을 staging한 뒤 source snapshot, schema, backend, reference, dedup 검사를 통과한 경우에만 active manifest를 원자적으로 교체한다. 독자는 요청 시작 시 manifest와 generation을 고정하고 해당 generation 안에서만 모든 store를 연다.",
+      "flow": [
+        "CLI 또는 MCP 시작 -> GraphHomeResolver -> canonical Data Home manifest 및 catalog 확인 -> active manifest 읽기 -> 하나의 generation에 고정된 read-only service 구성",
+        "index 요청 -> Data Home lock -> active generation 또는 명시적 legacy 입력을 read-only로 캡처 -> staging generation 생성 -> 선택 scope를 반영한 모든 enabled projection 작성 -> bundle audit 및 revision 검사 -> active manifest 원자적 교체",
+        "실패 -> staging만 폐기하고 기존 active generation 유지 -> 상태와 복구 명령을 출력",
+        "legacy Data Home -> 자동 병합 금지 -> fail closed와 새 graph-home recovery hint -> Vault에서 전체 rebuild -> canonical Vault Graph Data Home 공개",
+        "setup -> canonical Vault Graph Data Home 생성 -> Vault catalog 등록 -> baseline projection 생성 -> 선택한 MCP 설정에 절대 경로 기록 -> Data Home, generation, readiness, freshness를 보고"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "Vault Graph Data Home 경로를 단일화한다",
+        "detail": "명시적 --graph-home 경로가 있으면 그 경로를 우선하고, 없으면 모든 CLI, MCP, HTTP, application service가 동일한 사용자 기본 경로 ~/.vault-graph를 사용한다. 현재 디렉터리의 .vault-graph를 암묵적으로 생성하거나 탐색하지 않는다.",
+        "acceptanceCriteria": [
+          "작업 디렉터리를 바꾸어도 setup 이후 status, index, search, context, serve가 같은 Data Home을 연다.",
+          "MCP 설정에는 정규화된 절대 Vault Graph Data Home 경로가 기록된다.",
+          "명시적 --graph-home 경로가 canonical manifest의 인스턴스와 불일치하면 추측하지 않고 실패한다."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "Data Home을 self-describing control plane으로 만든다",
+        "detail": "Vault Graph Data Home은 Data Home manifest, catalog, binding, projection manifest, run diagnostics를 소유하지만 Vault 또는 repository의 canonical body를 소유하지 않는다. 새 쓰기는 Data Home 아래의 승인된 하위 경로로만 향한다.",
+        "acceptanceCriteria": [
+          "manifest에는 Data Home format, Data Home identity, layout version, canonical root, active generation 참조가 포함된다.",
+          "catalog와 projection metadata에는 authority identity, path, revision, parser 또는 backend contract가 있고 durable knowledge 본문은 없다.",
+          "Vault와 등록 repository의 파일 fingerprint는 setup, index, status, MCP query 전후 동일하다."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "모든 프로젝션을 하나의 publication lifecycle로 묶는다",
+        "detail": "전체 인덱싱뿐 아니라 증분 인덱싱도 기존 active bundle을 기준으로 staging bundle을 만들고, metadata, keyword, vector, graph, 향후 code projection의 상태를 한 번에 검증한 뒤 active manifest를 교체한다. 활성 generation의 파일을 직접 수정하지 않는다.",
+        "acceptanceCriteria": [
+          "정상 실행 중 reader는 이전 generation 또는 새 generation 중 하나만 읽는다.",
+          "실패한 component가 있는 실행은 변경된 bundle을 공개하지 않고 이전 active generation을 유지한다.",
+          "첫 인덱싱 실패 시 부분적으로 읽을 수 있는 active generation이 생기지 않는다."
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "Revision과 freshness를 generation 단위로 증명한다",
+        "detail": "각 active bundle은 Vault 또는 repository source snapshot, store revision, schema, parser, embedding, graph 또는 code extraction contract를 함께 기록한다. 변경된 source 또는 runtime contract와 맞지 않는 bundle은 fresh로 취급하지 않는다.",
+        "acceptanceCriteria": [
+          "status와 query 응답은 active generation identity와 component freshness를 표시한다.",
+          "stale, unavailable, partial, failed 상태에는 원인과 재실행 가능한 recovery hint가 있다.",
+          "query는 stale projection을 자동으로 index하거나 다른 generation의 결과를 조용히 섞지 않는다."
+        ]
+      },
+      {
+        "id": "REQ-5",
+        "title": "Optional projection의 결손을 명시적으로 표현한다",
+        "detail": "metadata와 keyword는 baseline required projection으로 둔다. vector, graph, code는 capability-scoped component로 기록하며 dependency가 없으면 unavailable로 보고한다. 명시적으로 enabled인 component의 실행 실패는 bundle publication을 차단한다.",
+        "acceptanceCriteria": [
+          "vector model 또는 graph backend가 없어도 baseline 상태와 keyword readiness가 숨겨지지 않는다.",
+          "unavailable component를 fresh로 표시하지 않고 query 결과에 경고를 보낸다.",
+          "기존 active generation이 있을 때 새 optional component 실패로 기존 정상 component가 손상되지 않는다."
+        ]
+      },
+      {
+        "id": "REQ-6",
+        "title": "온보딩을 한 경로로 고정한다",
+        "detail": "vg setup --vault PATH --agent codex --mcp를 canonical happy path로 유지한다. setup은 idempotent해야 하며, init과 낮은 수준의 vault 등록도 같은 GraphHomeResolver와 catalog contract를 사용한다.",
+        "acceptanceCriteria": [
+          "새 사용자가 setup 한 번과 status 한 번으로 Data Home path, vault path, active generation, capability 상태를 확인할 수 있다.",
+          "동일 vault_id와 동일 root로 setup을 다시 실행해도 중복 catalog 또는 두 번째 Data Home이 생기지 않는다.",
+          "dry-run은 Vault Graph Data Home, Vault, repository, agent config에 쓰지 않는다."
+        ]
+      },
+      {
+        "id": "REQ-7",
+        "title": "Legacy Data Home을 출시 전에는 거부한다",
+        "detail": "기존 현재 디렉터리 Data Home 또는 generation 이전의 root-level metadata, vector, graph projection은 legacy로 감지한다. 자동으로 canonical Data Home과 합치거나 읽지 않고 fail closed한다. 사용자는 새 --graph-home을 선택하거나 기존의 재생성 가능한 디렉터리를 별도 보관한 뒤 Vault에서 full rebuild한다.",
+        "acceptanceCriteria": [
+          "legacy Data Home을 발견하면 어느 Data Home을 읽는지 추측하지 않고 새 --graph-home과 setup recovery hint를 출력한다.",
+          "서로 다른 Vault catalog를 가진 두 Data Home은 자동 병합되지 않는다.",
+          "legacy guard가 실행되는 동안 legacy Data Home과 Vault 파일은 변경되지 않고, canonical active manifest도 생기지 않는다."
+        ]
+      },
+      {
+        "id": "REQ-8",
+        "title": "읽기와 publication의 경계를 관찰 가능하게 한다",
+        "detail": "reader는 active manifest를 한 번 고정하고 generation 내부의 stores를 구성한다. status, projection audit, MCP startup은 Data Home, generation, source revision, component health, recovery hint를 같은 vocabulary로 보고한다.",
+        "acceptanceCriteria": [
+          "active manifest가 불완전하거나 generation path가 Data Home root 밖이면 fail closed한다.",
+          "staging, active, retained, discarded generation의 lifecycle 상태가 audit에서 구분된다.",
+          "이전 retained generation으로의 rollback은 manifest 교체로만 수행되고 source authority는 건드리지 않는다."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "사용자 기본 Data Home과 명시적 override",
+        "tradeoffs": [
+          "장점: CWD에 따른 숨은 Data Home 분기가 사라지고 MCP가 안정적인 절대 경로를 기록한다.",
+          "장점: 여러 독립 Graph instance가 필요하면 --graph-home으로 명시적으로 분리할 수 있다.",
+          "단점: 기존 project-local .vault-graph 사용자는 새 Data Home을 선택하거나 --graph-home을 명시해야 한다."
+        ],
+        "recommendation": "기본은 ~/.vault-graph로 고정하고 project-local 경로는 명시적 override로만 허용한다."
+      },
+      {
+        "name": "모든 index run의 copy-on-write Projection Bundle",
+        "tradeoffs": [
+          "장점: metadata, vector, graph, code의 mixed revision과 partial publication을 하나의 경계에서 차단한다.",
+          "장점: reader가 generation identity 하나만 pin하면 된다.",
+          "단점: 증분 실행도 active bundle을 staging에 materialize해야 하므로 저장 공간과 구현 복잡도가 증가한다."
+        ],
+        "recommendation": "full과 incremental 모두 bundle staging, audit, atomic active manifest 교체를 사용한다. store별 순차 active mutation은 폐기한다."
+      },
+      {
+        "name": "legacy 호환 또는 출시 전 fail-closed guard",
+        "tradeoffs": [
+          "legacy 호환은 기존 파생 데이터를 보존할 수 있지만 아직 공개 계약이 없는 상태에서 schema와 catalog 병합 복잡도를 만든다.",
+          "fail-closed guard는 사용자가 새 Data Home에서 한 번 재인덱싱해야 하지만 두 개의 기준 저장소와 중복 projection을 차단한다."
+        ],
+        "recommendation": "첫 출시 전에는 migration/adoption 명령을 제공하지 않고 legacy를 거부하며, Vault에서 새 Data Home을 full rebuild한다."
+      }
+    ],
+    "components": [
+      {
+        "name": "Vault Graph Data Home resolver",
+        "responsibility": "명시적 --graph-home 경로와 사용자 기본 경로를 정규화하고 Data Home manifest identity, path safety, layout discovery, legacy detection을 소유한다.",
+        "interfaces": [
+          "resolved Data Home descriptor",
+          "Data Home manifest read and write",
+          "legacy detection and rebuild recovery preflight",
+          "validated child path resolution"
+        ],
+        "dependencies": ["path guard", "filesystem", "catalog configuration"]
+      },
+      {
+        "name": "Projection Bundle publisher",
+        "responsibility": "active generation을 snapshot으로 읽고 staging bundle을 만들며 component writes, health checks, audit, manifest fsync, atomic activation, retention을 소유한다.",
+        "interfaces": [
+          "bundle build request",
+          "staged bundle report",
+          "active generation descriptor",
+          "publication and rollback manifest operation"
+        ],
+        "dependencies": ["metadata store", "keyword index", "vector store", "graph store", "future code projection store"]
+      },
+      {
+        "name": "Catalog and onboarding service",
+        "responsibility": "Vault와 repository catalog, setup idempotence, baseline capability preflight, legacy guard, recovery report를 관리한다.",
+        "interfaces": [
+          "catalog load and save",
+          "setup report",
+          "Data Home and capability status"
+        ],
+        "dependencies": ["Vault Graph Data Home resolver", "path guard", "Projection Bundle publisher"]
+      },
+      {
+        "name": "CLI and MCP adapters",
+        "responsibility": "모든 command와 stdio server가 resolver를 사용하고 Data Home, generation, authority, freshness, recovery hint를 같은 구조로 표시한다.",
+        "interfaces": [
+          "init, setup, index, status, serve, and Data Home recovery surfaces",
+          "absolute Data Home path in MCP registration",
+          "read-only startup and structured degraded errors"
+        ],
+        "dependencies": ["Catalog and onboarding service", "read-only service factory", "Projection Bundle publisher"]
+      }
+    ],
+    "dataFlow": [
+      "Vault와 등록 repository -> read-only source snapshot 및 fingerprint",
+      "Data Home manifest와 catalog -> authority identity 및 configuration",
+      "active generation -> staging bundle의 baseline",
+      "staging components -> metadata, keyword, vector, graph, future code projections",
+      "bundle audit -> schema, revision, reference, dedup, path, capability report",
+      "atomic active manifest -> pinned generation readers와 MCP/CLI status",
+      "retained generation -> 감사와 명시적 rollback 대상"
+    ],
+    "errorHandling": [
+      {
+        "case": "Vault Graph Data Home이 초기화되지 않았거나 Data Home manifest가 없다",
+        "behavior": "Data Home을 자동 생성하거나 현재 디렉터리를 탐색하지 않고 data_home_not_initialized를 반환하며 canonical setup 명령을 제시한다."
+      },
+      {
+        "case": "Data Home path가 Vault 또는 repository 내부이거나 symlink로 경계를 우회한다",
+        "behavior": "쓰기 전에 거부하고 어떤 source authority도 열어 쓰지 않는다."
+      },
+      {
+        "case": "Legacy Data Home 또는 서로 충돌하는 catalog가 발견된다",
+        "behavior": "자동 병합하거나 읽지 않고 legacy_data_home_detected와 새 --graph-home 및 setup을 안내하는 recovery hint를 반환한다."
+      },
+      {
+        "case": "staging 중 metadata, vector, graph, code component가 실패한다",
+        "behavior": "active manifest를 교체하지 않고 staging을 discarded로 남기거나 안전하게 정리하며 이전 active generation을 그대로 읽게 한다."
+      },
+      {
+        "case": "optional backend 또는 embedding dependency가 없다",
+        "behavior": "baseline metadata와 keyword 상태는 capability report와 함께 유지하고 optional component를 unavailable로 표시한다. enabled component의 runtime failure는 publication을 차단한다."
+      },
+      {
+        "case": "source revision, schema, parser, embedding, graph 또는 code contract가 active bundle과 다르다",
+        "behavior": "fresh를 거짓으로 표시하고 stale recovery hint를 제공한다. query나 MCP가 자동 indexing 또는 mixed-generation join을 수행하지 않는다."
+      },
+      {
+        "case": "MCP가 존재하지 않거나 손상된 Vault Graph Data Home으로 시작한다",
+        "behavior": "구조화된 startup error와 setup 또는 명시적 --graph-home recovery를 반환하고 Data Home을 임의로 만들지 않는다."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Authority and ownership contract",
+        "rules": [
+          "Vault는 durable knowledge authority이고 등록 repository는 current code authority이다.",
+          "Vault Graph Data Home은 catalog와 rebuildable derived projections만 소유한다.",
+          "metadata blob, FTS, vector, graph, code projection, context, MCP output은 새로운 durable authority가 아니다."
+        ]
+      },
+      {
+        "name": "Vault Graph Data Home contract",
+        "rules": [
+          "기본 경로는 ~/.vault-graph이며 명시적 --graph-home이 이를 override한다.",
+          "Data Home manifest는 format, identity, layout, canonical root, active generation을 설명한다.",
+          "새 쓰기는 validated Data Home child path에만 허용되고 source root 안에는 허용되지 않는다."
+        ]
+      },
+      {
+        "name": "Projection publication contract",
+        "rules": [
+          "모든 full 및 incremental run은 staging bundle을 만들고 검증한 뒤 active manifest를 원자적으로 교체한다.",
+          "reader는 한 요청에서 하나의 generation을 pin한다.",
+          "실패한 실행은 이전 active bundle을 변경하지 않으며 retained generation은 명시적 rollback을 위해 보존된다."
+        ]
+      },
+      {
+        "name": "Onboarding contract",
+        "rules": [
+          "vg setup --vault PATH --agent codex --mcp가 기본 happy path이다.",
+          "setup은 idempotent하고 dry-run은 source, Vault Graph Data Home, agent configuration을 쓰지 않는다.",
+          "status와 MCP startup은 Data Home path, generation, capability, freshness, recovery hint를 같은 vocabulary로 보여준다."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "src/vault_graph/app/graph_home.py",
+        "role": "Create",
+        "owner": "Vault Graph Data Home boundary"
+      },
+      {
+        "path": "src/vault_graph/app/catalog_service.py",
+        "role": "Modify",
+        "owner": "Vault and repository catalog"
+      },
+      {
+        "path": "src/vault_graph/app/projection_generation.py and src/vault_graph/app/index_service.py",
+        "role": "Modify",
+        "owner": "Projection lifecycle and publication"
+      },
+      {
+        "path": "src/vault_graph/app/local_index_service_factory.py and src/vault_graph/app/read_only_service_factory.py",
+        "role": "Modify",
+        "owner": "Pinned generation store construction"
+      },
+      {
+        "path": "src/vault_graph/cli/main.py and src/vault_graph/mcp/mcp_config_registration.py",
+        "role": "Modify",
+        "owner": "Onboarding and adapter surfaces"
+      },
+      {
+        "path": "docs/SPEC.md and docs/DESIGN.md",
+        "role": "Align after implementation approval",
+        "owner": "Vault Graph product and architecture contract"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "uv run pytest tests/test_graph_home.py tests/test_projection_lifecycle.py tests/test_setup_service.py tests/test_cli_setup.py tests/test_cli_graph_status.py tests/test_mcp_errors.py tests/test_http_server.py -q",
+        "expected": "CWD independence, path safety, idempotent setup, pre-release legacy rejection, pinned readers, atomic activation, rollback, and degraded capability tests pass."
+      },
+      {
+        "command": "uv run --python 3.12 pytest tests/test_read_only_boundary.py tests/test_vector_indexing_read_only_boundary.py tests/test_graph_indexing_read_only_boundary.py tests/test_mcp_tool_read_only_boundary.py -q",
+        "expected": "Vault, repository, and agent configuration boundaries remain read-only for the approved operations."
+      },
+      {
+        "command": "uv run --python 3.12 pytest -q",
+        "expected": "The complete regression suite passes."
+      }
+    ],
+    "validation": [
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding-design.spec.json",
+        "purpose": "Validate the Stenc source contract and field shapes."
+      },
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/setup-project.js --project-root \"$(pwd)\" --docs-dir docs/stenc",
+        "purpose": "Regenerate the fixed human-facing pages from JSON source."
+      },
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/check-rendered-pages.js docs/stenc",
+        "purpose": "Confirm every Stenc source JSON has a matching generated page."
+      },
+      {
+        "command": "uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv build && git diff --check",
+        "purpose": "Run the repository's standard static, packaging, and whitespace gates after implementation."
+      }
+    ],
+    "agentInstructions": [
+      "이 SPEC의 JSON을 source of truth로 읽고 구현 전 Vault Graph Data Home과 authority 경계를 먼저 고정한다.",
+      "Vault와 등록 repository에는 절대 쓰지 않는다.",
+      "active generation의 store를 직접 수정하지 말고 Projection Bundle publication contract를 사용한다.",
+      "pending choice는 docs/DECISIONS.md에 추가하지 말고 이 문서의 openQuestions에서 다룬다.",
+      "구현 계획은 이 SPEC 승인 후 별도로 작성한다."
+    ],
+    "reviewChecklist": [
+      "모든 명령과 MCP가 동일한 Vault Graph Data Home resolver를 사용하는가",
+      "Vault Graph Data Home이 canonical Vault 또는 repository 본문을 중복 소유하지 않는가",
+      "full과 incremental 모두 active manifest 교체 전에 bundle 검증을 수행하는가",
+      "실패, stale, unavailable, legacy, rollback 경로가 사용자에게 복구 방법과 함께 보이는가",
+      "CWD 변경, symlink, Vault 내부 Data Home, multi-Vault, optional backend를 검증하는가",
+      "Stenc JSON과 생성 페이지가 모두 검증되는가"
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Authority safety",
+        "purpose": "Vault Graph Data Home과 projection이 Vault 또는 current-code authority가 되는 문장을 제거했는지 확인한다."
+      },
+      {
+        "name": "Atomic lifecycle",
+        "purpose": "partial failure가 active generation을 변경하거나 mixed revision을 노출하지 않는지 확인한다."
+      },
+      {
+        "name": "Onboarding clarity",
+        "purpose": "새 사용자가 CWD와 관계없이 한 경로로 setup하고 degraded Data Home을 복구할 수 있는지 확인한다."
+      },
+      {
+        "name": "Changeability",
+        "purpose": "resolver와 publisher가 CLI, MCP, 향후 code projection에 재사용되는 깊은 경계인지 확인한다."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/stenc/content/plans/2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding.plan.json",
+      "requiredSkill": "vg-plan",
+      "notes": [
+        "이 SPEC 승인 후 vg-plan으로 실행 계획을 별도 작성한다.",
+        "superpowers workflow를 사용하지 않는다.",
+        "계획은 Vault Graph Data Home, publication, legacy guard, onboarding을 독립 검증 가능한 순서로 나누되 product contract를 재정의하지 않는다."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Canonical Vault Graph Data Home layout",
+        "content": "새 Data Home은 self-describing manifest와 구성, projection lifecycle을 한 사용자 경로 아래에 둔다. legacy root-level store는 새 write target이 아니다.",
+        "items": [
+          "~/.vault-graph/data-home.json: Data Home identity, format, layout, canonical root, active generation reference",
+          "~/.vault-graph/configs: Vault, repository, project binding catalog",
+          "~/.vault-graph/projections/active.json: 현재 공개된 generation의 유일한 포인터",
+          "~/.vault-graph/projections/generations/<generation>: metadata, vector, graph, future code projection bundle",
+          "~/.vault-graph/runs: staging, audit, failure, onboarding diagnostics"
+        ],
+        "facts": [
+          {
+            "label": "Current inconsistency",
+            "value": "vg setup default is ~/.vault-graph while most CLI commands default to .vault-graph"
+          },
+          {
+            "label": "Current atomic seam",
+            "value": "ProjectionGenerationManager already stages generations and atomically replaces active.json for full rebuilds"
+          }
+        ],
+        "links": [
+          {
+            "label": "Current projection contract",
+            "target": "docs/SPEC.md",
+            "purpose": "Vault Graph source authority, rebuildability, single-body ownership, and Round 0-G projection rules"
+          }
+        ],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "User onboarding and recovery",
+        "content": "정상 경로는 setup 한 번으로 시작하고 이후 명령은 --graph-home 없이도 동일한 Vault Graph Data Home을 사용한다. 실패한 Data Home은 자동 수정하지 않고 상태와 복구 명령을 함께 보여준다.",
+        "items": [
+          "정상: vg setup --vault PATH --agent codex --mcp -> vg status -> vg search 또는 vg context",
+          "Data Home 없음: setup을 실행하라는 data_home_not_initialized 안내",
+          "legacy: 새 --graph-home을 선택하고 vg setup으로 Vault에서 전체 projection 재생성 안내",
+          "stale: source 또는 runtime contract를 확인하고 vg index 재실행 안내",
+          "optional unavailable: keyword baseline은 유지하고 vector 또는 graph 기능이 unavailable임을 표시",
+          "MCP startup failure: 설정에 기록된 절대 Data Home path와 복구 명령을 구조화해 반환"
+        ],
+        "facts": [],
+        "links": [],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": [
+      "Retained generation을 자동으로 몇 개까지 보존할 것인가: 무기한 보존, 최근 N개 보존, 사용자가 실행하는 명시적 garbage collection 중 선택이 필요하다. 권장안은 첫 lifecycle 구현에서는 자동 삭제하지 않고 명시적 cleanup을 별도 설계하는 것이다.",
+      "환경 변수로 Vault Graph Data Home을 override할 것인가: CLI의 명시적 --graph-home만 허용하면 agent 실행이 결정적이고, VAULT_GRAPH_HOME을 추가하면 컨테이너와 CI 편의성이 높아진다. 권장안은 현재는 --graph-home과 ~/.vault-graph만 고정하고 환경 변수는 별도 결정으로 미룬다."
+    ]
+  }
+}

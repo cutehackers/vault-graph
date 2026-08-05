@@ -3,6 +3,181 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-05 - Make CLI Help Assertions Terminal-Independent
+
+**Trigger:** GitHub Actions rendered Typer/Rich help and error output with ANSI
+styles that split option labels in raw `CliRunner` output, hiding
+`--graph-home` and `--state` from substring assertions.
+
+**Scope:** `tests/test_cli_surface_boundary.py` help and rejected-option checks.
+
+**Core Values Protected:** Preserved deterministic CLI contract verification and
+the removal of the legacy `--state` alias.
+
+**Changes Applied:** Strip ANSI escape sequences before asserting CLI option and
+error text, matching the existing terminal-output test convention.
+
+**Verification:** Exact GitHub Actions environment test, full test suite, Ruff,
+Mypy, lock verification, package build, and distribution metadata checks pass.
+
+## 2026-08-04 - Replace Pre-Release Legacy Migration With Rebuild Guard
+
+**Trigger:** Release-scope review found that Vault Graph is not yet released,
+so a compatibility migration command would add schema and catalog-merging
+complexity before a public contract exists.
+
+**Scope:** Legacy Data Home detection, setup preflight, onboarding readiness,
+status recovery output, MCP/HTTP error mapping, and canonical plan/spec wording.
+
+**Core Values Protected:** Preserved one canonical Data Home, rebuildability,
+read-only source authorities, no duplicate projections, and deterministic user
+recovery.
+
+**Changes Applied:** Replaced the public migration-required error with
+`legacy_data_home_detected`; legacy layouts now fail closed without being read
+or merged. `vg setup` reports readiness and next steps, dry-run matches real
+preflight behavior, status exposes projection recovery hints, and MCP/HTTP
+errors include setup or rebuild guidance. Updated the approved Stenc plan/spec,
+README, and decision record to make onboarding mandatory and migration a
+post-release consideration.
+
+**Verification:** Focused onboarding and legacy tests (52 passed); full suite
+(`1148 passed, 1 skipped`), static checks, package build, and Stenc validation
+completed after documentation alignment.
+
+## 2026-08-04 - Publish Complete Projection Bundles
+
+**Trigger:** Projection lifecycle implementation review found that an index run
+needed an explicit component-level publication boundary, run diagnostics, and
+rollback evidence in addition to the active-generation pointers.
+
+**Scope:** Full and incremental staging, metadata/vector/graph component
+manifests, atomic activation, failed-run cleanup, reader generation pinning,
+and projection hygiene output.
+
+**Core Values Protected:** Preserved one canonical derived-data home,
+read-only source authorities, rebuildability, non-mixed readers, and
+inspectable recovery.
+
+**Changes Applied:** Added `ProjectionBundlePublisher`, copy-on-write staging
+for both indexing modes, source-snapshot and contract manifests, bundle
+validation, durable run diagnostics, previous-generation rollback, and
+component capability fields in `projection-audit`. Index, setup, and watch now
+publish only a successful report and discard failed staging.
+
+**Verification:** `uv run pytest -q` (1141 passed, 1 skipped); `uv run ruff
+check .`; `uv run ruff format --check .`; `uv run mypy src`; `uv build`; `uv
+lock --check`; `git diff --check`.
+
+## 2026-08-04 - Fail Closed On Data Home And Generation Drift
+
+**Trigger:** Verification found that read-only MCP/HTTP startup could reach a
+legacy or uninitialized root, and that the two active-generation manifests
+could disagree during a publication boundary.
+
+**Scope:** Data Home initialization, read-only startup, projection generation
+selection, and user-facing path-boundary errors.
+
+**Core Values Protected:** Preserved one canonical derived-data home,
+read-only Vault boundaries, deterministic recovery, and non-mixed projections.
+
+**Changes Applied:** Required an initialized Data Home for read-only factories,
+initialized catalogs through the resolver, rejected mismatched generation
+manifests, exposed the active generation in status, and replaced remaining
+public state-path wording with Data Home terminology.
+
+**Verification:** `uv run pytest -q` (1136 passed, 1 skipped); `uv run ruff
+check .`; `uv run mypy src`; `uv build`; `uv lock --check`; `git diff --check`;
+Stenc source and rendered-page validation.
+
+## 2026-08-04 - Exercise Declared Project Context Baselines
+
+**Trigger:** Benchmark review found that the scripted baseline counted declared
+tools without executing their actual query paths, which could overstate
+evidence recall and fallback reads.
+
+**Scope:** Project-context integration benchmark and its verification report.
+
+**Core Values Protected:** Preserved inspectable evidence provenance,
+deterministic bounded output, and honest comparison against the existing
+multi-tool workflow.
+
+**Changes Applied:** Executed exactly each scenario's declared code and Vault
+tools, derived baseline evidence from their returned records, counted only
+non-initial authority reads as fallback, and compared code-index fallback
+canonical wire JSON while directly checking its unavailable-index warning.
+
+**Verification:** `uv run pytest -q` (1123 passed, 1 skipped); `uv run ruff
+check .`; `uv run mypy src tests`; `uv build`; `uv lock --check`; `git diff
+--check`; enabled MCP stdio smoke.
+
+## 2026-08-04 - Align Code Catalog With Canonical Data Home
+
+**Trigger:** Review found that direct construction of
+`CodeRepositoryCatalogService()` selected the legacy
+`~/.local/state/vault-graph` path instead of the accepted canonical
+`~/.vault-graph` Data Home. The same review found stale Round 2 plan state text.
+
+**Scope:** Code repository catalog default resolution, its regression contract,
+and the Round 2 Stenc plan's current-state and verification wording.
+
+**Core Values Protected:** Preserved one canonical Data Home, deterministic
+service construction, rebuildable derived data, and inspectable documentation.
+
+**Changes Applied:** Reused `GraphHomeResolver.DEFAULT_GRAPH_HOME` in the code
+catalog service, added a direct-construction regression test, and aligned the
+plan with its approved SPEC, existing handoff link, and completed verification
+state.
+
+**Verification:** Code catalog regression, full suite (`1149 passed, 1
+skipped`), static, package, lock, diff, Stenc source, and rendered-page checks
+pass.
+
+## 2026-08-04 - Connect Round 2 Stenc Handoff
+
+**Trigger:** Round 2 contract review found that the new Stenc SPEC pointed to a
+plan path that did not exist, even though the implementation and verification
+evidence were already present in the worktree.
+
+**Scope:** Round 2 Stenc SPEC/plan linkage, transition status, and verification
+evidence wording.
+
+**Core Values Protected:** Preserved inspectable documentation, deterministic
+verification, read-only authority boundaries, and explicit user-controlled
+release actions.
+
+**Changes Applied:** Added the matching Stenc 0.4.1 Round 2 plan, linked it from
+the SPEC, recorded that the contract review and release gates pass, and kept
+commit, merge, and remote push outside the automatic workflow.
+
+**Verification:** Focused Round 2 tests (94 passed); full suite (1148 passed,
+1 skipped); enabled MCP stdio smoke (1 passed); ruff, format, mypy, build, lock,
+diff, Stenc source, and rendered-page checks.
+
+## 2026-08-04 - Close Project Context Evidence Review Gaps
+
+**Trigger:** Quality review found that live source drift did not reach impact/test evidence, cross-authority stated relations lacked an explicit mapping path, and large metadata could exceed the context budget or trigger unbounded source reads.
+
+**Scope:** Project context evidence freshness, repository↔Vault evidence mappings, bounded code/impact reads, and compact token estimation.
+
+**Core Values Protected:** Preserved read-only authority boundaries, inspectable evidence provenance, deterministic bounded output, and changeable adapter seams.
+
+**Changes Applied:** Propagated live freshness to every code evidence item and warning, persisted explicit binding mappings and resolved stated relations only against returned stable Vault IDs, bounded search/impact work before source reads, and compacted oversized metadata deterministically for budget estimation.
+
+**Verification:** `uv run pytest -q` (1063 passed, 1 skipped); `uv run ruff check .`; `uv run mypy src`; `uv build`; `uv lock --check`; changed-file format check; `git diff --check`.
+
+## 2026-08-04 - Bound Project Binding Metadata and Wire Compaction
+
+**Trigger:** Final quality review found that valid large mapping arrays could overflow the 512-token project context budget and that malformed mapping entries could bypass the one-to-one relation contract.
+
+**Scope:** Project binding validation, compact context serialization, and project-bind CLI input.
+
+**Core Values Protected:** Preserved deterministic bounded output, inspectable provenance, explicit one-to-one evidence relations, and reusable serializer boundaries.
+
+**Changes Applied:** Added deterministic cardinality, shape, duplicate, and identifier limits; compacted oversized arrays with omission counts and digests; exported the shared compaction helper; and added repeatable CLI evidence-mapping input with JSON round-trip coverage.
+
+**Verification:** `uv run pytest -q` (1074 passed, 1 skipped); `uv run ruff check .`; `uv run mypy src`; `uv build`; `uv lock --check`; changed-file format check; `git diff --check`.
+
 ## 2026-08-03 - Harden Round 2 Project Context Plan Contracts
 
 **Trigger:** Independent plan review found underspecified repository↔Vault binding, scope defaults, MCP smoke gating, and harness instruction-file safety contracts.

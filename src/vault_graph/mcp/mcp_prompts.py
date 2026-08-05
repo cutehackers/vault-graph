@@ -28,6 +28,9 @@ PHASE_5C_PROMPT_NAMES = (
     "trace_decision_history",
 )
 
+HARNESS_GUIDANCE_START_MARKER = "<!-- vault-graph:harness-guidance:start -->"
+HARNESS_GUIDANCE_END_MARKER = "<!-- vault-graph:harness-guidance:end -->"
+
 _SHARED_LINES = (
     "Use Vault Graph as read-only working context.",
     "Do not read the whole Vault when a scoped context pack is enough.",
@@ -129,9 +132,10 @@ def _prepare_implementation_context(task: str, scope: str | None) -> str:
     return _join_prompt_lines(
         *_prompt_header("Implementation Context", scope),
         f"Task: {task}",
+        "Call explore_project first for bounded code and Vault evidence for the registered project.",
         (
-            "Call check_index_status, get_recent_changes, summarize_project_memory, then build_context_pack "
-            "for the bounded implementation scope."
+            "If project scope is unavailable, use check_index_status, get_recent_changes, "
+            "summarize_project_memory, then build_context_pack."
         ),
         "Use ask_vault for direct evidence-first questions that need a cited answer before implementation.",
         "Use find_related only when graph context is needed for named entities or relationships.",

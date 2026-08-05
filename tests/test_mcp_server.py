@@ -14,7 +14,7 @@ runner = CliRunner()
 
 
 def test_mcp_server_config_accepts_stdio_only(tmp_path: Path) -> None:
-    config = McpServerConfig(state_path=tmp_path / "state")
+    config = McpServerConfig(graph_home_path=tmp_path / "state")
 
     assert config.transport == "stdio"
     assert config.server_name == "vault-graph"
@@ -22,16 +22,16 @@ def test_mcp_server_config_accepts_stdio_only(tmp_path: Path) -> None:
 
 def test_mcp_server_config_rejects_non_stdio_transport(tmp_path: Path) -> None:
     with pytest.raises(CatalogError, match="unsupported MCP transport"):
-        McpServerConfig(state_path=tmp_path / "state", transport="streamable-http")  # type: ignore[arg-type]
+        McpServerConfig(graph_home_path=tmp_path / "state", transport="streamable-http")  # type: ignore[arg-type]
 
 
 def test_create_mcp_server_loads_services_before_stdio_run(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
 
-    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+    registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
     assert registered.server.name == "vault-graph"
     assert registered.services.catalog.active_vault_id == "default"
@@ -41,10 +41,10 @@ def test_create_mcp_server_loads_services_before_stdio_run(tmp_path: Path) -> No
 def test_create_mcp_server_registers_resources_tools_prompts_and_explanation_cache(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
 
-    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+    registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
     assert registered.resource_registry is not None
     assert registered.result_explanation_cache.max_entries == 256
@@ -59,10 +59,13 @@ def test_create_mcp_server_registers_resources_tools_prompts_and_explanation_cac
         "summarize_project_memory",
         "get_open_questions",
         "get_recent_changes",
+        "explore_project",
     )
     assert registered.prompt_registry.prompt_names == PHASE_5C_PROMPT_NAMES
 
 
 def test_create_mcp_server_missing_catalog_fails_before_server_object(tmp_path: Path) -> None:
-    with pytest.raises(CatalogError):
-        create_mcp_server(McpServerConfig(state_path=tmp_path / "missing-state"))
+    from vault_graph.errors import DataHomeNotInitializedError
+
+    with pytest.raises(DataHomeNotInitializedError, match="data_home_not_initialized"):
+        create_mcp_server(McpServerConfig(graph_home_path=tmp_path / "missing-state"))

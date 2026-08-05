@@ -101,9 +101,7 @@ def explanation_records_for_context_pack(pack: ContextPack) -> tuple[Explanation
                 ),
                 resource_links=_links_to_dicts(
                     tuple(
-                        link
-                        for context_evidence in evidence
-                        for link in _links_for_context_evidence(context_evidence)
+                        link for context_evidence in evidence for link in _links_for_context_evidence(context_evidence)
                     )
                 ),
                 generated_at=pack.generated_at,

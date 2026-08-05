@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 
 
 class HttpServiceFactory:
-    def __init__(self, *, state_path: Path, read_only_factory: ReadOnlyServiceFactory | None = None) -> None:
-        self._read_only_factory = read_only_factory or ReadOnlyServiceFactory(state_path=state_path)
+    def __init__(self, *, graph_home_path: Path, read_only_factory: ReadOnlyServiceFactory | None = None) -> None:
+        self._read_only_factory = read_only_factory or ReadOnlyServiceFactory(graph_home_path=graph_home_path)
 
     def open_read_only(self) -> ReadOnlyServices:
         return self._read_only_factory.open_read_only()

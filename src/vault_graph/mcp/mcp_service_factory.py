@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from vault_graph.memory.memory_source_reader import MemorySourceReader
     from vault_graph.memory.project_memory import ProjectMemoryService
     from vault_graph.memory.timeline_memory import TimelineMemoryService
+    from vault_graph.project_context.project_context_service import ProjectContextService
     from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.retrieval_service import RetrievalService
 
@@ -37,9 +38,9 @@ class McpServices:
 
 
 class McpServiceFactory:
-    def __init__(self, *, state_path: Path) -> None:
-        self._state_path = state_path
-        self._read_only_factory = ReadOnlyServiceFactory(state_path=state_path)
+    def __init__(self, *, graph_home_path: Path) -> None:
+        self._graph_home_path = graph_home_path
+        self._read_only_factory = ReadOnlyServiceFactory(graph_home_path=graph_home_path)
 
     def open_read_only(self) -> McpServices:
         services = self._read_only_factory.open_read_only()
@@ -90,3 +91,10 @@ class McpServiceFactory:
 
     def open_health_explorer_service(self) -> HealthExplorerService:
         return self._read_only_factory.open_health_explorer_service()
+
+    def open_project_context_service(self) -> ProjectContextService:
+        """Open code projection services only when project exploration is requested."""
+
+        from vault_graph.app.code_index_factory import CodeIndexFactory
+
+        return CodeIndexFactory(graph_home_path=self._graph_home_path).open_project_context_service()

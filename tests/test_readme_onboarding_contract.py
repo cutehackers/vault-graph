@@ -12,12 +12,16 @@ def test_readme_promotes_setup_as_first_run_path() -> None:
     quick_start = readme[quick_start_index:common_commands_index]
 
     assert install_index < quick_start_index
-    assert "uv tool install vault-graph" in readme[install_index:quick_start_index]
+    install_section = readme[install_index:quick_start_index]
+    assert "Status: Pre-release development" in readme
+    assert "git clone git@me.github.com:cutehackers/vault-graph.git" in install_section
+    assert "uv sync" in install_section
+    assert "uv tool install vault-graph" in install_section
     assert "vg setup --vault /path/to/llm-wiki --agent codex" in quick_start
-    assert 'vg ask --state ~/.vault-graph "What changed recently?"' in quick_start
-    assert 'vg search --state ~/.vault-graph "GraphRAG"' in quick_start
-    assert 'vg context --state ~/.vault-graph "Implement GraphRAG MVP"' in quick_start
-    assert "vg status --state ~/.vault-graph" in quick_start
+    assert 'vg ask --graph-home ~/.vault-graph "What changed recently?"' in quick_start
+    assert 'vg search --graph-home ~/.vault-graph "GraphRAG"' in quick_start
+    assert 'vg context --graph-home ~/.vault-graph "Implement GraphRAG MVP"' in quick_start
+    assert "vg status --graph-home ~/.vault-graph" in quick_start
     normalized_quick_start = " ".join(quick_start.split())
     assert "first indexing run may download the pinned local embedding model" in normalized_quick_start.lower()
 

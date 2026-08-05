@@ -42,7 +42,7 @@ def test_cli_ask_uses_active_vault_by_default(tmp_path: Path, monkeypatch: Monke
         raising=False,
     )
 
-    result = runner.invoke(app, ["ask", "--state", str(tmp_path / "state"), "Why GraphRAG?"])
+    result = runner.invoke(app, ["ask", "--graph-home", str(tmp_path / "state"), "Why GraphRAG?"])
 
     assert result.exit_code == 0
     assert service.requests[0].requested_scope.vault_ids == ("main",)
@@ -59,7 +59,7 @@ def test_cli_ask_json_uses_answer_response_contract(tmp_path: Path, monkeypatch:
         raising=False,
     )
 
-    result = runner.invoke(app, ["ask", "--state", str(tmp_path / "state"), "--format", "json", "Why GraphRAG?"])
+    result = runner.invoke(app, ["ask", "--graph-home", str(tmp_path / "state"), "--format", "json", "Why GraphRAG?"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -70,7 +70,7 @@ def test_cli_ask_json_uses_answer_response_contract(tmp_path: Path, monkeypatch:
 def test_cli_ask_scope_flags_are_mutually_exclusive(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
-        ["ask", "--state", str(tmp_path / "state"), "--vault-id", "main", "--all-vaults", "Why GraphRAG?"],
+        ["ask", "--graph-home", str(tmp_path / "state"), "--vault-id", "main", "--all-vaults", "Why GraphRAG?"],
     )
 
     assert result.exit_code == 1
@@ -78,21 +78,23 @@ def test_cli_ask_scope_flags_are_mutually_exclusive(tmp_path: Path) -> None:
 
 
 def test_cli_ask_include_cross_vault_requires_all_vaults_and_graph(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["ask", "--state", str(tmp_path / "state"), "--include-cross-vault", "Why GraphRAG?"])
+    result = runner.invoke(
+        app, ["ask", "--graph-home", str(tmp_path / "state"), "--include-cross-vault", "Why GraphRAG?"]
+    )
 
     assert result.exit_code == 1
     assert "include_cross_vault_requires_multi_vault_graph_scope" in result.stdout
 
 
 def test_cli_ask_rejects_empty_question(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["ask", "--state", str(tmp_path / "state"), "   "])
+    result = runner.invoke(app, ["ask", "--graph-home", str(tmp_path / "state"), "   "])
 
     assert result.exit_code == 1
     assert "empty_question" in result.stdout
 
 
 def test_cli_ask_rejects_unsupported_format(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["ask", "--state", str(tmp_path / "state"), "--format", "xml", "Why?"])
+    result = runner.invoke(app, ["ask", "--graph-home", str(tmp_path / "state"), "--format", "xml", "Why?"])
 
     assert result.exit_code == 1
     assert "unsupported_format" in result.stdout

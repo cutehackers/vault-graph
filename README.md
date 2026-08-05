@@ -1,6 +1,6 @@
 # Vault Graph
 
-Status: Active public release
+Status: Pre-release development
 
 Vault Graph is a read-only, rebuildable knowledge access layer over Vault.
 
@@ -19,14 +19,7 @@ Prerequisites:
 - Python 3.12+
 - [`uv`](https://docs.astral.sh/uv/)
 
-Install from PyPI:
-
-```bash
-uv tool install vault-graph
-vg --help
-```
-
-Development install from a source checkout:
+Install the current pre-release from a source checkout:
 
 ```bash
 git clone git@me.github.com:cutehackers/vault-graph.git
@@ -35,10 +28,17 @@ uv sync
 uv run --python 3.12 vg --help
 ```
 
-Optional local command install from a source checkout:
+Optional editable command install from the source checkout:
 
 ```bash
 uv tool install -e .
+vg --help
+```
+
+The public PyPI install path is deferred until the first release:
+
+```bash
+uv tool install vault-graph
 vg --help
 ```
 
@@ -50,22 +50,43 @@ Run one setup command after installation:
 vg setup --vault /path/to/llm-wiki --agent codex --mcp
 ```
 
-By default, setup uses `~/.vault-graph` for local state, registers the Vault,
+By default, setup uses `~/.vault-graph` for local Data Home, registers the Vault,
 runs indexing, and registers the `vault-graph` stdio MCP server in the Codex
 config at `$CODEX_HOME/config.toml` or `~/.codex/config.toml`. Existing Codex
 config is backed up before the `vault-graph` server entry is changed. Keep this
-state directory outside your Vault.
+Data Home directory outside your Vault.
+
+Vault Graph is currently pre-release. If `~/.vault-graph` contains an older
+pre-release layout, setup stops without reading or changing it. Choose a new
+Data Home (or move the rebuildable old directory aside) and run setup again;
+the projections will be rebuilt from Vault. Vault files are never migrated or
+modified.
 
 Then use the indexed Vault:
 
 ```bash
-vg ask --state ~/.vault-graph "What changed recently?"
-vg search --state ~/.vault-graph "GraphRAG"
-vg search --state ~/.vault-graph --mode evidence "GraphRAG"
-vg projection-audit --state ~/.vault-graph --format json
-vg context --state ~/.vault-graph "Implement GraphRAG MVP"
-vg status --state ~/.vault-graph
+vg ask --graph-home ~/.vault-graph "What changed recently?"
+vg search --graph-home ~/.vault-graph "GraphRAG"
+vg search --graph-home ~/.vault-graph --mode evidence "GraphRAG"
+vg projection-audit --graph-home ~/.vault-graph --format json
+vg context --graph-home ~/.vault-graph "Implement GraphRAG MVP"
+vg status --graph-home ~/.vault-graph
 ```
+
+To add current source-code evidence to an agent task, register the repository
+and bind it explicitly to the Vault that owns durable project knowledge:
+
+```bash
+vg code repository add demo --path /path/to/repository --language python --language dart --graph-home ~/.vault-graph
+vg code index --repository-id demo --graph-home ~/.vault-graph
+vg project bind demo --vault-id default --scope wiki --graph-home ~/.vault-graph
+vg code impact calculate_total --repository-id demo --graph-home ~/.vault-graph
+```
+
+Repository code remains authoritative for current behavior; Vault remains
+authoritative for durable decisions. The code index is a local, rebuildable,
+read-only projection and does not write source files or copy source bodies into
+Vault.
 
 Vault Graph builds local metadata, keyword, vector, and graph projections. It
 uses local storage and local embeddings by default; it does not require hosted
@@ -77,21 +98,26 @@ registration so it can load the new server.
 
 | Goal | Command |
 | --- | --- |
-| Register a Vault | `vg init --vault /path/to/llm-wiki --state ~/.vault-graph` |
-| Add another Vault | `vg vault add work --path /path/to/other-vault --state ~/.vault-graph` |
-| List Vaults | `vg vault list --state ~/.vault-graph` |
-| Index the active Vault | `vg index --state ~/.vault-graph` |
-| Index one Vault | `vg index --vault-id work --state ~/.vault-graph` |
-| Index all Vaults | `vg index --all-vaults --state ~/.vault-graph` |
-| Check health | `vg status --state ~/.vault-graph` |
-| Search evidence | `vg search --state ~/.vault-graph "query"` |
-| Expand raw/source evidence | `vg search --mode evidence --state ~/.vault-graph "query"` |
-| Audit projection duplication | `vg projection-audit --state ~/.vault-graph` |
-| Include graph signals | `vg search --include-graph --state ~/.vault-graph "query"` |
-| Ask with evidence | `vg ask --state ~/.vault-graph "question"` |
-| Build a context pack | `vg context --state ~/.vault-graph "goal"` |
-| Find related items | `vg related --state ~/.vault-graph GraphRAG` |
-| Trace a decision | `vg decision-trace --state ~/.vault-graph GraphRAG` |
+| Register a Vault | `vg init --vault /path/to/llm-wiki --graph-home ~/.vault-graph` |
+| Add another Vault | `vg vault add work --path /path/to/other-vault --graph-home ~/.vault-graph` |
+| List Vaults | `vg vault list --graph-home ~/.vault-graph` |
+| Index the active Vault | `vg index --graph-home ~/.vault-graph` |
+| Index one Vault | `vg index --vault-id work --graph-home ~/.vault-graph` |
+| Index all Vaults | `vg index --all-vaults --graph-home ~/.vault-graph` |
+| Check health | `vg status --graph-home ~/.vault-graph` |
+| Search evidence | `vg search --graph-home ~/.vault-graph "query"` |
+| Expand raw/source evidence | `vg search --mode evidence --graph-home ~/.vault-graph "query"` |
+| Audit projection duplication | `vg projection-audit --graph-home ~/.vault-graph` |
+| Include graph signals | `vg search --include-graph --graph-home ~/.vault-graph "query"` |
+| Ask with evidence | `vg ask --graph-home ~/.vault-graph "question"` |
+| Build a context pack | `vg context --graph-home ~/.vault-graph "goal"` |
+| Find related items | `vg related --graph-home ~/.vault-graph GraphRAG` |
+| Trace a decision | `vg decision-trace --graph-home ~/.vault-graph GraphRAG` |
+| Register a code repository | `vg code repository add demo --path /path/to/repository --language python --language dart --graph-home ~/.vault-graph` |
+| Build/update a code projection | `vg code index --repository-id demo --graph-home ~/.vault-graph` |
+| Inspect code impact | `vg code impact SYMBOL --repository-id demo --graph-home ~/.vault-graph` |
+| Bind repository to Vault | `vg project bind demo --vault-id default --scope wiki --graph-home ~/.vault-graph` |
+| Preview harness guidance | `vg harness guidance preview --target /path/to/repository --file-name AGENTS.md --graph-home ~/.vault-graph` |
 
 Commands that accept `--vault-id` operate on one registered Vault. Commands that
 accept `--all-vaults` expand to all enabled registered Vaults. Commands without
@@ -120,7 +146,7 @@ For explicit control, render or register the stdio server manually:
       "args": [
         "serve",
         "--mcp",
-        "--state",
+        "--graph-home",
         "/path/to/.vault-graph"
       ]
     }
@@ -143,6 +169,19 @@ Once connected, the agent can use these MCP tools:
 - `get_open_questions`
 - `get_recent_changes`
 - `ask_vault`
+- `explore_project`
+
+For a coding task, call `explore_project` first with the task and a registered
+`repository_id` (or a registered `project_path`). It returns bounded current
+code evidence, related tests and impact, selected Vault decisions, revisions,
+and freshness warnings in one read-only response. If only one repository has an
+explicit Vault binding, the repository scope may be omitted; otherwise MCP
+returns a recovery hint instead of guessing.
+
+`explore_project` output is working evidence. Re-read source lines if a warning
+reports drift, and publish durable conclusions through Vault's normal workflow.
+When MCP is unavailable, use the `vg code search`, `vg code symbol`, `vg code
+outline`, `vg code callers`, `vg code callees`, and `vg code impact` commands.
 
 Vault Graph provides evidence-first working context and evidence-first answers
 through `ask_vault` and `vg ask`.
@@ -150,9 +189,9 @@ through `ask_vault` and `vg ask`.
 For explicit MCP control:
 
 ```bash
-vg mcp register --agent codex --state ~/.vault-graph --config-path /path/to/agent-config.json
-vg mcp register --agent codex --state ~/.vault-graph --config-path ~/.codex/config.toml
-vg mcp config --agent codex --state ~/.vault-graph --print
+vg mcp register --agent codex --graph-home ~/.vault-graph --config-path /path/to/agent-config.json
+vg mcp register --agent codex --graph-home ~/.vault-graph --config-path ~/.codex/config.toml
+vg mcp config --agent codex --graph-home ~/.vault-graph --print
 ```
 
 ## Guarantees

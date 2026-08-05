@@ -22,6 +22,7 @@ EXPECTED_PHASE_6C_TOOLS = {
     "summarize_project_memory",
     "get_open_questions",
     "get_recent_changes",
+    "explore_project",
 }
 
 
@@ -33,8 +34,8 @@ def test_mcp_stdio_initializes_with_official_client(tmp_path: Path) -> None:
 
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
 
     async def run_client() -> None:
         params = StdioServerParameters(
@@ -46,8 +47,8 @@ def test_mcp_stdio_initializes_with_official_client(tmp_path: Path) -> None:
                 "vg",
                 "serve",
                 "--mcp",
-                "--state",
-                str(state_path),
+                "--graph-home",
+                str(graph_home_path),
             ],
         )
         with anyio.fail_after(15):

@@ -1,0 +1,465 @@
+{
+  "schemaVersion": 2,
+  "docType": "spec",
+  "id": "spec:2026-08-04-vault-graph-round-2-mcp-coding-harness-design",
+  "slug": "2026-08-04-vault-graph-round-2-mcp-coding-harness-design",
+  "status": "approved",
+  "language": "ko",
+  "title": "Vault Graph Round 2 MCP·코딩 하네스 통합 SPEC",
+  "description": "코딩 작업에서 반복되는 검색·컨텍스트 조합을 하나의 bounded project-context 흐름으로 줄이면서 Vault와 repository의 권위 경계를 보존한다.",
+  "owner": "Vault Graph architecture",
+  "createdAt": "2026-08-04",
+  "updatedAt": "2026-08-04",
+  "links": {
+    "sourceOfTruth": [
+      "docs/SPEC.md",
+      "docs/DESIGN.md",
+      "docs/FEATURES.md",
+      "docs/CONVENTIONS.md",
+      "docs/DECISIONS.md",
+      "src/vault_graph/project_context/project_context_service.py",
+      "src/vault_graph/mcp/mcp_tools.py",
+      "src/vault_graph/harness/harness_guidance.py",
+      "tests/benchmarks/test_project_context_benchmark.py"
+    ],
+    "relatedPlans": [
+      "plan:2026-08-04-vault-graph-round-2-mcp-coding-harness"
+    ],
+    "relatedDecisions": ["docs/DECISIONS.md"]
+  },
+  "page": {
+    "humanSummary": "사용자는 여러 검색 명령을 조합하지 않고 MCP의 `explore_project` 한 번으로 코드·테스트·영향·Vault 근거를 bounded context로 받는다.",
+    "agentSummary": "ProjectContextService가 명시적 repository-to-Vault binding을 기준으로 코드와 Vault 근거를 조합한다. MCP는 얇은 read-only adapter이고 harness guidance는 사용자가 명시적으로 선택한 instruction file에만 되돌릴 수 있는 안내 블록을 쓴다.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "Round 2에서는 코딩 에이전트가 현재 코드, 관련 테스트와 영향 범위, Vault의 결정·제약을 여러 개의 검색 프롬프트로 직접 조합하지 않도록 한다. 하나의 bounded project-context 서비스와 MCP 진입점을 제공하되, Vault는 durable knowledge authority로, 등록 repository는 현재 executable code authority로 계속 분리한다.",
+    "problem": "기존의 개별 code search, impact, Vault search, context-pack 호출을 사용자가 직접 조합하면 프롬프트와 tool call이 늘고, 어떤 repository와 Vault를 사용했는지 놓치기 쉽다. 코드 인덱스가 없거나 stale한 경우에도 에이전트가 이를 fresh한 근거로 오해할 위험이 있다. 또한 자동 harness 설정은 사용자 파일을 예기치 않게 바꿀 수 있으므로 명시적이고 되돌릴 수 있는 경계가 필요하다.",
+    "scope": {
+      "in": [
+        "ProjectContextService의 코드·Vault evidence composition",
+        "명시적 repository-to-Vault binding과 scope resolution",
+        "bounded depth, limit, max_tokens, deterministic ordering, freshness와 warning",
+        "read-only explore_project MCP tool과 structured JSON/text mirror",
+        "코딩 에이전트용 explicit marker-fenced AGENTS.md/CLAUDE.md guidance",
+        "prompt/tool-call 감소와 stale-result 방지를 검증하는 local benchmark"
+      ],
+      "out": [
+        "Vault wiki, raw source, 또는 등록 repository source/test/metadata의 자동 수정",
+        "Vault 지식과 code symbol을 하나의 authority로 병합",
+        "MCP startup 시 자동 harness guidance 설치",
+        "MCP tool 내부의 SQLite/parser 직접 접근",
+        "source body 또는 절대 경로를 MCP 응답에 포함",
+        "LLM/network 의존성, hosted service, 자동 code edit/refactor",
+        "Superpowers workflow 또는 원격 push"
+      ]
+    },
+    "architecture": {
+      "summary": "ProjectContextService가 이 Round 2의 deep module이다. 서비스는 CodeQueryService, Vault retrieval/context-pack, graph relation, freshness 인터페이스를 조합하고 명시적 ProjectBinding 없이는 scope를 추측하지 않는다. explore_project MCP adapter와 정적 harness guidance는 이 서비스의 결과와 사용법만 전달하며 자체 검색·추론·저장을 구현하지 않는다.",
+      "flow": [
+        "MCP 요청 -> 입력 검증 -> repository_id/project_path 해석 -> explicit ProjectBinding 확인",
+        "ProjectContextService -> code projection/query와 현재 source fingerprint 확인 -> bounded code, tests, impact evidence 선택",
+        "ProjectContextService -> 선택된 Vault ID와 content scope로 Vault evidence, decisions, constraints, context-pack/relation 결과 선택",
+        "authority별 revision/freshness와 warnings를 합친 뒤 max_tokens, depth, limit 순서로 deterministic truncation",
+        "MCP serializer -> evidence IDs, revisions, freshness, vg-source URI, recovery hint를 JSON과 짧은 text mirror로 반환",
+        "선택적 harness command -> 사용자가 지정한 비-Vault instruction file에 marker block을 atomic write하고 backup/preview/remove를 제공"
+      ]
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "title": "하나의 project-context 진입점을 제공한다",
+        "detail": "explore_project(task, project_path=None, repository_id=None, max_tokens=None, depth=2, limit=20)은 기존 application service를 통해 코드와 Vault 근거를 한 번에 조합한다.",
+        "acceptanceCriteria": [
+          "MCP adapter가 ProjectContextService만 호출하고 저장소·parser를 직접 열지 않는다.",
+          "결과에는 bounded code evidence, 관련 test/impact, Vault evidence, revision, freshness, warning이 포함된다.",
+          "기존 MCP tool과 structured output 등록은 유지되고 새 tool은 한 번만 등록된다."
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "title": "authority scope를 추측하지 않는다",
+        "detail": "repository_id 또는 canonical project_path는 등록된 repository와 정확히 매칭되어야 하며, repository-to-Vault binding은 Graph-owned catalog에서 명시적으로 읽는다.",
+        "acceptanceCriteria": [
+          "binding이 없거나 후보가 0개 또는 여러 개이면 scope_required와 redacted recovery hint를 반환한다.",
+          "여러 Vault binding은 authority별 evidence로 유지하며 active Vault를 암묵적으로 선택하지 않는다.",
+          "Vault evidence와 code evidence의 ID, path, revision, provenance가 직렬화에서도 분리된다."
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "title": "freshness와 source evidence를 안전하게 노출한다",
+        "detail": "코드 projection의 fingerprint와 현재 source를 비교한 뒤에만 bounded source link를 만들고, 변경·부재·부분 projection을 숨기지 않는다.",
+        "acceptanceCriteria": [
+          "source_changed_since_index와 source_unavailable 상태에서는 stale source body를 반환하지 않는다.",
+          "source link는 검증된 vg-source://repository/path#Lstart-Lend URI이며 절대 경로를 포함하지 않는다.",
+          "결합 freshness는 선택된 code와 모든 Vault authority가 fresh일 때만 fresh이다."
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "title": "출력 예산과 deterministic 결과를 보장한다",
+        "detail": "depth, limit, max_tokens의 공통 상한과 stable evidence ordering을 서비스 경계에서 적용한다.",
+        "acceptanceCriteria": [
+          "요청 범위를 벗어난 symbol traversal이나 evidence item이 반환되지 않는다.",
+          "예산 초과는 budget warning과 생략 수를 포함하고 동일 입력은 동일 JSON을 반환한다.",
+          "코드 인덱스가 없을 때 Vault-only fallback과 code_index_unavailable warning을 반환한다."
+        ]
+      },
+      {
+        "id": "REQ-5",
+        "title": "MCP는 read-only adapter로 남는다",
+        "detail": "MCP query와 context 생성은 Vault, repository, Git metadata를 수정하지 않고 Data Home의 읽기 가능한 projection만 사용한다.",
+        "acceptanceCriteria": [
+          "MCP tool 호출 전후 Vault와 repository fingerprint가 동일하다.",
+          "MCP adapter에서 SQLite, Chroma, parser, filesystem source read 구현을 직접 import하지 않는다.",
+          "구조화된 오류에는 원인, 현재 scope, 안전한 recovery hint가 포함된다."
+        ]
+      },
+      {
+        "id": "REQ-6",
+        "title": "harness guidance는 명시적이고 되돌릴 수 있어야 한다",
+        "detail": "사용자가 지정한 비-Vault AGENTS.md 또는 CLAUDE.md에만 marker-fenced 안내 블록을 설치·제거하고, preview·backup·atomic replacement·tamper guard를 제공한다.",
+        "acceptanceCriteria": [
+          "MCP startup이나 일반 setup은 instruction file을 자동으로 쓰지 않는다.",
+          "안내에는 explore_project 우선 호출, working evidence 규칙, source 재확인, Vault publication 경계가 포함된다.",
+          "remove는 자체 marker block만 제거하고 사용자 내용은 보존하며 backup 충돌·symlink·Vault 대상은 거부한다."
+        ]
+      },
+      {
+        "id": "REQ-7",
+        "title": "prompt와 tool orchestration 감소를 증명한다",
+        "detail": "대표적인 구조 설명, bug-scope, impact, design consistency 시나리오에서 기존 multi-call baseline과 explore_project를 동일한 deterministic fixture로 비교한다.",
+        "acceptanceCriteria": [
+          "explore_project의 application tool call 수와 prompt instruction token 수가 각 baseline보다 적다.",
+          "relevant evidence recall은 baseline 이상이고 stale-result miss는 0이다.",
+          "응답 budget, source fingerprint, Vault fingerprint, missing-code fallback 결정성이 유지된다."
+        ]
+      }
+    ],
+    "approaches": [
+      {
+        "name": "여러 low-level MCP 호출을 사용자 프롬프트에서 직접 조합",
+        "tradeoffs": [
+          "구현은 단순하지만 호출 수와 prompt 길이가 커진다.",
+          "repository와 Vault scope를 놓치기 쉽고 stale 결과를 조합할 위험이 있다."
+        ],
+        "recommendation": "기존 low-level tool은 유지하되 코딩 작업의 기본 진입점으로 사용하지 않는다."
+      },
+      {
+        "name": "ProjectContextService를 통한 한 번의 bounded exploration",
+        "tradeoffs": [
+          "service boundary와 budget contract가 추가되지만 조합 책임이 한 곳에 모인다.",
+          "명시적 binding과 warning을 통해 authority 혼동을 줄일 수 있다."
+        ],
+        "recommendation": "Round 2의 기본 경로로 채택한다. MCP는 얇은 adapter로 유지한다."
+      },
+      {
+        "name": "MCP 연결 시 harness 파일 자동 설치",
+        "tradeoffs": [
+          "초기 사용법은 짧아 보이지만 사용자 파일을 숨은 시점에 수정한다.",
+          "되돌리기와 신뢰 경계가 불명확해진다."
+        ],
+        "recommendation": "자동 설치하지 않고 preview/install/remove를 명시적 opt-in으로 유지한다."
+      }
+    ],
+    "components": [
+      {
+        "name": "ProjectContextService",
+        "responsibility": "명시적 binding을 바탕으로 code query, Vault retrieval/context-pack, relation, freshness를 조합하고 bounded ProjectContext를 만든다.",
+        "interfaces": [
+          "ProjectContextRequest -> ProjectContext",
+          "repository binding and scope resolution",
+          "authority freshness and warning aggregation",
+          "deterministic evidence budget"
+        ],
+        "dependencies": ["CodeQueryService", "Vault retrieval/context-pack protocols", "ProjectBindingCatalog", "Vault status protocols"]
+      },
+      {
+        "name": "explore_project MCP adapter",
+        "responsibility": "입력 검증, service 호출, 구조화된 output/error serialization, resource link와 text mirror를 담당한다.",
+        "interfaces": [
+          "ExploreProjectInput",
+          "parse_explore_project_input",
+          "structured JSON tool body",
+          "MCP warnings and recovery hints"
+        ],
+        "dependencies": ["ProjectContextService", "MCP scope/error/serialization contracts"]
+      },
+      {
+        "name": "HarnessGuidanceService",
+        "responsibility": "marker-fenced trusted guidance의 preview, atomic install, safe remove, backup, tamper detection을 담당한다.",
+        "interfaces": [
+          "preview/install/remove request and report",
+          "AGENTS.md or CLAUDE.md marker contract",
+          "target and backup path safety"
+        ],
+        "dependencies": ["path guard", "filesystem atomic replacement"]
+      },
+      {
+        "name": "Round 2 verification fixture",
+        "responsibility": "코드·테스트·Vault·binding·stale case를 포함한 deterministic benchmark와 read-only fingerprint gate를 제공한다.",
+        "interfaces": [
+          "baseline versus explore_project metrics",
+          "relevant evidence recall",
+          "stale-result miss count",
+          "authority fingerprint comparison"
+        ],
+        "dependencies": ["pytest", "existing code projection", "existing MCP and project-context services"]
+      }
+    ],
+    "dataFlow": [
+      "registered repository + explicit ProjectBinding -> scope validation",
+      "scope -> code projection/freshness + bounded source URI selection",
+      "scope -> Vault retrieval/context-pack/relation evidence selection",
+      "authority evidence -> provenance/freshness/warning aggregation",
+      "aggregated context -> deterministic budget packing -> JSON/text MCP response",
+      "explicit harness command -> validated non-Vault instruction target -> backup and atomic marker replacement"
+    ],
+    "errorHandling": [
+      {
+        "case": "scope_required, missing binding, or ambiguous repository",
+        "behavior": "Do not guess. Return a stable code, redacted candidate identifiers where safe, and an explicit repository/binding recovery command."
+      },
+      {
+        "case": "code_index_unavailable or partial projection",
+        "behavior": "Return deterministic Vault-only evidence with a first-class warning; never label missing code as fresh."
+      },
+      {
+        "case": "source_changed_since_index or source_unavailable",
+        "behavior": "Return safe source URI metadata and freshness warning without returning stale or unavailable source text."
+      },
+      {
+        "case": "invalid depth, limit, max_tokens, task, or path",
+        "behavior": "Reject at the adapter boundary with a bounded structured error and no filesystem or index write."
+      },
+      {
+        "case": "harness target inside Vault, symlink, backup collision, or tampered marker",
+        "behavior": "Fail closed, preserve the target, and expose a recovery hint; only an explicitly selected safe instruction file may change."
+      }
+    ],
+    "contracts": [
+      {
+        "name": "Authority separation",
+        "rules": [
+          "Vault remains durable knowledge authority and repository remains current code authority.",
+          "Project context, projections, warnings, and harness guidance never become durable Vault knowledge."
+        ]
+      },
+      {
+        "name": "Evidence and privacy",
+        "rules": [
+          "Responses carry evidence IDs, revisions, freshness, and provenance; source bodies are not embedded.",
+          "Absolute filesystem paths are not emitted in MCP payloads or error messages."
+        ]
+      },
+      {
+        "name": "Read-only adapter boundary",
+        "rules": [
+          "MCP and project-context queries do not write Vault, repository, or instruction files.",
+          "Harness writes occur only through explicit preview/install/remove commands with path and marker guards."
+        ]
+      },
+      {
+        "name": "Deterministic bounded output",
+        "rules": [
+          "depth, limit, and max_tokens are bounded at the service boundary.",
+          "Stable ordering and explicit omission warnings make repeated requests reproducible."
+        ]
+      }
+    ],
+    "surfaces": [
+      {
+        "path": "src/vault_graph/project_context/project_context_service.py",
+        "role": "Deep application service that composes code and Vault evidence",
+        "owner": "project_context"
+      },
+      {
+        "path": "src/vault_graph/mcp/mcp_tools.py and src/vault_graph/mcp/mcp_tool_serialization.py",
+        "role": "Thin explore_project input and output adapter",
+        "owner": "mcp"
+      },
+      {
+        "path": "src/vault_graph/harness/harness_guidance.py and src/vault_graph/cli/harness_commands.py",
+        "role": "Explicit reversible coding-harness guidance boundary",
+        "owner": "harness"
+      },
+      {
+        "path": "tests/benchmarks/test_project_context_benchmark.py",
+        "role": "Round 2 prompt/tool-call and stale-result acceptance gate",
+        "owner": "verification"
+      },
+      {
+        "path": "docs/SPEC.md, docs/DESIGN.md, docs/FEATURES.md",
+        "role": "Product and architecture contract for the Round 2 transition",
+        "owner": "documentation"
+      }
+    ],
+    "testingStrategy": [
+      {
+        "command": "uv run pytest tests/test_project_context_service.py tests/test_project_context_models.py tests/test_project_context_scope.py tests/test_project_context_budget.py tests/test_project_context_serialization.py tests/test_project_context_read_only_boundary.py tests/test_project_context_import_boundaries.py tests/test_project_binding_catalog.py tests/test_cli_project_binding.py tests/test_mcp_explore_project.py tests/test_mcp_explore_project_read_only_boundary.py tests/test_harness_guidance.py tests/test_harness_guidance_read_only.py tests/test_setup_harness_guidance.py tests/benchmarks/test_project_context_benchmark.py -q",
+        "expected": "Round 2 focused service, MCP, harness, boundary, and benchmark tests pass."
+      },
+      {
+        "command": "VG_RUN_MCP_STDIO_SMOKE=1 uv run pytest tests/test_mcp_stdio_smoke.py -q",
+        "expected": "The enabled stdio smoke gate passes when the local MCP runtime is available; otherwise the exact dependency-based skip is recorded."
+      },
+      {
+        "command": "uv run pytest -q",
+        "expected": "The complete suite passes without Vault or repository mutation."
+      }
+    ],
+    "validation": [
+      {
+        "command": "uv run ruff check . && uv run ruff format --check . && uv run mypy src",
+        "purpose": "Verify style, formatting, and static typing after the Round 2 transition."
+      },
+      {
+        "command": "uv build && uv lock --check && git diff --check",
+        "purpose": "Verify packaging, lock consistency, and whitespace safety."
+      },
+      {
+        "command": "node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-08-04-vault-graph-round-2-mcp-coding-harness-design.spec.json",
+        "purpose": "Verify the Stenc JSON source contract."
+      }
+    ],
+    "agentInstructions": [
+      "Read docs/SPEC.md, docs/DESIGN.md, docs/FEATURES.md, and this JSON before changing Round 2 behavior.",
+      "Keep MCP and project-context modules as adapters over deep application services; never add direct backend access to the adapter.",
+      "Treat missing, stale, partial, and inferred evidence as visible states rather than silently repairing or publishing them.",
+      "Do not use Superpowers workflows, mutate remote branches, or push without an explicit user instruction."
+    ],
+    "reviewChecklist": [
+      "The proposed flow reduces orchestration without introducing a second source of truth.",
+      "Every code and Vault item retains authority, provenance, revision, and freshness identity.",
+      "MCP, context, benchmark, and harness paths preserve read-only behavior and bounded output.",
+      "Harness guidance is explicit, reversible, and limited to a safe user-selected instruction file.",
+      "Round 2 acceptance is backed by deterministic evidence rather than a qualitative prompt claim."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Source authority",
+        "purpose": "Confirm that Vault and registered repositories remain the only durable authorities."
+      },
+      {
+        "name": "Deep module boundary",
+        "purpose": "Confirm that ProjectContextService owns composition while MCP and CLI remain thin."
+      },
+      {
+        "name": "Read-only safety",
+        "purpose": "Confirm query, fallback, and MCP paths cannot write Vault or repository content."
+      },
+      {
+        "name": "Agent ergonomics",
+        "purpose": "Confirm the one-call workflow reduces prompts/tool calls without hiding warnings or scope."
+      }
+    ],
+    "implementationHandoff": {
+      "planLocation": "docs/stenc/content/plans/2026-08-04-vault-graph-round-2-mcp-coding-harness.plan.json",
+      "requiredSkill": "vg-code",
+      "notes": [
+        "This document is the Round 2 contract. Implementation or closeout work should use the existing vg-code workflow and direct review checkpoints.",
+        "No Superpowers workflow is used; JSON and generated Stenc pages remain the canonical documentation surfaces."
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Round 2 transition status",
+        "content": "The current worktree contains the core Round 2 implementation and the contract has been reconciled with it. Focused and full verification gates pass; the remaining action is a user-controlled commit or release decision.",
+        "items": [
+          "ProjectContextService and explicit project binding are implemented.",
+          "explore_project and read-only boundary tests are implemented.",
+          "Harness guidance preview/install/remove and benchmark thresholds are implemented.",
+          "Round 2 release status remains separate from main merge and remote push.",
+          "No implementation gap was found during the current contract review."
+        ],
+        "facts": [
+          {
+            "label": "Stenc release",
+            "value": "0.4.1 renderer and validator"
+          },
+          {
+            "label": "Round 2 gate",
+            "value": "94 focused tests, 1149 full-suite tests, and MCP stdio smoke verified"
+          },
+          {
+            "label": "Authority rule",
+            "value": "Vault and registered repository remain separate sources of truth"
+          }
+        ],
+        "links": [],
+        "steps": [],
+        "blocks": [
+          {
+            "type": "callout",
+            "tone": "info",
+            "title": "Round 2 focus",
+            "body": "One bounded explore_project flow reduces prompt and tool orchestration without copying source bodies or creating another authority."
+          },
+          {
+            "type": "flowDiagram",
+            "title": "Project context flow",
+            "summary": "An explicit project scope becomes bounded, evidence-linked working context.",
+            "nodes": [
+              {
+                "id": "mcp-request",
+                "label": "MCP request",
+                "detail": "Validate task, repository scope, depth, limit, and token budget.",
+                "role": "consumer"
+              },
+              {
+                "id": "binding-check",
+                "label": "Binding check",
+                "detail": "Resolve one registered repository and its explicit Vault authorities.",
+                "role": "boundary"
+              },
+              {
+                "id": "context-service",
+                "label": "ProjectContextService",
+                "detail": "Compose code, tests, impact, Vault evidence, relations, and freshness.",
+                "role": "engine"
+              },
+              {
+                "id": "budget-pack",
+                "label": "Budgeted context",
+                "detail": "Apply deterministic ordering, truncation, provenance, and warnings.",
+                "role": "value"
+              },
+              {
+                "id": "agent-response",
+                "label": "Agent response",
+                "detail": "Return structured evidence, safe source URIs, and recovery hints.",
+                "role": "surface"
+              }
+            ],
+            "edges": [
+              {
+                "from": "mcp-request",
+                "to": "binding-check",
+                "label": "scopes"
+              },
+              {
+                "from": "binding-check",
+                "to": "context-service",
+                "label": "authorizes"
+              },
+              {
+                "from": "context-service",
+                "to": "budget-pack",
+                "label": "composes"
+              },
+              {
+                "from": "budget-pack",
+                "to": "agent-response",
+                "label": "renders"
+              }
+            ]
+          }
+        ],
+        "codeBlocks": [],
+        "subSections": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

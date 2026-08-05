@@ -173,13 +173,13 @@ def _link_entities(*, chunk: ChunkSnapshot, context: GraphExtractionContext) -> 
             )
             continue
         occurrences.append(
-                _document_entity(
-                    chunk=chunk,
-                    document=target,
-                    extraction_method="local-link-target-document-v1",
-                    use_evidence_heading=False,
-                )
+            _document_entity(
+                chunk=chunk,
+                document=target,
+                extraction_method="local-link-target-document-v1",
+                use_evidence_heading=False,
             )
+        )
     return tuple(occurrences)
 
 

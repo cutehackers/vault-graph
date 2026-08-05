@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from vault_graph.harness.harness_guidance import HarnessGuidanceError, HarnessGuidanceRequest, HarnessGuidanceService
+
+
+def test_preview_does_not_write_instruction_or_backup(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    report = HarnessGuidanceService(vault_roots=(tmp_path / "vault",)).preview(
+        HarnessGuidanceRequest(target=project, file_name="AGENTS.md")
+    )
+
+    assert report.changed is True
+    assert report.preview is True
+    assert not (project / "AGENTS.md").exists()
+    assert not (project / "AGENTS.md.install.bak").exists()
+
+
+def test_guidance_rejects_targets_inside_vault_and_symlink_paths(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(outside, target_is_directory=True)
+    service = HarnessGuidanceService(vault_roots=(vault,))
+
+    with pytest.raises(HarnessGuidanceError, match="harness_guidance_target_inside_vault"):
+        service.install(HarnessGuidanceRequest(target=vault, file_name="AGENTS.md"))
+    with pytest.raises(HarnessGuidanceError, match="harness_guidance_symlink_not_allowed"):
+        service.install(HarnessGuidanceRequest(target=link, file_name="AGENTS.md"))
+
+
+def test_atomic_write_converts_temporary_file_errors_to_domain_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    def fail_mkstemp(**_: object) -> tuple[int, str]:
+        raise OSError("temporary directory is not writable")
+
+    monkeypatch.setattr("vault_graph.harness.harness_guidance.tempfile.mkstemp", fail_mkstemp)
+
+    with pytest.raises(HarnessGuidanceError, match="harness_guidance_write_failed"):
+        HarnessGuidanceService(vault_roots=(tmp_path / "vault",)).install(
+            HarnessGuidanceRequest(target=project, file_name="AGENTS.md")
+        )
+
+
+def test_harness_service_without_vault_scope_rejects_instruction_operations(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+
+    with pytest.raises(HarnessGuidanceError, match="harness_guidance_vault_scope_required"):
+        HarnessGuidanceService(vault_roots=()).preview(HarnessGuidanceRequest(target=project, file_name="AGENTS.md"))
+
+    assert list(project.iterdir()) == []

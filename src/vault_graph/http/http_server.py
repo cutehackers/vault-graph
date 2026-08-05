@@ -33,7 +33,7 @@ def create_http_app(
     from fastapi.responses import JSONResponse
 
     app = FastAPI(title="Vault Graph", version=__version__)
-    services_factory = service_factory or HttpServiceFactory(state_path=config.state_path)
+    services_factory = service_factory or HttpServiceFactory(graph_home_path=config.graph_home_path)
     explanation_cache = result_explanation_cache or ResultExplanationCache(max_entries=256)
     explain_result_service = ExplainResultService(cache=explanation_cache)
 

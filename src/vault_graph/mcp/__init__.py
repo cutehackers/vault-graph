@@ -23,6 +23,7 @@ __all__ = [
     "CachedExplanation",
     "ContextPackResourceCache",
     "ExplainResultInput",
+    "ExploreProjectInput",
     "GetOpenQuestionsInput",
     "GetRecentChangesInput",
     "ResultExplanationCache",
@@ -34,6 +35,7 @@ __all__ = [
     "map_exception_to_mcp_error",
     "parse_mcp_resource_uri",
     "parse_explain_result_input",
+    "parse_explore_project_input",
     "parse_get_open_questions_input",
     "parse_get_recent_changes_input",
     "parse_summarize_project_memory_input",
@@ -110,6 +112,7 @@ def __getattr__(name: str) -> Any:
         }[name]
     if name in {
         "ExplainResultInput",
+        "ExploreProjectInput",
         "GetOpenQuestionsInput",
         "GetRecentChangesInput",
         "McpResourceLink",
@@ -117,6 +120,7 @@ def __getattr__(name: str) -> Any:
         "McpToolRegistry",
         "SummarizeProjectMemoryInput",
         "parse_explain_result_input",
+        "parse_explore_project_input",
         "parse_get_open_questions_input",
         "parse_get_recent_changes_input",
         "parse_summarize_project_memory_input",
@@ -124,6 +128,7 @@ def __getattr__(name: str) -> Any:
     }:
         from vault_graph.mcp.mcp_tools import (
             ExplainResultInput,
+            ExploreProjectInput,
             GetOpenQuestionsInput,
             GetRecentChangesInput,
             McpResourceLink,
@@ -131,6 +136,7 @@ def __getattr__(name: str) -> Any:
             McpToolRegistry,
             SummarizeProjectMemoryInput,
             parse_explain_result_input,
+            parse_explore_project_input,
             parse_get_open_questions_input,
             parse_get_recent_changes_input,
             parse_summarize_project_memory_input,
@@ -139,6 +145,7 @@ def __getattr__(name: str) -> Any:
 
         return {
             "ExplainResultInput": ExplainResultInput,
+            "ExploreProjectInput": ExploreProjectInput,
             "GetOpenQuestionsInput": GetOpenQuestionsInput,
             "GetRecentChangesInput": GetRecentChangesInput,
             "McpResourceLink": McpResourceLink,
@@ -146,6 +153,7 @@ def __getattr__(name: str) -> Any:
             "McpToolRegistry": McpToolRegistry,
             "SummarizeProjectMemoryInput": SummarizeProjectMemoryInput,
             "parse_explain_result_input": parse_explain_result_input,
+            "parse_explore_project_input": parse_explore_project_input,
             "parse_get_open_questions_input": parse_get_open_questions_input,
             "parse_get_recent_changes_input": parse_get_recent_changes_input,
             "parse_summarize_project_memory_input": parse_summarize_project_memory_input,

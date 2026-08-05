@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240" role="img" aria-labelledby="title desc">
+  <title id="title">Stenc canonical document flow</title>
+  <desc id="desc">Structured JSON moves through validation into a fixed rendered page.</desc>
+  <rect width="640" height="240" fill="#f2f4f6"/>
+  <rect x="40" y="80" width="140" height="80" rx="14" fill="#ffffff" stroke="#d8dee6" stroke-width="2"/>
+  <rect x="250" y="80" width="140" height="80" rx="14" fill="#ffffff" stroke="#d8dee6" stroke-width="2"/>
+  <rect x="460" y="80" width="140" height="80" rx="14" fill="#ffffff" stroke="#d8dee6" stroke-width="2"/>
+  <path d="M180 120h70M390 120h70" stroke="#1769c2" stroke-width="4" fill="none"/>
+  <text x="110" y="127" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" fill="#191f28">JSON</text>
+  <text x="320" y="127" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" fill="#191f28">Validate</text>
+  <text x="530" y="127" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" fill="#191f28">Render</text>
+</svg>

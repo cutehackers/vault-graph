@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -30,38 +31,38 @@ def test_index_commands_do_not_modify_vault_files(tmp_path: Path, monkeypatch: M
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)
     (vault_root / "wiki" / "page.md").write_text("---\ntitle: Page\n---\n# Page\nBody\n", encoding="utf-8")
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     runner = CliRunner()
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
     before = file_bytes(vault_root)
 
-    dry_run = runner.invoke(app, ["index", "--state", str(state_path), "--dry-run"])
-    apply = runner.invoke(app, ["index", "--state", str(state_path)])
+    dry_run = runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--dry-run"])
+    apply = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
     assert dry_run.exit_code == 0
     assert apply.exit_code == 0
     assert file_bytes(vault_root) == before
 
 
-def test_init_rejects_state_path_inside_vault(tmp_path: Path) -> None:
+def test_init_rejects_graph_home_path_inside_vault(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = vault_root / ".vault-graph"
+    graph_home_path = vault_root / ".vault-graph"
     runner = CliRunner()
 
-    result = runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    result = runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
     assert result.exit_code != 0
-    assert "Vault Graph state path must not be inside a registered Vault" in result.stdout
-    assert not state_path.exists()
+    assert "Vault Graph Data Home must not be inside a registered Vault" in result.stdout
+    assert not graph_home_path.exists()
 
 
-def test_index_rejects_loaded_catalog_when_state_path_is_inside_vault(tmp_path: Path) -> None:
+def test_index_rejects_loaded_catalog_when_graph_home_path_is_inside_vault(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = vault_root / ".vault-graph"
-    (state_path / "configs").mkdir(parents=True)
-    (state_path / "configs" / "vaults.yaml").write_text(
+    graph_home_path = vault_root / ".vault-graph"
+    (graph_home_path / "configs").mkdir(parents=True)
+    (graph_home_path / "configs" / "vaults.yaml").write_text(
         "\n".join(
             [
                 "active_vault_id: default",
@@ -79,40 +80,41 @@ def test_index_rejects_loaded_catalog_when_state_path_is_inside_vault(tmp_path: 
     )
     runner = CliRunner()
 
-    result = runner.invoke(app, ["index", "--state", str(state_path)])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
     assert result.exit_code != 0
-    assert "Vault Graph state path must not be inside a registered Vault" in result.stdout
-    assert not (state_path / "metadata").exists()
+    assert "legacy_data_home_detected" in result.stdout
+    assert not (graph_home_path / "metadata").exists()
 
 
 def test_init_rejects_config_symlink_redirect_into_vault(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     (vault_root / "docs").mkdir(parents=True)
-    state_path = tmp_path / "state"
-    state_path.mkdir()
-    (state_path / "configs").symlink_to(vault_root / "docs", target_is_directory=True)
+    graph_home_path = tmp_path / "state"
+    graph_home_path.mkdir()
+    (graph_home_path / "configs").symlink_to(vault_root / "docs", target_is_directory=True)
     runner = CliRunner()
 
-    result = runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    result = runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
     assert result.exit_code != 0
-    assert "Vault Graph write target must stay inside the state path" in result.stdout
+    assert "Vault Graph write target must stay inside the Data Home" in result.stdout
 
 
 def test_index_rejects_metadata_symlink_redirect_into_vault(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)
     (vault_root / "wiki" / "page.md").write_text("# Page\n", encoding="utf-8")
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     runner = CliRunner()
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
-    (state_path / "metadata").symlink_to(vault_root / "wiki", target_is_directory=True)
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
+    shutil.rmtree(graph_home_path / "projections" / "generations")
+    (graph_home_path / "projections" / "generations").symlink_to(vault_root / "wiki", target_is_directory=True)
 
-    result = runner.invoke(app, ["index", "--state", str(state_path)])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
     assert result.exit_code != 0
-    assert "Vault Graph write target must stay inside the state path" in result.stdout
+    assert "projection generation path" in result.stdout
     assert not (vault_root / "wiki" / "metadata.sqlite3").exists()
 
 
@@ -120,16 +122,16 @@ def test_status_with_graph_readiness_does_not_modify_vault_or_create_graph_state
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)
     (vault_root / "wiki" / "page.md").write_text("# Page\nBody\n", encoding="utf-8")
-    state_path = tmp_path / "state"
+    graph_home_path = tmp_path / "state"
     runner = CliRunner()
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
     before = file_bytes(vault_root)
 
-    result = runner.invoke(app, ["status", "--state", str(state_path)])
+    result = runner.invoke(app, ["status", "--graph-home", str(graph_home_path)])
 
     assert result.exit_code == 0
     assert file_bytes(vault_root) == before
-    assert not (state_path / "metadata").exists()
-    assert not (state_path / "vector").exists()
-    assert not (state_path / "graph").exists()
-    assert not (state_path / "projection_cache").exists()
+    assert not (graph_home_path / "metadata").exists()
+    assert not (graph_home_path / "vector").exists()
+    assert not (graph_home_path / "graph").exists()
+    assert not (graph_home_path / "projection_cache").exists()

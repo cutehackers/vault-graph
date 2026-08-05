@@ -8,8 +8,11 @@ from typing import Literal
 from vault_graph.errors import (
     CatalogError,
     ContextPackError,
+    DataHomeManifestError,
+    DataHomeNotInitializedError,
     GraphStoreError,
     KeywordIndexError,
+    LegacyDataHomeDetectedError,
     MemoryProjectionError,
     ReadOnlyBoundaryError,
     ResultExplanationError,
@@ -44,20 +47,47 @@ def map_exception_to_mcp_error(
     exc: Exception,
     *,
     affected_vault_ids: tuple[str, ...] = (),
-    user_state_path: Path | None = None,
+    user_graph_home_path: Path | None = None,
 ) -> McpProtocolError:
+    if isinstance(exc, DataHomeNotInitializedError):
+        return _error(
+            "execution",
+            "data_home_not_initialized",
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
+            affected_vault_ids,
+            recovery_hint="Run `vg setup --vault PATH --graph-home PATH` before starting the MCP server.",
+        )
+    if isinstance(exc, LegacyDataHomeDetectedError):
+        return _error(
+            "execution",
+            "legacy_data_home_detected",
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
+            affected_vault_ids,
+            recovery_hint=(
+                "Choose a new --graph-home PATH or move the rebuildable pre-release directory aside, "
+                "then run `vg setup --vault PATH --graph-home PATH`."
+            ),
+        )
+    if isinstance(exc, DataHomeManifestError):
+        return _error(
+            "execution",
+            _code_for_domain_error(exc),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
+            affected_vault_ids,
+            recovery_hint="Inspect the Data Home path with `vg status --graph-home PATH` and rerun setup if needed.",
+        )
     if isinstance(exc, CatalogError):
         return _error(
             "invalid_parameter",
             "catalog_error",
-            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
             affected_vault_ids,
         )
     if isinstance(exc, ReadOnlyBoundaryError):
         return _error(
             "execution",
             "read_only_boundary_error",
-            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
             affected_vault_ids,
         )
     if isinstance(exc, GraphStoreError):
@@ -65,21 +95,21 @@ def map_exception_to_mcp_error(
         return _error(
             _kind_for_domain_code(code),
             code,
-            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
             affected_vault_ids,
         )
     if isinstance(exc, (KeywordIndexError, VectorStoreError, TextEmbeddingsError)):
         return _error(
             "execution",
             _code_for_domain_error(exc),
-            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
             affected_vault_ids,
         )
     if isinstance(exc, (SearchError, ContextPackError)):
         return _error(
             "execution",
             _code_for_domain_error(exc),
-            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
             affected_vault_ids,
         )
     if isinstance(exc, ResultExplanationError):
@@ -87,7 +117,7 @@ def map_exception_to_mcp_error(
         return _error(
             _kind_for_domain_code(code),
             code,
-            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
             affected_vault_ids,
             recovery_hint=(
                 "Rerun the original MCP tool and pass a result_id from the new response."
@@ -100,22 +130,22 @@ def map_exception_to_mcp_error(
         return _error(
             _kind_for_domain_code(code),
             code,
-            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
             affected_vault_ids,
         )
     if isinstance(exc, VaultGraphError):
         return _error(
             "execution",
             _code_for_domain_error(exc),
-            _sanitize_error_message(str(exc), user_state_path=user_state_path),
+            _sanitize_error_message(str(exc), user_graph_home_path=user_graph_home_path),
             affected_vault_ids,
         )
     return _error(
         "internal",
         "internal_error",
-        _sanitize_internal_message(exc, user_state_path=user_state_path),
+        _sanitize_internal_message(exc, user_graph_home_path=user_graph_home_path),
         affected_vault_ids,
-        recovery_hint="Check stderr logs and rerun the command with the same --state path.",
+        recovery_hint="Check stderr logs and rerun the command with the same --graph-home path.",
     )
 
 
@@ -156,6 +186,13 @@ def _code_for_domain_error(exc: Exception) -> str:
             "resource_not_available",
             "result_explanation_not_found",
             "invalid_result_id",
+            "data_home_not_initialized",
+            "legacy_data_home_detected",
+            "data_home_manifest_invalid",
+            "data_home_manifest_incompatible",
+            "data_home_manifest_identity_mismatch",
+            "data_home_generation_invalid",
+            "data_home_path_invalid",
         }:
             return prefix
     name = exc.__class__.__name__
@@ -179,18 +216,18 @@ def _kind_for_domain_code(code: str) -> McpProtocolErrorKind:
     return "execution"
 
 
-def _sanitize_internal_message(exc: Exception, *, user_state_path: Path | None) -> str:
+def _sanitize_internal_message(exc: Exception, *, user_graph_home_path: Path | None) -> str:
     text = str(exc)
-    sanitized = _sanitize_error_message(text, user_state_path=user_state_path)
+    sanitized = _sanitize_error_message(text, user_graph_home_path=user_graph_home_path)
     return sanitized if sanitized != text else "unexpected MCP server error"
 
 
-def _sanitize_error_message(message: str, *, user_state_path: Path | None) -> str:
-    allowed_state = str(user_state_path.expanduser().resolve()) if user_state_path is not None else None
+def _sanitize_error_message(message: str, *, user_graph_home_path: Path | None) -> str:
+    allowed_graph_home = str(user_graph_home_path.expanduser().resolve()) if user_graph_home_path is not None else None
 
     def replace(match: re.Match[str]) -> str:
         path = match.group("path")
-        if allowed_state is not None and (path == allowed_state or path.startswith(f"{allowed_state}/")):
+        if allowed_graph_home is not None and (path == allowed_graph_home or path.startswith(f"{allowed_graph_home}/")):
             return path
         return "<redacted-path>"
 

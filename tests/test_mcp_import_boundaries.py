@@ -18,7 +18,11 @@ for name in (
     'vault_graph.retrieval.retrieval_service',
     'vault_graph.storage.local.chroma_vector_store',
     'vault_graph.projection.rustworkx_projection',
+    'vault_graph.project_context.project_context_service',
+    'vault_graph.app.code_index_factory',
     'rustworkx',
+    'vault_graph.app.code_index_factory',
+    'vault_graph.project_context.project_context_service',
 ):
     if name in sys.modules:
         raise SystemExit(name)

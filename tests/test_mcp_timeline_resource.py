@@ -19,12 +19,12 @@ runner = CliRunner()
 def test_timeline_recent_resource_returns_single_vault_json(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
     document = make_document("default", "wiki/page.md", "hash")
-    store = SQLiteMetadataStore(state_path / "metadata" / "metadata.sqlite3", initialize=True)
+    store = SQLiteMetadataStore(graph_home_path / "metadata" / "metadata.sqlite3", initialize=True)
     store.apply_metadata_revision(index_revision="metadata-1", documents=[document], chunks=[], tombstones=[])
-    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+    registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
     body = registered.resource_registry.read(McpResourceRequest(uri="vault://default/timeline/recent"))
 
@@ -38,9 +38,9 @@ def test_timeline_recent_resource_returns_single_vault_json(tmp_path: Path) -> N
 def test_timeline_recent_resource_maps_metadata_errors_to_vault_scoped_mcp_error(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)]).exit_code == 0
-    registered = create_mcp_server(McpServerConfig(state_path=state_path))
+    graph_home_path = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)]).exit_code == 0
+    registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
     with pytest.raises(McpProtocolError) as exc_info:
         registered.resource_registry.read(McpResourceRequest(uri="vault://default/timeline/recent"))

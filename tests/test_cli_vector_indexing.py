@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.test_vector_indexer import SPEC
+from vault_graph.app.projection_generation import ProjectionGenerationManager
 from vault_graph.cli.main import app
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.errors import TextEmbeddingsError
@@ -30,6 +31,10 @@ def _failing_text_embeddings(_: object) -> _FailingTextEmbeddings:
     return _FailingTextEmbeddings(SPEC)
 
 
+def _deterministic_text_embeddings(_: object) -> _ConfiguredDeterministicTextEmbeddings:
+    return _ConfiguredDeterministicTextEmbeddings(SPEC)
+
+
 def write_page(root: Path, path: str, body: str) -> None:
     file_path = root / path
     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -39,30 +44,30 @@ def write_page(root: Path, path: str, body: str) -> None:
 def test_cli_index_dry_run_reports_vector_plan_without_writes(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["index", "--state", str(state_path), "--dry-run"])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--dry-run"])
 
     assert result.exit_code == 0
     assert "vector_mode: incremental" in result.stdout
     assert "vector_upserts: 1" in result.stdout
     assert "embedding_batch_size: 256" in result.stdout
-    assert not (state_path / "metadata").exists()
-    assert not (state_path / "vector").exists()
+    assert not (graph_home_path / "metadata").exists()
+    assert not (graph_home_path / "vector").exists()
 
 
 def test_cli_index_dry_run_does_not_initialize_existing_empty_chroma_path(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    (state_path / "vector" / "chroma").mkdir(parents=True)
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    (graph_home_path / "vector" / "chroma").mkdir(parents=True)
 
-    result = runner.invoke(app, ["index", "--state", str(state_path), "--dry-run"])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path), "--dry-run"])
 
     assert result.exit_code == 0
-    assert not (state_path / "vector" / "chroma" / "chroma.sqlite3").exists()
+    assert not (graph_home_path / "vector" / "chroma" / "chroma.sqlite3").exists()
 
 
 def test_cli_index_returns_nonzero_when_vector_step_fails(
@@ -72,25 +77,53 @@ def test_cli_index_returns_nonzero_when_vector_step_fails(
     monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _failing_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["index", "--state", str(state_path)])
+    result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
     assert result.exit_code == 1
     assert "index_revision: metadata-" in result.stdout
     assert "vector_failed: True" in result.stdout
     assert "vector_last_error: model unavailable" in result.stdout
-    assert (state_path / "metadata" / "metadata.sqlite3").exists()
+    assert ProjectionGenerationManager(graph_home_path).active_layout() is None
+
+
+def test_failed_incremental_index_keeps_previous_projection_generation(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    vault_root = tmp_path / "vault"
+    write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+
+    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    first_result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
+    assert first_result.exit_code == 0
+    manager = ProjectionGenerationManager(graph_home_path)
+    first = manager.active_layout()
+    assert first is not None
+
+    write_page(vault_root, "wiki/page.md", "# Page\nChanged\n")
+    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _failing_text_embeddings)
+    failed_result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
+
+    assert failed_result.exit_code == 1
+    assert manager.active_layout() == first
+    assert tuple(path for path in (graph_home_path / "projections" / "generations").iterdir()) == (first.root_path,)
+    diagnostics = tuple((graph_home_path / "runs").glob("projection-run-*.json"))
+    assert diagnostics
+    assert any('"status": "failed"' in path.read_text(encoding="utf-8") for path in diagnostics)
 
 
 def test_cli_status_reports_vector_fields(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["status", "--state", str(state_path)])
+    result = runner.invoke(app, ["status", "--graph-home", str(graph_home_path)])
 
     assert result.exit_code == 0
     assert "vector_ok:" in result.stdout
@@ -106,12 +139,12 @@ def test_cli_status_supports_vault_scope_flags(tmp_path: Path) -> None:
     second = tmp_path / "second"
     first.mkdir()
     second.mkdir()
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault-id", "first", "--vault", str(first), "--state", str(state_path)])
-    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault-id", "first", "--vault", str(first), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["vault", "add", "second", "--path", str(second), "--graph-home", str(graph_home_path)])
 
-    one = runner.invoke(app, ["status", "--state", str(state_path), "--vault-id", "second"])
-    all_vaults = runner.invoke(app, ["status", "--state", str(state_path), "--all-vaults"])
+    one = runner.invoke(app, ["status", "--graph-home", str(graph_home_path), "--vault-id", "second"])
+    all_vaults = runner.invoke(app, ["status", "--graph-home", str(graph_home_path), "--all-vaults"])
 
     assert one.exit_code == 0
     assert "vector_status_scope: second:" in one.stdout

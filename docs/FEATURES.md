@@ -21,7 +21,8 @@ Round 0-G makes that boundary measurable: `vg search` defaults to
 `--mode knowledge`, while `evidence`, `operating`, `audit`, and `all` provide
 explicit drill-down. Results carry provenance-family IDs and compact supporting
 references. `vg projection-audit` reports plaintext amplification, role counts,
-schema versions, and dangling keyword/vector/graph references.
+schema versions, dangling keyword/vector/graph references, active bundle
+capabilities, source-snapshot identity, and component revisions.
 
 It can:
 
@@ -49,7 +50,8 @@ or local HTTP acceptance tests.
 
 | Feature | CLI | MCP Tool | MCP Resource | Output |
 | --- | --- | --- | --- | --- |
-| Initialize Vault Graph | `vg init --vault /path/to/vault` | - | - | Default Vault path and state setup |
+| First-run onboarding | `vg setup --vault PATH --agent codex --mcp` | - | - | One Data Home, Vault registration, baseline index, MCP config, readiness and recovery hints |
+| Initialize Vault Graph | `vg init --vault /path/to/vault` | - | - | Default Vault path and Data Home setup |
 | Register Vault | `vg vault add ID --path /path/to/vault`, `vg vault list` | - | - | Vault catalog entries |
 | Index Vault | `vg index`, `vg index --vault-id ID`, `vg index --all-vaults`, `vg index --full`, `vg index --dry-run` | - | - | Index revision, change plan, warnings |
 | Watch Vault | `vg watch` | - | - | Continuous index refresh |
@@ -63,6 +65,11 @@ or local HTTP acceptance tests.
 | Get Open Questions | - | `get_open_questions(scope=None, limit=20)` | `vault://{vault_id}/issues/{id}` | Open questions and unresolved follow-ups |
 | Get Recent Changes | - | `get_recent_changes(since=None, scope=None, limit=20)` | `vault://{vault_id}/timeline/recent` | Recent indexed document snapshot and projection changes |
 | Explain Result | - | `explain_result(result_id)` | - | Retrieval reason, evidence, scores, warnings |
+| Register Code Repository | `vg code repository add ID --path PATH --language LANGUAGE` | - | - | Read-only repository catalog entry |
+| Index And Query Code | `vg code index`, `vg code search`, `vg code symbol`, `vg code outline`, `vg code callers`, `vg code callees`, `vg code impact` | - | `vg-source://{repository_id}/{path}#L{start}-L{end}` | Bounded symbols, source links, traversal, freshness warnings |
+| Bind Project Authorities | `vg project bind REPOSITORY_ID --vault-id ID`, `vg project bindings` | - | - | Explicit Graph-owned repository-to-Vault selection |
+| Explore Project | - | `explore_project(task, project_path=None, repository_id=None, max_tokens=None, depth=2, limit=20)` | repository and Vault evidence links | Bounded code, tests, impact, Vault evidence, revisions, freshness, warnings |
+| Install Harness Guidance | `vg harness guidance preview/install/remove` | - | - | Explicit marker-fenced `AGENTS.md` or `CLAUDE.md` guidance outside Vault |
 | Serve MCP | `vg serve --mcp` | - | all MCP resources | MCP server for agents |
 | Serve HTTP | `vg serve --http` | - | - | HTTP access surface |
 
@@ -130,6 +137,38 @@ tools are registered because their backing application services now exist.
 Future MCP tools must follow the same rule and stay out of the surface until a
 stable application-service boundary exists.
 
+`explore_project` is the preferred coding entry point. It requires a registered
+repository and an explicit Graph-owned binding to one or more Vaults; it never
+guesses an active Vault. When code indexing is unavailable, it returns a
+deterministic Vault-only result with a visible warning rather than stale code.
+
+## Code And Project Context Features
+
+Code projection is read-only and rebuildable. Register a repository, index it,
+and bind it explicitly to the Vault authority that carries its durable project
+knowledge:
+
+```bash
+vg code repository add demo --path /path/to/repository --language python --language dart
+vg code index --repository-id demo
+vg project bind demo --vault-id main --scope wiki
+vg code impact calculate_total --repository-id demo
+```
+
+Code links identify bounded current lines through `vg-source://` URIs. They do
+not embed source bodies in stored projections or MCP output. `vg code status
+--verify` reports drift; stale, partial, or unavailable results remain visible
+as warnings.
+
+For an agent connected through MCP, call `explore_project` first. It combines
+current code structure, impact and related tests with bounded relevant Vault
+evidence. The response remains working evidence: confirm changed source lines
+before editing, and publish durable conclusions only through the Vault workflow.
+
+Harness guidance is an explicit opt-in command. It only changes the selected
+non-Vault `AGENTS.md` or `CLAUDE.md`, previews before mutation when requested,
+backs up the original before a write, and can remove only its own marker block.
+
 ## Evidence-First Ask And Reasoning
 
 `vg ask` and `ask_vault` are current core product capabilities. They make
@@ -163,6 +202,28 @@ The implementation value is:
 
 ## CLI Features
 
+### First-run onboarding
+
+The supported first-run path is:
+
+```bash
+vg setup --vault /path/to/vault --agent codex --mcp
+vg status
+```
+
+`setup` creates the canonical `~/.vault-graph` Data Home (or the explicit
+`--graph-home` path), registers the Vault, publishes the baseline projection,
+and writes the normalized absolute MCP configuration path. Re-running setup for
+the same Vault ID and root is idempotent: it updates the existing catalog entry
+and generation instead of creating another Data Home. `--dry-run` performs the
+same preflight without writing the Data Home, Vault, or agent configuration.
+
+Vault Graph is pre-release. If setup detects a known legacy Data Home layout, it
+returns `legacy_data_home_detected` and does not read, merge, copy, or modify
+the old derived files. Choose a new `--graph-home` (or move the rebuildable
+directory aside) and rerun setup to rebuild from Vault. There is no migration
+command in the first release.
+
 ### Initialize
 
 ```bash
@@ -172,10 +233,10 @@ vg vault add work --path /path/to/other-vault
 vg vault list
 ```
 
-Configures one or more Vault roots and the Vault Graph state location. If no
+Configures one or more Vault roots and the Vault Graph Data Home location. If no
 Vault ID is provided, `vg init --vault /path/to/vault` creates the active entry
 with `vault_id: default`. Commands should be explicit about which Vault ID,
-Vault path, and index state path they use.
+Vault path, and Vault Graph Data Home path they use.
 
 Commands that support Vault selection use the active Vault by default.
 `--vault-id ID` selects one Vault. `--all-vaults` expands to all enabled Vault
@@ -245,7 +306,7 @@ Reports operational status.
 The status surface should show:
 
 - configured Vault IDs and paths
-- configured index state path
+- configured Vault Graph Data Home path
 - backend health
 - schema compatibility
 - index revision freshness
@@ -258,6 +319,9 @@ The status surface should show:
   `GraphExtractionSpec`, graph revisions by Vault/actual scope, stale graph
   record counts, tombstone counts, last graph failure, and graph projection cache
   freshness
+- active generation identity, projection bundle validity, enabled component
+  capabilities, common source-snapshot identity, and component revisions
+- projection recovery hints when no active bundle exists or a publication failed
 - stale or invalid vector/graph cache warnings
 
 By default, freshness fields use the active Vault. `--vault-id ID` reports one

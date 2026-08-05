@@ -17,15 +17,15 @@ def write_page(root: Path, path: str, body: str) -> None:
 def test_search_missing_indexes_does_not_create_metadata_or_vector_state(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "Body"])
+    result = runner.invoke(app, ["search", "--graph-home", str(graph_home_path), "Body"])
 
     assert result.exit_code == 1
-    assert not (state_path / "metadata" / "metadata.sqlite3").exists()
-    assert not (state_path / "vector" / "chroma" / "chroma.sqlite3").exists()
-    assert not (state_path / "vector" / "status.json").exists()
+    assert not (graph_home_path / "metadata" / "metadata.sqlite3").exists()
+    assert not (graph_home_path / "vector" / "chroma" / "chroma.sqlite3").exists()
+    assert not (graph_home_path / "vector" / "status.json").exists()
 
 
 def test_successful_search_does_not_mutate_existing_state_or_vault(
@@ -38,17 +38,17 @@ def test_successful_search_does_not_mutate_existing_state_or_vault(
     monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
-    state_path = tmp_path / "state"
-    runner.invoke(app, ["init", "--vault", str(vault_root), "--state", str(state_path)])
-    runner.invoke(app, ["index", "--state", str(state_path)])
+    graph_home_path = tmp_path / "state"
+    runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
     before_vault = _tree_snapshot(vault_root)
-    before_state = _tree_snapshot(state_path)
+    before_state = _tree_snapshot(graph_home_path)
 
-    result = runner.invoke(app, ["search", "--state", str(state_path), "GraphRAG"])
+    result = runner.invoke(app, ["search", "--graph-home", str(graph_home_path), "GraphRAG"])
 
     assert result.exit_code == 0
     assert _tree_snapshot(vault_root) == before_vault
-    assert _tree_snapshot(state_path) == before_state
+    assert _tree_snapshot(graph_home_path) == before_state
 
 
 def _tree_snapshot(root: Path) -> dict[str, tuple[int, bytes]]:

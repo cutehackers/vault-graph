@@ -167,8 +167,7 @@ def _render_item(item: ContextPackItem) -> list[str]:
     lines = [
         f"- **{_markdown_text(item.title)}**",
         f"  - Summary: {_markdown_text(item.summary)}",
-        "  - Evidence: "
-        + ", ".join(_markdown_code_span(_evidence_ref_label(ref)) for ref in item.evidence_refs),
+        "  - Evidence: " + ", ".join(_markdown_code_span(_evidence_ref_label(ref)) for ref in item.evidence_refs),
     ]
     if item.warnings:
         lines.append("  - Warnings:")

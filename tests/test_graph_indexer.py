@@ -200,10 +200,12 @@ def test_lineage_and_spec_changes_make_records_stale_without_using_graph_revisio
     graph_store = InMemoryGraphStore()
     first_source = PreviewGraphSourceStore(chunks=(chunk(doc),), documents=(doc,))
     graph_store.apply_reconcile_plan(
-        indexer(source_store=first_source, graph_store=graph_store).plan(
+        indexer(source_store=first_source, graph_store=graph_store)
+        .plan(
             requested_scope=scope,
             actual_scopes=(scope,),
-        ).reconcile_plan
+        )
+        .reconcile_plan
     )
 
     metadata_changed = PreviewGraphSourceStore(chunks=(chunk(doc, index_revision="metadata-2"),), documents=(doc,))
@@ -227,22 +229,38 @@ def test_lineage_and_spec_changes_make_records_stale_without_using_graph_revisio
         }
     )
 
-    assert indexer(source_store=metadata_changed, graph_store=graph_store).plan(
-        requested_scope=scope,
-        actual_scopes=(scope,),
-    ).stale_count
-    assert indexer(source_store=parser_changed, graph_store=graph_store).plan(
-        requested_scope=scope,
-        actual_scopes=(scope,),
-    ).stale_count
-    assert indexer(source_store=chunker_changed, graph_store=graph_store).plan(
-        requested_scope=scope,
-        actual_scopes=(scope,),
-    ).stale_count
-    assert indexer(source_store=first_source, graph_store=graph_store, spec=legacy_spec).plan(
-        requested_scope=scope,
-        actual_scopes=(scope,),
-    ).stale_count
+    assert (
+        indexer(source_store=metadata_changed, graph_store=graph_store)
+        .plan(
+            requested_scope=scope,
+            actual_scopes=(scope,),
+        )
+        .stale_count
+    )
+    assert (
+        indexer(source_store=parser_changed, graph_store=graph_store)
+        .plan(
+            requested_scope=scope,
+            actual_scopes=(scope,),
+        )
+        .stale_count
+    )
+    assert (
+        indexer(source_store=chunker_changed, graph_store=graph_store)
+        .plan(
+            requested_scope=scope,
+            actual_scopes=(scope,),
+        )
+        .stale_count
+    )
+    assert (
+        indexer(source_store=first_source, graph_store=graph_store, spec=legacy_spec)
+        .plan(
+            requested_scope=scope,
+            actual_scopes=(scope,),
+        )
+        .stale_count
+    )
 
 
 def test_projection_invalidations_are_keys_only() -> None:
@@ -255,9 +273,7 @@ def test_projection_invalidations_are_keys_only() -> None:
         graph_store=InMemoryGraphStore(),
     ).plan(requested_scope=scope, actual_scopes=(scope,))
 
-    assert report.reconcile_plan.projection_cache_invalidations == (
-        f"graph-projection:{graph_scope_key(scope)}",
-    )
+    assert report.reconcile_plan.projection_cache_invalidations == (f"graph-projection:{graph_scope_key(scope)}",)
 
 
 def test_graph_indexer_preserves_relationship_occurrence_status() -> None:

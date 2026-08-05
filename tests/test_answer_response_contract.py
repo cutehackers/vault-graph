@@ -47,14 +47,18 @@ def make_response(
 ) -> AnswerResponse:
     evidence_items = (make_evidence(),) if evidence is None else evidence
     claim_items = (
-        AnswerClaim(
-            claim_id="claim-1",
-            text="GraphRAG evidence",
-            status="supported",
-            evidence_ids=("ev_1_abcd",),
-            warnings=(),
-        ),
-    ) if claims is None else claims
+        (
+            AnswerClaim(
+                claim_id="claim-1",
+                text="GraphRAG evidence",
+                status="supported",
+                evidence_ids=("ev_1_abcd",),
+                warnings=(),
+            ),
+        )
+        if claims is None
+        else claims
+    )
     return AnswerResponse(
         answer_id="answer:123",
         question="Why GraphRAG?",

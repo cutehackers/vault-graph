@@ -1,0 +1,130 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from vault_graph.app.catalog_service import CatalogService
+from vault_graph.code_index.code_models import CodeRepositoryEntry
+from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.project_context.project_binding import ProjectBinding
+from vault_graph.project_context.project_binding_catalog import ProjectBindingCatalogService
+
+
+class _Repositories:
+    def __init__(self, entry: CodeRepositoryEntry) -> None:
+        self._entry = entry
+
+    def entries(self) -> tuple[CodeRepositoryEntry, ...]:
+        return (self._entry,)
+
+    def resolve(self, repository_id: str) -> CodeRepositoryEntry:
+        if repository_id != self._entry.repository_id:
+            raise ValueError(f"unknown repository_id: {repository_id}")
+        return self._entry
+
+
+def _service(tmp_path: Path) -> tuple[ProjectBindingCatalogService, Path]:
+    vault_root = tmp_path / "vault"
+    repository_root = tmp_path / "repository"
+    vault_root.mkdir()
+    repository_root.mkdir()
+    catalog = VaultCatalog.from_entries(
+        entries=(VaultCatalogEntry.from_root(vault_id="main", root_path=vault_root),),
+        active_vault_id="main",
+    )
+    graph_home_path = tmp_path / "state"
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
+    catalog_service.save_catalog(catalog)
+    repository = CodeRepositoryEntry(
+        repository_id="demo",
+        root_path=repository_root,
+        display_name="Demo",
+        enabled=True,
+        include_globs=("**/*.py",),
+        exclude_globs=(),
+        languages=("python",),
+        state_namespace="code/demo",
+        git_revision_policy="head",
+        watch=False,
+    )
+    return (
+        ProjectBindingCatalogService(
+            catalog_service=catalog_service,
+            repository_catalog=_Repositories(repository),
+            vault_catalog=catalog,
+        ),
+        graph_home_path,
+    )
+
+
+def test_project_binding_catalog_round_trips_versioned_state(tmp_path: Path) -> None:
+    service, graph_home_path = _service(tmp_path)
+
+    catalog = service.bind(
+        ProjectBinding(
+            repository_id="demo",
+            vault_ids=("main",),
+            content_scopes=("wiki",),
+            evidence_mappings=(("code:run", "vault:main:decision-1:chunk-1"),),
+        )
+    )
+
+    assert catalog.resolve("demo").vault_ids == ("main",)
+    assert catalog.resolve("demo").evidence_mappings == (("code:run", "vault:main:decision-1:chunk-1"),)
+    payload = json.loads((graph_home_path / "configs" / "project-bindings.json").read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "project-bindings-v1"
+    assert service.load().resolve("demo").content_scopes == ("wiki",)
+
+
+def test_project_binding_catalog_replaces_duplicate_repository_binding(tmp_path: Path) -> None:
+    service, _ = _service(tmp_path)
+    service.bind(ProjectBinding(repository_id="demo", vault_ids=("main",), content_scopes=("wiki",)))
+
+    catalog = service.bind(ProjectBinding(repository_id="demo", vault_ids=("main",), content_scopes=("docs",)))
+
+    assert catalog.resolve("demo").content_scopes == ("docs",)
+
+
+def test_project_binding_catalog_rejects_unregistered_authorities(tmp_path: Path) -> None:
+    service, _ = _service(tmp_path)
+
+    with pytest.raises(ValueError, match="unknown vault_id"):
+        service.bind(ProjectBinding(repository_id="demo", vault_ids=("missing",)))
+    with pytest.raises(ValueError, match="unknown repository_id"):
+        service.bind(ProjectBinding(repository_id="missing", vault_ids=("main",)))
+
+
+@pytest.mark.parametrize(
+    ("mappings", "message"),
+    (
+        ((["code:run", "vault:main:decision-1:chunk-1"],), "immutable"),
+        ((("code:run",),), "exactly two"),
+        ((("code:run", "vault:main:decision-1:chunk-1", "extra"),), "exactly two"),
+        ((("run", "vault:main:decision-1:chunk-1"),), "code evidence"),
+        ((("code:run", "main:decision-1:chunk-1"),), "Vault evidence"),
+        (
+            (("code:run", "vault:main:decision-1:chunk-1"), ("code:run", "vault:main:decision-2:chunk-2")),
+            "duplicate",
+        ),
+    ),
+)
+def test_project_binding_rejects_invalid_evidence_mapping_shape(mappings: tuple[object, ...], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        ProjectBinding(repository_id="demo", vault_ids=("main",), evidence_mappings=mappings)  # type: ignore[arg-type]
+
+
+def test_project_binding_accepts_the_deterministic_mapping_cardinality_limit() -> None:
+    mappings = tuple((f"code:symbol-{index}", f"vault:main:decision-{index}:chunk-{index}") for index in range(5000))
+
+    binding = ProjectBinding(repository_id="demo", vault_ids=("main",), evidence_mappings=mappings)
+
+    assert len(binding.evidence_mappings) == 5000
+
+
+def test_project_binding_rejects_mapping_cardinality_above_the_limit() -> None:
+    mappings = tuple((f"code:symbol-{index}", f"vault:main:decision-{index}:chunk-{index}") for index in range(5001))
+
+    with pytest.raises(ValueError, match="evidence_mappings"):
+        ProjectBinding(repository_id="demo", vault_ids=("main",), evidence_mappings=mappings)

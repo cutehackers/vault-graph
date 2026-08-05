@@ -1,0 +1,620 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding",
+  "slug": "2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding",
+  "status": "approved",
+  "language": "ko",
+  "title": "Vault Graph Data Home와 Projection Lifecycle 구현 계획",
+  "description": "Vault Graph의 단일 Data Home 경계, 증분 인덱싱의 원자적 publication, pre-release legacy guard, 온보딩을 기존 코드에 단계적으로 반영하는 구현 계획이다.",
+  "owner": "Vault Graph",
+  "createdAt": "2026-08-04",
+  "updatedAt": "2026-08-04",
+  "links": {
+    "sourceOfTruth": [
+      "docs/stenc/content/specs/2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding-design.spec.json",
+      "docs/SPEC.md",
+      "docs/DESIGN.md",
+      "docs/FEATURES.md",
+      "docs/CONVENTIONS.md",
+      "docs/DECISIONS.md"
+    ],
+    "relatedSpec": "spec:2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding-design"
+  },
+  "page": {
+    "humanSummary": "모든 CLI와 MCP가 ~/.vault-graph 하나를 사용하고, 인덱스는 검증된 generation만 원자적으로 공개하도록 만드는 실행 계획이다.",
+    "agentSummary": "State 용어와 --state 표면을 제거하고 GraphHomeResolver, Data Home manifest, copy-on-write projection bundle, pre-release legacy guard, 온보딩 검증을 순서대로 구현한다.",
+    "styleTemplate": "operator-console"
+  },
+  "body": {
+    "goal": "Vault Graph의 모든 CLI, MCP, HTTP, application service가 같은 Vault Graph Data Home을 사용하게 하고, metadata, keyword, vector, graph, 향후 code projection을 하나의 검증된 publication lifecycle로 묶는다. Vault와 등록 repository는 계속 읽기 전용 source authority로 남기며, Data Home에는 rebuildable derived data와 control-plane metadata만 둔다.",
+    "architecture": "GraphHomeResolver가 명시적 --graph-home 또는 ~/.vault-graph를 정규화하고 data-home.json으로 인스턴스를 식별한다. ProjectionGenerationManager와 ProjectionBundlePublisher는 현재 active generation을 읽기 전용 baseline으로 복제해 staging generation을 만들고, 모든 enabled component의 revision, schema, reference, dedup, path 검사를 통과한 뒤 active manifest를 원자적으로 교체한다. ReadOnlyServiceFactory와 MCP 서비스는 요청 시작 때 선택된 generation을 고정하고 그 generation의 store만 연다. Pre-release legacy 입력은 자동 탐색·병합하지 않고 fail closed하며, Vault에서 새 Data Home을 full rebuild하도록 복구 안내를 제공한다.",
+    "techStack": [
+      "Python 3.12",
+      "Typer CLI",
+      "SQLite metadata, keyword, and graph stores",
+      "Chroma vector store",
+      "pytest",
+      "ruff",
+      "mypy",
+      "Stenc JSON and static rendering"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "vg-code",
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "두 superpowers 항목은 Stenc plan validator가 요구하는 형식 호환 필드일 뿐이며 이 작업에서 호출하거나 실행하지 않는다. 실제 실행은 vg-code, Stenc 검증, 인라인 테스트 체크포인트로 진행한다. 원격 push도 사용자가 별도로 지시할 때까지 수행하지 않는다."
+    },
+    "scopeCheck": {
+      "assessment": "현재 브랜치에는 Round 0-G의 provenance family, content_blobs, projection audit, full rebuild generation seam이 이미 있다. 그러나 CLI의 기본 경로는 여전히 .vault-graph이고 구현 전반에 state_path/--state가 남아 있으며, 증분 실행은 active store를 직접 갱신한다. 이 계획은 Data Home boundary와 publication lifecycle을 구현하는 데 필요한 실제 파일과 테스트만 포함한다.",
+      "decomposition": "slice-1은 resolver와 manifest를 독립적으로 검증하고, slice-2는 모든 public surface가 그 resolver를 사용하도록 연결한다. slice-3은 full과 incremental 모두 copy-on-write bundle을 사용하고 reader generation pinning을 보장한다. slice-4는 pre-release legacy guard, setup/status/MCP recovery, 문서 및 전체 검증을 닫는다."
+    },
+    "currentState": "GraphHomeResolver, 단일 Data Home 경로, copy-on-write Projection Bundle, pinned readers, legacy guard, setup/status/MCP recovery가 구현되어 있다. 남은 출시 전 계약은 이 구조를 문서와 전체 검증으로 고정하는 것이다.",
+    "targetState": "모든 명령과 서버가 ~/.vault-graph 또는 명시적 --graph-home만 사용한다. 초기화된 Data Home에는 data-home.json, configs, projections/active.json, projections/generations, runs가 있고, manifest와 active generation이 일치하지 않으면 fail closed한다. full 및 incremental index는 실패 시 이전 active generation을 유지하고, 성공 시 검증된 generation 하나만 공개한다. pre-release legacy root layout은 자동으로 읽거나 병합하지 않고 새 Data Home에서 Vault를 재인덱싱하도록 안내한다.",
+    "scope": {
+      "in": [
+        "GraphHomeResolver와 Data Home manifest",
+        "--graph-home public option과 ~/.vault-graph 기본값",
+        "state_path 중심 내부 경계의 graph_home_path/Data Home 용어 정리",
+        "full 및 incremental metadata, keyword, vector, graph projection의 copy-on-write publication",
+        "active generation pinning과 fail-closed manifest 검증",
+        "pre-release legacy Data Home 감지, fail-closed guard, 재생성 recovery hint",
+        "setup, init, status, serve, MCP registration, code/project/harness 명령의 동일 경로 사용",
+        "Data Home, generation, capability, freshness, recovery hint 출력과 관련 회귀 테스트"
+      ],
+      "out": [
+        "Vault 또는 등록 repository 파일의 수정, 복사, 이동, 삭제",
+        "새 Python/Dart parser, code query, explore_project 기능",
+        "원격 또는 hosted Data Home backend",
+        "자동 legacy Data Home 병합 또는 중복 지식 통합",
+        "환경 변수 기반 Data Home override",
+        "retained generation 자동 garbage collection",
+        "Superpowers workflow와 원격 push"
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Create",
+        "path": "src/vault_graph/app/graph_home.py",
+        "responsibility": "Data Home resolver, manifest descriptor, initialization, legacy detection, safe child paths"
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/errors.py",
+        "responsibility": "Data Home not initialized, unsupported legacy layout, manifest and projection lifecycle errors"
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/app/path_guard.py",
+        "responsibility": "Graph Home naming, source-root exclusion, symlink-safe write target checks"
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/app/catalog_service.py and src/vault_graph/app/*service_factory.py",
+        "responsibility": "Use one resolved Data Home and one pinned active generation"
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/app/projection_generation.py and src/vault_graph/app/index_service.py",
+        "responsibility": "Copy-on-write staging, component audit, atomic publication, and run diagnostics"
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/cli/main.py and src/vault_graph/cli/{code_commands,project_commands,harness_commands}.py",
+        "responsibility": "Remove --state, use --graph-home, and render canonical recovery/status vocabulary"
+      },
+      {
+        "action": "Modify",
+        "path": "src/vault_graph/mcp/*.py and src/vault_graph/http/*.py",
+        "responsibility": "Absolute Data Home MCP registration and fail-closed startup/read-only service construction"
+      },
+      {
+        "action": "Create",
+        "path": "tests/test_graph_home.py, tests/test_projection_lifecycle.py",
+        "responsibility": "Focused Data Home and projection lifecycle behavior tests"
+      },
+      {
+        "action": "Modify",
+        "path": "tests existing CLI, MCP, HTTP, factory, read-only, and code projection tests",
+        "responsibility": "Use --graph-home and assert the public state vocabulary is absent"
+      },
+      {
+        "action": "Modify",
+        "path": "docs/SPEC.md, docs/DESIGN.md, docs/FEATURES.md, docs/DECISIONS.md, README.md",
+        "responsibility": "Align pre-release legacy guard and onboarding contract after implementation verification"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "GraphHomeResolver와 self-describing Data Home",
+        "status": "done",
+        "surfaces": [
+          "Data Home manifest",
+          "path safety",
+          "legacy detection"
+        ],
+        "files": [
+          {
+            "action": "Create",
+            "path": "src/vault_graph/app/graph_home.py",
+            "role": "Deep boundary for resolving, initializing, describing, and validating a Data Home"
+          },
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/errors.py",
+            "role": "Typed domain errors with stable recovery-oriented messages"
+          },
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/app/path_guard.py",
+            "role": "Data Home and source authority path boundary"
+          },
+          {
+            "action": "Create",
+            "path": "tests/test_graph_home.py",
+            "role": "Resolver, manifest, CWD independence, symlink, source overlap, and legacy tests"
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-1-1",
+            "title": "Write resolver contract tests",
+            "status": "done",
+            "instruction": "Add tests for explicit absolute and relative --graph-home normalization, omitted path resolving to Path.home()/'.vault-graph', no CWD .vault-graph discovery, idempotent initialization, manifest fields, safe child path resolution, source-root overlap rejection, symlink rejection, missing manifest, and legacy layout detection. Tests must assert that source files and an existing legacy directory remain byte-for-byte unchanged."
+          },
+          {
+            "id": "step-1-2",
+            "title": "Implement GraphHomeResolver",
+            "status": "done",
+            "instruction": "Create GraphHomeManifest and GraphHomeDescriptor dataclasses plus GraphHomeResolver. resolve(path=None) must normalize the explicit path or ~/.vault-graph, never search the current directory, and expose manifest_path, configs_path, projections_path, runs_path, and active generation descriptor. initialize() must create only approved Data Home children and atomically write data-home.json with format, identity, layout version, canonical root, and active generation reference. require_initialized() must raise data_home_not_initialized or legacy_data_home_detected instead of auto-creating, reading, or merging data."
+          },
+          {
+            "id": "step-1-3",
+            "title": "Move path guard vocabulary to Data Home",
+            "status": "done",
+            "instruction": "Rename the public path-guard parameters and errors to graph_home while preserving the read-only invariant: a Data Home must be outside every registered Vault and repository root, and every write target must be a validated non-symlink child of that Data Home. No migration helper or --state CLI alias is part of the pre-release surface."
+          },
+          {
+            "id": "step-1-4",
+            "title": "Verify the boundary",
+            "status": "done",
+            "command": "uv run --python 3.12 pytest tests/test_graph_home.py tests/test_path_guard.py -q",
+            "expected": "Resolver and path-boundary tests pass; a missing or legacy Data Home fails closed without creating files."
+          }
+        ],
+        "doneWhen": [
+          "data-home.json is self-describing and atomically created",
+          "~/.vault-graph is the only implicit default",
+          "source authority overlap and symlink escapes are rejected",
+          "legacy layouts are detected but never auto-merged"
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "모든 실행 표면을 단일 Data Home에 연결",
+        "status": "done",
+        "surfaces": [
+          "CLI",
+          "MCP registration and startup",
+          "HTTP config",
+          "application and code factories"
+        ],
+        "files": [
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/app/catalog_service.py, src/vault_graph/app/read_only_service_factory.py, src/vault_graph/app/local_index_service_factory.py, src/vault_graph/app/code_index_factory.py",
+            "role": "Resolve graph_home_path once and pass a pinned generation to all stores"
+          },
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/cli/main.py, src/vault_graph/cli/code_commands.py, src/vault_graph/cli/project_commands.py, src/vault_graph/cli/harness_commands.py",
+            "role": "Replace every --state option and state output with --graph-home and graph_home output"
+          },
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/mcp/mcp_config_registration.py, src/vault_graph/mcp/mcp_config_examples.py, src/vault_graph/mcp/mcp_server.py, src/vault_graph/mcp/mcp_service_factory.py, src/vault_graph/http/http_errors.py",
+            "role": "Record absolute Data Home paths and structured startup errors"
+          },
+          {
+            "action": "Create",
+            "path": "tests/test_cli_graph_home.py and tests/test_mcp_graph_home.py",
+            "role": "Public surface, CWD independence, absolute config, and fail-closed startup tests"
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-2-1",
+            "title": "Rename application boundary parameters",
+            "status": "done",
+            "instruction": "Change CatalogService, ReadOnlyServiceFactory, LocalIndexServiceFactory, CodeIndexFactory, WatchService, SetupService, McpServiceFactory, HttpServiceFactory, McpServerConfig, HttpServerConfig, and MCP registration DTOs to use graph_home_path or graph_home consistently. Keep the resolved Path available through a GraphHomeDescriptor so store construction cannot silently select a second generation."
+          },
+          {
+            "id": "step-2-2",
+            "title": "Replace the public CLI option",
+            "status": "done",
+            "instruction": "Use typer.Option(Path.home() / '.vault-graph', '--graph-home') for all commands and subcommands. Remove --state from help, parsing, examples, and generated MCP arguments. init and setup initialize the manifest; read/index/search/status/serve require it. Render graph_home, active_generation, and recovery_hint fields instead of state."
+          },
+          {
+            "id": "step-2-3",
+            "title": "Make MCP and HTTP startup deterministic",
+            "status": "done",
+        "instruction": "MCP registration must write the normalized absolute --graph-home argument. MCP and HTTP service factories must call require_initialized() and map missing, legacy, corrupt, or unsafe Data Homes to structured errors with setup or rebuild hints. They must not create stores or directories during a read-only open."
+          },
+          {
+            "id": "step-2-4",
+            "title": "Verify one path across working directories",
+            "status": "done",
+            "command": "uv run --python 3.12 pytest tests/test_cli_surface_boundary.py tests/test_cli_mcp_serve.py tests/test_setup_service.py tests/test_mcp_config_registration.py tests/test_mcp_service_factory.py tests/test_http_server.py -q",
+            "expected": "All public surfaces use one absolute Data Home, --state is rejected as an unknown option, setup remains idempotent, and read-only startup fails closed without creating files."
+          }
+        ],
+        "doneWhen": [
+          "No supported CLI surface accepts --state",
+          "CWD changes do not change the selected Data Home",
+          "MCP configuration contains an absolute --graph-home path",
+          "missing or corrupt Data Home startup fails with recovery guidance"
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "Full과 incremental Projection Bundle publication",
+        "status": "completed",
+        "surfaces": [
+          "metadata, keyword, vector, graph stores",
+          "active manifest",
+          "reader generation pinning",
+          "run diagnostics"
+        ],
+        "files": [
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/app/projection_generation.py",
+            "role": "Copy-on-write generation staging, validation, atomic active publication, and rollback-safe discard"
+          },
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/app/index_service.py and src/vault_graph/app/local_index_service_factory.py",
+            "role": "Route every non-dry-run index through one staged bundle and publish only a passing report"
+          },
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/app/projection_hygiene_service.py",
+            "role": "Audit generation identity, source revision, schema, references, duplication, and component capability"
+          },
+          {
+            "action": "Create",
+            "path": "tests/test_projection_lifecycle.py",
+            "role": "Atomic activation, failure preservation, incremental baseline copy, pinned readers, and rollback tests"
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-3-1",
+            "title": "Write lifecycle failure tests",
+            "status": "completed",
+            "instruction": "Add tests proving that full and incremental runs stage under projections/generations/<id>, copy the active generation before an incremental run, never mutate the active generation in place, keep the previous active manifest when metadata/vector/graph fails, and discard failed staging. Add a reader-pinning test that activates a new generation while a service is open and confirms all stores in the open service remain on the original generation."
+          },
+          {
+            "id": "step-3-2",
+            "title": "Implement ProjectionBundlePublisher",
+            "status": "completed",
+            "instruction": "Extend ProjectionGenerationManager or add ProjectionBundlePublisher with stage_from_active(), component_root(), write_run_diagnostic(), validate_bundle(), activate(), discard(), and rollback(). Stage from the current active generation for both full and incremental runs, write component manifests with source snapshot, parser/chunker, embedding, graph/code contract, schema, and revision, and update data-home.json and projections/active.json only after fsync and validation. Reject path escapes, symlinked manifests, incomplete components, dangling references, mixed revisions, and failed enabled components."
+          },
+          {
+            "id": "step-3-3",
+            "title": "Connect indexing and readers to one generation",
+            "status": "completed",
+            "instruction": "Change LocalIndexServiceFactory and IndexService so every apply run opens stores under the staged generation and exposes commit_projection only after all enabled projection results pass. ReadOnlyServiceFactory, CLI audit/status, and MCP services must resolve active manifest once, verify the Data Home manifest points to the same generation, and construct every store from that pinned root. Keep optional vector/graph unavailable as capability state; a configured component failure blocks publication without damaging the old generation."
+          },
+          {
+            "id": "step-3-4",
+            "title": "Verify atomic publication and hygiene",
+            "status": "completed",
+            "command": "uv run --python 3.12 pytest tests/test_projection_generation.py tests/test_projection_lifecycle.py tests/test_projection_hygiene_service.py tests/test_code_generation.py tests/test_code_read_only_boundary.py -q",
+            "expected": "All generation, failure, reference, deduplication, optional capability, and source read-only tests pass; the old active generation remains queryable after a failed run."
+          }
+        ],
+        "doneWhen": [
+          "Incremental indexing is copy-on-write",
+          "A failed component never publishes a partial generation",
+          "Readers use one pinned generation",
+          "Projection audit can prove source revision, schema, reference, and duplication invariants"
+        ]
+      },
+      {
+        "id": "slice-4",
+        "title": "Pre-release legacy guard와 온보딩 완료",
+        "status": "completed",
+        "surfaces": [
+          "legacy detection and recovery",
+          "setup and status",
+          "MCP and HTTP recovery",
+          "canonical documentation"
+        ],
+        "files": [
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/app/graph_home.py and src/vault_graph/errors.py",
+            "role": "Reject unsupported pre-release layouts without reading or merging them"
+          },
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/app/setup_service.py and src/vault_graph/cli/main.py",
+            "role": "Idempotent setup, baseline readiness, status recovery, and next-step output"
+          },
+          {
+            "action": "Modify",
+            "path": "src/vault_graph/mcp/mcp_errors.py, src/vault_graph/http/http_errors.py",
+            "role": "Structured setup and rebuild recovery hints"
+          },
+          {
+            "action": "Modify",
+            "path": "tests/test_graph_home.py, tests/test_setup_service.py, tests/test_cli_setup.py, tests/test_cli_graph_status.py, tests/test_mcp_errors.py, tests/test_http_server.py",
+            "role": "Legacy guard, first-run onboarding, idempotence, dry-run, status, and adapter recovery tests"
+          },
+          {
+            "action": "Modify",
+            "path": "docs/SPEC.md, docs/DESIGN.md, docs/FEATURES.md, docs/DECISIONS.md, README.md",
+            "role": "Reflect the pre-release rebuild policy and canonical onboarding path"
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-4-1",
+            "title": "Write legacy guard and onboarding tests",
+            "status": "completed",
+            "instruction": "Add tests that legacy Data Home markers fail closed without changing their files, setup dry-run and real first-run behavior agree, setup is idempotent for the same vault_id/root, status exposes a projection recovery hint, and MCP/HTTP errors include a setup or rebuild hint."
+          },
+          {
+            "id": "step-4-2",
+            "title": "Implement pre-release legacy guard",
+            "status": "completed",
+            "instruction": "Do not add a migration command before the first release. Detect known pre-release layouts, refuse to initialize or read them, and tell the user to choose a new --graph-home or move the rebuildable directory aside before running setup. Never copy, merge, or modify Vault, repository, or legacy files."
+          },
+          {
+            "id": "step-4-3",
+            "title": "Complete setup and status vocabulary",
+            "status": "completed",
+            "instruction": "Make vg setup --vault PATH --agent codex --mcp the shortest successful path: initialize one Data Home, register one Vault, build and publish the baseline projection, report optional capabilities, and write the absolute MCP config path. Re-running setup updates the same catalog entry and generation rather than creating a second Data Home. Status, setup, and projection-audit print graph_home, generation, authority revisions, component health, readiness, and recovery_hint."
+          },
+          {
+            "id": "step-4-4",
+            "title": "Align and validate documentation",
+            "status": "completed",
+            "instruction": "Update only verified statements in docs/SPEC.md, docs/DESIGN.md, docs/FEATURES.md, README.md, and the accepted Data Home decision. Keep historical docs/superpowers artifacts unchanged. Validate the Stenc plan and spec, regenerate pages, run the full test and static suite, and inspect git diff for accidental --state public references."
+          },
+          {
+            "id": "step-4-5",
+            "title": "Verify the complete contract",
+            "status": "completed",
+            "command": "uv run pytest tests/test_graph_home.py tests/test_projection_lifecycle.py tests/test_setup_service.py tests/test_cli_setup.py tests/test_cli_graph_status.py tests/test_read_only_boundary.py tests/test_mcp_errors.py tests/test_http_server.py -q",
+            "expected": "CWD independence, path safety, idempotent setup, pre-release legacy rejection, pinned readers, atomic activation, rollback, optional capability degradation, and all read-only boundaries pass."
+          }
+        ],
+        "doneWhen": [
+          "Legacy Data Home is never auto-read or auto-merged and fails closed with a deterministic rebuild hint",
+          "setup, status, index, search, context, serve, and MCP share one Data Home",
+          "new-user onboarding and degraded recovery are visible and deterministic",
+          "canonical docs and Stenc pages match the verified implementation"
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3",
+      "slice-4"
+    ],
+    "risks": [
+      {
+        "risk": "Public --state removal touches many CLI, MCP, HTTP, factory, and test call sites.",
+        "mitigation": "Migrate the option and constructor vocabulary in one focused slice, add a surface guard that rejects --state, and run the focused regression suite before lifecycle changes."
+      },
+      {
+        "risk": "Copy-on-write incremental builds may increase temporary disk use and expose backend copy semantics.",
+        "mitigation": "Stage under one Data Home, use explicit component roots, report bytes and run diagnostics, and defer automatic retained-generation cleanup."
+      },
+      {
+        "risk": "A two-file active manifest can be torn between data-home.json and projections/active.json.",
+        "mitigation": "Write both with fsync and validate identity on every read; fail closed on mismatch and keep the previous generation readable until validation succeeds."
+      },
+      {
+        "risk": "Pre-release derived data can be mistaken for the canonical Data Home.",
+        "mitigation": "Detect known legacy markers, fail closed, never auto-read or merge them, and direct the user to a new Data Home plus a full rebuild from Vault."
+      },
+      {
+        "risk": "The existing code projection has its own generation manifest.",
+        "mitigation": "Keep its repository identity and read-only boundary intact, expose its generation as a Data Home capability descriptor, and do not silently switch or merge code and Vault authorities in this slice."
+      }
+    ],
+    "validation": [
+      {
+        "command": "uv run pytest tests/test_graph_home.py tests/test_projection_lifecycle.py tests/test_setup_service.py tests/test_cli_setup.py tests/test_cli_graph_status.py tests/test_mcp_errors.py tests/test_http_server.py -q",
+        "purpose": "Run the focused Data Home, lifecycle, legacy guard, onboarding, status, and adapter recovery tests."
+      },
+      {
+        "command": "uv run --python 3.12 pytest -q",
+        "purpose": "Run the complete regression suite after all slices."
+      },
+      {
+        "command": "uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv build && uv lock --check && git diff --check",
+        "purpose": "Verify style, typing, packaging, lock consistency, and whitespace."
+      },
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding.plan.json && node ~/.codex/skills/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding-design.spec.json",
+        "purpose": "Validate the canonical Stenc plan and related design source JSON."
+      },
+      {
+        "command": "node ~/.codex/skills/stenc/scripts/setup-project.js --project-root \"$(pwd)\" --docs-dir docs/stenc && node ~/.codex/skills/stenc/scripts/check-rendered-pages.js docs/stenc",
+        "purpose": "Regenerate and verify the fixed Stenc pages."
+      }
+    ],
+    "agentInstructions": [
+      "Work only in the existing codex/round-1-code-index worktree.",
+      "Read the related SPEC, repository docs, and live source before each slice.",
+      "Do not write, rename, delete, or copy Vault or registered repository content.",
+      "Do not use --state as a compatibility alias; historical documents may retain old text, but current public code and examples must not.",
+      "Do not add pending decisions to docs/DECISIONS.md; record unresolved retention or environment-variable choices in the plan only.",
+      "Do not push to any remote unless the user explicitly requests it."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Authority safety",
+        "purpose": "Confirm Vault and registered repositories remain the only durable authority boundaries and Data Home stores no canonical source body."
+      },
+      {
+        "name": "Single path",
+        "purpose": "Confirm omitted --graph-home always resolves to ~/.vault-graph and no command searches CWD for .vault-graph."
+      },
+      {
+        "name": "Atomic lifecycle",
+        "purpose": "Confirm full and incremental runs publish only one validated generation and preserve the previous active generation on failure."
+      },
+      {
+        "name": "Reader consistency",
+        "purpose": "Confirm every store used by one CLI, HTTP, or MCP request is opened from the same pinned generation."
+      },
+      {
+        "name": "Recovery clarity",
+        "purpose": "Confirm missing, legacy, stale, unavailable, corrupt, and failed states include deterministic recovery hints."
+      },
+      {
+        "name": "Changeability",
+        "purpose": "Confirm GraphHomeResolver and ProjectionBundlePublisher are deep reusable boundaries rather than per-adapter logic."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/stenc/content/plans/2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding.plan.json",
+      "options": [
+        {
+          "label": "Inline execution",
+          "description": "Execute the four slices in this session with focused test checkpoints and no remote publication.",
+          "requiredSkill": "vg-code"
+        },
+        {
+          "label": "Subagent-Driven",
+          "description": "Schema compatibility placeholder only; not selected because Superpowers is disabled for this project.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Canonical layout and lifecycle",
+        "content": "새 Data Home은 하나의 control-plane root 아래에서 authority catalog와 rebuildable projection lifecycle을 함께 설명한다. 원본 Vault와 repository 본문은 이 경계 밖에 남는다.",
+        "items": [
+          "~/.vault-graph/data-home.json: format, identity, layout, canonical root, active generation",
+          "~/.vault-graph/configs: Vault catalog, repository catalog, project bindings",
+          "~/.vault-graph/projections/active.json: 현재 읽기 대상으로 선택된 generation",
+          "~/.vault-graph/projections/generations/<id>: metadata, keyword, vector, graph, code capability projections",
+          "~/.vault-graph/runs: staging, audit, failure, and onboarding diagnostics"
+        ],
+        "facts": [
+          {
+            "label": "Existing seam",
+            "value": "ProjectionGenerationManager already provides a safe full-rebuild staging and active manifest replacement seam."
+          },
+          {
+            "label": "Required correction",
+            "value": "Incremental runs and all public surfaces must use the same seam and vocabulary."
+          }
+        ],
+        "links": [
+          {
+            "label": "Approved design",
+            "target": "docs/stenc/content/specs/2026-08-04-vault-graph-data-home-projection-lifecycle-onboarding-design.spec.json",
+            "purpose": "Data Home, projection publication, legacy guard, and onboarding contract"
+          }
+        ],
+        "steps": [],
+        "blocks": [
+          {
+            "type": "flowDiagram",
+            "title": "Implementation sequence",
+            "summary": "One resolved Data Home feeds staged projections and pinned readers.",
+            "nodes": [
+              {
+                "id": "resolve-home",
+                "label": "Resolve Data Home",
+                "detail": "Use explicit --graph-home or ~/.vault-graph.",
+                "role": "engine"
+              },
+              {
+                "id": "stage-bundle",
+                "label": "Stage bundle",
+                "detail": "Copy the active baseline and build components in isolation.",
+                "role": "engine"
+              },
+              {
+                "id": "audit-bundle",
+                "label": "Audit bundle",
+                "detail": "Check source revision, schema, references, deduplication, and capabilities.",
+                "role": "engine"
+              },
+              {
+                "id": "activate-bundle",
+                "label": "Activate generation",
+                "detail": "Atomically publish one active generation or retain the old one on failure.",
+                "role": "surface"
+              },
+              {
+                "id": "pin-reader",
+                "label": "Pin reader",
+                "detail": "CLI, HTTP, and MCP services use one generation for the request.",
+                "role": "consumer"
+              }
+            ],
+            "edges": [
+              {
+                "from": "resolve-home",
+                "to": "stage-bundle",
+                "label": "selects root"
+              },
+              {
+                "from": "stage-bundle",
+                "to": "audit-bundle",
+                "label": "produces candidate"
+              },
+              {
+                "from": "audit-bundle",
+                "to": "activate-bundle",
+                "label": "passes"
+              },
+              {
+                "from": "activate-bundle",
+                "to": "pin-reader",
+                "label": "exposes"
+              }
+            ]
+          }
+        ],
+        "subSections": [],
+        "codeBlocks": []
+      },
+      {
+        "heading": "Deferred choices",
+        "content": "첫 구현에서는 retained generation을 자동 삭제하지 않고, VAULT_GRAPH_HOME 같은 환경 변수 override도 추가하지 않는다. 둘 다 별도 사용자 결정과 검증이 필요한 후속 작업이다.",
+        "items": [
+          "rollback은 기존 retained generation의 manifest 선택으로만 수행한다.",
+          "legacy layout은 출시 전 호환 계약이 아니며 새 Data Home을 만들고 Vault에서 재생성한다.",
+          "code projection의 독립 repository generation identity는 보존하되 Data Home capability와 함께 보고한다."
+        ],
+        "facts": [],
+        "links": [],
+        "steps": [],
+        "blocks": [],
+        "subSections": [],
+        "codeBlocks": []
+      }
+    ],
+    "openQuestions": [
+      "Retained generation을 자동으로 몇 개까지 보존할지는 이 구현에서 결정하지 않는다. 첫 lifecycle에서는 자동 삭제 없이 명시적 cleanup으로 남긴다.",
+      "환경 변수로 Data Home을 override할지는 이 구현에서 결정하지 않는다. 현재는 --graph-home과 ~/.vault-graph만 지원한다.",
+      "첫 출시 후 실제 호환성 요구가 확인되기 전까지 legacy migration/adoption 명령은 제공하지 않는다."
+    ]
+  }
+}
