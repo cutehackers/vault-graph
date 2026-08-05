@@ -188,10 +188,13 @@ navigation, and audit reports are not co-equal default answer candidates.
 
 This is the accepted Round 0 target contract. Round 0-V, Round 0-G, and the
 joint completion metrics have been implemented and verified in the current
-worktree. Round 1 code indexing is now in progress. Before the first public
-release, legacy Data Home layouts are not a compatibility contract: they fail
-closed and are rebuilt from Vault in a new Data Home rather than migrated or
-merged.
+worktree. Round 1 code indexing has been implemented and verified, including
+the read-only code projection, project-context composition, canonical Data
+Home, projection lifecycle, and first-run onboarding. Round 2 MCP and
+coding-harness integration has also been implemented and verified; the next
+gate is user-controlled release handoff. Before the first public release,
+legacy Data Home layouts are not a compatibility contract: they fail closed
+and are rebuilt from Vault in a new Data Home rather than migrated or merged.
 
 ### Principle 4: Agents Consume Evidence-Linked Context
 

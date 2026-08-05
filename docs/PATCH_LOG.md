@@ -94,6 +94,49 @@ canonical wire JSON while directly checking its unavailable-index warning.
 check .`; `uv run mypy src tests`; `uv build`; `uv lock --check`; `git diff
 --check`; enabled MCP stdio smoke.
 
+## 2026-08-04 - Align Code Catalog With Canonical Data Home
+
+**Trigger:** Review found that direct construction of
+`CodeRepositoryCatalogService()` selected the legacy
+`~/.local/state/vault-graph` path instead of the accepted canonical
+`~/.vault-graph` Data Home. The same review found stale Round 2 plan state text.
+
+**Scope:** Code repository catalog default resolution, its regression contract,
+and the Round 2 Stenc plan's current-state and verification wording.
+
+**Core Values Protected:** Preserved one canonical Data Home, deterministic
+service construction, rebuildable derived data, and inspectable documentation.
+
+**Changes Applied:** Reused `GraphHomeResolver.DEFAULT_GRAPH_HOME` in the code
+catalog service, added a direct-construction regression test, and aligned the
+plan with its approved SPEC, existing handoff link, and completed verification
+state.
+
+**Verification:** Code catalog regression, full suite (`1149 passed, 1
+skipped`), static, package, lock, diff, Stenc source, and rendered-page checks
+pass.
+
+## 2026-08-04 - Connect Round 2 Stenc Handoff
+
+**Trigger:** Round 2 contract review found that the new Stenc SPEC pointed to a
+plan path that did not exist, even though the implementation and verification
+evidence were already present in the worktree.
+
+**Scope:** Round 2 Stenc SPEC/plan linkage, transition status, and verification
+evidence wording.
+
+**Core Values Protected:** Preserved inspectable documentation, deterministic
+verification, read-only authority boundaries, and explicit user-controlled
+release actions.
+
+**Changes Applied:** Added the matching Stenc 0.4.1 Round 2 plan, linked it from
+the SPEC, recorded that the contract review and release gates pass, and kept
+commit, merge, and remote push outside the automatic workflow.
+
+**Verification:** Focused Round 2 tests (94 passed); full suite (1148 passed,
+1 skipped); enabled MCP stdio smoke (1 passed); ruff, format, mypy, build, lock,
+diff, Stenc source, and rendered-page checks.
+
 ## 2026-08-04 - Close Project Context Evidence Review Gaps
 
 **Trigger:** Quality review found that live source drift did not reach impact/test evidence, cross-authority stated relations lacked an explicit mapping path, and large metadata could exceed the context budget or trigger unbounded source reads.

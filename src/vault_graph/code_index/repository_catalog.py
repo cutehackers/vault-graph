@@ -17,6 +17,7 @@ from typing import Any, Protocol, runtime_checkable
 import yaml
 
 from vault_graph.app.catalog_service import CatalogService
+from vault_graph.app.graph_home import DEFAULT_GRAPH_HOME
 from vault_graph.app.path_guard import assert_target_outside_vaults
 from vault_graph.code_index.code_models import CodeRepositoryEntry
 from vault_graph.errors import CatalogError
@@ -52,7 +53,7 @@ class CodeRepositoryCatalogService:
             if catalog_service.graph_home_path != graph_home_path.expanduser().resolve():
                 raise ValueError("graph_home_path and catalog_service must refer to the same state")
         self.catalog_service = catalog_service or CatalogService(
-            graph_home_path=graph_home_path if graph_home_path is not None else Path("~/.local/state/vault-graph")
+            graph_home_path=graph_home_path if graph_home_path is not None else DEFAULT_GRAPH_HOME
         )
         self.graph_home_path = self.catalog_service.graph_home_path
         self.config_path = self.catalog_service.code_config_path

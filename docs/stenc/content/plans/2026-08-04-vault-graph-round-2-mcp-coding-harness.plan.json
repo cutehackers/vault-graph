@@ -1,0 +1,410 @@
+{
+  "schemaVersion": 2,
+  "docType": "plan",
+  "id": "plan:2026-08-04-vault-graph-round-2-mcp-coding-harness",
+  "slug": "2026-08-04-vault-graph-round-2-mcp-coding-harness",
+  "status": "approved",
+  "language": "ko",
+  "title": "Vault Graph Round 2 MCP·코딩 하네스 검증 및 릴리스 계획",
+  "description": "이미 구현된 Round 2 project-context 경로를 SPEC과 대조하고 전체 검증 게이트를 통과시킨 뒤 사용자 승인 범위에서만 커밋·릴리스하는 계획이다.",
+  "owner": "Vault Graph architecture",
+  "createdAt": "2026-08-04",
+  "updatedAt": "2026-08-04",
+  "links": {
+    "sourceOfTruth": [
+      "docs/stenc/content/specs/2026-08-04-vault-graph-round-2-mcp-coding-harness-design.spec.json",
+      "docs/SPEC.md",
+      "docs/DESIGN.md",
+      "docs/FEATURES.md",
+      "src/vault_graph/project_context/project_context_service.py",
+      "src/vault_graph/mcp/mcp_tools.py",
+      "src/vault_graph/harness/harness_guidance.py",
+      "tests/benchmarks/test_project_context_benchmark.py"
+    ],
+    "relatedSpec": "spec:2026-08-04-vault-graph-round-2-mcp-coding-harness-design"
+  },
+  "page": {
+    "humanSummary": "Round 2 구현과 SPEC을 맞추고, MCP·하네스·읽기 전용·prompt 감소 게이트를 검증한다.",
+    "agentSummary": "ProjectContextService, explore_project, explicit harness guidance의 현재 구현을 contract와 대조하고 검증 증거를 고정한다. 커밋·메인 병합·원격 push는 별도 사용자 승인 없이는 수행하지 않는다.",
+    "styleTemplate": "task-first"
+  },
+  "body": {
+    "goal": "코드와 Vault를 별도 권위로 유지하는 하나의 bounded explore_project 흐름을 Round 2 SPEC과 일치시키고, 재현 가능한 검증 결과와 사용자 제어 릴리스 경계를 남긴다.",
+    "architecture": "ProjectContextService가 코드 projection/query, Vault context-pack/status, 관계와 freshness를 조합하는 deep module이다. MCP는 얇은 read-only adapter이고 harness guidance는 명시적으로 선택한 비-Vault instruction file에만 제한적으로 쓰인다.",
+    "techStack": [
+      "Python 3.12",
+      "Typer CLI",
+      "FastMCP stdio",
+      "SQLite code and Vault projections",
+      "pytest",
+      "ruff",
+      "mypy",
+      "uv",
+      "Stenc 0.4.1"
+    ],
+    "workerInstructions": {
+      "requiredSubSkills": [
+        "superpowers:subagent-driven-development",
+        "superpowers:executing-plans",
+        "vg-code"
+      ],
+      "trackingSyntax": "- [ ]",
+      "note": "Stenc 0.4.1 plan validator와 기존 문서 호환성을 위해 두 legacy capability label을 보존한다. 이 저장소의 실제 실행에는 Superpowers workflow를 호출하지 않으며, 직접 검토·테스트·Stenc 검증으로 진행한다."
+    },
+    "scopeCheck": {
+      "assessment": "Round 2 핵심 구현, SPEC의 실제 handoff 링크, focused benchmark와 전체 release gate가 현재 브랜치에 존재하고 통과했다. 후속 검토에서 발견된 canonical Data Home 기본값과 계획 상태 문구의 불일치를 이 유지보수 slice에서 정리하고 회귀 검증한다.",
+      "decomposition": "계약 대조, 전체 검증, 검토 후 일관성 보정, 사용자 제어 릴리스 handoff의 네 단계로 나눈다. 소스 권위나 MCP 경계를 확장하지 않고 현재 구현의 증거만 고정한다."
+    },
+    "currentState": "ProjectContextService, explicit repository-to-Vault binding, explore_project MCP tool, reversible harness guidance, deterministic benchmark가 구현되어 있다. Round 2 SPEC은 approved 상태이고 실제 handoff plan과 연결되어 있으며, canonical Data Home 기본값과 계획 상태 문구의 검토 보정 및 재검증까지 완료되었다. 남은 단계는 사용자 제어 커밋·릴리스 결정뿐이다.",
+    "targetState": "Round 2 SPEC과 구현이 일치하고 실제 plan·rendered page·검증 결과가 연결된다. 현재 브랜치는 커밋 후보로 준비되지만 메인 병합과 원격 push는 사용자 지시 전까지 보류한다.",
+    "scope": {
+      "in": [
+        "Round 2 SPEC과 ProjectContextService/MCP/harness/benchmark 대조",
+        "Stenc 0.4.1 plan source 생성 및 rendered page 갱신",
+        "focused test, full suite, MCP stdio smoke, static, build, lock, diff 검증",
+        "검증 결과와 남은 사용자 승인 지점 기록"
+      ],
+      "out": [
+        "Vault 또는 등록 repository 내용 수정",
+        "새 parser, hosted service, LLM/network 의존성",
+        "Superpowers workflow 실행",
+        "원격 push, main 병합, release tag 생성"
+      ]
+    },
+    "fileStructure": [
+      {
+        "action": "Create",
+        "path": "docs/stenc/content/plans/2026-08-04-vault-graph-round-2-mcp-coding-harness.plan.json",
+        "responsibility": "Round 2 contract reconciliation, verification, and release handoff"
+      },
+      {
+        "action": "Modify",
+        "path": "docs/stenc/content/specs/2026-08-04-vault-graph-round-2-mcp-coding-harness-design.spec.json",
+        "responsibility": "Connect the real plan and record the verified transition state"
+      },
+      {
+        "action": "Modify",
+        "path": "docs/PATCH_LOG.md",
+        "responsibility": "Record the plan-link mismatch correction and its verification"
+      },
+      {
+        "action": "Verify",
+        "path": "src/vault_graph/project_context/, src/vault_graph/mcp/, src/vault_graph/harness/, tests/",
+        "responsibility": "Confirm the existing implementation satisfies the Round 2 contract"
+      }
+    ],
+    "slices": [
+      {
+        "id": "slice-1",
+        "title": "SPEC과 구현 계약 대조",
+        "status": "done",
+        "surfaces": [
+          "Round 2 Stenc SPEC",
+          "ProjectContextService",
+          "explore_project MCP",
+          "harness guidance"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "docs/stenc/content/specs/2026-08-04-vault-graph-round-2-mcp-coding-harness-design.spec.json",
+            "role": "Canonical Round 2 behavior contract"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/project_context/project_context_service.py",
+            "role": "Deep composition module"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/mcp/mcp_tools.py",
+            "role": "Thin MCP adapter"
+          },
+          {
+            "action": "Review",
+            "path": "src/vault_graph/harness/harness_guidance.py",
+            "role": "Explicit reversible write boundary"
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-1-1",
+            "title": "Check authority and scope boundaries",
+            "status": "done",
+            "instruction": "Confirm Vault and registered repository remain separate authorities, repository-to-Vault binding is explicit, source bodies and absolute paths are not serialized, and missing or stale evidence remains visible."
+          },
+          {
+            "id": "step-1-2",
+            "title": "Repair the Stenc handoff link",
+            "status": "done",
+            "instruction": "Create the matching Stenc plan, add it to relatedPlans, and record the correction in PATCH_LOG without changing implementation behavior."
+          }
+        ],
+        "doneWhen": [
+          "Every Round 2 source link resolves to a repository file",
+          "SPEC implementationHandoff points to an existing Stenc plan",
+          "No new source authority or write path is introduced"
+        ]
+      },
+      {
+        "id": "slice-2",
+        "title": "Round 2 전체 검증 게이트",
+        "status": "done",
+        "surfaces": [
+          "focused project-context tests",
+          "full pytest suite",
+          "MCP stdio smoke",
+          "static and package checks",
+          "Stenc source and rendered pages"
+        ],
+        "files": [
+          {
+            "action": "Verify",
+            "path": "tests/benchmarks/test_project_context_benchmark.py",
+            "role": "Prompt/tool orchestration and stale-result acceptance gate"
+          },
+          {
+            "action": "Verify",
+            "path": "tests/test_mcp_stdio_smoke.py",
+            "role": "Enabled MCP transport smoke gate"
+          },
+          {
+            "action": "Verify",
+            "path": "docs/stenc/content/",
+            "role": "Canonical JSON and generated fixed-format pages"
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-2-1",
+            "title": "Run focused Round 2 tests",
+            "status": "done",
+            "command": "uv run pytest tests/test_project_context_service.py tests/test_project_context_models.py tests/test_project_context_scope.py tests/test_project_context_budget.py tests/test_project_context_serialization.py tests/test_project_context_read_only_boundary.py tests/test_project_context_import_boundaries.py tests/test_project_binding_catalog.py tests/test_cli_project_binding.py tests/test_mcp_explore_project.py tests/test_mcp_explore_project_read_only_boundary.py tests/test_harness_guidance.py tests/test_harness_guidance_read_only.py tests/test_setup_harness_guidance.py tests/benchmarks/test_project_context_benchmark.py -q",
+            "expected": "94 passed."
+          },
+          {
+            "id": "step-2-2",
+            "title": "Run the release gate",
+            "status": "done",
+            "command": "uv run pytest -q && VG_RUN_MCP_STDIO_SMOKE=1 uv run pytest tests/test_mcp_stdio_smoke.py -q && uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv build && uv lock --check && git diff --check",
+            "expected": "1149 passed, 1 skipped; MCP stdio 1 passed; static checks, build, lock, and diff checks pass."
+          },
+          {
+            "id": "step-2-3",
+            "title": "Validate Stenc and rendered pages",
+            "status": "done",
+            "command": "node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-08-04-vault-graph-round-2-mcp-coding-harness-design.spec.json && node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-08-04-vault-graph-round-2-mcp-coding-harness.plan.json && node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/check-rendered-pages.js docs/stenc",
+            "expected": "Both canonical JSON documents validate and every rendered Stenc page passes the page and local-media checks."
+          },
+          {
+            "id": "step-2-4",
+            "title": "Close review consistency findings",
+            "status": "done",
+            "command": "uv run pytest tests/test_code_repository_catalog.py -q && node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/setup-project.js --project-root \"$(pwd)\" --docs-dir docs/stenc && node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-08-04-vault-graph-round-2-mcp-coding-harness.plan.json && node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/check-rendered-pages.js docs/stenc",
+            "expected": "Direct code-catalog construction resolves the canonical Graph Home, the approved plan no longer describes a draft or missing handoff, and regenerated Stenc pages pass validation."
+          }
+        ],
+        "doneWhen": [
+          "Focused and full tests pass",
+          "MCP stdio smoke runs with the runtime enabled",
+          "Stenc source and rendered-page checks pass",
+          "Direct code-catalog construction uses GraphHomeResolver.DEFAULT_GRAPH_HOME",
+          "Plan currentState matches the approved SPEC and existing handoff link"
+        ]
+      },
+      {
+        "id": "slice-3",
+        "title": "사용자 제어 릴리스 handoff",
+        "status": "todo",
+        "surfaces": [
+          "codex/round-1-code-index branch",
+          "local main",
+          "remote repository"
+        ],
+        "files": [
+          {
+            "action": "Review",
+            "path": "git status and branch history",
+            "role": "Confirm the exact reviewable change set"
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-3-1",
+            "title": "Wait for explicit commit and merge direction",
+            "status": "todo",
+            "instruction": "Present the changed files and verification evidence. Commit only after the user explicitly requests it; do not merge to local main or push to remote as part of this plan."
+          }
+        ],
+        "doneWhen": [
+          "The user has explicitly chosen whether to commit, merge, or release",
+          "No remote mutation occurs without that explicit instruction"
+        ]
+      }
+    ],
+    "executionOrder": [
+      "slice-1",
+      "slice-2",
+      "slice-3"
+    ],
+    "risks": [
+      {
+        "risk": "A future parser or MCP change could make the verified contract stale.",
+        "mitigation": "Keep the SPEC, plan, focused acceptance tests, and full release gate in the same reviewable change set."
+      },
+      {
+        "risk": "Generated Stenc pages could be mistaken for canonical documentation.",
+        "mitigation": "Treat the JSON files under docs/stenc/content as source and regenerate pages with Stenc 0.4.1."
+      },
+      {
+        "risk": "A release action could mutate a branch or remote without user intent.",
+        "mitigation": "Keep commit, main merge, tag, and push outside the executed slices until explicitly requested."
+      }
+    ],
+    "validation": [
+      {
+        "command": "uv run pytest -q",
+        "purpose": "Confirm the complete local suite remains green without source-authority mutation."
+      },
+      {
+        "command": "VG_RUN_MCP_STDIO_SMOKE=1 uv run pytest tests/test_mcp_stdio_smoke.py -q",
+        "purpose": "Exercise the MCP stdio protocol gate with the local runtime enabled."
+      },
+      {
+        "command": "uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv build && uv lock --check && git diff --check",
+        "purpose": "Verify style, formatting, static typing, packaging, lock consistency, and whitespace safety."
+      },
+      {
+        "command": "node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/validate-stenc-doc.js docs/stenc/content/specs/2026-08-04-vault-graph-round-2-mcp-coding-harness-design.spec.json && node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/validate-stenc-doc.js docs/stenc/content/plans/2026-08-04-vault-graph-round-2-mcp-coding-harness.plan.json && node ${CODEX_SKILLS_DIR:-$HOME/.codex/skills}/stenc/scripts/check-rendered-pages.js docs/stenc",
+        "purpose": "Verify both Stenc JSON sources and all generated fixed-format pages."
+      }
+    ],
+    "agentInstructions": [
+      "Read docs/SPEC.md, docs/DESIGN.md, docs/FEATURES.md, and the linked Round 2 SPEC before changing behavior.",
+      "Keep ProjectContextService as the deep composition boundary; MCP and CLI remain thin adapters.",
+      "Keep Vault and registered repository content read-only and preserve visible freshness and scope warnings.",
+      "Use Stenc JSON as the documentation source and do not hand-edit generated pages.",
+      "Do not invoke Superpowers workflows or mutate local main or remote branches without explicit user instruction."
+    ],
+    "selfReviewChecks": [
+      {
+        "name": "Authority separation",
+        "purpose": "Confirm that Vault and registered repository evidence remain separate and rebuildable."
+      },
+      {
+        "name": "Deep-module boundary",
+        "purpose": "Confirm that composition stays in ProjectContextService and adapters do not open storage directly."
+      },
+      {
+        "name": "Read-only safety",
+        "purpose": "Confirm that query, MCP, benchmark, and default onboarding paths do not mutate Vault or repository content."
+      },
+      {
+        "name": "Release control",
+        "purpose": "Confirm that commit, merge, and push remain explicit user-controlled actions."
+      }
+    ],
+    "executionHandoff": {
+      "defaultPath": "docs/stenc/content/plans/2026-08-04-vault-graph-round-2-mcp-coding-harness.plan.json",
+      "options": [
+        {
+          "label": "Subagent-Driven",
+          "description": "Legacy Stenc compatibility option only; it is not selected or invoked for this repository.",
+          "requiredSkill": "superpowers:subagent-driven-development"
+        },
+        {
+          "label": "Inline Review",
+          "description": "Use direct review, tests, and Stenc validation in the current worktree.",
+          "requiredSkill": "vg-code"
+        }
+      ]
+    },
+    "supportingSections": [
+      {
+        "heading": "Verified transition state",
+        "content": "Round 2 core implementation and its acceptance evidence are present in codex/round-1-code-index. The branch is ready for a user-controlled commit decision; it is not yet merged or pushed.",
+        "items": [
+          "94 focused Round 2 tests passed.",
+          "The full suite passed with 1149 tests and one dependency-appropriate skip.",
+          "MCP stdio smoke passed with the runtime gate enabled.",
+          "Stenc 0.4.1 regenerated and validated the fixed-format documentation."
+        ],
+        "facts": [
+          {
+            "label": "Current branch",
+            "value": "codex/round-1-code-index"
+          },
+          {
+            "label": "Authority rule",
+            "value": "Vault and registered repository remain separate sources of truth"
+          },
+          {
+            "label": "Release boundary",
+            "value": "No commit, merge, tag, or remote push without explicit user instruction"
+          }
+        ],
+        "links": [],
+        "steps": [],
+        "blocks": [
+          {
+            "type": "callout",
+            "tone": "success",
+            "title": "Verification complete",
+            "body": "The implementation and contract are aligned. The only remaining gate is the user's release decision."
+          },
+          {
+            "type": "flowDiagram",
+            "title": "Round 2 closeout flow",
+            "summary": "A verified project-context contract moves to a user-controlled branch handoff.",
+            "nodes": [
+              {
+                "id": "contract",
+                "label": "SPEC contract",
+                "detail": "Defines authority, scope, freshness, budget, and harness boundaries.",
+                "role": "boundary"
+              },
+              {
+                "id": "implementation",
+                "label": "Round 2 implementation",
+                "detail": "Composes code and Vault evidence through ProjectContextService.",
+                "role": "engine"
+              },
+              {
+                "id": "verification",
+                "label": "Verification gate",
+                "detail": "Runs focused, full, MCP, static, package, and Stenc checks.",
+                "role": "value"
+              },
+              {
+                "id": "handoff",
+                "label": "User-controlled handoff",
+                "detail": "Waits for explicit commit, merge, or release direction.",
+                "role": "surface"
+              }
+            ],
+            "edges": [
+              {
+                "from": "contract",
+                "to": "implementation",
+                "label": "constrains"
+              },
+              {
+                "from": "implementation",
+                "to": "verification",
+                "label": "is checked by"
+              },
+              {
+                "from": "verification",
+                "to": "handoff",
+                "label": "enables"
+              }
+            ]
+          }
+        ],
+        "codeBlocks": [],
+        "subSections": []
+      }
+    ],
+    "openQuestions": []
+  }
+}

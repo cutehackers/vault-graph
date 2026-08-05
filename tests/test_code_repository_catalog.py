@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from vault_graph.app.catalog_service import CatalogService
+from vault_graph.app.graph_home import DEFAULT_GRAPH_HOME
 from vault_graph.code_index.code_models import CodeRepositoryEntry
 from vault_graph.code_index.repository_catalog import (
     CodeRepositoryCatalogService,
@@ -37,6 +38,12 @@ def _entry(root: Path, repository_id: str = "demo", **overrides: object) -> Code
     }
     values.update(overrides)
     return CodeRepositoryEntry(**values)  # type: ignore[arg-type]
+
+
+def test_catalog_service_defaults_to_canonical_graph_home() -> None:
+    service = CodeRepositoryCatalogService()
+
+    assert service.graph_home_path == DEFAULT_GRAPH_HOME
 
 
 def test_catalog_yaml_round_trip_normalizes_roots_and_preserves_order(tmp_path: Path) -> None:
