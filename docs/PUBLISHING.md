@@ -3,14 +3,14 @@
 ## Release Quick Flow
 
 1. Open a release candidate PR with the version bump:
-   `./publish.sh -v 0.1.3`
+   `./publish.sh -v 0.1.4`
    Run this from a clean `main` checkout or release worktree.
 2. Review and merge the release candidate PR into `main`.
 3. In GitHub Actions, run `prepare-release` manually:
-   - `version`: `0.1.3`
+   - `version`: `0.1.4`
    - `target_ref`: `main`
    - `release_notes`: leave empty for generated notes, or write a manual override
-4. Open the generated draft GitHub Release `v0.1.3`.
+4. Open the generated draft GitHub Release `v0.1.4`.
 5. Review the release notes and attached `dist/*` artifacts.
 6. Publish the draft GitHub Release.
 7. Open the `publish-pypi` workflow run.
