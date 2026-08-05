@@ -8,12 +8,13 @@ from vault_graph.app.graph_home import GraphHomeResolver
 from vault_graph.app.projection_generation import (
     ProjectionBundlePublisher,
     ProjectionGenerationError,
+    ProjectionLayout,
 )
 
 
 def _write_components(
     publisher: ProjectionBundlePublisher,
-    staged: object,
+    staged: ProjectionLayout,
     *,
     components: tuple[str, ...] = ("metadata", "vector", "graph"),
     source_snapshot: dict[str, object] | None = None,
