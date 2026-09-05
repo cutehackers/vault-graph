@@ -150,8 +150,8 @@ not the graph database.
 
 Chunks are the retrievable text units derived from a document.
 
-The current Phase 2B chunker is `heading-section-v1`. It treats each Markdown
-heading section as one retrievable chunk.
+The current chunker is `document-block-window-v2`. It consumes reader-emitted
+structural units and produces bounded, non-overlapping retrieval chunks.
 
 This is simple and explainable, but it has known limits:
 
@@ -160,23 +160,26 @@ This is simple and explainable, but it has known limits:
 - uneven section sizes create uneven vector granularity
 - one small edit inside a large section stales the whole section vector
 
-The long-term migration direction is:
+The active indexing and retrieval boundary is:
 
 ```text
-heading-section-v1
-  -> markdown-block-window-v2
-  -> hierarchical-retrieval-v3
+source bytes
+  -> DocumentReaderRegistry
+  -> structural blocks and source locators
+  -> document-block-window-v2
+  -> metadata-owned keyword/vector projections
+  -> parent-neighbor-v1 retrieval context
 ```
 
-`markdown-block-window-v2` keeps Markdown structure as the authority but groups
-paragraphs, lists, tables, block quotes, and code fences into token-budgeted
-windows. It can include a compact heading breadcrumb in embedded text so small
-chunks keep enough search context.
+`document-block-window-v2` keeps raw extracted text as the metadata authority
+and groups paragraphs, lists, tables, block quotes, and code fences into
+token-budgeted windows. It includes a compact heading breadcrumb only in the
+derived embedding input so evidence text and source hashes remain unchanged.
 
-`hierarchical-retrieval-v3` separates the search unit from the context assembly
-unit. Fine-grained chunks are used for recall, and parent sections, sibling
-chunks, document metadata, links, and future graph relationships are added later
-by the retrieval layer.
+`parent-neighbor-v1` separates the search unit from context assembly. Fine-
+grained chunks are used for recall, and bounded same-document neighboring
+chunks are added by the retrieval layer under `QueryScope`. Future parent
+rendering, links, and graph relationships remain separate retrieval features.
 
 Chunking belongs in the metadata and indexing pipeline. It must not move into
 `VectorStore`.
@@ -411,8 +414,7 @@ Vault Graph search works because responsibilities stay separate:
 - The retrieval layer owns merge, dedupe, ranking, warning attachment, and
   evidence-linked rendering.
 
-This separation keeps the system changeable. Vault Graph can migrate from
-`heading-section-v1` to `markdown-block-window-v2`, add
-`hierarchical-retrieval-v3`, swap Chroma for Qdrant later, or add graph signals
-without turning vector storage into the search policy layer or making derived
-state authoritative.
+This separation keeps the system changeable. Vault Graph can add PlainText,
+PDF, and DOCX readers behind the same extraction contract, swap Chroma for
+Qdrant later, or add graph signals without turning vector storage into the
+search policy layer or making derived state authoritative.

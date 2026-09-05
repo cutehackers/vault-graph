@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -70,6 +72,26 @@ def test_chunker_version_change_is_changed(tmp_path: Path) -> None:
 
     with store.connect_for_tests() as connection:
         connection.execute("UPDATE chunks SET chunker_version = 'old-chunker'")
+    plan = indexer.plan(scope=catalog.default_scope())
+
+    assert plan.changed_paths == (("default", "wiki/page.md"),)
+
+
+@pytest.mark.parametrize("column", ("reader_version", "extraction_options_digest"))
+def test_reader_lineage_change_is_changed(tmp_path: Path, column: str) -> None:
+    vault_root = tmp_path / "vault"
+    make_vault(vault_root)
+    catalog = VaultCatalog.from_entries(
+        entries=[VaultCatalogEntry.from_root(vault_id="default", root_path=vault_root)],
+        active_vault_id="default",
+    )
+    store = SQLiteMetadataStore(tmp_path / "state" / "metadata.sqlite3", initialize=True)
+    indexer = MetadataIndexer(catalog=catalog, metadata_store=store)
+    indexer.apply(scope=catalog.default_scope())
+
+    with store.connect_for_tests() as connection:
+        connection.execute(f"UPDATE documents SET {column} = 'old-lineage'")
+
     plan = indexer.plan(scope=catalog.default_scope())
 
     assert plan.changed_paths == (("default", "wiki/page.md"),)

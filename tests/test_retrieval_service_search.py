@@ -13,6 +13,7 @@ from vault_graph.embeddings.text_embeddings import EmbeddingInput
 from vault_graph.errors import SearchError
 from vault_graph.indexing.vector_indexer import stable_vector_id
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.context_expansion import ContextExpander
 from vault_graph.retrieval.graph_candidates import GraphCandidateResult
 from vault_graph.retrieval.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.retrieval_result import RetrievalSignal
@@ -125,6 +126,52 @@ def test_keyword_only_search_returns_evidence_chunk(tmp_path: Path) -> None:
     assert response.results[0].signals[0].kind == "keyword"
     assert response.degraded is True
     assert response.warnings[0].code == "vector_unavailable"
+
+
+def test_search_keeps_matched_evidence_and_reports_bounded_context(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    document = make_document("default", "wiki/context.md", "context")
+    previous = replace(
+        make_chunk("default", document.document_id, document.path, chunk_id="previous", text="Previous"),
+        section_path=("A",),
+        document_order=0,
+        content_hash="previous-hash",
+    )
+    matched = replace(
+        make_chunk("default", document.document_id, document.path, chunk_id="matched", text="Matched"),
+        section_path=("A", "B"),
+        document_order=1,
+        content_hash="matched-hash",
+    )
+    following = replace(
+        make_chunk("default", document.document_id, document.path, chunk_id="following", text="Following"),
+        section_path=("C",),
+        document_order=2,
+        content_hash="following-hash",
+    )
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[document],
+        chunks=[previous, matched, following],
+        tombstones=[],
+    )
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=InMemoryKeywordIndex((_keyword_hit(document.document_id, matched.chunk_id),)),
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+        context_expander=ContextExpander(metadata_store=store),
+        context_max_tokens=1,
+    )
+
+    response = service.search(query_text="Matched", requested_scope=catalog.default_scope())
+
+    assert response.results[0].evidence[0].chunk_id == "matched"
+    assert response.results[0].matched_chunk_id == "matched"
+    assert response.results[0].context_chunk_ids == ("previous",)
+    assert response.results[0].context_policy_version == "parent-neighbor-v1"
+    assert any(warning.code == "context_budget_omitted" for warning in response.warnings)
 
 
 def test_knowledge_search_collapses_family_and_attaches_source_references(tmp_path: Path) -> None:

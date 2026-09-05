@@ -68,6 +68,9 @@ class RetrievalResult:
     provenance_family_id: str = "legacy"
     supporting_evidence: tuple[EvidenceReference, ...] = ()
     audit_records: tuple[EvidenceReference, ...] = ()
+    matched_chunk_id: str = ""
+    context_chunk_ids: tuple[str, ...] = ()
+    context_policy_version: str = "none"
 
     def __post_init__(self) -> None:
         _require_non_empty(self.result_id, "result_id")

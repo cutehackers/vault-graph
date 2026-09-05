@@ -136,39 +136,46 @@ Required validation:
 
 ### Markdown Chunking Strategy Migration
 
-Status: future retrieval and indexing migration.
+Status: first production slice implemented; future readers remain separate
+adapters.
 
-Current default: `heading-section-v1`.
+Current default: `document-block-window-v2` with retrieval policy
+`parent-neighbor-v1`.
 
-Future direction:
+Delivered boundary:
 
 ```text
-heading-section-v1
-  -> markdown-block-window-v2
-  -> hierarchical-retrieval-v3
+source bytes
+  -> DocumentReaderRegistry
+  -> structural blocks with section paths and source locators
+  -> document-block-window-v2 leaf chunks
+  -> metadata authority and keyword/vector projections
+  -> parent-neighbor-v1 query-time context
 ```
 
-`heading-section-v1` is explainable and easy to inspect, but uneven section
-sizes can dilute semantic signal or stale large vectors after small edits.
+The legacy `heading-section-v1` shape is no longer the default. The current
+planner bounds leaf chunks, keeps raw evidence separate from contextual
+embedding text, and stores generic section paths and format-neutral locators.
+`MarkdownDocumentReader` is enabled first; it remains the only default reader
+until each optional adapter has independent dependency, locator, and recovery
+tests.
 
-`markdown-block-window-v2` should:
+The current implementation:
 
-- parse structural Markdown blocks
-- group adjacent blocks within token budgets
-- preserve code fences and tables unless deterministic split rules apply
-- include compact heading breadcrumbs in embedded text
-- keep evidence rendering tied to original Vault paths, headings, anchors, and
-  hashes
-- tombstone old-version vectors only inside the selected `QueryScope`
+- parses structural Markdown blocks
+- groups adjacent blocks within a deterministic token budget
+- preserves code fences and tables unless deterministic oversized splitting is
+  required
+- includes compact heading breadcrumbs only in embedding input
+- keeps evidence rendering tied to original Vault paths, headings, anchors,
+  locators, and hashes
+- tombstones old-version vectors only inside the selected `QueryScope`
 
-`hierarchical-retrieval-v3` should:
+Future adapter work:
 
-- separate matched fine chunks from expanded parent/neighbor context
-- keep expansion in retrieval, not `VectorStore`
-- explain `matched_chunk_id`, `context_chunk_ids`, parent section, retrieval
-  reason, and warnings
-- version retrieval policy separately from chunker version and context-pack
-  schema version
+- add PlainText, PDF, and DOCX readers behind the same extraction contract
+- add format-specific locator and optional-dependency recovery tests
+- benchmark and tune budgets only after retrieval evidence justifies it
 
 Required validation:
 

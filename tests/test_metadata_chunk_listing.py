@@ -33,7 +33,7 @@ def test_list_chunks_returns_current_non_tombstoned_chunks(tmp_path: Path) -> No
     assert chunks[0].path == "wiki/page.md"
     assert chunks[0].text == "Body"
     assert chunks[0].content_hash
-    assert chunks[0].chunker_version == "heading-section-v1"
+    assert chunks[0].chunker_version == "document-block-window-v2"
     assert chunks[0].index_revision is not None
 
 

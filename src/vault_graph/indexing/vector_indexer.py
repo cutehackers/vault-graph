@@ -7,6 +7,7 @@ from typing import Protocol
 
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector, TextEmbeddings
 from vault_graph.errors import TextEmbeddingsError, VectorStoreError
+from vault_graph.ingestion.document_chunking import contextual_embedding_text
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, stable_id
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.vector_store import (
@@ -191,7 +192,13 @@ class VectorIndexer:
         vectors: dict[str, EmbeddingVector] = {}
         for batch in _chunk_batches(chunks, self._embedding_batch_size):
             outputs = self._text_embeddings.embed(
-                tuple(EmbeddingInput(input_id=_embedding_input_id(chunk), text=chunk.text) for chunk in batch)
+                tuple(
+                    EmbeddingInput(
+                        input_id=_embedding_input_id(chunk),
+                        text=contextual_embedding_text(section_path=chunk.section_path, text=chunk.text),
+                    )
+                    for chunk in batch
+                )
             )
             expected_ids = {_embedding_input_id(chunk) for chunk in batch}
             output_ids = {output.input_id for output in outputs}

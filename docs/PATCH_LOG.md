@@ -3,6 +3,51 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-08-06 - Restore Markdown Evidence Locator Compatibility
+
+**Trigger:** Review found that frontmatter-stripped Markdown locators were
+relative to the extracted body and that `parse_sections()` emitted one result
+per structural block instead of preserving the legacy section shape.
+
+**Scope:** Markdown reader origin tracking, structural parser compatibility,
+and ingestion regression coverage.
+
+**Core Values Protected:** Preserved evidence traceability, deterministic
+rebuilds, and compatibility for existing ingestion callers.
+
+**Changes Applied:** Markdown parsing now accepts the original line and
+character origin, reader locators point back to the source document, multiline
+blocks retain their full line range, and `parse_sections()` groups blocks into
+the legacy one-section-per-heading view while remaining fence-aware.
+
+**Verification:** Focused Markdown reader and parser tests, full pytest, Ruff,
+Mypy, and `git diff --check` pass.
+
+## 2026-08-05 - Complete Format-Neutral Chunking Migration Gates
+
+**Trigger:** Implementation review found that the chunking migration also
+required metadata-v3 read-only health, strict locator decoding, projection
+hygiene versioning, and MCP recovery output before the new evidence contract
+could be considered complete.
+
+**Scope:** Markdown extraction, generic chunk planning, metadata persistence,
+keyword/vector projections, retrieval context, projection hygiene, and MCP
+metadata resources.
+
+**Core Values Protected:** Preserved read-only Vault boundaries, rebuildable
+projections, evidence-first retrieval, deterministic identity, and fail-closed
+schema recovery.
+
+**Changes Applied:** Added the format-neutral reader/block/locator contract,
+bounded `document-block-window-v2` planning, metadata-v3 lineage and locator
+columns, strict read-only compatibility checks, section-path keyword context,
+embedding-only breadcrumbs, and versioned `parent-neighbor-v1` retrieval
+context. Projection hygiene and MCP metadata reads now report incompatible
+metadata state with `vg index` recovery guidance.
+
+**Verification:** Focused migration tests, full pytest, Ruff, Mypy, format
+checks, and `git diff --check` pass after final verification.
+
 ## 2026-08-05 - Make CLI Help Assertions Terminal-Independent
 
 **Trigger:** GitHub Actions rendered Typer/Rich help and error output with ANSI

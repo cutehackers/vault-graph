@@ -1615,8 +1615,8 @@ Embedding throughput tuning:
   through `FastEmbedTextEmbeddings` configuration, not through new vector-store
   behavior.
 - `embedding_batch_size` is not chunk size. Current chunk boundaries come from
-  the `heading-section-v1` chunker and are heading-section based, not a fixed
-  token or character count.
+  the `document-block-window-v2` chunker and are structural, token-budgeted
+  windows rather than heading-section-sized or fixed character windows.
 - `embedding_batch_size` controls how many chunk texts are embedded per model
   call. The default is `256`. Lower values reduce memory pressure. Higher values
   may improve throughput on large Vaults.
@@ -1709,9 +1709,14 @@ Accepted Phase 2C decisions:
 - `vg search` must never auto-index. It reads existing Vault Graph projections
   only. If required projections are missing or stale, it reports warnings or
   recovery guidance instead of mutating Vault Graph Data Home.
-- Phase 2C keeps the existing Markdown `heading-section-v1` chunks. It must not
-  introduce `markdown-block-window-v2`, `hierarchical-retrieval-v3`, or any
-  chunker migration. Those remain later retrieval-policy or chunking migrations.
+- The current Markdown path uses `document-block-window-v2` leaf chunks from
+  the format-neutral reader/block contract. `vg index` reconciles changed
+  chunker, reader, parser, and extraction-option versions only inside the
+  selected `QueryScope`; old vector rows are tombstoned through the existing
+  derived-projection flow.
+- Retrieval keeps the matched leaf evidence authoritative and may add bounded
+  `parent-neighbor-v1` context IDs at query time. Context expansion does not
+  write to `VectorStore`, metadata blobs, or Vault content.
 
 Search boundary:
 
@@ -1727,6 +1732,7 @@ vg search "query"
   -> merge candidates by (vault_id, chunk_id)
   -> rank-based fusion
   -> MetadataStore evidence resolution
+  -> bounded parent-neighbor-v1 context expansion
   -> evidence chunk results plus top-level response warnings
 ```
 

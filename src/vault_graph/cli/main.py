@@ -123,6 +123,8 @@ def _read_only_search_components(
     catalog: VaultCatalog,
     include_graph: bool = False,
 ) -> tuple[SQLiteMetadataStore, RetrievalService]:
+    from vault_graph.retrieval.context_expansion import ContextExpander
+
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=False)
     keyword_index = SQLiteKeywordIndex(config.metadata_path)
     vector_store = ChromaVectorStore(config.vector_path, initialize=False, read_only=True)
@@ -146,6 +148,7 @@ def _read_only_search_components(
                 text_embeddings=text_embeddings,
             ),
             graph_candidate_provider=graph_candidate_provider,
+            context_expander=ContextExpander(metadata_store=metadata_store),
         ),
     )
 
@@ -441,6 +444,8 @@ def index(
     typer.echo(f"changed: {len(metadata.changed_paths)}")
     typer.echo(f"unchanged: {len(metadata.unchanged_paths)}")
     typer.echo(f"deleted: {len(metadata.deleted_paths)}")
+    for warning in metadata.warnings:
+        typer.echo(f"warning: {warning}")
     if report.vector is not None:
         vector = report.vector
         typer.echo(f"vector_mode: {vector.mode}")
@@ -1297,6 +1302,9 @@ def _result_json(result: RetrievalResult) -> dict[str, object]:
         "provenance_family_id": result.provenance_family_id,
         "supporting_evidence": [_evidence_json(evidence) for evidence in result.supporting_evidence],
         "audit_records": [_evidence_json(evidence) for evidence in result.audit_records],
+        "matched_chunk_id": result.matched_chunk_id,
+        "context_chunk_ids": list(result.context_chunk_ids),
+        "context_policy_version": result.context_policy_version,
     }
 
 
@@ -1314,6 +1322,8 @@ def _evidence_json(evidence: EvidenceReference) -> dict[str, object]:
         "vault_revision": evidence.vault_revision,
         "source_role": evidence.source_role,
         "provenance_family_id": evidence.provenance_family_id,
+        "section_path": list(evidence.section_path),
+        "source_locators": [locator.to_dict() for locator in evidence.source_locators],
     }
 
 

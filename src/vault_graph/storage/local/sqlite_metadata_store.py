@@ -9,13 +9,14 @@ from typing import Any, cast
 
 from vault_graph.errors import MetadataStoreError
 from vault_graph.ingestion.document_authority import DocumentRole
+from vault_graph.ingestion.document_models import DocumentModelError, SourceLocator
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.local.sqlite_keyword_index import apply_keyword_revision, ensure_keyword_schema
 
-SCHEMA_VERSION = "metadata-v2"
+SCHEMA_VERSION = "metadata-v3"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -28,6 +29,10 @@ CREATE TABLE IF NOT EXISTS documents (
   content_hash TEXT NOT NULL,
   raw_sha256 TEXT NOT NULL,
   parser_version TEXT NOT NULL,
+  format TEXT NOT NULL DEFAULT 'markdown',
+  reader_name TEXT NOT NULL DEFAULT 'legacy-markdown-reader',
+  reader_version TEXT NOT NULL DEFAULT 'legacy-v1',
+  extraction_options_digest TEXT NOT NULL DEFAULT 'legacy-options-v1',
   last_seen_at TEXT NOT NULL,
   last_indexed_at TEXT,
   vault_revision TEXT,
@@ -59,6 +64,9 @@ CREATE TABLE IF NOT EXISTS chunks (
   index_revision TEXT,
   source_role TEXT NOT NULL,
   provenance_family_id TEXT NOT NULL,
+  section_path_json TEXT NOT NULL DEFAULT '[]',
+  source_locators_json TEXT NOT NULL DEFAULT '[]',
+  document_order INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (vault_id, chunk_id)
 );
 
@@ -66,7 +74,57 @@ CREATE TABLE IF NOT EXISTS index_revisions (
   index_revision TEXT PRIMARY KEY,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS metadata_projection_metadata (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 """
+
+_REQUIRED_DOCUMENT_COLUMNS = frozenset(
+    {
+        "vault_id",
+        "document_id",
+        "path",
+        "kind",
+        "frontmatter_json",
+        "frontmatter_hash",
+        "content_hash",
+        "raw_sha256",
+        "parser_version",
+        "format",
+        "reader_name",
+        "reader_version",
+        "extraction_options_digest",
+        "last_seen_at",
+        "last_indexed_at",
+        "vault_revision",
+        "index_revision",
+        "source_role",
+        "provenance_family_id",
+        "is_tombstoned",
+    }
+)
+_REQUIRED_CHUNK_COLUMNS = frozenset(
+    {
+        "vault_id",
+        "chunk_id",
+        "document_id",
+        "path",
+        "section",
+        "anchor",
+        "blob_hash",
+        "token_count",
+        "content_hash",
+        "chunker_version",
+        "index_revision",
+        "source_role",
+        "provenance_family_id",
+        "section_path_json",
+        "source_locators_json",
+        "document_order",
+    }
+)
 
 
 class SQLiteMetadataStore:
@@ -77,6 +135,7 @@ class SQLiteMetadataStore:
             self._database_path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 connection.executescript(SCHEMA)
+                _upgrade_schema(connection)
                 ensure_keyword_schema(connection)
 
     def apply_metadata_revision(
@@ -98,10 +157,11 @@ class SQLiteMetadataStore:
                     """
                     INSERT INTO documents (
                       vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
-                      content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                      vault_revision, index_revision, source_role, provenance_family_id, is_tombstoned
+                      content_hash, raw_sha256, parser_version, format, reader_name, reader_version,
+                      extraction_options_digest, last_seen_at, last_indexed_at, vault_revision,
+                      index_revision, source_role, provenance_family_id, is_tombstoned
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                     ON CONFLICT(vault_id, path) DO UPDATE SET
                       document_id=excluded.document_id,
                       kind=excluded.kind,
@@ -110,6 +170,10 @@ class SQLiteMetadataStore:
                       content_hash=excluded.content_hash,
                       raw_sha256=excluded.raw_sha256,
                       parser_version=excluded.parser_version,
+                      format=excluded.format,
+                      reader_name=excluded.reader_name,
+                      reader_version=excluded.reader_version,
+                      extraction_options_digest=excluded.extraction_options_digest,
                       last_seen_at=excluded.last_seen_at,
                       last_indexed_at=excluded.last_indexed_at,
                       vault_revision=excluded.vault_revision,
@@ -128,6 +192,10 @@ class SQLiteMetadataStore:
                         document.content_hash,
                         document.raw_sha256,
                         document.parser_version,
+                        document.format,
+                        document.reader_name,
+                        document.reader_version,
+                        document.extraction_options_digest,
                         document.last_seen_at,
                         indexed_at,
                         document.vault_revision,
@@ -150,9 +218,9 @@ class SQLiteMetadataStore:
                     INSERT OR REPLACE INTO chunks (
                       vault_id, chunk_id, document_id, path, section, anchor, blob_hash,
                       token_count, content_hash, chunker_version, index_revision, source_role,
-                      provenance_family_id
+                      provenance_family_id, section_path_json, source_locators_json, document_order
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         chunk.vault_id,
@@ -168,6 +236,9 @@ class SQLiteMetadataStore:
                         index_revision,
                         chunk.source_role,
                         chunk.provenance_family_id,
+                        _section_path_json(chunk.section_path),
+                        _source_locators_json(chunk.source_locators),
+                        chunk.document_order,
                     ),
                 )
             for vault_id, path in tombstones:
@@ -195,7 +266,8 @@ class SQLiteMetadataStore:
             row = connection.execute(
                 """
                 SELECT d.vault_id, d.path, d.document_id, d.frontmatter_hash, d.content_hash,
-                       d.raw_sha256, d.parser_version, c.chunker_version, d.is_tombstoned,
+                       d.raw_sha256, d.parser_version, d.format, d.reader_name, d.reader_version,
+                       d.extraction_options_digest, c.chunker_version, d.is_tombstoned,
                        d.source_role, d.provenance_family_id
                 FROM documents d
                 LEFT JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id
@@ -218,7 +290,8 @@ class SQLiteMetadataStore:
             rows = connection.execute(
                 f"""
                 SELECT d.vault_id, d.path, d.document_id, d.frontmatter_hash, d.content_hash,
-                       d.raw_sha256, d.parser_version, c.chunker_version, d.is_tombstoned,
+                       d.raw_sha256, d.parser_version, d.format, d.reader_name, d.reader_version,
+                       d.extraction_options_digest, c.chunker_version, d.is_tombstoned,
                        d.source_role, d.provenance_family_id
                 FROM documents d
                 LEFT JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id
@@ -240,8 +313,9 @@ class SQLiteMetadataStore:
             rows = connection.execute(
                 f"""
                 SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
-                       content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                       vault_revision, index_revision, source_role, provenance_family_id
+                       content_hash, raw_sha256, parser_version, format, reader_name, reader_version,
+                       extraction_options_digest, last_seen_at, last_indexed_at, vault_revision,
+                       index_revision, source_role, provenance_family_id
                 FROM documents
                 WHERE vault_id IN ({vault_placeholders})
                   AND is_tombstoned = 0
@@ -279,8 +353,9 @@ class SQLiteMetadataStore:
             rows = connection.execute(
                 f"""
                 SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
-                       content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                       vault_revision, index_revision, source_role, provenance_family_id
+                       content_hash, raw_sha256, parser_version, format, reader_name, reader_version,
+                       extraction_options_digest, last_seen_at, last_indexed_at, vault_revision,
+                       index_revision, source_role, provenance_family_id
                 FROM documents
                 WHERE vault_id = ?
                   AND is_tombstoned = 0
@@ -304,7 +379,8 @@ class SQLiteMetadataStore:
                 f"""
                 SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
                        b.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision,
-                       c.source_role, c.provenance_family_id
+                       c.source_role, c.provenance_family_id, c.section_path_json,
+                       c.source_locators_json, c.document_order
                 FROM chunks c
                 INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
                 INNER JOIN documents d
@@ -313,7 +389,7 @@ class SQLiteMetadataStore:
                  AND d.path = c.path
                 WHERE c.vault_id IN ({vault_placeholders})
                   AND d.is_tombstoned = 0
-                ORDER BY c.vault_id, c.path, c.chunk_id
+                ORDER BY c.vault_id, c.path, c.document_order, c.chunk_id
                 """,
                 scope.vault_ids,
             ).fetchall()
@@ -336,7 +412,8 @@ class SQLiteMetadataStore:
                 """
                 SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
                        b.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision,
-                       c.source_role, c.provenance_family_id
+                       c.source_role, c.provenance_family_id, c.section_path_json,
+                       c.source_locators_json, c.document_order
                 FROM chunks c
                 INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
                 INNER JOIN documents d
@@ -346,7 +423,7 @@ class SQLiteMetadataStore:
                 WHERE c.vault_id = ?
                   AND c.document_id = ?
                   AND d.is_tombstoned = 0
-                ORDER BY c.rowid
+                ORDER BY c.document_order, c.rowid, c.chunk_id
                 """,
                 (vault_id, document_id),
             ).fetchall()
@@ -359,8 +436,9 @@ class SQLiteMetadataStore:
             row = connection.execute(
                 """
                 SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
-                       content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                       vault_revision, index_revision, source_role, provenance_family_id
+                       content_hash, raw_sha256, parser_version, format, reader_name, reader_version,
+                       extraction_options_digest, last_seen_at, last_indexed_at, vault_revision,
+                       index_revision, source_role, provenance_family_id
                 FROM documents
                 WHERE document_id = ? AND is_tombstoned = 0
                 """,
@@ -378,7 +456,8 @@ class SQLiteMetadataStore:
                 """
                 SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor, b.text,
                        c.token_count, c.content_hash, c.chunker_version, c.index_revision,
-                       c.source_role, c.provenance_family_id
+                       c.source_role, c.provenance_family_id, c.section_path_json,
+                       c.source_locators_json, c.document_order
                 FROM chunks c
                 INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
                 WHERE c.vault_id = ? AND c.chunk_id = ?
@@ -403,7 +482,8 @@ class SQLiteMetadataStore:
                 """
                 SELECT d.vault_id, d.document_id, c.chunk_id, d.path, c.section, c.anchor,
                        c.content_hash, d.raw_sha256, c.index_revision, d.vault_revision,
-                       c.source_role, c.provenance_family_id
+                       c.source_role, c.provenance_family_id, c.section_path_json,
+                       c.source_locators_json
                 FROM documents d
                 INNER JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id AND c.path = d.path
                 WHERE d.vault_id = ?
@@ -432,14 +512,61 @@ class SQLiteMetadataStore:
                     str(row["name"])
                     for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
                 }
-                missing = {"documents", "content_blobs", "chunks", "index_revisions"} - tables
+                missing = {
+                    "documents",
+                    "content_blobs",
+                    "chunks",
+                    "index_revisions",
+                    "metadata_projection_metadata",
+                } - tables
                 if missing:
                     return StoreHealth(
                         ok=False,
                         backend="sqlite",
                         schema_version=SCHEMA_VERSION,
                         schema_compatible=False,
-                        message=f"schema incompatible: missing {', '.join(sorted(missing))}",
+                        message=f"schema incompatible: missing {', '.join(sorted(missing))}. Run `vg index`.",
+                    )
+                document_columns = {
+                    str(row["name"]) for row in connection.execute("PRAGMA table_info(documents)").fetchall()
+                }
+                missing_document_columns = _REQUIRED_DOCUMENT_COLUMNS - document_columns
+                if missing_document_columns:
+                    return StoreHealth(
+                        ok=False,
+                        backend="sqlite",
+                        schema_version=SCHEMA_VERSION,
+                        schema_compatible=False,
+                        message=(
+                            "schema incompatible: missing document columns "
+                            + ", ".join(sorted(missing_document_columns))
+                            + ". Run `vg index`."
+                        ),
+                    )
+                chunk_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
+                missing_chunk_columns = _REQUIRED_CHUNK_COLUMNS - chunk_columns
+                if missing_chunk_columns:
+                    return StoreHealth(
+                        ok=False,
+                        backend="sqlite",
+                        schema_version=SCHEMA_VERSION,
+                        schema_compatible=False,
+                        message=(
+                            "schema incompatible: missing chunk columns "
+                            + ", ".join(sorted(missing_chunk_columns))
+                            + ". Run `vg index`."
+                        ),
+                    )
+                version_row = connection.execute(
+                    "SELECT value FROM metadata_projection_metadata WHERE key = 'schema_version'"
+                ).fetchone()
+                if version_row is None or str(version_row["value"]) != SCHEMA_VERSION:
+                    return StoreHealth(
+                        ok=False,
+                        backend="sqlite",
+                        schema_version=SCHEMA_VERSION,
+                        schema_compatible=False,
+                        message="schema incompatible: metadata schema version mismatch. Run `vg index`.",
                     )
         except (FileNotFoundError, sqlite3.Error) as exc:
             return StoreHealth(
@@ -465,7 +592,8 @@ class SQLiteMetadataStore:
                 """
                 SELECT d.vault_id, d.document_id, c.chunk_id, d.path, c.section, c.anchor,
                        c.content_hash, d.raw_sha256, c.index_revision, d.vault_revision,
-                       c.source_role, c.provenance_family_id
+                       c.source_role, c.provenance_family_id, c.section_path_json,
+                       c.source_locators_json
                 FROM documents d
                 INNER JOIN chunks c
                   ON c.vault_id = d.vault_id
@@ -474,7 +602,7 @@ class SQLiteMetadataStore:
                 WHERE d.vault_id = ?
                   AND c.provenance_family_id = ?
                   AND d.is_tombstoned = 0
-                ORDER BY d.path, c.rowid
+                ORDER BY d.path, c.document_order, c.chunk_id
                 """,
                 (vault_id, provenance_family_id),
             ).fetchall()
@@ -487,8 +615,9 @@ class SQLiteMetadataStore:
             rows = connection.execute(
                 """
                 SELECT vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
-                       content_hash, raw_sha256, parser_version, last_seen_at, last_indexed_at,
-                       vault_revision, index_revision, source_role, provenance_family_id
+                       content_hash, raw_sha256, parser_version, format, reader_name, reader_version,
+                       extraction_options_digest, last_seen_at, last_indexed_at, vault_revision,
+                       index_revision, source_role, provenance_family_id
                 FROM documents
                 WHERE is_tombstoned = 0
                 ORDER BY vault_id, path
@@ -510,6 +639,78 @@ class SQLiteMetadataStore:
         return connection
 
 
+def _upgrade_schema(connection: sqlite3.Connection) -> None:
+    """Upgrade metadata columns only on an explicitly writable open."""
+
+    document_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(documents)").fetchall()}
+    for column, definition in (
+        ("format", "TEXT NOT NULL DEFAULT 'markdown'"),
+        ("reader_name", "TEXT NOT NULL DEFAULT 'legacy-markdown-reader'"),
+        ("reader_version", "TEXT NOT NULL DEFAULT 'legacy-v1'"),
+        ("extraction_options_digest", "TEXT NOT NULL DEFAULT 'legacy-options-v1'"),
+    ):
+        if column not in document_columns:
+            connection.execute(f"ALTER TABLE documents ADD COLUMN {column} {definition}")
+
+    chunk_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
+    for column, definition in (
+        ("section_path_json", "TEXT NOT NULL DEFAULT '[]'"),
+        ("source_locators_json", "TEXT NOT NULL DEFAULT '[]'"),
+        ("document_order", "INTEGER NOT NULL DEFAULT 0"),
+    ):
+        if column not in chunk_columns:
+            connection.execute(f"ALTER TABLE chunks ADD COLUMN {column} {definition}")
+    connection.execute(
+        """
+        INSERT INTO metadata_projection_metadata (key, value)
+        VALUES ('schema_version', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """,
+        (SCHEMA_VERSION,),
+    )
+
+
+def _section_path_json(section_path: tuple[str, ...]) -> str:
+    if not isinstance(section_path, tuple) or any(not isinstance(segment, str) for segment in section_path):
+        raise MetadataStoreError("section_path must be a tuple of strings")
+    return json.dumps(list(section_path), ensure_ascii=False, separators=(",", ":"))
+
+
+def _source_locators_json(source_locators: tuple[SourceLocator, ...]) -> str:
+    if not isinstance(source_locators, tuple):
+        raise MetadataStoreError("source_locators must be a tuple")
+    try:
+        payload = [locator.to_dict() for locator in source_locators]
+    except (AttributeError, TypeError) as exc:
+        raise MetadataStoreError("source_locators must contain SourceLocator values") from exc
+    if any(not isinstance(locator, SourceLocator) for locator in source_locators):
+        raise MetadataStoreError("source_locators must contain SourceLocator values")
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _decode_section_path(raw_value: object) -> tuple[str, ...]:
+    try:
+        decoded = json.loads(str(raw_value))
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise MetadataStoreError("metadata section_path_json is malformed") from exc
+    if not isinstance(decoded, list) or any(not isinstance(segment, str) for segment in decoded):
+        raise MetadataStoreError("metadata section_path_json must be a JSON list of strings")
+    return tuple(segment.strip() for segment in decoded if segment.strip())
+
+
+def _decode_source_locators(raw_value: object) -> tuple[SourceLocator, ...]:
+    try:
+        decoded = json.loads(str(raw_value))
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise MetadataStoreError("metadata source_locators_json is malformed") from exc
+    if not isinstance(decoded, list):
+        raise MetadataStoreError("metadata source_locators_json must be a JSON list")
+    try:
+        return tuple(SourceLocator.from_dict(item) for item in decoded)
+    except (DocumentModelError, TypeError, ValueError) as exc:
+        raise MetadataStoreError("metadata source_locators_json contains an invalid locator") from exc
+
+
 def _missing_document_state(*, vault_id: str, path: str) -> DocumentState:
     return DocumentState(
         vault_id=vault_id,
@@ -523,6 +724,10 @@ def _missing_document_state(*, vault_id: str, path: str) -> DocumentState:
         is_tombstoned=True,
         source_role=None,
         provenance_family_id=None,
+        format=None,
+        reader_name=None,
+        reader_version=None,
+        extraction_options_digest=None,
     )
 
 
@@ -535,6 +740,10 @@ def _document_state_from_row(row: sqlite3.Row) -> DocumentState:
         content_hash=str(row["content_hash"]),
         raw_sha256=str(row["raw_sha256"]),
         parser_version=str(row["parser_version"]),
+        format=str(row["format"]),
+        reader_name=str(row["reader_name"]),
+        reader_version=str(row["reader_version"]),
+        extraction_options_digest=str(row["extraction_options_digest"]),
         chunker_version=str(row["chunker_version"]) if row["chunker_version"] is not None else None,
         is_tombstoned=bool(row["is_tombstoned"]),
         source_role=cast(DocumentRole, str(row["source_role"])),
@@ -553,6 +762,10 @@ def _document_snapshot_from_row(row: sqlite3.Row) -> DocumentSnapshot:
         content_hash=str(row["content_hash"]),
         raw_sha256=str(row["raw_sha256"]),
         parser_version=str(row["parser_version"]),
+        format=str(row["format"]),
+        reader_name=str(row["reader_name"]),
+        reader_version=str(row["reader_version"]),
+        extraction_options_digest=str(row["extraction_options_digest"]),
         last_seen_at=str(row["last_seen_at"]),
         last_indexed_at=str(row["last_indexed_at"]) if row["last_indexed_at"] is not None else None,
         vault_revision=str(row["vault_revision"]) if row["vault_revision"] is not None else None,
@@ -563,6 +776,8 @@ def _document_snapshot_from_row(row: sqlite3.Row) -> DocumentSnapshot:
 
 
 def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
+    section_path = _decode_section_path(row["section_path_json"])
+    source_locators = _decode_source_locators(row["source_locators_json"])
     return ChunkSnapshot(
         vault_id=str(row["vault_id"]),
         chunk_id=str(row["chunk_id"]),
@@ -577,6 +792,9 @@ def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
         index_revision=str(row["index_revision"]) if row["index_revision"] is not None else None,
         source_role=cast(DocumentRole, str(row["source_role"])),
         provenance_family_id=str(row["provenance_family_id"]),
+        section_path=section_path,
+        source_locators=source_locators,
+        document_order=int(row["document_order"]),
     )
 
 
@@ -610,4 +828,6 @@ def _evidence_reference_from_row(row: sqlite3.Row) -> EvidenceReference:
         vault_revision=str(row["vault_revision"]) if row["vault_revision"] is not None else None,
         source_role=cast(DocumentRole, str(row["source_role"])),
         provenance_family_id=str(row["provenance_family_id"]),
+        section_path=_decode_section_path(row["section_path_json"]),
+        source_locators=_decode_source_locators(row["source_locators_json"]),
     )

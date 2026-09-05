@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,21 @@ def test_loader_reads_allowed_markdown_paths(tmp_path: Path) -> None:
     assert tuple(document.path for document in documents) == ("wiki/systems.md",)
     assert documents[0].vault_id == "default"
     assert documents[0].frontmatter.data == {"title": "Systems"}
+
+
+def test_loader_hashes_original_markdown_bytes(tmp_path: Path) -> None:
+    vault_root = tmp_path / "vault"
+    (vault_root / "wiki").mkdir(parents=True)
+    source = vault_root / "wiki" / "note.md"
+    source.write_bytes("# 제목\n\n본문".encode())
+    entry = VaultCatalogEntry.from_root(vault_id="default", root_path=vault_root)
+
+    documents = VaultLoader().load_documents(
+        entry=entry,
+        scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
+    )
+
+    assert documents[0].raw_sha256 == hashlib.sha256(source.read_bytes()).hexdigest()
 
 
 def test_loader_does_not_modify_vault_files(tmp_path: Path) -> None:

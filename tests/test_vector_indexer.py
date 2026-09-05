@@ -76,6 +76,25 @@ def test_apply_embeds_upserts_and_records_manifest() -> None:
     assert manifest[0].metadata_index_revision == "metadata-1"
 
 
+def test_embedding_uses_section_context_but_manifest_keeps_raw_chunk_hash() -> None:
+    vector_store = InMemoryVectorStore()
+    embeddings = DeterministicTextEmbeddings(SPEC)
+    contextual_chunk = replace(
+        chunk(text="Body"),
+        section_path=("Architecture", "Retrieval"),
+    )
+
+    VectorIndexer(
+        chunk_store=ChunkStore((contextual_chunk,)),
+        vector_store=vector_store,
+        text_embeddings=embeddings,
+    ).apply(scopes=(QueryScope(vault_ids=("default",), content_scopes=("wiki",)),))
+
+    assert embeddings.last_inputs[0].text == "Section path: Architecture > Retrieval\n\nBody"
+    manifest = vector_store.export_manifest(QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+    assert manifest[0].source_chunk_hash == "hash:Body"
+
+
 def test_changed_chunk_hash_replaces_existing_vector() -> None:
     vector_store = InMemoryVectorStore()
     first = chunk(text="alpha")

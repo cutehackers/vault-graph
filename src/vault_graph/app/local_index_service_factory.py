@@ -16,6 +16,7 @@ from vault_graph.app.projection_generation import (
 from vault_graph.app.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
 from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.ingestion.document_chunking import CHUNKER_VERSION
 from vault_graph.ingestion.vault_catalog import VaultCatalog
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
@@ -187,7 +188,7 @@ def _write_projection_component_manifests(
         contract={
             "loader": "VaultLoader",
             "normalizer": "DocumentNormalizer",
-            "chunker": "document-normalizer-v1",
+            "chunker": CHUNKER_VERSION,
         },
         schema_version=metadata_health.schema_version,
         revision=metadata_revision,

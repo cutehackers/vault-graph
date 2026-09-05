@@ -32,6 +32,30 @@ def test_keyword_search_returns_current_chunk_candidates(tmp_path: Path) -> None
     assert keyword_index.index_revision(QueryScope(vault_ids=("default",), content_scopes=("wiki",))) == "metadata-1"
 
 
+def test_keyword_search_indexes_full_section_path(tmp_path: Path) -> None:
+    database_path = tmp_path / "metadata.sqlite3"
+    metadata_store = SQLiteMetadataStore(database_path, initialize=True)
+    document = make_document("default", "wiki/page.md", "hash-1")
+    chunk = replace(
+        make_chunk("default", document.document_id, document.path),
+        section_path=("Architecture", "Retrieval"),
+    )
+    metadata_store.apply_metadata_revision(
+        index_revision="metadata-1", documents=[document], chunks=[chunk], tombstones=[]
+    )
+
+    hits = SQLiteKeywordIndex(database_path).search(
+        KeywordQuery(
+            query_text="Architecture",
+            scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)),
+            limit=10,
+        )
+    )
+
+    assert tuple(hit.chunk_id for hit in hits) == (chunk.chunk_id,)
+    assert hits[0].matched_fields == ("section",)
+
+
 def test_keyword_search_filters_vault_before_limit(tmp_path: Path) -> None:
     database_path = tmp_path / "metadata.sqlite3"
     metadata_store = SQLiteMetadataStore(database_path, initialize=True)

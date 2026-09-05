@@ -477,6 +477,10 @@ def evidence_to_dict(evidence: EvidenceReference) -> dict[str, object]:
         "raw_sha256": evidence.raw_sha256,
         "metadata_index_revision": evidence.metadata_index_revision,
         "vault_revision": evidence.vault_revision,
+        "source_role": evidence.source_role,
+        "provenance_family_id": evidence.provenance_family_id,
+        "section_path": list(evidence.section_path),
+        "source_locators": [locator.to_dict() for locator in evidence.source_locators],
     }
 
 
@@ -570,6 +574,9 @@ def _retrieval_result_to_dict(result: RetrievalResult) -> dict[str, object]:
         "provenance_family_id": result.provenance_family_id,
         "supporting_evidence": [evidence_to_dict(evidence) for evidence in result.supporting_evidence],
         "audit_records": [evidence_to_dict(evidence) for evidence in result.audit_records],
+        "matched_chunk_id": result.matched_chunk_id,
+        "context_chunk_ids": list(result.context_chunk_ids),
+        "context_policy_version": result.context_policy_version,
     }
 
 

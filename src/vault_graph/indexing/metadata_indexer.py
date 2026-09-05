@@ -111,7 +111,7 @@ class MetadataIndexer:
             changed_paths=tuple(sorted(changed)),
             unchanged_paths=tuple(sorted(unchanged)),
             deleted_paths=tuple(sorted(deleted)),
-            warnings=(),
+            warnings=tuple(f"{item.document.path}: {warning}" for item in normalized for warning in item.warnings),
         )
         return plan, normalized
 
@@ -131,6 +131,10 @@ def _document_changed(*, current: DocumentState, item: NormalizedDocument) -> bo
         or current.content_hash != item.document.content_hash
         or current.raw_sha256 != item.document.raw_sha256
         or current.parser_version != item.document.parser_version
+        or current.format != item.document.format
+        or current.reader_name != item.document.reader_name
+        or current.reader_version != item.document.reader_version
+        or current.extraction_options_digest != item.document.extraction_options_digest
         or current.chunker_version != _document_chunker_version(item)
         or current.source_role != item.document.source_role
         or current.provenance_family_id != item.document.provenance_family_id
