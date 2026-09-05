@@ -229,10 +229,11 @@ def test_document_resource_reads_indexed_metadata_and_chunks_only(tmp_path: Path
     assert isinstance(evidence_refs, list)
     assert len(evidence_refs) == 2
     assert store.calls[:3] == [
+        "health",
         "document_state:main:wiki/page.md",
         "resolve_document:doc-1",
-        "list_document_chunks:main:doc-1",
     ]
+    assert store.calls[3] == "list_document_chunks:main:doc-1"
 
 
 def test_page_resource_requires_wiki_document(tmp_path: Path) -> None:

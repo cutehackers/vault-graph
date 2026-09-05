@@ -1,3 +1,4 @@
+from vault_graph.retrieval.context_expansion import CONTEXT_POLICY_VERSION, ContextExpander, ContextExpansion
 from vault_graph.retrieval.graph_candidates import (
     GraphCandidateProvider,
     GraphCandidateResult,
@@ -38,6 +39,9 @@ from vault_graph.retrieval.search_response import (
 )
 
 __all__ = [
+    "CONTEXT_POLICY_VERSION",
+    "ContextExpansion",
+    "ContextExpander",
     "DecisionTraceResponse",
     "DecisionTraceStep",
     "GraphCandidateProvider",

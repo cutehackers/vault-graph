@@ -293,6 +293,7 @@ class ReadOnlyServiceFactory:
         components: _RetrievalComponents,
         include_graph: bool,
     ) -> RetrievalService:
+        from vault_graph.retrieval.context_expansion import ContextExpander
         from vault_graph.retrieval.retrieval_service import RetrievalService
 
         return RetrievalService(
@@ -303,6 +304,7 @@ class ReadOnlyServiceFactory:
             text_embeddings=components.text_embeddings,
             readiness=components.readiness,
             graph_candidate_provider=(self.open_graph_search_candidate_provider() if include_graph else None),
+            context_expander=ContextExpander(metadata_store=components.metadata_store),
         )
 
     def _build_context_pack_builder(

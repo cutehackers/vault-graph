@@ -9,6 +9,7 @@ from typing import cast
 from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
+from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 
 @dataclass(frozen=True)
@@ -135,9 +136,8 @@ def _connect_readonly(path: Path) -> sqlite3.Connection:
 
 
 def _metadata_version(path: Path) -> str:
-    with _connect_readonly(path) as connection:
-        tables = {str(row[0]) for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    return "metadata-v2" if "content_blobs" in tables else "incompatible"
+    health = SQLiteMetadataStore(path, initialize=False).health()
+    return health.schema_version if health.ok and health.schema_compatible else "incompatible"
 
 
 def _projection_version(path: Path, table: str) -> str:

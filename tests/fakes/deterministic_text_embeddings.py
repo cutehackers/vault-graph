@@ -9,6 +9,7 @@ from vault_graph.errors import TextEmbeddingsError
 class DeterministicTextEmbeddings:
     def __init__(self, model_spec: EmbeddingModelSpec) -> None:
         self._model_spec = model_spec
+        self.last_inputs: tuple[EmbeddingInput, ...] = ()
 
     def model_spec(self) -> EmbeddingModelSpec:
         return self._model_spec
@@ -18,6 +19,7 @@ class DeterministicTextEmbeddings:
 
     def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]:
         _validate_unique_input_ids(inputs)
+        self.last_inputs = inputs
         return tuple(
             EmbeddingVector(
                 input_id=item.input_id,

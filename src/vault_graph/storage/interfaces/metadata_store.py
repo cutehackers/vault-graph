@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from vault_graph.ingestion.document_authority import DocumentRole
+from vault_graph.ingestion.document_models import SourceLocator
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
@@ -23,6 +24,8 @@ class EvidenceReference:
     vault_revision: str | None
     source_role: DocumentRole = "canonical_knowledge"
     provenance_family_id: str = ""
+    section_path: tuple[str, ...] = ()
+    source_locators: tuple[SourceLocator, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -38,6 +41,10 @@ class DocumentState:
     is_tombstoned: bool
     source_role: DocumentRole | None = None
     provenance_family_id: str | None = None
+    format: str | None = None
+    reader_name: str | None = None
+    reader_version: str | None = None
+    extraction_options_digest: str | None = None
 
 
 class MetadataStore(Protocol):

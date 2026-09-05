@@ -229,7 +229,7 @@ def apply_keyword_revision(
             (
                 cursor.lastrowid,
                 chunk.path,
-                chunk.section or "",
+                " > ".join(chunk.section_path) or chunk.section or "",
                 _title_for_document(document),
                 json.dumps(document.frontmatter, sort_keys=True),
                 chunk.text,

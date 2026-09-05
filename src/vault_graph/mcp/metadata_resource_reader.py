@@ -47,6 +47,7 @@ class MetadataResourceReader:
         uri: McpResourceUri,
         classifier: Callable[[DocumentSnapshot], bool] | None = None,
     ) -> McpResourceBody:
+        _ensure_metadata_available(self._metadata_store, uri)
         vault_id = _required_value(uri.vault_id)
         path = _required_value(uri.value)
         state = self._metadata_store.document_state(vault_id, path)
@@ -66,6 +67,7 @@ class MetadataResourceReader:
         uri: McpResourceUri,
         classifier: Callable[[DocumentSnapshot], bool],
     ) -> McpResourceBody:
+        _ensure_metadata_available(self._metadata_store, uri)
         vault_id = _required_value(uri.vault_id)
         document_id = _required_value(uri.value)
         document = self._metadata_store.resolve_document(document_id)
@@ -157,6 +159,10 @@ def _document_metadata(
         "content_hash": document.content_hash,
         "raw_sha256": document.raw_sha256,
         "parser_version": document.parser_version,
+        "format": document.format,
+        "reader_name": document.reader_name,
+        "reader_version": document.reader_version,
+        "extraction_options_digest": document.extraction_options_digest,
         "chunker_version": chunks[0].chunker_version if chunks else None,
         "metadata_index_revision": document.index_revision,
         "vault_revision": document.vault_revision,
@@ -177,6 +183,10 @@ def _evidence_dict(evidence: EvidenceReference) -> dict[str, object]:
         "raw_sha256": evidence.raw_sha256,
         "metadata_index_revision": evidence.metadata_index_revision,
         "vault_revision": evidence.vault_revision,
+        "source_role": evidence.source_role,
+        "provenance_family_id": evidence.provenance_family_id,
+        "section_path": list(evidence.section_path),
+        "source_locators": [locator.to_dict() for locator in evidence.source_locators],
     }
 
 
@@ -193,6 +203,25 @@ def _warning(
         severity="warning",
         affected_vault_ids=affected_vault_ids,
         recovery_hint=recovery_hint,
+    )
+
+
+def _ensure_metadata_available(metadata_store: MetadataStore, uri: McpResourceUri) -> None:
+    health_reader = getattr(metadata_store, "health", None)
+    if not callable(health_reader):
+        return
+    health = health_reader()
+    if health.ok and health.schema_compatible:
+        return
+    raise McpProtocolError(
+        kind="execution",
+        payload=McpErrorPayload(
+            code="metadata_schema_incompatible",
+            message=f"Metadata schema is incompatible: {health.message}",
+            severity="error",
+            affected_vault_ids=(uri.vault_id,) if uri.vault_id else (),
+            recovery_hint="Run `vg index` for the selected Vault.",
+        ),
     )
 
 

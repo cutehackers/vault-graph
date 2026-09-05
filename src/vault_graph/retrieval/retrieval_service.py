@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, TextEmbeddings
-from vault_graph.errors import KeywordIndexError, SearchError, TextEmbeddingsError, VectorStoreError
+from vault_graph.errors import (
+    KeywordIndexError,
+    MetadataStoreError,
+    RetrievalContractError,
+    SearchError,
+    TextEmbeddingsError,
+    VectorStoreError,
+)
 from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
+from vault_graph.retrieval.context_expansion import ContextExpander
 from vault_graph.retrieval.graph_candidates import GraphCandidateProvider, GraphCandidateResult
 from vault_graph.retrieval.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.retrieval_result import (
@@ -31,6 +39,8 @@ from vault_graph.storage.interfaces.vector_store import VectorHit, VectorQuery, 
 
 RANK_CONSTANT = 60.0
 SIGNAL_WEIGHTS: dict[RetrievalSignalKind, float] = {"keyword": 1.0, "vector": 1.0, "graph": 0.75}
+DEFAULT_CONTEXT_EXPANSION_MAX_TOKENS = 256
+DEFAULT_CONTEXT_NEIGHBOR_RADIUS = 1
 SEARCH_MODE_ROLES: dict[SearchMode, tuple[DocumentRole, ...]] = {
     "knowledge": ("canonical_knowledge",),
     "evidence": ("source_manifest", "raw_evidence"),
@@ -59,6 +69,9 @@ class RetrievalService:
         vector_store: VectorStore | None = None,
         text_embeddings: TextEmbeddings | None = None,
         graph_candidate_provider: GraphCandidateProvider | None = None,
+        context_expander: ContextExpander | None = None,
+        context_max_tokens: int = DEFAULT_CONTEXT_EXPANSION_MAX_TOKENS,
+        context_neighbor_radius: int = DEFAULT_CONTEXT_NEIGHBOR_RADIUS,
     ) -> None:
         self._catalog = catalog
         self._metadata_store = metadata_store
@@ -67,6 +80,13 @@ class RetrievalService:
         self._vector_store = vector_store
         self._text_embeddings = text_embeddings
         self._graph_candidate_provider = graph_candidate_provider
+        if context_max_tokens <= 0:
+            raise SearchError("context_max_tokens must be positive")
+        if context_neighbor_radius < 0:
+            raise SearchError("context_neighbor_radius must not be negative")
+        self._context_expander = context_expander
+        self._context_max_tokens = context_max_tokens
+        self._context_neighbor_radius = context_neighbor_radius
 
     def search(
         self,
@@ -117,7 +137,11 @@ class RetrievalService:
         candidates = _fuse_candidates(candidates=signal_candidates)
         results, dropped, missing_warnings = self._resolve_results(candidates=candidates, mode=request.mode)
         warnings.extend(missing_warnings)
-        limited_results = tuple(results[: request.limit])
+        limited_results = self._expand_context(
+            results=tuple(results[: request.limit]),
+            request=request,
+            warnings=warnings,
+        )
         return SearchResponse(
             query_text=request.query_text,
             requested_scope=request.requested_scope,
@@ -133,6 +157,73 @@ class RetrievalService:
             generated_at=datetime.now(UTC).isoformat(),
             result_family_duplication=_family_duplication(results),
         )
+
+    def _expand_context(
+        self,
+        *,
+        results: tuple[RetrievalResult, ...],
+        request: SearchRequest,
+        warnings: list[SearchWarning],
+    ) -> tuple[RetrievalResult, ...]:
+        if self._context_expander is None:
+            return results
+        expanded: list[RetrievalResult] = []
+        for result in results:
+            evidence = result.evidence[0]
+            chunk = self._metadata_store.resolve_chunk(vault_id=evidence.vault_id, chunk_id=evidence.chunk_id)
+            if chunk is None:
+                warnings.append(
+                    SearchWarning(
+                        code="context_missing_chunk",
+                        message=f"Context expansion could not resolve matched chunk: {evidence.chunk_id}",
+                        severity="warning",
+                        affected_vault_ids=(result.vault_id,),
+                        document_id=evidence.document_id,
+                        chunk_id=evidence.chunk_id,
+                    )
+                )
+                expanded.append(replace(result, matched_chunk_id=evidence.chunk_id))
+                continue
+            try:
+                expansion = self._context_expander.expand(
+                    matched_chunk=chunk,
+                    scope=request.requested_scope,
+                    max_tokens=self._context_max_tokens,
+                    neighbor_radius=self._context_neighbor_radius,
+                )
+            except (MetadataStoreError, RetrievalContractError) as exc:
+                warnings.append(
+                    SearchWarning(
+                        code="context_expansion_failed",
+                        message=f"Context expansion was omitted for matched chunk {chunk.chunk_id}: {exc}",
+                        severity="warning",
+                        affected_vault_ids=(result.vault_id,),
+                        document_id=evidence.document_id,
+                        chunk_id=evidence.chunk_id,
+                    )
+                )
+                expanded.append(replace(result, matched_chunk_id=chunk.chunk_id))
+                continue
+            warnings.extend(
+                SearchWarning(
+                    code=f"context_{warning.code}",
+                    message=warning.message,
+                    severity=warning.severity,
+                    affected_vault_ids=(result.vault_id,),
+                    document_id=evidence.document_id,
+                    chunk_id=evidence.chunk_id,
+                )
+                for warning in expansion.warnings
+            )
+            expanded.append(
+                replace(
+                    result,
+                    matched_chunk_id=expansion.matched_chunk_id,
+                    context_chunk_ids=expansion.context_chunk_ids,
+                    context_policy_version=expansion.policy_version,
+                )
+            )
+        return tuple(expanded)
 
     def _keyword_candidates(self, *, request: SearchRequest, candidate_limit: int) -> tuple[RetrievalCandidate, ...]:
         hits: list[KeywordHit] = []
