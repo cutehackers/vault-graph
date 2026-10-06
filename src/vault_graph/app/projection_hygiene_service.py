@@ -8,6 +8,7 @@ from typing import cast
 
 from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
@@ -50,10 +51,13 @@ class ProjectionHygieneReport:
 class ProjectionHygieneService:
     """Read-only inventory proving that projections reference canonical metadata."""
 
-    def __init__(self, *, metadata_path: Path, vector_path: Path, graph_path: Path) -> None:
+    def __init__(
+        self, *, metadata_path: Path, vector_path: Path, graph_path: Path, graph_store: GraphStore | None = None
+    ) -> None:
         self._metadata_path = metadata_path
         self._vector_path = vector_path
         self._graph_path = graph_path
+        self._graph_store = graph_store
 
     def audit(
         self,
@@ -91,9 +95,26 @@ class ProjectionHygieneService:
         vector = ChromaVectorStore(self._vector_path, read_only=True)
         vector_rows = vector.export_manifest(scope)
         dangling_vector_refs = sum((row.vault_id, row.chunk_id) not in chunk_keys for row in vector_rows)
-        dangling_graph_refs = _dangling_graph_refs(self._graph_path, chunk_keys)
+        dangling_graph_refs = _dangling_graph_refs(self._graph_path, chunk_keys) if self._graph_store is None else 0
         metadata_version = _metadata_version(self._metadata_path)
-        graph_version = _projection_version(self._graph_path, "graph_metadata")
+        graph_version = (
+            _projection_version(self._graph_path, "graph_metadata") if self._graph_store is None else "pending"
+        )
+        if self._graph_store is not None:
+            from vault_graph.storage.local.document_graph_store import DocumentGraphStore
+
+            actual_scopes = tuple(
+                QueryScope((vault_id,), scope.content_scopes, scope.include_cross_vault) for vault_id in scope.vault_ids
+            )
+            if isinstance(self._graph_store, DocumentGraphStore):
+                refs = self._graph_store.current_document_evidence_refs()
+                dangling_graph_refs = sum((ref.evidence_vault_id, ref.chunk_id) not in chunk_keys for ref in refs)
+            else:
+                manifest = self._graph_store.current_manifest(actual_scopes)
+                dangling_graph_refs = sum(
+                    (ref.evidence_vault_id, ref.chunk_id) not in chunk_keys for ref in manifest.evidence_rows
+                )
+            graph_version = self._graph_store.health().schema_version
         vector_version = vector.health().schema_version
         amplification = 1.0
         bundle = _bundle_manifest(self._metadata_path.parent.parent)

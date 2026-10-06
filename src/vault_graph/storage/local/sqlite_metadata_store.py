@@ -12,11 +12,12 @@ from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.document_models import DocumentModelError, SourceLocator
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference
+from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceLookupKey, EvidenceReference
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.local.sqlite_keyword_index import apply_keyword_revision, ensure_keyword_schema
 
 SCHEMA_VERSION = "metadata-v3"
+_EVIDENCE_LOOKUP_BATCH_SIZE = 300
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -289,17 +290,23 @@ class SQLiteMetadataStore:
         with self._connect() as connection:
             rows = connection.execute(
                 f"""
+                WITH first_chunks AS (
+                  SELECT vault_id, document_id, chunker_version,
+                         ROW_NUMBER() OVER (PARTITION BY vault_id, document_id ORDER BY chunk_id) AS position
+                  FROM chunks
+                  WHERE vault_id IN ({placeholders})
+                )
                 SELECT d.vault_id, d.path, d.document_id, d.frontmatter_hash, d.content_hash,
                        d.raw_sha256, d.parser_version, d.format, d.reader_name, d.reader_version,
                        d.extraction_options_digest, c.chunker_version, d.is_tombstoned,
                        d.source_role, d.provenance_family_id
                 FROM documents d
-                LEFT JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id
+                LEFT JOIN first_chunks c
+                  ON c.vault_id = d.vault_id AND c.document_id = d.document_id AND c.position = 1
                 WHERE d.vault_id IN ({placeholders})
-                GROUP BY d.vault_id, d.path
                 ORDER BY d.vault_id, d.path
                 """,
-                vault_ids,
+                (*vault_ids, *vault_ids),
             ).fetchall()
         return tuple(_document_state_from_row(row) for row in rows)
 
@@ -496,6 +503,41 @@ class SQLiteMetadataStore:
         if row is None:
             return None
         return _evidence_reference_from_row(row)
+
+    def resolve_chunk_evidence_hashes(self, keys: tuple[EvidenceLookupKey, ...]) -> dict[EvidenceLookupKey, str]:
+        """Read live evidence hashes with one connection and bounded SQL batches."""
+        if not keys or not self._database_path.exists():
+            return {}
+        unique_keys = tuple(dict.fromkeys(keys))
+        hashes: dict[EvidenceLookupKey, str] = {}
+        with self._connect() as connection:
+            for start in range(0, len(unique_keys), _EVIDENCE_LOOKUP_BATCH_SIZE):
+                batch = unique_keys[start : start + _EVIDENCE_LOOKUP_BATCH_SIZE]
+                placeholders = ", ".join("(?, ?, ?)" for _ in batch)
+                rows = connection.execute(
+                    f"""
+                    WITH requested(vault_id, document_id, chunk_id) AS (VALUES {placeholders})
+                    SELECT requested.vault_id, requested.document_id, requested.chunk_id, c.content_hash
+                    FROM requested
+                    INNER JOIN chunks c
+                      ON c.vault_id = requested.vault_id
+                     AND c.document_id = requested.document_id
+                     AND c.chunk_id = requested.chunk_id
+                    INNER JOIN documents d
+                      ON d.vault_id = c.vault_id
+                     AND d.document_id = c.document_id
+                     AND d.path = c.path
+                    WHERE d.is_tombstoned = 0
+                    """,
+                    tuple(part for key in batch for part in key),
+                ).fetchall()
+                hashes.update(
+                    {
+                        (str(row["vault_id"]), str(row["document_id"]), str(row["chunk_id"])): str(row["content_hash"])
+                        for row in rows
+                    }
+                )
+        return hashes
 
     def health(self) -> StoreHealth:
         if not self._database_path.exists():

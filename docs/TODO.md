@@ -14,11 +14,38 @@ plan before changing code.
 - Every accepted TODO needs tests for read-only behavior, multi-vault identity,
   stale-state handling, and explicit warnings before implementation.
 
+## Active Roadmap: Software Invariant Engine (SPEC v5.0)
+
+See [`docs/SPEC.md`](SPEC.md) for full contracts and acceptance criteria.
+
+- [ ] **VS-1: Topological Invariant Verification Slice**
+  - Git tree-hash content-addressed cache (`~/.vault-graph/cache/graphs/<CacheKey>.rx`)
+  - Global $O(V+E)$ Tarjan SCC (`rustworkx.strongly_connected_components`) and incremental reachability
+  - Deep Module Index ($DMI$) calculation and 3 special exemptions
+  - Fast Path verification latency budget ($p95 < 50\text{ms}$)
+- [ ] **VS-2: Cross-Worktree Coordination & Virtual Grafting Slice**
+  - Runtime SQLite WAL coordination store (`~/.vault-graph/run/<repo_hash>/coordination.db`)
+  - `BEGIN IMMEDIATE` transactions, exponential backoff with jitter, UUIDv4 `client_request_id` deduplication
+  - Virtual stub projection (`.vault-graph/virtual_stubs/*.pyi`) with 6-line integrity headers
+  - 2-stage virtual pre-merge verification
+- [ ] **VS-3: Executable Conventions & Structural Linter Slice**
+  - Tree-sitter query engine for Python conventions
+  - Dual-tier syntax safety (Level 1 Draft advisory vs. Level 2 Fatal fail-closed)
+- [ ] **VS-4: Deterministic Test Contract & Verification Guard Slice**
+  - Staged delta file hash ($\Delta F$) verification ($h_{\text{pre}} == h_{\text{post}}$)
+  - File-descriptor read-only boundary (`O_RDONLY`)
+  - Code impact analysis and minimal regression test suite generator
+- [ ] **VS-5: Constitutional Discovery & Synthesis Slice**
+  - Greenfield bootstrap and brownfield coupling matrix mining
+- [ ] **VS-6: Gradual Evolutionary Governance & Exemption Ratchet Slice**
+  - `.vault-graph/exemptions.json` irreversible ratchet down enforcement
+  - DMI entropy diagnostics and orderly constitutional amendment
+
 ## Deferred Product Candidates
 
 ### Browser UI Layer
 
-Status: deferred feature.
+Status: pruned from core contract per 2026-09-06 decision (`docs/SPEC.md` §9.2). Local CLI & stdio MCP are canonical.
 
 Phase 7B and Phase 7C remain optional browser UI work over existing services.
 The first UI should be a small local surface over HTTP JSON endpoints, not a new
@@ -190,21 +217,9 @@ Required validation:
 
 ### Backend Scale-Up
 
-Status: future backend implementations.
+Status: pruned from core contract per 2026-09-06 decision (`docs/SPEC.md` §9.2).
 
-Potential scale-up targets:
-
-- Postgres-backed `MetadataStore`
-- Qdrant-backed `VectorStore`
-- Neo4j-backed `GraphStore`
-
-Required direction:
-
-- keep the existing store interfaces as the contract
-- keep SQLite/Chroma local defaults until scale-up evidence exists
-- preserve multi-vault identity and evidence authority
-- reuse contract tests for backend parity
-- never let backend-specific fields become user-facing authority
+Postgres, Qdrant, and Neo4j backends are formally pruned to maintain a zero-infrastructure, local-first single-process architecture (SQLite WAL and rustworkx).
 
 ## Serving, Security, And Agent Adapters
 

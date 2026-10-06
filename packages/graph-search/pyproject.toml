@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nolemy-graph-search"
+version = "0.1.0"
+description = "Deterministic bounded traversal of immutable directed multigraph snapshots"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["rustworkx>=0.17,<0.18"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "mypy>=1.13", "ruff>=0.8", "networkx>=3", "types-networkx>=3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/graph_search"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

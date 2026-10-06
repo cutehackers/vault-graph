@@ -29,9 +29,17 @@ jobs:
         run: uv run --python 3.12 mypy src tests
       - name: Test
         run: uv run --python 3.12 pytest -q
+      - name: Verify independently installed module wheels and Vault integration
+        run: uv run --python 3.12 python tests/verify_graph_module_wheels.py
       - name: Build distributions
-        run: uv build
+        run: uv build --all-packages
       - name: Check distributions
         run: uv run --python 3.12 --with twine python -m twine check dist/*
-      - name: Publish to PyPI
-        run: uv publish --trusted-publishing always
+      - name: Publish independent graph modules to PyPI
+        run: >-
+          uv publish --check-url https://pypi.org/simple/ --trusted-publishing always
+          dist/*graph_search-* dist/*graph_document-*
+      - name: Publish Vault Graph to PyPI
+        run: >-
+          uv publish --check-url https://pypi.org/simple/ --trusted-publishing always
+          dist/vault_graph-*

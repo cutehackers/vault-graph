@@ -208,13 +208,45 @@ Vault Graph user-facing features preserve these guarantees:
 - visible backend health and index freshness status
 - durable knowledge publication only through Vault
 
+## Independent Graph Modules
+
+The workspace includes two reusable packages with separate wheels and public APIs:
+
+- [`nolemy-graph-search`](packages/graph-search/README.md) accepts node and edge IDs and provides bounded graph traversal. It has no Vault, document, database, or model dependency.
+- [`nolemy-graph-document`](packages/graph-document/README.md) accepts general document inputs and manages explicit relationships, document contributions, revisions, and evidence in a caller-selected SQLite database. It works without `nolemy-graph-search`.
+
+The optional `graph_document.search_bridge` connects a document snapshot to graph traversal and retains the same snapshot for evidence lookup. Vault-specific identity, scope, confidence, ranking, and MetadataStore access remain in the Vault adapters.
+
+For local development and distribution builds:
+
+```bash
+uv sync --python 3.12
+uv build --all-packages
+uv run --python 3.12 python tests/verify_graph_module_wheels.py
+```
+
+The last command installs each wheel outside the workspace and verifies standalone use and the optional bridge. These packages are local build artifacts until separately published. Vault Graph's wheel requires both module wheels when installing from local distributions.
+
+To select the document graph backend for an existing Data Home:
+
+```bash
+vg index --graph-home /path/to/data-home --graph-backend document
+```
+
+The command validates and publishes a new generation. Future reads and index runs use that selection. Existing Data Homes retain the legacy backend until this explicit transition. With multiple enabled Vaults, include `--all-vaults`. Use `--dry-run` to report the intended transition without writing state.
+
+To return to legacy storage, run the same command with `--graph-backend legacy`. Rollback rebuilds the full legacy graph and checks readiness before publication, including source changes made after transition. Reads never repair an incomplete document graph or fall back to a stale legacy cache.
+
+Switching back to the document backend rebuilds its staging cache. For an incompatible document schema, extraction profile, or checkpoint, run `vg index --graph-home /path/to/data-home --full` to rebuild explicitly. With multiple enabled Vaults, recovery requires `--all-vaults`. Recovery publishes only a validated generation and preserves the previous generation if rebuilding fails.
+
 ## More Documentation
 
-- [`docs/FEATURES.md`](docs/FEATURES.md): user-facing feature catalog
-- [`docs/SPEC.md`](docs/SPEC.md): product specification and architecture
-- [`docs/DESIGN.md`](docs/DESIGN.md): design goals and boundaries
+- [`docs/SPEC.md`](docs/SPEC.md): Software Invariant Engine specification and architecture (v5.0)
+- [`docs/DECISIONS.md`](docs/DECISIONS.md): accepted architectural and product decisions (ADR)
+- [`docs/FEATURES.md`](docs/FEATURES.md): user-facing feature catalog (Phase 1 coexistence)
+- [`docs/TODO.md`](docs/TODO.md): active Invariant Engine roadmap and deferred work
 - [`docs/PUBLISHING.md`](docs/PUBLISHING.md): PyPI release workflow and permissions
-- [`docs/TODO.md`](docs/TODO.md): explicit deferred work and scale-up backlog
+- [`docs/archive/`](docs/archive/): archived historical specifications (`SPEC-v1.2.md`, `DESIGN-v1.2.md`)
 
 ## License
 

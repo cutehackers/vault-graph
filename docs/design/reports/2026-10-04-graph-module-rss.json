@@ -1,0 +1,143 @@
+{
+  "environment": {
+    "db_size_scope": "SQLite DB plus WAL plus SHM after child process closes the store",
+    "elapsed_scope": "child stage wall time including fixture setup and checks; excludes imports and startup",
+    "elapsed_unit": "milliseconds",
+    "graph_document": {
+      "distribution": "nolemy-graph-document",
+      "version": "0.1.0"
+    },
+    "graph_search": {
+      "distribution": "nolemy-graph-search",
+      "version": "0.1.0"
+    },
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "python": "3.12.11",
+    "rss_scope": "absolute process high-water including imports and fixture setup; each stage is a fresh process",
+    "rss_unit": "bytes",
+    "rustworkx": {
+      "distribution": "rustworkx",
+      "version": "0.17.1"
+    }
+  },
+  "failures": [],
+  "limits": {
+    "durable_document_db_bytes": 67108864,
+    "max_rss_bytes": 536870912
+  },
+  "passed": true,
+  "stages": {
+    "document_bridge": {
+      "db_bytes": {
+        "db": 6447104,
+        "shm": 0,
+        "wal": 0
+      },
+      "durable_db_total_bytes": 6447104,
+      "elapsed_ms": 845.153708,
+      "max_rss_bytes": 76906496,
+      "self_check": "passed",
+      "stage": "document_bridge"
+    },
+    "document_full_read": {
+      "db_bytes": {
+        "db": 6447104,
+        "shm": 0,
+        "wal": 0
+      },
+      "durable_db_total_bytes": 6447104,
+      "elapsed_ms": 846.028709,
+      "max_rss_bytes": 74563584,
+      "self_check": "passed",
+      "stage": "document_full_read"
+    },
+    "document_initial_write": {
+      "db_bytes": {
+        "db": 6447104,
+        "shm": 0,
+        "wal": 0
+      },
+      "durable_db_total_bytes": 6447104,
+      "elapsed_ms": 675.205709,
+      "max_rss_bytes": 68419584,
+      "self_check": "passed",
+      "stage": "document_initial_write"
+    },
+    "document_restore": {
+      "db_bytes": {
+        "db": 6447104,
+        "shm": 0,
+        "wal": 0
+      },
+      "durable_db_total_bytes": 6447104,
+      "elapsed_ms": 873.038292,
+      "max_rss_bytes": 74743808,
+      "self_check": "passed",
+      "stage": "document_restore"
+    },
+    "document_selected_read": {
+      "db_bytes": {
+        "db": 6447104,
+        "shm": 0,
+        "wal": 0
+      },
+      "durable_db_total_bytes": 6447104,
+      "elapsed_ms": 659.080208,
+      "max_rss_bytes": 68206592,
+      "self_check": "passed",
+      "stage": "document_selected_read"
+    },
+    "projection_adapter_parallel": {
+      "elapsed_ms": 476.251042,
+      "max_rss_bytes": 90521600,
+      "self_check": "passed",
+      "stage": "projection_adapter_parallel"
+    },
+    "projection_adapter_star": {
+      "elapsed_ms": 7.70925,
+      "max_rss_bytes": 33128448,
+      "self_check": "passed",
+      "stage": "projection_adapter_star"
+    },
+    "search_bfs": {
+      "elapsed_ms": 2.185125,
+      "max_rss_bytes": 32129024,
+      "self_check": "passed",
+      "stage": "search_bfs"
+    },
+    "search_path_restore": {
+      "elapsed_ms": 3.990459,
+      "max_rss_bytes": 32374784,
+      "self_check": "passed",
+      "stage": "search_path_restore"
+    },
+    "search_paths": {
+      "elapsed_ms": 51.7435,
+      "max_rss_bytes": 31883264,
+      "self_check": "passed",
+      "stage": "search_paths"
+    },
+    "search_prepare": {
+      "elapsed_ms": 3.263583,
+      "max_rss_bytes": 32210944,
+      "self_check": "passed",
+      "stage": "search_prepare"
+    }
+  },
+  "workloads": {
+    "document_graph": {
+      "documents": 1000,
+      "shared_tags": 2,
+      "text_chars_each": 4096
+    },
+    "search_paths": {
+      "edges": 500,
+      "nodes": 3,
+      "paths": 62750
+    },
+    "search_star": {
+      "edges": 500,
+      "nodes": 501
+    }
+  }
+}

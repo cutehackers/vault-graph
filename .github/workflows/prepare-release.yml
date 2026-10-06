@@ -75,8 +75,10 @@ jobs:
         run: uv run --python 3.12 mypy src tests
       - name: Test
         run: uv run --python 3.12 pytest -q
+      - name: Verify independently installed module wheels and Vault integration
+        run: uv run --python 3.12 python tests/verify_graph_module_wheels.py
       - name: Build distributions
-        run: uv build
+        run: uv build --all-packages
       - name: Check distributions
         run: uv run --python 3.12 --with twine python -m twine check dist/*
       - name: Write manual release notes
@@ -90,7 +92,7 @@ jobs:
         run: |
           gh release create "v${RELEASE_VERSION}" dist/* \
             --draft \
-            --target "${GITHUB_SHA}" \
+            --target "$(git rev-parse HEAD)" \
             --title "v${RELEASE_VERSION}" \
             --notes-file release-notes.md
         env:
@@ -102,7 +104,7 @@ jobs:
           gh release create "v${RELEASE_VERSION}" dist/* \
             --draft \
             --generate-notes \
-            --target "${GITHUB_SHA}" \
+            --target "$(git rev-parse HEAD)" \
             --title "v${RELEASE_VERSION}"
         env:
           GH_TOKEN: ${{ github.token }}

@@ -8,6 +8,13 @@ resolution-markers = [
     "python_full_version < '3.13'",
 ]
 
+[manifest]
+members = [
+    "nolemy-graph-document",
+    "nolemy-graph-search",
+    "vault-graph",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.2"
@@ -1318,6 +1325,69 @@ wheels = [
 ]
 
 [[package]]
+name = "networkx"
+version = "3.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/dc/76/3af777226b63a5e64a6b36b1ec5855c14e2b94a37096d4760e595fc43511/networkx-3.7.tar.gz", hash = "sha256:fd77a511bd90f39f3d016351345b52cf5319b813bdca01de3f755d3cca62e96a", size = 1866482, upload-time = "2026-09-21T16:45:16.974Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/cd/fe58041e9011f307c490e3e17dd48cc516448f7c698a3f2d9d9d65d7e6a8/networkx-3.7-py3-none-any.whl", hash = "sha256:e3fd2c13a7814cee3746340d8d7f8598a67f16a58bf47fb7f8793fab6efca1b0", size = 2142205, upload-time = "2026-09-21T16:45:14.609Z" },
+]
+
+[[package]]
+name = "nolemy-graph-document"
+version = "0.1.0"
+source = { editable = "packages/graph-document" }
+
+[package.optional-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "nolemy-graph-search" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+search = [
+    { name = "nolemy-graph-search" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13" },
+    { name = "nolemy-graph-search", marker = "extra == 'dev'", editable = "packages/graph-search" },
+    { name = "nolemy-graph-search", marker = "extra == 'search'", editable = "packages/graph-search" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
+]
+provides-extras = ["search", "dev"]
+
+[[package]]
+name = "nolemy-graph-search"
+version = "0.1.0"
+source = { editable = "packages/graph-search" }
+dependencies = [
+    { name = "rustworkx" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "networkx" },
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "types-networkx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13" },
+    { name = "networkx", marker = "extra == 'dev'", specifier = ">=3" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
+    { name = "rustworkx", specifier = ">=0.17,<0.18" },
+    { name = "types-networkx", marker = "extra == 'dev'", specifier = ">=3" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "numpy"
 version = "2.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2568,6 +2638,15 @@ wheels = [
 ]
 
 [[package]]
+name = "types-networkx"
+version = "3.6.1.20260911"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/8c/a788d233be06b9f20fbaaf4b090bbd6423ea8d67d27e47115fa22a930c6b/types_networkx-3.6.1.20260911.tar.gz", hash = "sha256:d592c4520b05f87e7b94087ce7f244194209ad213633a605131f6ab89cd6f8ea", size = 76365, upload-time = "2026-09-11T06:45:10.322Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d3/65/24c71d89a4f4ce053912ed46fe036e2e86019199c08b4d0e49568e4ee18c/types_networkx-3.6.1.20260911-py3-none-any.whl", hash = "sha256:e0ea7f786451bd2e16d7b657a1208edcb80c5e01b86e15b1c78bdeca9db620cf", size = 167431, upload-time = "2026-09-11T06:45:08.865Z" },
+]
+
+[[package]]
 name = "types-pyyaml"
 version = "6.0.12.20260518"
 source = { registry = "https://pypi.org/simple" }
@@ -2672,6 +2751,8 @@ dependencies = [
     { name = "fastembed" },
     { name = "huggingface-hub" },
     { name = "mcp" },
+    { name = "nolemy-graph-document" },
+    { name = "nolemy-graph-search" },
     { name = "pyyaml" },
     { name = "rustworkx" },
     { name = "tree-sitter" },
@@ -2685,6 +2766,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
+    { name = "packaging" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "types-pyyaml" },
@@ -2697,8 +2779,10 @@ requires-dist = [
     { name = "fastembed", specifier = ">=0.8.0,<1.0" },
     { name = "huggingface-hub", specifier = ">=0.31,<1.0" },
     { name = "mcp", specifier = ">=1.27,<2" },
+    { name = "nolemy-graph-document", editable = "packages/graph-document" },
+    { name = "nolemy-graph-search", editable = "packages/graph-search" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "rustworkx", specifier = ">=0.17,<1.0" },
+    { name = "rustworkx", specifier = ">=0.17,<0.18" },
     { name = "tree-sitter", specifier = "==0.25.2" },
     { name = "tree-sitter-dart", specifier = "==0.1.0" },
     { name = "tree-sitter-python", specifier = "==0.25.0" },
@@ -2710,6 +2794,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=1.11" },
+    { name = "packaging", specifier = ">=24" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "types-pyyaml", specifier = ">=6.0.12" },

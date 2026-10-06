@@ -3,6 +3,102 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-10-04 - Resolve Distribution Identity And Publication Retry
+
+**Trigger:** The existing `graph-search` distribution belongs to another publisher. The user selected `nolemy`; final independent review also found that PyPI publication could not resume after module publication succeeded but root publication failed.
+
+**Scope:** Distribution names, dependencies, lockfile, CI package selection, installation guidance, benchmark metadata, and publication retry settings.
+
+**Core Values Protected:** Independent installation, consistent identity, repeatable delivery, and original acceptance scope.
+
+**Changes Applied:** Use `nolemy-graph-search` and `nolemy-graph-document`; keep import names, repository paths and schema identifiers. Add PyPI duplicate-file checking to both publication steps. Record the accepted prefix and close the implementation evidence map against the original required stages1–7.
+
+**Verification:** Independent final review found no unresolved blockers in the renamed dependencies or corrected publication settings. New-name isolated wheels, optional bridge, root-only local-index installation and real Vault adapters passed. Combined suite: 1309 passed, 1 conditional skip. Ruff, formatting, root/package strict mypy and lock checks passed. Six wheel/sdist artifacts built in `dist/nolemy-release/` and passed twine. All11 new-name RSS/DB-size stages passed (86.328MiB process peak, 6.148MiB DB total). Actual public publication and remote CI were not executed and are not original mandatory completion gates.
+
+## 2026-10-04 - Restore Original Graph Module Distribution Acceptance Scope
+
+**Trigger:** Completion audit and independent contract review found that the implementation plan treated actual PyPI/TestPyPI publication and remote CI as mandatory completion gates, although the original specifications require wheel build/install evidence and CI checks to be added.
+
+**Scope:** Completion status and the implementation plan's release gates. No runtime behavior or original acceptance criterion changes.
+
+**Core Values Protected:** Original scope, explicit dependencies, accurate completion claims, and independent distribution.
+
+**Changes Applied:** Separate original package validation from future public publication. Keep the conflicting distribution name as an unresolved wheel-dependency defect, requiring a user choice and metadata/lockfile/CI update followed by installation revalidation. Remote CI, public registry setup and publication remain unexecuted external activities, not retroactive acceptance requirements.
+
+**Verification:** Root and independent outcome reviewer compared [GS §11–13](design/specs/2026-10-03-graph-search-ko.md), [DG §10–12](design/specs/2026-10-04-graph-document-ko.md), and [DG integration](design/specs/2026-10-04-graph-document-integration-ko.md) with the implementation order. Existing local evidence is retained without claiming success on an untested operating host.
+
+## 2026-10-04 - Correct Document Backend Reentry And Explicit Recovery
+
+**Trigger:** Independent outcome review reproduced a failed document→legacy→document round trip and failed full rebuilds after schema/profile changes. Additional CLI verification found that a digest-valid checkpoint with a missing nested field also bypassed cache recovery. The acceptance audit lacked process RSS, database-size, and actual overlapping reader/writer evidence.
+
+**Scope:** Document cache opening and private generation staging, public CLI recovery tests, and missing acceptance evidence. Vault source files and existing active generations remain read-only.
+
+**Core Values Protected:** Rebuildable derived state, immutable published generations, complete recovery, independent installation, and evidence-based completion.
+
+**Changes Applied:** Discard the copied document cache during reentry and rebuild incompatible caches only on explicit full indexing in private staging. Require all enabled Vaults for incompatible-cache recovery. Reject document writes outside transactional generation publication. Translate malformed nested checkpoint fields into the graph-store domain error after closing the in-memory query store. Added multi-Vault and rebuild-fault preservation tests, reader/writer overlap, separate-process RSS/DB-size measurements, and root-only dependency installation through a local SimpleIndex.
+
+**Verification:** Independent recovery review reran six cases successfully. Separate evidence review reran concurrency and wheel-installation checks and found no blockers. Combined suite: 1309 passed, 1 conditional skip. Ruff, formatting, root mypy (341 files), package strict mypy, and lock consistency passed. Root reran the wheel verifier and all 11 [RSS/DB-size stages](design/reports/2026-10-04-graph-module-rss.json): maximum RSS 87.406MiB and DB+WAL+SHM 6.148MiB. [Implementation evidence and remaining release gates](design/plans/2026-10-04-graph-modules-implementation-order-ko.md) distinguish local completion from pending distribution naming, external publisher setup, remote CI, and public index publication.
+
+## 2026-10-04 - Correct Production Graph Backend Performance And Release Gates
+
+**Trigger:** The 1,000-document production-path benchmark failed cold-open, related-query and memory targets. Independent release review found root-only builds, and the public PyPI registry showed that `graph-search==0.1.0` belongs to another project.
+
+**Scope:** Document backend reads, graph readiness verification, and the three release workflows. Distribution naming remains an open decision until confirmed.
+
+**Core Values Protected:** Bounded memory, current evidence, immutable graph generations, independent packages, and reproducible installation.
+
+**Changes Applied:** Read the compatibility manifest using its actual file size and reject size changes. Reuse verified snapshots and record lookups only within collection validation, cache only the last graph manifest scope, and invalidate before reconciliation and on close. Batch current evidence hashes without removing single-lookup compatibility. Release workflows build all packages, verify installed wheels, publish modules before the root, and create the release tag from the checked-out commit. The benchmark exits unsuccessfully when performance or read-only checks fail.
+
+**Verification:** Independent re-reviews found no blockers in the corrected manifest, snapshot reuse, validation cache, or batch readiness paths. The fixed 1,000-document workload passed cold-open p95 1,321.372ms, related p95 128.210ms and Python allocation peak 73.451MiB, with source/state hashes unchanged. [Initial failed measurements](design/reports/2026-10-04-document-graph-backend-performance-before-fixes.json) and [final measurements](design/reports/2026-10-04-document-graph-backend-performance.json) are retained. Combined suite: 1301 passed, 1 conditional skip. Ruff and strict mypy passed. Distribution renaming, external publisher registration and actual index publication remain incomplete.
+
+## 2026-10-04 - Correct Graph Module Runtime Boundaries After Review
+
+**Trigger:** Independent implementation review reproduced a valid zero-edge projection failure and found prefilter input count/ID bytes missing from explicit execution budgets. Document module review found incomplete materialized schema and unbounded selected reads.
+
+**Scope:** New independent graph modules and Vault projection/document adapters. Existing Vault source content and legacy database schema are unchanged.
+
+**Core Values Protected:** Atomic functional independence, bounded public behavior, original projection results, document-scoped evidence, and recoverable derived state.
+
+**Changes Applied:** Admit positive graph capacity for zero selected edges and validate explicit input/ID budgets before sorting. Materialize normalized document graph tables in the revision transaction and bound selected reads. Reject incoherent source batches and same-input extraction conflicts, preserve chunk-backed legacy context, refuse manifest symlinks, require authoritative legacy revision mappings, and separate collections by profile digest.
+
+**Verification:** Independent re-review reported no blocking findings. Combined suite: 1262 passed, 1 conditional skip. Actual CLI/HTTP/MCP and MetadataStore/GraphStore differential checks preserve complete projection results and source/state hashes. Package/root Ruff, strict mypy, isolated wheel installation, bridge, actual CLI entrypoint and all six distribution checks passed. Fixed local performance targets passed; [raw results](design/reports/2026-10-04-graph-modules-performance.json).
+
+## 2026-10-04 - Correct Graph Document Revision And Contribution Contracts
+
+**Trigger:** Independent contract review found ambiguous metadata-only updates and semantic cache identity, aliases leaking across document selections, and incomplete revision manifests after incremental updates.
+
+**Scope:** [Graph document contract](design/specs/2026-10-04-graph-document-ko.md) and [Vault integration design](design/specs/2026-10-04-graph-document-integration-ko.md). Documentation only.
+
+**Core Values Protected:** Independent modules, deterministic identity, document-scoped evidence, existing-result compatibility, and recoverable derived state.
+
+**Changes Applied:** Define full Document input digests, source-revision updates and extraction-result conflicts; aggregate aliases from selected active contributions; construct full revision manifests from previous verified state plus changed contributions. Added corresponding FA-05/06, SEM-04 and IT-05 cases. Preserve the existing metadata plaintext owner by fixing Vault excerpts to zero.
+
+**Verification:** Separate read-only review followed by a passing re-review. Local links, acceptance IDs, existing regression paths, unchanged graph_search contracts and scoped document checks passed. No runtime, migration, wheel or performance checks were executed.
+
+## 2026-10-04 - Correct Graph Search Boundary Contracts After Review
+
+**Trigger:** Independent review found three contradictions in the new graph-search design: treating a rejected cyclic candidate as an extra path, assuming an iterator can observe a consumer's `break`, and assigning `max_paths=0` to an empty graph.
+
+**Scope:** [Standalone contract](design/specs/2026-10-03-graph-search-ko.md) and [integration design](design/specs/2026-10-03-graph-search-integration-ko.md). Documentation only.
+
+**Core Values Protected:** Deterministic verification, explicit lifecycle behavior, independent module boundaries, and existing-result compatibility.
+
+**Changes Applied:** Stop at the path cap only when another valid path exists; cancel only on explicit `close()` or context-manager exit; use `max(1, A + A²)` for the adapter's path cap. Added the corresponding boundary cases to FA-06, FA-08, and IT-03.
+
+**Verification:** Read-only independent contract review and scoped documentation validation. Runtime tests, wheel installation, performance, and actual system integration remain implementation acceptance work.
+
+## 2026-09-07 - Align SPEC With Pure Code Invariance And Stateless MCP Tri-Transport
+
+**Trigger:** Review of `docs/SPEC.md` against core project philosophy and Anthropic's finalized SEP-2575 specification found that (1) document-to-code binding (ADR anchors) introduced documentation maintenance burdens contrary to self-contained code invariance, (2) Section 8 conflated stdio pipes with stateless transport while omitting Streamlined HTTP (`/mcp`) and `server/discover`, (3) Section 8.3 contained a fatal rollback bug losing failure states, and (4) `.gitignore` blocked tracking `.vault-graph/` governance files.
+
+**Scope:** `docs/SPEC.md` (Sections 1, 3, 4, 6, 8), `.gitignore`, and `docs/DECISIONS.md`.
+
+**Core Values Protected:** Self-contained code invariance (zero document maintenance burden), deep modules, stateless process isolation, deterministic verification, and crash-resilient multi-worktree coordination.
+
+**Changes Applied:** Removed all ADR-to-AST anchoring and vaporware claims in favor of pure code AST and `.vault-graph/invariants.yaml` verification; updated Section 8 to SEP-2575 Tri-Transport (HTTP, Stdio, CLI Bridge) with strict `params._meta` isolation; introduced 7 standard deep `vg_*` MCP tools without doc-binding dependencies; replaced the flawed 5-step idempotency implementation with a robust Autocommit and atomic Upsert engine; updated `.gitignore` to track `.vault-graph/` governance ledgers while ignoring transient previews.
+
+**Verification:** Inspection of modified specifications, validation against SEP-2575 and SEP-3182 requirements, and git diff check.
+
 ## 2026-08-06 - Restore Markdown Evidence Locator Compatibility
 
 **Trigger:** Review found that frontmatter-stripped Markdown locators were
