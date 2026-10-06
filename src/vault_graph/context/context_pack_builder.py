@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Protocol, cast
 
+from vault_graph.context.context_evidence_selection import ContextEvidenceSelection
 from vault_graph.context.context_pack import (
     CONTEXT_PACK_SCHEMA_VERSION,
     DEFAULT_CONTEXT_RETRIEVAL_LIMIT,
@@ -159,30 +160,18 @@ class SearchContextPackBuilder:
                 key=_planned_item_sort_key,
             )
         )
-        evidence_by_ref: dict[ContextEvidenceRef, ContextEvidence] = {}
+        selection = ContextEvidenceSelection(request.budget)
         resolved_cache: dict[ContextEvidenceRef, ResolvedContextEvidence | None] = {}
         kept_items: list[ContextPackItem] = []
-        omitted_for_evidence_limit = 0
-        omitted_for_token_limit = 0
-        omitted_missing = 0
-        used_tokens = 0
 
         for planned in planned_items:
-            kept_refs: list[ContextEvidenceRef] = []
+            selection.begin_item()
             item_warnings = list(planned.warnings)
-            pending_evidence: dict[ContextEvidenceRef, ContextEvidence] = {}
-            item_token_cost = 0
-            omitted_by_budget = False
             for ref in planned.evidence_refs:
-                if ref in evidence_by_ref:
-                    kept_refs.append(ref)
+                action = selection.check_ref(ref)
+                if action == "reused":
                     continue
-                if ref in pending_evidence:
-                    kept_refs.append(ref)
-                    continue
-                if len(evidence_by_ref) + len(pending_evidence) >= request.budget.max_evidence_items:
-                    omitted_for_evidence_limit += 1
-                    omitted_by_budget = True
+                if action == "omitted":
                     break
                 resolved = _resolve_once(self._evidence_resolver, resolved_cache, ref)
                 if resolved is None:
@@ -217,43 +206,36 @@ class SearchContextPackBuilder:
                     retrieval_reasons=_retrieval_reasons(planned.result),
                     max_excerpt_tokens=request.budget.max_excerpt_tokens,
                 )
-                if used_tokens + item_token_cost + context_evidence.excerpt_token_count > request.budget.max_tokens:
-                    omitted_for_token_limit += 1
-                    omitted_by_budget = True
+                if not selection.add_evidence(context_evidence):
                     break
                 if context_evidence.truncated:
                     pack_warnings.extend(context_evidence.warnings)
-                pending_evidence[ref] = context_evidence
-                kept_refs.append(ref)
-                item_token_cost += context_evidence.excerpt_token_count
-            if omitted_by_budget:
+            status, kept_refs = selection.finish_item()
+            if status == "budget":
                 pack_warnings.extend(planned.warnings)
                 continue
-            if not kept_refs:
-                omitted_missing += 1
+            if status == "missing":
                 pack_warnings.extend(item_warnings)
                 continue
-            used_tokens += item_token_cost
-            evidence_by_ref.update(pending_evidence)
             kept_items.append(
                 _context_item_from_planned(
                     planned=planned,
-                    evidence_refs=tuple(kept_refs),
+                    evidence_refs=kept_refs,
                     warnings=tuple(item_warnings),
                 )
             )
 
         pack_warnings.extend(
             _budget_warnings(
-                omitted_for_evidence_limit=omitted_for_evidence_limit,
-                omitted_for_token_limit=omitted_for_token_limit,
+                omitted_for_evidence_limit=selection.omitted_for_evidence_limit,
+                omitted_for_token_limit=selection.omitted_for_token_limit,
                 affected_vault_ids=_affected_vault_ids(response.actual_scopes),
             )
         )
         budget = replace(
             request.budget,
-            used_tokens=used_tokens,
-            omitted_items=omitted_for_evidence_limit + omitted_for_token_limit + omitted_missing,
+            used_tokens=selection.used_tokens,
+            omitted_items=selection.omitted_items,
         )
         items_by_type = _items_by_type(tuple(kept_items))
         actual_scope_records = scope.actual_scopes
@@ -267,7 +249,7 @@ class SearchContextPackBuilder:
             vault_revisions=_vault_revisions(
                 catalog=self._catalog,
                 actual_scopes=actual_scope_records,
-                evidence=tuple(evidence_by_ref.values()),
+                evidence=tuple(selection.evidence_by_ref.values()),
             ),
             backend=_backend(response=response, include_graph=request.include_graph),
             store_revisions=_store_revisions(response=response, include_graph=request.include_graph),
@@ -281,7 +263,7 @@ class SearchContextPackBuilder:
             constraints=items_by_type["constraint"],
             open_questions=items_by_type["open_question"],
             warnings=tuple(_dedupe_warnings(pack_warnings)),
-            evidence=tuple(evidence_by_ref.values()),
+            evidence=tuple(selection.evidence_by_ref.values()),
         )
         return with_computed_pack_id(pack)
 

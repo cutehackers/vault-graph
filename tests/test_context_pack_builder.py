@@ -356,6 +356,36 @@ def test_omitted_multi_evidence_item_does_not_leave_orphan_evidence(tmp_path: Pa
     assert pack.budget.omitted_items == 1
 
 
+def test_token_omission_discards_whole_item_and_preserves_budget_for_next_item(tmp_path: Path) -> None:
+    first = ContextEvidenceRef("main", "doc-1", "chunk-1")
+    second = ContextEvidenceRef("main", "doc-2", "chunk-2")
+    next_ref = ContextEvidenceRef("main", "doc-3", "chunk-3")
+    response = make_search_response(
+        results=(make_multi_evidence_result(), make_result(rank=2, document_id="doc-3", chunk_id="chunk-3"))
+    )
+    pack = make_builder(
+        tmp_path=tmp_path,
+        response=response,
+        resolver=StaticResolver(
+            {first: make_resolved(first), second: make_resolved(second), next_ref: make_resolved(next_ref)}
+        ),
+    ).build(
+        ContextPackRequest(
+            goal="Build context",
+            requested_scope=QueryScope(vault_ids=("main",)),
+            budget=ContextPackBudget(max_tokens=3),
+        )
+    )
+
+    assert [item.evidence_refs for item in pack.relevant_pages] == [(next_ref,)]
+    assert [evidence.ref for evidence in pack.evidence] == [next_ref]
+    assert pack.budget.used_tokens == 3
+    assert pack.budget.omitted_items == 1
+    assert [(warning.code, warning.message) for warning in pack.warnings] == [
+        ("budget_omitted", "1 result(s) omitted by token budget.")
+    ]
+
+
 def test_same_chunk_id_from_two_vaults_remains_distinct(tmp_path: Path) -> None:
     first = ContextEvidenceRef("main", "doc-1", "shared")
     second = ContextEvidenceRef("second", "doc-1", "shared")

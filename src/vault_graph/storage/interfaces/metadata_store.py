@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.document_models import SourceLocator
@@ -45,6 +45,16 @@ class DocumentState:
     reader_name: str | None = None
     reader_version: str | None = None
     extraction_options_digest: str | None = None
+
+
+EvidenceLookupKey = tuple[str, str, str]
+
+
+@runtime_checkable
+class BatchEvidenceHashResolver(Protocol):
+    """Optional lookup for current chunk hashes keyed by vault, document, and chunk."""
+
+    def resolve_chunk_evidence_hashes(self, keys: tuple[EvidenceLookupKey, ...]) -> dict[EvidenceLookupKey, str]: ...
 
 
 class MetadataStore(Protocol):

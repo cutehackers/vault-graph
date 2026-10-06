@@ -1,0 +1,336 @@
+{
+  "environment": {
+    "fresh_write_samples": 5,
+    "latency_scope": "operation calls only; construction and self-checks excluded",
+    "latency_unit": "milliseconds",
+    "logical_cpu_count": 12,
+    "machine": "arm64",
+    "memory_unit": "peak_tracemalloc_bytes",
+    "percentile_method": "linear_interpolation",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "processor": "arm",
+    "python": "3.12.11",
+    "read_search_samples": 20,
+    "rustworkx": "0.17.1",
+    "tracemalloc_scope": "separate operation run; Python allocations, not process RSS",
+    "warmups": 3
+  },
+  "latency": {
+    "full_read": {
+      "p50_ms": 190.509979,
+      "p95_ms": 200.498163,
+      "sample_count": 20,
+      "samples_ms": [
+        187.154458,
+        185.892292,
+        191.524792,
+        184.23925,
+        184.0985,
+        186.870208,
+        190.265208,
+        185.885709,
+        197.822416,
+        190.263125,
+        185.50825,
+        200.483,
+        199.330417,
+        196.803667,
+        200.78625,
+        197.615708,
+        198.008,
+        190.75475,
+        189.923333,
+        199.614916
+      ]
+    },
+    "initial_index": {
+      "p50_ms": 633.3015,
+      "p95_ms": 650.828908,
+      "sample_count": 5,
+      "samples_ms": [
+        651.246375,
+        649.159042,
+        621.604166,
+        630.9045,
+        633.3015
+      ]
+    },
+    "legacy_500_star_edges": {
+      "p50_ms": 1.52325,
+      "p95_ms": 1.694675,
+      "sample_count": 20,
+      "samples_ms": [
+        1.485833,
+        1.747875,
+        1.579291,
+        1.522042,
+        1.505166,
+        1.586459,
+        1.501541,
+        1.650458,
+        1.519583,
+        1.51,
+        1.580792,
+        1.664208,
+        1.524458,
+        1.462542,
+        1.471042,
+        1.626083,
+        1.691875,
+        1.583459,
+        1.473125,
+        1.481
+      ]
+    },
+    "prepare_search": {
+      "p50_ms": 5.738854,
+      "p95_ms": 10.712156,
+      "sample_count": 20,
+      "samples_ms": [
+        5.194834,
+        5.675125,
+        10.69275,
+        5.355375,
+        5.537417,
+        5.579292,
+        5.667542,
+        5.725667,
+        5.608792,
+        5.852417,
+        5.92525,
+        5.8355,
+        11.080875,
+        5.681125,
+        5.846833,
+        6.00175,
+        6.04225,
+        5.752041,
+        5.781083,
+        5.713583
+      ]
+    },
+    "pure_bfs_500_star_edges": {
+      "p50_ms": 0.286354,
+      "p95_ms": 0.290916,
+      "sample_count": 20,
+      "samples_ms": [
+        0.276833,
+        0.321,
+        0.277167,
+        0.288959,
+        0.288708,
+        0.287,
+        0.287791,
+        0.286125,
+        0.28825,
+        0.289333,
+        0.286417,
+        0.286292,
+        0.286416,
+        0.285875,
+        0.28825,
+        0.285958,
+        0.285958,
+        0.284875,
+        0.275541,
+        0.274042
+      ]
+    },
+    "pure_paths_250_plus_250_parallel_edges": {
+      "p50_ms": 51.485625,
+      "p95_ms": 54.394341,
+      "sample_count": 20,
+      "samples_ms": [
+        51.908291,
+        53.821708,
+        65.274375,
+        51.852625,
+        53.268208,
+        51.724625,
+        51.460666,
+        51.510584,
+        51.874875,
+        51.120625,
+        51.256625,
+        51.056584,
+        51.389875,
+        51.286084,
+        50.982209,
+        50.867875,
+        51.412833,
+        50.805875,
+        51.599917,
+        52.067042
+      ]
+    },
+    "selected_read_bridge_evidence": {
+      "p50_ms": 0.331875,
+      "p95_ms": 0.341248,
+      "sample_count": 20,
+      "samples_ms": [
+        0.337959,
+        0.330834,
+        0.323583,
+        0.318791,
+        0.335292,
+        0.31575,
+        0.331666,
+        0.332083,
+        0.321,
+        0.338667,
+        0.335375,
+        0.323708,
+        0.334042,
+        0.33875,
+        0.341125,
+        0.343583,
+        0.319625,
+        0.315708,
+        0.331083,
+        0.335208
+      ]
+    },
+    "selected_read_one_document": {
+      "p50_ms": 0.28725,
+      "p95_ms": 0.298896,
+      "sample_count": 20,
+      "samples_ms": [
+        0.286208,
+        0.286292,
+        0.287958,
+        0.295125,
+        0.296125,
+        0.30325,
+        0.298667,
+        0.298666,
+        0.287042,
+        0.288666,
+        0.287417,
+        0.2795,
+        0.277041,
+        0.2865,
+        0.284166,
+        0.278375,
+        0.277792,
+        0.288792,
+        0.287083,
+        0.291125
+      ]
+    },
+    "single_changed_document_index": {
+      "p50_ms": 109.058333,
+      "p95_ms": 111.811542,
+      "sample_count": 5,
+      "samples_ms": [
+        112.341417,
+        109.058333,
+        109.692042,
+        106.568291,
+        103.62925
+      ]
+    },
+    "vault_adapter_250_plus_250_parallel_edges": {
+      "p50_ms": 282.337625,
+      "p95_ms": 323.974606,
+      "sample_count": 20,
+      "samples_ms": [
+        338.734875,
+        323.19775,
+        317.296333,
+        304.014833,
+        286.78525,
+        264.275792,
+        273.216209,
+        294.433459,
+        319.067209,
+        278.338292,
+        265.444625,
+        272.21575,
+        309.612333,
+        277.56425,
+        273.933458,
+        266.294834,
+        286.336958,
+        268.777792,
+        272.932125,
+        287.863
+      ]
+    },
+    "vault_adapter_500_star_edges": {
+      "p50_ms": 3.956167,
+      "p95_ms": 9.201527,
+      "sample_count": 20,
+      "samples_ms": [
+        4.252292,
+        9.677833,
+        3.853209,
+        3.85625,
+        4.010583,
+        3.763042,
+        3.85375,
+        3.983167,
+        4.087917,
+        3.764958,
+        3.929541,
+        3.763666,
+        3.885291,
+        4.208208,
+        3.704291,
+        4.123834,
+        3.877792,
+        3.982792,
+        9.176458,
+        4.437583
+      ]
+    }
+  },
+  "peak_tracemalloc_bytes": {
+    "full_read": 27231538,
+    "initial_index": 21978264,
+    "legacy_500_star_edges": 273240,
+    "prepare_search": 1060348,
+    "pure_bfs_500_star_edges": 101572,
+    "pure_paths_250_plus_250_parallel_edges": 1680,
+    "selected_read_bridge_evidence": 26868,
+    "selected_read_one_document": 30772,
+    "single_changed_document_index": 20871074,
+    "vault_adapter_250_plus_250_parallel_edges": 50958540,
+    "vault_adapter_500_star_edges": 705128
+  },
+  "self_checks": {
+    "document_counts": true,
+    "document_plaintext_absent_from_db": true,
+    "legacy_vault_projection_parity": true
+  },
+  "workloads": {
+    "document_graph": {
+      "documents": 1000,
+      "expected_edges": 2000,
+      "expected_evidence": 5000,
+      "expected_nodes": 1002,
+      "shared_tags": 2,
+      "text_chars_each": 4096
+    },
+    "parallel_paths": {
+      "edges": 500,
+      "max_depth": 2,
+      "nodes": 3,
+      "path_count": 62750
+    },
+    "pure_search_star": {
+      "edges": 500,
+      "max_depth": 2,
+      "nodes": 501
+    },
+    "vault_projection_parallel": {
+      "edges": 500,
+      "nodes": 3,
+      "result_limit": 50
+    },
+    "vault_projection_star": {
+      "edges": 500,
+      "nodes": 501,
+      "result_limit": 50
+    }
+  }
+}

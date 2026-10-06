@@ -5,5 +5,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
-.vault-graph/
+.vault-graph/premerge_contract_previews/
+.vault-graph/run/
+.vault-graph/cache/
 .worktrees/

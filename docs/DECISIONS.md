@@ -17,6 +17,90 @@ here.
 Implementation-only corrections that directly follow `docs/SPEC.md` and
 `docs/DESIGN.md` are recorded in `docs/PATCH_LOG.md` instead.
 
+## 2026-10-04 - Use Nolemy For Independent Package Distribution Names
+
+**Question:** Which personal prefix should identify the independent graph packages?
+
+**Decision:** Use `nolemy-graph-search` and `nolemy-graph-document`. The user explicitly selected `nolemy` and authorized continuing implementation.
+
+**Reason:** Identify the publisher consistently and avoid the existing unrelated `graph-search` distribution.
+
+**Implications:** Update wheel metadata, dependencies, lockfile, CI package selection, and installation examples. Keep `graph_search` and `graph_document` imports, repository paths, and persisted schema identifiers unchanged. Public publication remains a separate activity.
+
+## 2026-10-04 - Separate Graph Document With Rule-Based Defaults
+
+**Question:** Should the reusable graph document capability be managed as a separate package, and should semantic extraction be its default?
+
+**Decision:** Specify a separate graph document package that reuses existing functionality and connects to graph_search. Keep explicit rule-based extraction as the default and document a suitable semantic extraction alternative. This scope was confirmed by the user's current request and follow-up answer.
+
+**Reason:** Document extraction and derived graph management have a different responsibility from graph traversal. The existing rules can be reused without requiring a model for basic operation.
+
+**Implications:** [DG-20261004](design/specs/2026-10-04-graph-document-ko.md) defines the detailed proposal and validation gates. Semantic extraction implementation, SQLite migration, production default switching, and unmeasured operating targets remain outside this accepted scope decision.
+
+## 2026-09-07 - Eliminate Document-To-Code Binding And Adopt Stateless MCP Tri-Transport
+
+**Question:** Should Vault Graph bind external documentation (ADRs, specs) to
+code AST symbols, and how should the MCP interface align with Anthropic's
+finalized stateless specification?
+
+**Decision:** Completely sever all document-to-code bindings (eliminating Anchor
+IDs, semantic doc anchoring, and documentation maintenance burdens) in favor of
+self-contained code invariance (`src/`, `tests/`, `.vault-graph/invariants.yaml`).
+Adopt Anthropic's finalized SEP-2575/SEP-3182 stateless MCP specification across
+a Tri-Transport layer (HTTP, Stdio, CLI Bridge) with strict separation of
+`params._meta` from business arguments, dynamic discovery (`server/discover`),
+and 7 deep `vg_*` tools.
+
+**Reason:** Binding prose documents to code symbols turns documentation into an
+additional maintenance burden and source of entropy. A deterministic invariant
+engine must enforce mechanical truth self-contained within code. Furthermore,
+SEP-2575 requires stateless execution to allow concurrent multi-worktree scaling
+without session affinity.
+
+**Implications:**
+
+- `docs/SPEC.md` removes all ADR-to-AST anchoring and vaporware claims.
+- MCP tools use the standard `vg_*` namespace and accept pure domain arguments,
+  extracting `client_request_id` and caller info from `params._meta`.
+- The 5-step idempotency engine uses Autocommit and atomic Upsert to prevent
+  failure state loss upon handler rollback.
+- Root `.gitignore` tracks `.vault-graph/` governance ledgers while ignoring
+  transient previews and runtime caches.
+- Tier 0 structural invariants (acyclicity, deadlocks, read-only boundary) are
+  strictly non-exemptible.
+
+## 2026-09-06 - Pivot To Software Invariant Engine And Promote SPEC v5.0
+
+**Question:** Should Vault Graph pivot from an evidence-first retrieval layer into
+a deterministic Software Invariant Engine, and how should specification and
+governance documents be consolidated?
+
+**Decision:** Adopt the Software Invariant Engine identity and promote the
+hardened specification suite to `docs/SPEC.md` (v5.0-pure-trinity) as the single
+active product contract. Archive the previous v1.2 specification to
+`docs/archive/SPEC-v1.2.md`. Enforce Tier 0-2 architectural invariants, declarative
+rules (`.vault-graph/invariants.yaml`), and cross-worktree coordination while
+preserving the existing 1,188 test baseline through a 3-phase adapter migration.
+
+**Reason:** Autonomous AI coding agents cause architectural fragmentation and
+semantic drift. Durable value lies in mechanical invariant enforcement, acyclicity,
+and deterministic verification. Consolidating the specification into `docs/SPEC.md`
+eliminates documentation fragmentation and establishes a single source of truth.
+
+**Implications:**
+
+- `docs/SPEC.md` is the canonical design document; `docs/archive/SPEC-v1.2.md`
+  preserves the predecessor baseline for existing tests.
+- Zero-write guarantees apply strictly to the static analysis engine (`O_RDONLY`);
+  runtime worktree coordination uses an isolated, disk-backed SQLite WAL store
+  under `~/.vault-graph/run/<repo_hash>/coordination.db`.
+- Cycle detection uses global $O(V+E)$ SCC analysis and incremental reachability,
+  with Git tree-hash content-addressed caching.
+- Speculative distributed backends (Postgres, Neo4j, Qdrant, Web UI) are pruned
+  in favor of local SQLite and rustworkx.
+- Vault and answer synthesis modules transition through a 3-phase adapter
+  migration without breaking existing tests.
+
 ## 2026-08-03 - Make Metadata Blobs The Single Plaintext Owner
 
 **Question:** How should Vault Graph prevent raw, wiki, index, vector, and graph

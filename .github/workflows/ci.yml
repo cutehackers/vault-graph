@@ -10,6 +10,48 @@ permissions:
   contents: read
 
 jobs:
+  graph-search-runtime-compatibility:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runtime: ['==0.17.1', '>=0.17,<0.18']
+    env:
+      PYTHONPATH: src:.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Test minimum and highest supported graph runtime
+        run: >-
+          uv run --no-project --python 3.12
+          --with 'rustworkx${{ matrix.runtime }}' --with pytest --with networkx
+          --with ./packages/graph-search python -c
+          'import pytest, rustworkx; print("rustworkx", rustworkx.__version__);
+          raise SystemExit(pytest.main(["-q", "packages/graph-search/tests/test_public_search.py", "tests/test_vault_graph_projection_adapter.py"]))'
+  independent-modules:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - directory: graph-search
+            distribution: nolemy-graph-search
+          - directory: graph-document
+            distribution: nolemy-graph-document
+    defaults:
+      run:
+        working-directory: packages/${{ matrix.directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Lint independent module
+        run: uv run --python 3.12 --package ${{ matrix.distribution }} --extra dev ruff check src tests
+      - name: Type check independent module
+        run: uv run --python 3.12 --package ${{ matrix.distribution }} --extra dev mypy --cache-dir=/dev/null src tests
+      - name: Test independent module
+        run: uv run --python 3.12 --package ${{ matrix.distribution }} --extra dev pytest -q
+      - name: Build independent module
+        run: uv build --package ${{ matrix.distribution }} --out-dir dist
+      - name: Check distributions
+        run: uv run --python 3.12 --with twine python -m twine check dist/*
   verify:
     runs-on: ubuntu-latest
     steps:
@@ -21,6 +63,8 @@ jobs:
         run: uv run --python 3.12 mypy src tests
       - name: Test
         run: uv run --python 3.12 pytest -q
+      - name: Verify isolated module wheels and bridge
+        run: uv run --python 3.12 python tests/verify_graph_module_wheels.py
       - name: Build distributions
         run: uv build
       - name: Check distributions

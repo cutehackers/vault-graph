@@ -1,4 +1,5 @@
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 
 import chromadb
@@ -154,6 +155,34 @@ def test_read_only_search_can_query_existing_chroma_state(tmp_path: Path) -> Non
     assert _tree_snapshot(path) == before
 
 
+def test_read_only_search_preserves_role_filter_score_and_tie_order(tmp_path: Path) -> None:
+    path = tmp_path / "chroma"
+    writable = ChromaVectorStore(path, initialize=True)
+    records = (
+        make_record(vault_id="default", path="wiki/z.md", text="alpha", content_scope="wiki"),
+        make_record(vault_id="default", path="wiki/a.md", text="alpha", content_scope="wiki"),
+        make_record(
+            vault_id="default",
+            path="wiki/raw.md",
+            text="alpha",
+            content_scope="wiki",
+            source_role="raw_evidence",
+        ),
+    )
+    writable.apply_vector_revision(vector_index_revision="vector-1", records=records, tombstones=())
+    writable.close()
+    readonly = ChromaVectorStore(path, read_only=True)
+    query = replace(
+        make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",))),
+        source_roles=("canonical_knowledge",),
+    )
+
+    hits = readonly.search(query)
+
+    assert tuple((hit.chunk_id, hit.rank) for hit in hits) == (("wiki/a.md:chunk", 1), ("wiki/z.md:chunk", 2))
+    assert all(abs(hit.score - 1.0) < 1e-6 for hit in hits)
+
+
 def test_read_only_search_survives_chroma_queue_compaction(tmp_path: Path) -> None:
     path = tmp_path / "chroma"
     writable = ChromaVectorStore(path, initialize=True)
@@ -162,6 +191,24 @@ def test_read_only_search_survives_chroma_queue_compaction(tmp_path: Path) -> No
     writable.close()
     with sqlite3.connect(path / "chroma.sqlite3") as connection:
         connection.execute("DELETE FROM embeddings_queue")
+    before = _tree_snapshot(path)
+
+    hits = ChromaVectorStore(path, read_only=True).search(
+        make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+    )
+
+    assert tuple(hit.chunk_id for hit in hits) == (record.chunk_id,)
+    assert _tree_snapshot(path) == before
+
+
+def test_read_only_search_uses_chroma_queue_without_payload_table(tmp_path: Path) -> None:
+    path = tmp_path / "chroma"
+    writable = ChromaVectorStore(path, initialize=True)
+    record = make_record(vault_id="default", path="wiki/page.md", text="alpha", content_scope="wiki")
+    writable.apply_vector_revision(vector_index_revision="vector-1", records=(record,), tombstones=())
+    writable.close()
+    with sqlite3.connect(path / "chroma.sqlite3") as connection:
+        connection.execute("DROP TABLE vault_graph_vector_payloads")
     before = _tree_snapshot(path)
 
     hits = ChromaVectorStore(path, read_only=True).search(

@@ -10,7 +10,7 @@ from vault_graph.graph.graph_readiness import (
 )
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.graph_store import GraphStore
-from vault_graph.storage.interfaces.metadata_store import MetadataStore
+from vault_graph.storage.interfaces.metadata_store import BatchEvidenceHashResolver, EvidenceLookupKey, MetadataStore
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 
@@ -324,6 +324,21 @@ def _evidence_warnings_by_scope(
             evidence_ids_by_scope[scope_key].update(relationship.evidence_ref_ids)
 
     evidence_by_id = {evidence.evidence_ref_id: evidence for evidence in manifest.evidence_rows}
+    hashes: dict[EvidenceLookupKey, str] | None = None
+    if isinstance(metadata_store, BatchEvidenceHashResolver):
+        keys = tuple(
+            dict.fromkeys(
+                (
+                    evidence.evidence_vault_id,
+                    evidence.document_id,
+                    evidence.chunk_id,
+                )
+                for evidence_ids in evidence_ids_by_scope.values()
+                for evidence_id in sorted(evidence_ids)
+                if (evidence := evidence_by_id.get(evidence_id)) is not None
+            )
+        )
+        hashes = metadata_store.resolve_chunk_evidence_hashes(keys)
     warnings_by_scope: dict[str, tuple[str, ...]] = {}
     for scope_key, evidence_ids in evidence_ids_by_scope.items():
         warnings: list[str] = []
@@ -331,7 +346,18 @@ def _evidence_warnings_by_scope(
             evidence = evidence_by_id.get(evidence_id)
             if evidence is None:
                 continue
-            warning = _evidence_warning(metadata_store=metadata_store, evidence=evidence)
+            if hashes is None:
+                warning = _evidence_warning(metadata_store=metadata_store, evidence=evidence)
+            else:
+                key = (evidence.evidence_vault_id, evidence.document_id, evidence.chunk_id)
+                actual_hash = hashes.get(key)
+                location = f"{evidence.evidence_vault_id}:{evidence.document_id}:{evidence.chunk_id}"
+                if actual_hash is None:
+                    warning = f"unresolved graph evidence: {location}"
+                elif actual_hash != evidence.content_hash:
+                    warning = f"stale graph evidence: {location}"
+                else:
+                    warning = None
             if warning is not None:
                 warnings.append(warning)
         warnings_by_scope[scope_key] = tuple(dict.fromkeys(warnings))

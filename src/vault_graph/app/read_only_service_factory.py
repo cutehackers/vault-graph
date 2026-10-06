@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.graph_home import GraphHomeResolver
+from vault_graph.app.graph_store_factory import open_graph_store
 from vault_graph.ingestion.vault_catalog import VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
@@ -105,13 +106,12 @@ class ReadOnlyServiceFactory:
         from vault_graph.graph.graph_contracts import current_graph_extraction_spec
         from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
         from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
-        from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
         from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore
 
         catalog_service, catalog = self._catalog()
         metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
-        graph_store = SQLiteGraphStore.open_read_only(catalog_service.graph_path)
+        graph_store = open_graph_store(catalog_service, metadata_store=metadata_store)
         text_embeddings = self._search_text_embeddings(catalog_service)
         return IndexService(
             catalog=catalog,
@@ -136,13 +136,12 @@ class ReadOnlyServiceFactory:
         from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
         from vault_graph.app.graph_retrieval_service import GraphRetrievalService
         from vault_graph.graph.graph_contracts import current_graph_extraction_spec
-        from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
-        from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
+        from vault_graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
         catalog_service, catalog = self._catalog()
         metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
-        graph_store = SQLiteGraphStore.open_read_only(catalog_service.graph_path)
+        graph_store = open_graph_store(catalog_service, metadata_store=metadata_store)
         readiness = ReadOnlyGraphReadiness(
             metadata_store=metadata_store,
             graph_store=graph_store,
@@ -153,19 +152,18 @@ class ReadOnlyServiceFactory:
             metadata_store=metadata_store,
             graph_store=graph_store,
             graph_readiness=readiness,
-            projection=RustworkxGraphProjection(),
+            projection=VaultGraphProjectionAdapter(),
         )
 
     def open_graph_resource_service(self) -> GraphResourceService:
         from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
         from vault_graph.app.graph_resource_service import GraphResourceService
         from vault_graph.graph.graph_contracts import current_graph_extraction_spec
-        from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
         catalog_service, catalog = self._catalog()
         metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
-        graph_store = SQLiteGraphStore.open_read_only(catalog_service.graph_path)
+        graph_store = open_graph_store(catalog_service, metadata_store=metadata_store)
         readiness = ReadOnlyGraphReadiness(
             metadata_store=metadata_store,
             graph_store=graph_store,

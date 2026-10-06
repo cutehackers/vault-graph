@@ -11,6 +11,7 @@ from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.graph_home import GraphHomeResolver
 from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.app.graph_retrieval_service import GraphRetrievalService
+from vault_graph.app.graph_store_factory import GraphBackend, open_graph_store, selected_graph_backend
 from vault_graph.app.index_service import IndexService, StatusReport
 from vault_graph.app.local_index_service_factory import LocalIndexServiceFactory
 from vault_graph.app.projection_generation import ProjectionGenerationManager
@@ -60,7 +61,7 @@ from vault_graph.retrieval import (
 from vault_graph.retrieval.search_response import SearchMode
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
-from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
+from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore as SQLiteGraphStore
 from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
@@ -199,11 +200,11 @@ def _context_scope_for_flags(
 
 
 def _graph_retrieval_service(state: Path) -> tuple[CatalogService, VaultCatalog, GraphRetrievalService]:
-    from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
+    from vault_graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
 
     config, catalog = _catalog(state)
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=False)
-    graph_store = SQLiteGraphStore.open_read_only(config.graph_path)
+    graph_store = open_graph_store(config, metadata_store=metadata_store)
     readiness = ReadOnlyGraphReadiness(
         metadata_store=metadata_store,
         graph_store=graph_store,
@@ -217,7 +218,7 @@ def _graph_retrieval_service(state: Path) -> tuple[CatalogService, VaultCatalog,
             metadata_store=metadata_store,
             graph_store=graph_store,
             graph_readiness=readiness,
-            projection=RustworkxGraphProjection(),
+            projection=VaultGraphProjectionAdapter(),
         ),
     )
 
@@ -410,11 +411,25 @@ def index(
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Index all enabled registered Vaults."),
     full: bool = typer.Option(False, "--full", help="Rebuild selected metadata projection."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Plan changes without mutating the Data Home."),
+    graph_backend: str | None = typer.Option(None, "--graph-backend", help="Select document or legacy graph storage."),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
         raise typer.Exit(1)
     config, catalog = _exit_on_domain_error(lambda: _catalog(state))
+    if graph_backend not in (None, "legacy", "document"):
+        typer.echo("--graph-backend must be document or legacy.")
+        raise typer.Exit(1)
+    selected_backend = _exit_on_domain_error(lambda: selected_graph_backend(config))
+    changing_backend = graph_backend is not None and graph_backend != selected_backend
+    if changing_backend and len([entry for entry in catalog.entries() if entry.enabled]) > 1 and not all_vaults:
+        typer.echo("A graph backend transition requires --all-vaults.")
+        raise typer.Exit(1)
+    # Rebuild legacy state before publishing rollback, even after source edits.
+    if changing_backend and graph_backend == "legacy":
+        full = True
+    if dry_run and changing_backend:
+        typer.echo(f"graph_backend_transition: {selected_backend} -> {graph_backend}")
     if all_vaults:
         scope = _exit_on_domain_error(catalog.scope_for_all_enabled)
     elif vault_id is not None:
@@ -428,6 +443,8 @@ def index(
             initialize_store=not dry_run,
             transactional=not dry_run,
             full=full,
+            graph_backend=cast(GraphBackend | None, graph_backend),
+            requested_scope=scope,
         )
     )
     _, catalog, service = bundle.catalog_service, bundle.catalog, bundle.index_service
@@ -686,6 +703,11 @@ def projection_audit(
             metadata_path=config.metadata_path,
             vector_path=config.vector_path,
             graph_path=config.graph_path,
+            graph_store=open_graph_store(
+                config, metadata_store=SQLiteMetadataStore(config.metadata_path, initialize=False)
+            )
+            if selected_graph_backend(config) == "document"
+            else None,
         ).audit(
             scope=catalog.scope_for_all_enabled(),
             active_generation_id=active_layout.generation_id if active_layout is not None else None,
