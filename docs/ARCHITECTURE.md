@@ -74,6 +74,96 @@ src/vault_graph/
 
 `interface`는 입력 검증·전송·직렬화와 구성을 담당한다. `storage`는 포트의 구체 저장 방식과 저장 모델을 담당한다. `errors.py` 등 지원 파일과 이전 가져오기 경로도 남아 있으므로 위 트리는 전체 파일 목록이 아니다.
 
+### 1.1 모듈 흐름
+
+아래 그림은 기능 그룹과 주요 처리·지원 관계를 보여준다. 각 M 번호는 위 소유권 표와 대응한다. 실선은 주요 처리와 기능 연결, 점선은 지원 또는 선택적 연동을 나타낸다. 화살표는 코드의 가져오기 의존도나 모든 함수 호출을 나타내지 않는다. 독립 패키지와 내부 기능은 Vault 전용 어댑터를 통해 연결하며, 그래프 후보 결합은 선택적이고 근거 역조회는 명시적 내부 호출이다.
+
+```mermaid
+flowchart TB
+    subgraph INTERFACES["interface · 진입점·조립"]
+        ENTRY["interface.cli · interface.mcp · interface.http<br/>공개 진입점"] --> ROOT["interface.composition<br/>서비스 구성·자원 주입"]
+    end
+
+    SOURCE["Vault 문서 · 읽기 전용"]
+    REPO["코드 저장소 · 읽기 전용"]
+
+    subgraph DOCUMENT["그룹1 indexing · 문서 준비·색인"]
+        INGEST["M02 indexing.ingestion<br/>문서 읽기·정규화·청크"]
+        INDEX["M03 indexing · indexing.extraction<br/>색인·명시적 관계 추출"]
+        PUBLISH["M04 indexing.publication<br/>세대 검증·발행·복구"]
+        INGEST --> INDEX --> PUBLISH
+    end
+
+    subgraph RETRIEVAL["그룹2 retrieval · 검색·근거"]
+        SEARCH["M05 retrieval.search<br/>키워드·벡터·그래프 후보 통합"]
+        GRAPH["M06 retrieval.graph<br/>관련 항목·결정 경로·리소스"]
+        LINK["M07 retrieval.evidence<br/>EvidenceLinker · 양방향 근거 연결"]
+        EXPLAIN["M13 retrieval.explanation<br/>검색 이유·임시 설명 캐시"]
+        SEARCH --> LINK
+        GRAPH --> LINK
+    end
+
+    subgraph CONTEXT_GROUP["그룹3 context · 문맥·답변"]
+        CONTEXT["M08 context.pack<br/>근거 선택·예산·문맥 팩"]
+        MEMORY["M10 context.memory<br/>프로젝트·결정·질문·타임라인"]
+        ANSWER["M09 context.answer<br/>발췌 답변·인용 검증"]
+        CONTEXT --> ANSWER
+        MEMORY --> ANSWER
+    end
+
+    subgraph PROJECT_GROUP["그룹4 project · 코드·프로젝트 탐색"]
+        CODE["M11 project.code<br/>코드 투영·심볼·호출·영향 조회"]
+        PROJECT["M12 project.context<br/>코드·Vault 근거 조합"]
+        CODE --> PROJECT
+    end
+
+    subgraph OPERATIONS["그룹5 operation · 운영·연동"]
+        SCOPE["M01 operation.scope<br/>등록·조회 범위·경로 보호"]
+        READY["M14 operation.readiness<br/>색인·해시·리비전 확인"]
+        DIAG["M15 operation.diagnostics<br/>상태·투영 위생·진단"]
+        OPS["M16 operation.runtime<br/>초기 설정·주기 실행·중단"]
+        CONFIG["M17 operation.integration<br/>명시적 등록·연결 설정·지침 관리"]
+    end
+
+    subgraph STORAGE["storage · 파생 저장소"]
+        DATA["storage.interfaces · storage.local<br/>메타데이터·그래프·벡터·코드 투영"]
+    end
+
+    subgraph PACKAGES["engine · 기존 packages/의 독립 배포 패키지 5개"]
+        TE["text_embeddings<br/>텍스트 → 벡터"]
+        VS["vector_search<br/>벡터 저장·검색"]
+        VI["vector_index<br/>증분 색인 계획·반영"]
+        GD["graph_document<br/>문서 관계·근거 저장"]
+        GS["graph_search<br/>노드·간선 탐색·경로 계산"]
+        VI --> TE
+        VI --> VS
+        GD -. "선택적 search_bridge" .-> GS
+    end
+
+    SOURCE --> INGEST
+    REPO --> CODE
+    PUBLISH --> DATA
+    DATA --> MEMORY
+    CODE <--> DATA
+    ROOT --> SCOPE
+    SCOPE -.-> READY
+    READY -.-> SEARCH
+    READY -.-> GRAPH
+    ROOT --> OPS
+    ROOT --> CONFIG
+    ROOT --> DIAG
+    ROOT --> EXPLAIN
+    OPS --> INDEX
+    LINK --> DATA
+    SEARCH --> CONTEXT
+    CONTEXT --> PROJECT
+    GRAPH -.-> PROJECT
+    VI --> INDEX
+    GD --> INDEX
+    VS --> SEARCH
+    GS --> GRAPH
+```
+
 ## 2. 일반 패키지와 Vault 정책
 
 | 배포 이름 | Python 패키지 | 실제 소스 |
