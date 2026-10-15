@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nolemy-vector-search"
+version = "0.1.0"
+description = "Local vector storage and similarity search with read-only Chroma SQLite access"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+chroma = ["chromadb>=1.5.9,<2"]
+dev = ["pytest>=8", "ruff>=0.8", "mypy>=1.13", "chromadb>=1.5.9,<2"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vector_search"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

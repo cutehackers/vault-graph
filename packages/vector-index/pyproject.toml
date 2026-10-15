@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nolemy-vector-index"
+version = "0.1.0"
+description = "Scope-bounded incremental indexing of prepared text items"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["nolemy-text-embeddings==0.1.0", "nolemy-vector-search==0.1.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "mypy>=1.13", "ruff>=0.8", "nolemy-vector-search[chroma]==0.1.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vector_index"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

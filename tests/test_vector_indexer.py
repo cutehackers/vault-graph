@@ -1,8 +1,11 @@
 from dataclasses import replace
 
+import pytest
+
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from vault_graph.embeddings.text_embeddings import EmbeddingModelSpec
+from vault_graph.errors import VectorStoreError
 from vault_graph.indexing.vector_indexer import VectorIndexer
 from vault_graph.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope
@@ -178,3 +181,16 @@ def test_same_chunk_id_in_different_vaults_embeds_without_collision() -> None:
         ("first", shared_chunk_id),
         ("second", shared_chunk_id),
     ]
+
+
+def test_colliding_legacy_vector_ids_fail_before_embedding() -> None:
+    first = replace(chunk(vault_id="a:b"), chunk_id="c")
+    second = replace(chunk(vault_id="a"), chunk_id="b:c")
+    embeddings = DeterministicTextEmbeddings(SPEC)
+    store = InMemoryVectorStore()
+    with pytest.raises(VectorStoreError, match="vector_id collision"):
+        VectorIndexer(chunk_store=ChunkStore((first, second)), vector_store=store, text_embeddings=embeddings).apply(
+            scopes=(QueryScope(vault_ids=("a:b", "a"), content_scopes=("wiki",)),)
+        )
+    assert embeddings.last_inputs == ()
+    assert store.export_manifest(QueryScope(vault_ids=("a:b", "a"), content_scopes=("wiki",))) == ()
