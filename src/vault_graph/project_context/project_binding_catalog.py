@@ -7,9 +7,9 @@ import os
 from collections.abc import Iterable
 from typing import Any, Protocol
 
-from vault_graph.app.catalog_service import CatalogService
 from vault_graph.ingestion.vault_catalog import VaultCatalog
 from vault_graph.project_context.project_binding import ProjectBinding
+from vault_graph.vault_scope.catalog_service import CatalogService
 
 PROJECT_BINDING_SCHEMA_VERSION = "project-bindings-v1"
 

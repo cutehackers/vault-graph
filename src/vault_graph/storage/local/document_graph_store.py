@@ -45,6 +45,7 @@ from vault_graph.graph.graph_query import (
     GraphRelationshipQueryResult,
 )
 from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
 from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 from vault_graph.storage.interfaces.store_health import StoreHealth
@@ -587,6 +588,35 @@ class DocumentGraphStore:
         with self._lock:
             self._assert_usable()
             return self._query.latest_revisions(scopes)
+
+    def evidence_lookup_revisions(self) -> tuple[tuple[str, str], ...]:
+        """Expose native document revisions separately from legacy compatibility revisions."""
+        with self._lock:
+            self._assert_usable()
+            return tuple(
+                sorted((key, str(entry["graph_revision"])) for key, entry in self._state["collections"].items())
+            )
+
+    def lookup_evidence_owners(
+        self,
+        *,
+        vault_id: str,
+        document_id: str,
+        chunk_id: str,
+        scopes: tuple[QueryScope, ...],
+        include_cross_vault: bool,
+        limit: int,
+    ) -> tuple[EvidenceOwnerRecord, ...]:
+        with self._lock:
+            self._assert_usable()
+            return self._query.lookup_evidence_owners(
+                vault_id=vault_id,
+                document_id=document_id,
+                chunk_id=chunk_id,
+                scopes=scopes,
+                include_cross_vault=include_cross_vault,
+                limit=limit,
+            )
 
     def current_manifest(self, scopes: tuple[QueryScope, ...]) -> GraphManifest:
         with self._lock:

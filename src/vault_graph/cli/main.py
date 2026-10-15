@@ -7,16 +7,8 @@ from typing import TYPE_CHECKING, cast
 
 import typer
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_home import GraphHomeResolver
-from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
-from vault_graph.app.graph_retrieval_service import GraphRetrievalService
 from vault_graph.app.graph_store_factory import GraphBackend, open_graph_store, selected_graph_backend
-from vault_graph.app.index_service import IndexService, StatusReport
 from vault_graph.app.local_index_service_factory import LocalIndexServiceFactory
-from vault_graph.app.projection_generation import ProjectionGenerationManager
-from vault_graph.app.projection_hygiene_service import ProjectionHygieneService
-from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.cli.code_commands import code_app
 from vault_graph.cli.harness_commands import harness_app
 from vault_graph.cli.project_commands import project_app
@@ -41,7 +33,13 @@ from vault_graph.graph.graph_contracts import (
     current_graph_extraction_spec,
 )
 from vault_graph.graph.graph_identity import graph_scope_key
+from vault_graph.graph_retrieval.graph_retrieval_service import GraphRetrievalService
+from vault_graph.indexing.index_service import IndexService, StatusReport
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.projection_diagnostics.projection_hygiene_service import ProjectionHygieneService
+from vault_graph.projection_publication.projection_generation import ProjectionGenerationManager
+from vault_graph.projection_readiness.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.projection_readiness.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.retrieval import (
     DecisionTraceResponse,
     GraphOutputFormat,
@@ -64,9 +62,11 @@ from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore as SQLiteGraphStore
 from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+from vault_graph.vault_scope.catalog_service import CatalogService
+from vault_graph.vault_scope.graph_home import GraphHomeResolver
 
 if TYPE_CHECKING:
-    from vault_graph.app.answer_service import AnswerService
+    from vault_graph.answer.answer_service import AnswerService
 
 app = typer.Typer(no_args_is_help=True)
 vault_app = typer.Typer(no_args_is_help=True)
@@ -229,9 +229,9 @@ def _answer_service(
     include_graph: bool = False,
 ) -> tuple[CatalogService, VaultCatalog, AnswerService]:
     from vault_graph.answer.answer_composer import ExtractiveAnswerComposer
+    from vault_graph.answer.answer_service import AnswerService
     from vault_graph.answer.citation_guard import CitationGuard
     from vault_graph.answer.evidence_planner import EvidencePlanner
-    from vault_graph.app.answer_service import AnswerService
 
     config, catalog, retrieval_service = _search_service(state, include_graph=include_graph)
     graph_service = _graph_retrieval_service(state)[2] if include_graph else None
@@ -307,7 +307,11 @@ def mcp_config(
     if not print_config:
         typer.echo("mcp_config_requires_print")
         raise typer.Exit(1)
-    from vault_graph.mcp.mcp_config_registration import McpAgent, McpConfigRenderer, McpConfigRequest
+    from vault_graph.integration_configuration.mcp_config_registration import (
+        McpAgent,
+        McpConfigRenderer,
+        McpConfigRequest,
+    )
 
     rendered = _exit_on_domain_error(
         lambda: McpConfigRenderer().render(
@@ -324,7 +328,11 @@ def mcp_register(
     config_path: Path = typer.Option(..., "--config-path", help="Explicit agent MCP config file path."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Report changes without writing config."),
 ) -> None:
-    from vault_graph.mcp.mcp_config_registration import McpAgent, McpConfigRegistrar, McpRegistrationRequest
+    from vault_graph.integration_configuration.mcp_config_registration import (
+        McpAgent,
+        McpConfigRegistrar,
+        McpRegistrationRequest,
+    )
 
     report = _exit_on_domain_error(
         lambda: McpConfigRegistrar().register(
@@ -356,8 +364,8 @@ def setup(
     print_mcp_config: bool = typer.Option(False, "--print-mcp-config", help="Print MCP config JSON."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Report setup without writing state."),
 ) -> None:
-    from vault_graph.app.setup_service import SetupRequest, SetupService
-    from vault_graph.mcp.mcp_config_registration import McpAgent
+    from vault_graph.integration_configuration.mcp_config_registration import McpAgent
+    from vault_graph.runtime_operations.setup_service import SetupRequest, SetupService
 
     setup_service = SetupService(
         index_factory=LocalIndexServiceFactory(text_embeddings_factory=_text_embeddings),
@@ -843,7 +851,7 @@ def watch(
     if interval <= 0:
         typer.echo("watch_interval_must_be_positive")
         raise typer.Exit(1)
-    from vault_graph.app.watch_service import WatchService
+    from vault_graph.runtime_operations.watch_service import WatchService
 
     _, catalog = _exit_on_domain_error(lambda: _catalog(state))
     if all_vaults:

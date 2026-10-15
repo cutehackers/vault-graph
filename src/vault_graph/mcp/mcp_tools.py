@@ -20,7 +20,6 @@ from vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices
 from vault_graph.mcp.mcp_uri import encode_resource_segment
 from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
 from vault_graph.memory.memory_models import MemoryWarning, OpenQuestionsProjection, ProjectMemoryProjection
-from vault_graph.memory.result_explanation import ExplainResultService
 from vault_graph.project_context import (
     DEFAULT_PROJECT_CONTEXT_DEPTH,
     DEFAULT_PROJECT_CONTEXT_LIMIT,
@@ -36,6 +35,7 @@ from vault_graph.projection.graph_projection import (
     DEFAULT_GRAPH_RESULT_LIMIT,
     MAX_GRAPH_PROJECTION_DEPTH,
 )
+from vault_graph.result_explanation.result_explanation import ExplainResultService
 from vault_graph.retrieval.search_response import SearchMode
 
 McpToolName = Literal[
@@ -499,7 +499,7 @@ class McpToolRegistry:
             _validate_explain_result_request(request)
             record = self._explain_result_service.explain(result_id=request.result_id)
             from vault_graph.mcp.mcp_tool_serialization import explanation_payload_to_resource_links
-            from vault_graph.memory.result_explanation import explanation_record_to_dict
+            from vault_graph.result_explanation.result_explanation import explanation_record_to_dict
 
             payload = explanation_record_to_dict(record)
             return _tool_body(

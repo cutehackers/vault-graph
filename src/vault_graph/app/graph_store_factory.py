@@ -7,11 +7,11 @@ import tempfile
 from pathlib import Path
 from typing import Literal, cast
 
-from vault_graph.app.catalog_service import CatalogService
 from vault_graph.errors import GraphStoreUnavailable
 from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
+from vault_graph.vault_scope.catalog_service import CatalogService
 
 type GraphBackend = Literal["legacy", "document"]
 

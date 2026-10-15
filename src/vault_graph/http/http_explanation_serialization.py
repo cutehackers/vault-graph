@@ -8,7 +8,7 @@ from urllib.parse import quote
 from vault_graph.answer.answer_response import AnswerEvidence, AnswerResponse, AnswerSignal, AnswerWarning
 from vault_graph.context.context_pack import ContextEvidence, ContextPack, ContextPackSignal, ContextPackWarning
 from vault_graph.graph.graph_contracts import RelationshipRecord
-from vault_graph.memory.result_explanation import (
+from vault_graph.result_explanation.result_explanation import (
     ExplanationEvidenceRef,
     ExplanationRecord,
     ExplanationSignal,

@@ -8,7 +8,6 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
 
-from vault_graph.app.index_service import StatusReport
 from vault_graph.context.context_pack import ContextEvidence, ContextPack, ContextPackSignal, ContextPackWarning
 from vault_graph.context.context_pack_serialization import context_pack_to_dict
 from vault_graph.graph.graph_contracts import RelationshipRecord
@@ -16,13 +15,14 @@ from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.mcp.mcp_errors import McpErrorPayload
 from vault_graph.mcp.mcp_tools import McpResourceLink
 from vault_graph.mcp.mcp_uri import encode_resource_segment
-from vault_graph.memory.result_explanation import (
+from vault_graph.project_context import ProjectContext, compact_project_context_value
+from vault_graph.projection_diagnostics.index_status_reader import StatusReport
+from vault_graph.result_explanation.result_explanation import (
     ExplanationEvidenceRef,
     ExplanationRecord,
     ExplanationSignal,
     ExplanationWarning,
 )
-from vault_graph.project_context import ProjectContext, compact_project_context_value
 from vault_graph.retrieval.graph_retrieval import (
     DecisionTraceResponse,
     DecisionTraceStep,

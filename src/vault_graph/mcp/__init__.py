@@ -171,7 +171,7 @@ def __getattr__(name: str) -> Any:
             "ResultExplanationCache": ResultExplanationCache,
         }[name]
     if name == "codex_stdio_config_json":
-        from vault_graph.mcp.mcp_config_examples import codex_stdio_config_json
+        from vault_graph.integration_configuration.mcp_config_examples import codex_stdio_config_json
 
         return codex_stdio_config_json
     raise AttributeError(name)

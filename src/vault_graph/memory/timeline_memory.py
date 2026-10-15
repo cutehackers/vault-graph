@@ -16,7 +16,7 @@ from vault_graph.memory.memory_request_context import MemoryStatusService
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 if TYPE_CHECKING:
-    from vault_graph.app.index_service import StatusReport
+    from vault_graph.projection_diagnostics.index_status_reader import StatusReport
 
 TimelineOrigin = Literal["document_snapshot_change", "index_change", "projection_change", "warning"]
 TimelineSourceKind = Literal["document", "metadata_status", "vector_status", "graph_status"]

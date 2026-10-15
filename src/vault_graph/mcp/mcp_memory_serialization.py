@@ -5,13 +5,6 @@ from typing import TYPE_CHECKING, Protocol
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.mcp.mcp_errors import McpErrorPayload
 from vault_graph.mcp.mcp_uri import encode_resource_segment
-from vault_graph.memory.health_explorer import (
-    BackendReadinessRecord,
-    HealthExplorerReport,
-    McpRuntimeCacheRecord,
-    ReadinessStatus,
-    ScaleUpAdapterReadiness,
-)
 from vault_graph.memory.memory_models import (
     MemoryBackendRevision,
     MemoryEvidenceRef,
@@ -23,6 +16,13 @@ from vault_graph.memory.memory_models import (
     ProjectMemoryVault,
 )
 from vault_graph.memory.timeline_memory import RecentChangesProjection, TimelineEvidenceRef, TimelineItem, TimelineVault
+from vault_graph.projection_diagnostics.health_explorer import (
+    BackendReadinessRecord,
+    HealthExplorerReport,
+    McpRuntimeCacheRecord,
+    ReadinessStatus,
+    ScaleUpAdapterReadiness,
+)
 
 if TYPE_CHECKING:
     from vault_graph.mcp.mcp_tools import McpResourceLink

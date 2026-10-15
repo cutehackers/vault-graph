@@ -5,8 +5,6 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.app.graph_store_factory import (
     GraphBackend,
     document_store_path,
@@ -14,25 +12,27 @@ from vault_graph.app.graph_store_factory import (
     selected_graph_backend,
     write_graph_backend_selection,
 )
-from vault_graph.app.index_service import IndexRunReport, IndexService
-from vault_graph.app.projection_generation import (
+from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
+from vault_graph.errors import GraphStoreError
+from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.indexing.index_service import IndexRunReport, IndexService
+from vault_graph.ingestion.document_chunking import CHUNKER_VERSION
+from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
+from vault_graph.projection_diagnostics.projection_hygiene_service import ProjectionHygieneService
+from vault_graph.projection_publication.projection_generation import (
     ProjectionBundlePublisher,
     ProjectionGenerationError,
     ProjectionGenerationManager,
     ProjectionLayout,
 )
-from vault_graph.app.projection_hygiene_service import ProjectionHygieneService
-from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings, FastEmbedTextEmbeddingsConfig
-from vault_graph.errors import GraphStoreError
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
-from vault_graph.ingestion.document_chunking import CHUNKER_VERSION
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
+from vault_graph.projection_readiness.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore
+from vault_graph.vault_scope.catalog_service import CatalogService
 
 
 @dataclass

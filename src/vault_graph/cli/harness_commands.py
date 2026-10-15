@@ -6,10 +6,10 @@ from pathlib import Path
 
 import typer
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.setup_service import SetupService
 from vault_graph.errors import VaultGraphError
 from vault_graph.harness.harness_guidance import HarnessGuidanceRequest
+from vault_graph.runtime_operations.setup_service import SetupService
+from vault_graph.vault_scope.catalog_service import CatalogService
 
 harness_app = typer.Typer(no_args_is_help=True)
 guidance_app = typer.Typer(no_args_is_help=True)

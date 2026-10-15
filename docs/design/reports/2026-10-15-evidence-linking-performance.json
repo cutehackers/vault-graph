@@ -1,0 +1,184 @@
+{
+  "contract": "SEL-20261015 section 10",
+  "environment": {
+    "graph_document_version": "0.1.0",
+    "graph_search_version": "0.1.0",
+    "machine": "arm64",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "python": "3.12.11",
+    "timing_clock": "time.perf_counter_ns"
+  },
+  "latency": {
+    "existing_document_backend_cold_open": {
+      "p50_ms": 1385.057417,
+      "p95_ms": 1447.71459,
+      "sample_count": 20,
+      "samples_ms": [
+        1281.499417,
+        1301.710208,
+        1287.442958,
+        1313.597,
+        1308.987167,
+        1330.081292,
+        1340.095416,
+        1295.165375,
+        1287.694666,
+        1395.112292,
+        1444.440875,
+        1437.493667,
+        1415.453208,
+        1387.904583,
+        1509.915167,
+        1385.383,
+        1384.731833,
+        1409.468375,
+        1402.704125,
+        1414.627792
+      ],
+      "warmups": 3
+    },
+    "existing_full_scope_readiness": {
+      "p50_ms": 53.940855,
+      "p95_ms": 78.461056,
+      "sample_count": 20,
+      "samples_ms": [
+        53.401792,
+        53.230708,
+        53.593792,
+        52.697792,
+        50.831084,
+        78.622042,
+        52.381416,
+        54.9415,
+        54.322292,
+        54.9535,
+        55.025875,
+        53.251375,
+        55.366,
+        51.120959,
+        59.897083,
+        78.452583,
+        54.149917,
+        55.876917,
+        53.731792,
+        52.110417
+      ],
+      "warmups": 3
+    },
+    "full_factory_linker_request": {
+      "p50_ms": 119.752646,
+      "p95_ms": 147.567577,
+      "sample_count": 20,
+      "samples_ms": [
+        148.934667,
+        118.867375,
+        114.610458,
+        112.38575,
+        145.577,
+        119.124375,
+        129.3445,
+        144.76625,
+        116.426625,
+        117.15725,
+        116.790333,
+        142.28875,
+        112.884583,
+        120.594125,
+        120.380917,
+        147.495625,
+        125.501209,
+        114.0725,
+        114.435084,
+        145.665667
+      ],
+      "warmups": 3
+    },
+    "new_bounded_owner_lookup": {
+      "p50_ms": 0.755917,
+      "p95_ms": 0.764859,
+      "sample_count": 20,
+      "samples_ms": [
+        0.762792,
+        0.777208,
+        0.759333,
+        0.749,
+        0.739458,
+        0.747,
+        0.764083,
+        0.75825,
+        0.756834,
+        0.757625,
+        0.75525,
+        0.752292,
+        0.749959,
+        0.752125,
+        0.764209,
+        0.755625,
+        0.760834,
+        0.734375,
+        0.756209,
+        0.750833
+      ],
+      "warmups": 3
+    }
+  },
+  "measurement_scope": {
+    "bounded_lookup": "new direct owner lookup on an open store; excludes readiness and lineage scans",
+    "cold_open": "fresh store object per sample; excludes validation and close; OS page cache retained",
+    "factory_open": "outside full-linker timed samples; document cold-open measured separately",
+    "full_linker": "actual factory linker request including readiness, before/after lineage and evidence checks",
+    "readiness": "existing full-scope manifest and evidence validation on an open store",
+    "sla": "no new numerical SLA or throughput target"
+  },
+  "read_only_checks": {
+    "after": {
+      "data_home": {
+        "file_count": 36,
+        "sha256_of_sorted_path_hashes": "33f330bad92839af6076d7c26b431ab0383c4ec1289c5d2bf3f9b5037e9c86ee"
+      },
+      "vault": {
+        "file_count": 1000,
+        "sha256_of_sorted_path_hashes": "f9b32657790103663b6f7d4fe1d2790a4adb7ac4cb036487f1b25a045c06b25e"
+      }
+    },
+    "before": {
+      "data_home": {
+        "file_count": 36,
+        "sha256_of_sorted_path_hashes": "33f330bad92839af6076d7c26b431ab0383c4ec1289c5d2bf3f9b5037e9c86ee"
+      },
+      "vault": {
+        "file_count": 1000,
+        "sha256_of_sorted_path_hashes": "f9b32657790103663b6f7d4fe1d2790a4adb7ac4cb036487f1b25a045c06b25e"
+      }
+    },
+    "data_home_unchanged": true,
+    "vault_unchanged": true
+  },
+  "returned": {
+    "coverage": "complete",
+    "direct_owner_rows": 7,
+    "linker_links": 7,
+    "linker_outcomes": 1,
+    "source_revision_count": 5,
+    "stop_reason": "completed"
+  },
+  "workload": {
+    "backend": "document",
+    "bytes_per_document": 4096,
+    "direct_lookup_limit": 11,
+    "embeddings": "deterministic fixture adapter, no external model or network",
+    "evidence_key": [
+      "default",
+      "4d935faeeda5275efab1a8d2613280317e8c4e3f60cfebc1cecd158658ca27d7",
+      "4270e05ce6bde6afbfce1742152cdf219efaeb7dae1030c85df492e877fbe603"
+    ],
+    "graph_entities": 1002,
+    "graph_relationships": 2999,
+    "indexing_path": "CLI init, index --full, index --graph-backend document",
+    "linker_result_limit": 10,
+    "requested_key_count": 1,
+    "source_path": "wiki/page-0500.md",
+    "total_source_bytes": 4096000,
+    "vault_document_count": 1000
+  }
+}

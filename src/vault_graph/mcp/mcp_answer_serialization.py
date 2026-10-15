@@ -11,7 +11,7 @@ from vault_graph.answer.answer_response import (
 from vault_graph.mcp.mcp_errors import McpErrorPayload
 from vault_graph.mcp.mcp_tools import McpResourceLink
 from vault_graph.mcp.mcp_uri import encode_resource_segment
-from vault_graph.memory.result_explanation import (
+from vault_graph.result_explanation.result_explanation import (
     ExplanationEvidenceRef,
     ExplanationRecord,
     ExplanationSignal,

@@ -4,6 +4,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from vault_graph.harness.harness_guidance import HARNESS_GUIDANCE_END_MARKER as HARNESS_GUIDANCE_END_MARKER
+from vault_graph.harness.harness_guidance import HARNESS_GUIDANCE_START_MARKER as HARNESS_GUIDANCE_START_MARKER
 from vault_graph.mcp.mcp_errors import McpErrorPayload, McpProtocolError
 
 
@@ -27,9 +29,6 @@ PHASE_5C_PROMPT_NAMES = (
     "prepare_wiki_update_context",
     "trace_decision_history",
 )
-
-HARNESS_GUIDANCE_START_MARKER = "<!-- vault-graph:harness-guidance:start -->"
-HARNESS_GUIDANCE_END_MARKER = "<!-- vault-graph:harness-guidance:end -->"
 
 _SHARED_LINES = (
     "Use Vault Graph as read-only working context.",

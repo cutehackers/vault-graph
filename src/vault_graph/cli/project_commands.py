@@ -9,11 +9,11 @@ from typing import Any, cast
 
 import typer
 
-from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.code_index_factory import CodeIndexFactory
 from vault_graph.errors import VaultGraphError
 from vault_graph.project_context.project_binding import ProjectBinding
 from vault_graph.project_context.project_binding_catalog import ProjectBindingCatalogService
+from vault_graph.vault_scope.catalog_service import CatalogService
 
 project_app = typer.Typer(no_args_is_help=True)
 

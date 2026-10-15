@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import cast
+from typing import Protocol, cast
 
-from vault_graph.code_index.code_freshness import CodeFreshnessService
 from vault_graph.code_index.code_models import (
     CodeFileOutlineRequest,
     CodeFileOutlineResponse,
@@ -24,13 +23,20 @@ from vault_graph.code_index.code_models import (
     CodeTraversalResponse,
     code_file_identity,
 )
-from vault_graph.code_index.code_projection_service import CodeProjectionService
 from vault_graph.code_index.repository_catalog import CodeRepositoryCatalog
 from vault_graph.code_index.source_evidence_reader import SourceEvidenceReader
 from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
 
 MAX_QUERY_LIMIT = 100
 MAX_TRAVERSAL_DEPTH = 8
+
+
+class CodeFreshnessReader(Protocol):
+    def read_status_for(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport: ...
+
+
+class CodeProjectionStatusReader(Protocol):
+    def status(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport: ...
 
 
 class CodeQueryService:
@@ -41,7 +47,7 @@ class CodeQueryService:
         *,
         catalog: CodeRepositoryCatalog | Iterable[CodeRepositoryEntry],
         store: CodeProjectionStore,
-        freshness_service: CodeFreshnessService | CodeProjectionService,
+        freshness_service: CodeFreshnessReader | CodeProjectionStatusReader,
         repository_ids: tuple[str, ...] = (),
     ) -> None:
         entries = catalog.entries() if hasattr(catalog, "entries") else tuple(catalog)
@@ -241,7 +247,7 @@ class CodeQueryService:
 
     def _freshness(self, repository_ids: tuple[str, ...]) -> CodeFreshnessReport:
         if hasattr(self._freshness_service, "read_status_for"):
-            status_reader = cast(CodeFreshnessService, self._freshness_service)
+            status_reader = cast(CodeFreshnessReader, self._freshness_service)
             return status_reader.read_status_for(repository_ids)
         return self._freshness_service.status(repository_ids)
 

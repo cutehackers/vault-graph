@@ -222,3 +222,38 @@ def test_failed_run_persists_partial_marker_for_new_service(tmp_path: Path) -> N
     assert failed.status == "partial"
     assert service.status(()).state == "partial"
     assert fresh_process.status(()).state == "partial"
+
+
+def test_projection_uses_injected_read_and_failure_stores(tmp_path: Path) -> None:
+    from vault_graph.code_index.code_generation import CodeProjectionGenerationManager
+    from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
+
+    source = tmp_path / "main.py"
+    source.write_text("def main():\n    return 1\n", encoding="utf-8")
+    opened: list[tuple[str, Path]] = []
+
+    def read_store(path: Path, policy_revision: str | None) -> CodeProjectionStore:
+        opened.append(("read", path))
+        return SQLiteCodeProjectionStore.open_read_only(path, policy_revision=policy_revision)
+
+    def failure_store(path: Path) -> CodeProjectionStore:
+        opened.append(("failure", path))
+        return SQLiteCodeProjectionStore.open_writable(path)
+
+    service = CodeProjectionService(
+        catalog=(_entry(tmp_path),),
+        generation_manager=CodeProjectionGenerationManager(tmp_path / "state"),
+        read_store_factory=read_store,
+        failure_store_factory=failure_store,
+    )
+    service.apply(CodeIndexRequest(full=True))
+    active = service.generation_manager.active_layout(())
+    assert active is not None
+    assert service.plan(CodeIndexRequest()).changed_paths == ()
+    assert service.status(()).state == "fresh"
+    service.fail_next_apply = True
+    assert service.apply(CodeIndexRequest()).status == "partial"
+    assert service.status(()).state == "partial"
+    assert ("read", active.database_path) in opened
+    assert ("failure", active.database_path) in opened
+    assert service.generation_manager.active_layout(()) == active

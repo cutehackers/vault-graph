@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from vault_graph.errors import GraphReadOnlyViolation, GraphStoreError, GraphStoreUnavailable
 from vault_graph.graph.graph_contracts import (
@@ -31,6 +31,7 @@ from vault_graph.graph.graph_query import (
     GraphRelationshipQueryResult,
 )
 from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
 from vault_graph.storage.interfaces.graph_store import GraphEntityIdentity, GraphRelationshipIdentity
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
@@ -402,6 +403,153 @@ class SQLiteGraphStore:
             raise GraphStoreUnavailable(str(exc)) from exc
         return tuple(revisions)
 
+    def evidence_lookup_revisions(self) -> tuple[tuple[str, str], ...]:
+        """Legacy revisions are already exposed through latest_revisions."""
+        return ()
+
+    def lookup_evidence_owners(
+        self,
+        *,
+        vault_id: str,
+        document_id: str,
+        chunk_id: str,
+        scopes: tuple[QueryScope, ...],
+        include_cross_vault: bool,
+        limit: int,
+    ) -> tuple[EvidenceOwnerRecord, ...]:
+        _ensure_actual_scopes(scopes)
+        if type(limit) is not int or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        selected_vaults = sorted(_actual_vault_ids(scopes))
+        if vault_id not in selected_vaults or not self._database_path.exists():
+            return ()
+        scope_keys = sorted(_query_scope_keys(scopes))
+        scope_values = ", ".join("(?)" for _ in scope_keys)
+        scope_slots = "SELECT actual_scope FROM selected_scope_keys"
+        owner_scope = f"""
+            SELECT membership.actual_scope FROM graph_record_scopes AS membership
+            WHERE membership.record_kind = ref.owner_kind
+              AND membership.record_vault_id = ref.owner_vault_id
+              AND membership.record_id = ref.owner_id
+              AND membership.actual_scope IN ({scope_slots})
+            ORDER BY membership.actual_scope LIMIT 1
+        """
+        vault_slots = ", ".join("?" for _ in selected_vaults)
+        endpoint_membership = f"""
+            EXISTS (
+                SELECT 1 FROM graph_entities AS endpoint
+                JOIN graph_record_scopes AS membership
+                  ON membership.record_kind = 'entity'
+                 AND membership.record_vault_id = endpoint.vault_id
+                 AND membership.record_id = endpoint.entity_id
+                WHERE endpoint.vault_id = {{vault_column}}
+                  AND endpoint.entity_id = {{entity_column}}
+                  AND endpoint.status = 'active'
+                  AND membership.actual_scope IN ({scope_slots})
+            )
+        """
+        source_membership = endpoint_membership.format(
+            vault_column="rel.source_vault_id", entity_column="rel.source_entity_id"
+        )
+        target_membership = endpoint_membership.format(
+            vault_column="rel.target_vault_id", entity_column="rel.target_entity_id"
+        )
+        if include_cross_vault:
+            relationship_policy = f"""
+                rel.target_vault_id IN ({vault_slots})
+                AND NOT EXISTS (
+                    SELECT 1 FROM graph_evidence_refs AS other
+                    WHERE other.owner_kind = 'relationship'
+                      AND other.owner_vault_id = rel.source_vault_id
+                      AND other.owner_id = rel.relationship_id
+                      AND other.evidence_vault_id NOT IN ({vault_slots})
+                )
+            """
+            policy_params: list[object] = [*selected_vaults, *selected_vaults]
+        else:
+            relationship_policy = """
+                rel.source_vault_id = ref.evidence_vault_id
+                AND rel.target_vault_id = rel.source_vault_id
+                AND NOT EXISTS (
+                    SELECT 1 FROM graph_evidence_refs AS other
+                    WHERE other.owner_kind = 'relationship'
+                      AND other.owner_vault_id = rel.source_vault_id
+                      AND other.owner_id = rel.relationship_id
+                      AND other.evidence_vault_id != rel.source_vault_id
+                )
+            """
+            policy_params = []
+        try:
+            with self._connect() as connection:
+                rows = connection.execute(
+                    f"""
+                    WITH selected_scope_keys(actual_scope) AS (VALUES {scope_values})
+                    SELECT ref.evidence_ref_id, ref.owner_kind, ref.owner_vault_id, ref.owner_id,
+                           ref.evidence_vault_id, ref.document_id, ref.chunk_id, ref.content_hash,
+                           ref.section, ref.anchor, ref.path,
+                           COALESCE(entity.graph_index_revision, rel.graph_index_revision) AS owner_revision,
+                           rel.source_vault_id, rel.target_vault_id, rel.source_entity_id, rel.target_entity_id,
+                           ({owner_scope}) AS owner_scope,
+                           (SELECT revision.graph_index_revision FROM graph_revisions AS revision
+                            WHERE revision.vault_id = ref.owner_vault_id
+                              AND revision.actual_scope = ({owner_scope})
+                            ORDER BY revision.updated_at DESC, revision.graph_index_revision DESC
+                            LIMIT 1) AS scope_revision
+                    FROM graph_evidence_refs AS ref
+                    LEFT JOIN graph_entities AS entity
+                      ON ref.owner_kind = 'entity' AND entity.vault_id = ref.owner_vault_id
+                     AND entity.entity_id = ref.owner_id
+                    LEFT JOIN graph_relationships AS rel
+                      ON ref.owner_kind = 'relationship' AND rel.source_vault_id = ref.owner_vault_id
+                     AND rel.relationship_id = ref.owner_id
+                    WHERE ref.evidence_vault_id = ? AND ref.document_id = ? AND ref.chunk_id = ?
+                      AND ref.owner_vault_id IN ({vault_slots})
+                      AND EXISTS (
+                          SELECT 1 FROM graph_record_scopes AS membership
+                          WHERE membership.record_kind = ref.owner_kind
+                            AND membership.record_vault_id = ref.owner_vault_id
+                            AND membership.record_id = ref.owner_id
+                            AND membership.actual_scope IN ({scope_slots})
+                      )
+                      AND (
+                          (ref.owner_kind = 'entity' AND entity.status = 'active')
+                          OR (ref.owner_kind = 'relationship'
+                              AND rel.status IN ('stated', 'inferred', 'contested')
+                              AND {source_membership} AND {target_membership}
+                              AND ({relationship_policy}))
+                      )
+                    ORDER BY ref.owner_kind, ref.owner_vault_id, ref.owner_id, ref.evidence_ref_id
+                    LIMIT ?
+                    """,
+                    (
+                        *scope_keys,
+                        vault_id,
+                        document_id,
+                        chunk_id,
+                        *selected_vaults,
+                        *policy_params,
+                        limit,
+                    ),
+                ).fetchall()
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
+        return tuple(
+            EvidenceOwnerRecord(
+                owner_kind=str(row["owner_kind"]),
+                owner_vault_id=str(row["owner_vault_id"]),
+                owner_id=str(row["owner_id"]),
+                evidence_ref=_evidence_ref_from_row(row),
+                graph_revision=str(row["owner_revision"]),
+                source_vault_id=row["source_vault_id"],
+                target_vault_id=row["target_vault_id"],
+                source_entity_id=row["source_entity_id"],
+                target_entity_id=row["target_entity_id"],
+                scope_key=row["owner_scope"],
+                scope_revision=row["scope_revision"],
+            )
+            for row in rows
+        )
+
     def current_manifest(self, scopes: tuple[QueryScope, ...]) -> GraphManifest:
         _ensure_actual_scopes(scopes)
         if not self._database_path.exists():
@@ -494,6 +642,8 @@ class SQLiteGraphStore:
                 )
         except (FileNotFoundError, sqlite3.Error) as exc:
             raise GraphStoreUnavailable(str(exc)) from exc
+        if not evidence_refs and row["status"] == "tombstoned":
+            return None
         return _entity_from_row(row, evidence_refs=evidence_refs)
 
     def get_relationship(self, *, source_vault_id: str, relationship_id: str) -> RelationshipRecord | None:
@@ -522,6 +672,8 @@ class SQLiteGraphStore:
                 )
         except (FileNotFoundError, sqlite3.Error) as exc:
             raise GraphStoreUnavailable(str(exc)) from exc
+        if not evidence_refs and row["status"] == "deprecated":
+            return None
         return _relationship_from_row(row, evidence_refs=evidence_refs)
 
     def resolve_entities(self, identities: tuple[GraphEntityIdentity, ...]) -> tuple[EntityRecord, ...]:
@@ -646,6 +798,7 @@ class SQLiteGraphStore:
         try:
             with self._connect() as connection:
                 _upsert_spec(connection, plan.graph_extraction_spec)
+                _remove_superseded_evidence(connection, plan)
                 for entity in plan.entity_upserts:
                     _upsert_entity(connection, entity)
                     _upsert_record_scopes(
@@ -1638,6 +1791,61 @@ def _upsert_evidence_ref(connection: sqlite3.Connection, ref: GraphEvidenceRef) 
     )
 
 
+def _remove_superseded_evidence(connection: sqlite3.Connection, plan: GraphReconcilePlan) -> None:
+    """Replace selected contributions without deleting other scopes' evidence."""
+    desired_ids = {ref.evidence_ref_id for ref in plan.evidence_ref_upserts}
+    changed_owners = (
+        {("entity", entity.vault_id, entity.entity_id) for entity in plan.entity_upserts}
+        | {("relationship", edge.source_vault_id, edge.relationship_id) for edge in plan.relationship_upserts}
+        | {
+            (row.record_kind, row.record_vault_id, row.record_id)
+            for row in plan.entity_tombstones + plan.relationship_tombstones
+        }
+    )
+    obsolete: set[str] = set()
+    historical_owners: set[tuple[str, str, str]] = set()
+    for scope in plan.actual_scopes:
+        rows = connection.execute(
+            """SELECT ref.evidence_ref_id, ref.owner_kind, ref.owner_vault_id, ref.owner_id, ref.path,
+                      COALESCE(entity.status, edge.status) AS owner_status
+               FROM graph_evidence_refs AS ref
+               LEFT JOIN graph_entities AS entity
+                 ON ref.owner_kind = 'entity' AND entity.vault_id = ref.owner_vault_id
+                AND entity.entity_id = ref.owner_id
+               LEFT JOIN graph_relationships AS edge
+                 ON ref.owner_kind = 'relationship' AND edge.source_vault_id = ref.owner_vault_id
+                AND edge.relationship_id = ref.owner_id
+               WHERE ref.evidence_vault_id = ?""",
+            (scope.vault_ids[0],),
+        ).fetchall()
+        prefixes = tuple(PurePosixPath(prefix) for prefix in scope.content_scopes)
+        for row in rows:
+            if row["evidence_ref_id"] in desired_ids or row["path"] is None:
+                continue
+            owner = (row["owner_kind"], row["owner_vault_id"], row["owner_id"])
+            if owner not in changed_owners and row["owner_status"] not in {"tombstoned", "deprecated"}:
+                continue
+            path = PurePosixPath(row["path"])
+            if path.is_absolute() or ".." in path.parts or "\\" in row["path"]:
+                continue
+            if any(path == prefix or prefix in path.parents for prefix in prefixes):
+                obsolete.add(row["evidence_ref_id"])
+                if row["owner_status"] in {"tombstoned", "deprecated"}:
+                    historical_owners.add(owner)
+    connection.executemany(
+        "DELETE FROM graph_evidence_refs WHERE evidence_ref_id = ?", ((ref_id,) for ref_id in sorted(obsolete))
+    )
+    connection.executemany(
+        """DELETE FROM graph_record_scopes
+           WHERE record_kind = ? AND record_vault_id = ? AND record_id = ?
+             AND NOT EXISTS (SELECT 1 FROM graph_evidence_refs AS ref
+                             WHERE ref.owner_kind = graph_record_scopes.record_kind
+                               AND ref.owner_vault_id = graph_record_scopes.record_vault_id
+                               AND ref.owner_id = graph_record_scopes.record_id)""",
+        sorted(historical_owners),
+    )
+
+
 def _upsert_record_scopes(
     connection: sqlite3.Connection,
     *,
@@ -1753,6 +1961,39 @@ def _clear_record_tombstone(
 
 
 def _apply_tombstone_status(connection: sqlite3.Connection, tombstone: GraphTombstone) -> None:
+    identity = (tombstone.record_kind, tombstone.record_vault_id, tombstone.record_id)
+    scope_base, _, visibility = tombstone.actual_scope.rpartition(":")
+    retired_scopes = (
+        (f"{scope_base}:local", f"{scope_base}:cross")
+        if visibility in {"local", "cross"}
+        else (tombstone.actual_scope, tombstone.actual_scope)
+    )
+    connection.execute(
+        """DELETE FROM graph_record_scopes
+           WHERE record_kind = ? AND record_vault_id = ? AND record_id = ? AND actual_scope IN (?, ?)""",
+        (*identity, *retired_scopes),
+    )
+    connection.execute(
+        """DELETE FROM graph_record_scopes
+           WHERE record_kind = ? AND record_vault_id = ? AND record_id = ?
+             AND NOT EXISTS (SELECT 1 FROM graph_evidence_refs AS ref
+                             WHERE ref.owner_kind = graph_record_scopes.record_kind
+                               AND ref.owner_vault_id = graph_record_scopes.record_vault_id
+                               AND ref.owner_id = graph_record_scopes.record_id)""",
+        identity,
+    )
+    surviving = connection.execute(
+        """SELECT 1 FROM graph_record_scopes AS membership
+           WHERE membership.record_kind = ? AND membership.record_vault_id = ? AND membership.record_id = ?
+             AND EXISTS (SELECT 1 FROM graph_evidence_refs AS ref
+                         WHERE ref.owner_kind = membership.record_kind
+                           AND ref.owner_vault_id = membership.record_vault_id
+                           AND ref.owner_id = membership.record_id)
+           LIMIT 1""",
+        identity,
+    ).fetchone()
+    if surviving is not None:
+        return
     if tombstone.record_kind == "entity":
         connection.execute(
             """

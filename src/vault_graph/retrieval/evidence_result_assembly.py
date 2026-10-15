@@ -7,11 +7,13 @@ from vault_graph.retrieval.candidate_ranking import FusedCandidate, rank_resolve
 from vault_graph.retrieval.retrieval_result import RetrievalResult, StoreRevision
 from vault_graph.retrieval.search_response import SearchMode, SearchWarning
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
+from vault_graph.vault_adapter.evidence_linking import EvidenceLinker
 
 
 class EvidenceResultAssembly:
     def __init__(self, metadata_store: MetadataStore) -> None:
         self._metadata_store = metadata_store
+        self._evidence_linker = EvidenceLinker(metadata_store=metadata_store)
 
     def resolve_results(
         self,
@@ -24,11 +26,9 @@ class EvidenceResultAssembly:
         warnings: list[SearchWarning] = []
         resolved: list[tuple[FusedCandidate, EvidenceReference, str]] = []
         for candidate in candidates:
-            evidence = self._metadata_store.resolve_chunk_evidence(
-                vault_id=candidate.vault_id,
-                document_id=candidate.document_id,
-                chunk_id=candidate.chunk_id,
-            )
+            evidence = self._evidence_linker.resolve_evidence(
+                ((candidate.vault_id, candidate.document_id, candidate.chunk_id),)
+            )[0].evidence
             chunk = self._metadata_store.resolve_chunk(vault_id=candidate.vault_id, chunk_id=candidate.chunk_id)
             if evidence is None or chunk is None:
                 dropped += 1
