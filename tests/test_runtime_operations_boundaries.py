@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import pytest
 
+from tests.test_functional_module_boundaries import assert_policy_imports
 from tests.test_setup_service import RecordingIndexFactory, make_vault
 from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.runtime_operations.setup_service import SetupRequest, SetupService
@@ -25,19 +26,10 @@ def test_legacy_operation_modules_preserve_identity(legacy: str, canonical: str)
     assert importlib.import_module(f"vault_graph.{legacy}") is importlib.import_module(f"vault_graph.{canonical}")
 
 
-@pytest.mark.parametrize("package", ("runtime_operations", "integration_configuration"))
+@pytest.mark.parametrize("package", ("operation/runtime", "operation/integration"))
 def test_operations_do_not_import_composition_transport_or_local_storage(package: str) -> None:
     root = Path(__file__).parents[1] / "src" / "vault_graph" / package
-    source = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
-
-    for forbidden in (
-        "vault_graph.app",
-        "vault_graph.cli",
-        "vault_graph.mcp",
-        "vault_graph.http",
-        "vault_graph.storage.local",
-    ):
-        assert forbidden not in source
+    assert_policy_imports(root, forbidden=("vault_graph.storage.local",))
 
 
 @pytest.mark.parametrize("operation", ("setup", "watch"))

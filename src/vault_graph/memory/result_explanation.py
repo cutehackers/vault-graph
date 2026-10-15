@@ -1,15 +1,17 @@
-"""Compatibility import for :mod:`vault_graph.result_explanation.result_explanation`."""
+"""Compatibility import for :mod:`vault_graph.retrieval.explanation.result_explanation`."""
 
 import sys
 
-from vault_graph.result_explanation import result_explanation as _implementation
-from vault_graph.result_explanation.result_explanation import CachedExplanationView as CachedExplanationView
-from vault_graph.result_explanation.result_explanation import ExplainResultService as ExplainResultService
-from vault_graph.result_explanation.result_explanation import ExplanationCacheReader as ExplanationCacheReader
-from vault_graph.result_explanation.result_explanation import ExplanationEvidenceRef as ExplanationEvidenceRef
-from vault_graph.result_explanation.result_explanation import ExplanationRecord as ExplanationRecord
-from vault_graph.result_explanation.result_explanation import ExplanationSignal as ExplanationSignal
-from vault_graph.result_explanation.result_explanation import ExplanationWarning as ExplanationWarning
-from vault_graph.result_explanation.result_explanation import explanation_record_to_dict as explanation_record_to_dict
+from vault_graph.retrieval.explanation import result_explanation as _implementation
+from vault_graph.retrieval.explanation.result_explanation import CachedExplanationView as CachedExplanationView
+from vault_graph.retrieval.explanation.result_explanation import ExplainResultService as ExplainResultService
+from vault_graph.retrieval.explanation.result_explanation import ExplanationCacheReader as ExplanationCacheReader
+from vault_graph.retrieval.explanation.result_explanation import ExplanationEvidenceRef as ExplanationEvidenceRef
+from vault_graph.retrieval.explanation.result_explanation import ExplanationRecord as ExplanationRecord
+from vault_graph.retrieval.explanation.result_explanation import ExplanationSignal as ExplanationSignal
+from vault_graph.retrieval.explanation.result_explanation import ExplanationWarning as ExplanationWarning
+from vault_graph.retrieval.explanation.result_explanation import (
+    explanation_record_to_dict as explanation_record_to_dict,
+)
 
 sys.modules[__name__] = _implementation

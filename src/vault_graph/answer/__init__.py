@@ -34,7 +34,7 @@ def __getattr__(name: str) -> Any:
         "AnswerStoreRevision",
         "AnswerWarning",
     }:
-        from vault_graph.answer.answer_response import (
+        from vault_graph.context.answer.answer_response import (
             AnswerClaim,
             AnswerDraft,
             AnswerEvidence,
@@ -56,7 +56,7 @@ def __getattr__(name: str) -> Any:
             "AnswerWarning": AnswerWarning,
         }[name]
     if name in {"AnswerPlan", "AnswerRequest", "EvidencePlanStep", "PlannedEvidence", "answer_id_for"}:
-        from vault_graph.answer.answer_plan import (
+        from vault_graph.context.answer.answer_plan import (
             AnswerPlan,
             AnswerRequest,
             EvidencePlanStep,
@@ -72,19 +72,19 @@ def __getattr__(name: str) -> Any:
             "answer_id_for": answer_id_for,
         }[name]
     if name == "CitationGuard":
-        from vault_graph.answer.citation_guard import CitationGuard
+        from vault_graph.context.answer.citation_guard import CitationGuard
 
         return CitationGuard
     if name == "DefaultAnswerRenderer":
-        from vault_graph.answer.answer_renderer import DefaultAnswerRenderer
+        from vault_graph.context.answer.answer_renderer import DefaultAnswerRenderer
 
         return DefaultAnswerRenderer
     if name == "EvidencePlanner":
-        from vault_graph.answer.evidence_planner import EvidencePlanner
+        from vault_graph.context.answer.evidence_planner import EvidencePlanner
 
         return EvidencePlanner
     if name == "ExtractiveAnswerComposer":
-        from vault_graph.answer.answer_composer import ExtractiveAnswerComposer
+        from vault_graph.context.answer.answer_composer import ExtractiveAnswerComposer
 
         return ExtractiveAnswerComposer
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

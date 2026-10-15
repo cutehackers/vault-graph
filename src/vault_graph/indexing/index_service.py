@@ -2,30 +2,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vault_graph.embeddings.text_embeddings import TextEmbeddings
 from vault_graph.errors import UnsupportedGraphScopeWidthError
-from vault_graph.extraction.entity_extractor import DeterministicEntityExtractor
-from vault_graph.extraction.graph_source_store import MetadataGraphSourceStore, PreviewGraphSourceStore
-from vault_graph.extraction.relationship_extractor import DeterministicRelationshipExtractor
-from vault_graph.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
+from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
+from vault_graph.indexing.extraction.graph_source_store import MetadataGraphSourceStore, PreviewGraphSourceStore
+from vault_graph.indexing.extraction.relationship_extractor import DeterministicRelationshipExtractor
 from vault_graph.indexing.graph_indexer import GraphIndexApplyResult, GraphIndexer, GraphIndexPlanReport
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
 from vault_graph.indexing.vector_indexer import VectorApplyResult, VectorIndexer, VectorRevisionPlan
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot
-from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
-from vault_graph.projection_diagnostics.index_status_reader import IndexStatusReader
-from vault_graph.projection_diagnostics.index_status_reader import StatusReport as StatusReport
-from vault_graph.projection_readiness.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.operation.diagnostics.index_status_reader import IndexStatusReader
+from vault_graph.operation.diagnostics.index_status_reader import StatusReport as StatusReport
+from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
+from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
 from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
+from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
 from vault_graph.storage.interfaces.vector_store import VectorStore
-from vault_graph.storage.local.graph_status_store import (
-    LocalGraphStatusStore,
-    graph_scope_status_key,
-    graph_spec_key,
-)
+from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore, graph_scope_status_key, graph_spec_key
 from vault_graph.storage.local.vector_status_store import (
     LocalVectorStatusStore,
     embedding_spec_key,

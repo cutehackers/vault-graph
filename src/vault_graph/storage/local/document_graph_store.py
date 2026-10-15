@@ -18,13 +18,14 @@ from typing import Any, Literal, cast
 from graph_document import DocumentGraphSnapshot, GraphLimits, ReadLimits
 
 from vault_graph.errors import GraphReadOnlyViolation, GraphStoreError, GraphStoreUnavailable
-from vault_graph.extraction.graph_occurrences import (
+from vault_graph.indexing.extraction.graph_occurrences import (
     EntityOccurrence,
     RelationshipOccurrence,
     entity_occurrence_key,
 )
-from vault_graph.extraction.vault_graph_document_adapter import RestoredGraph, VaultGraphDocumentAdapter
-from vault_graph.graph.graph_contracts import (
+from vault_graph.indexing.extraction.vault_graph_document_adapter import RestoredGraph, VaultGraphDocumentAdapter
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import (
     EntityRecord,
     GraphApplyResult,
     GraphEvidenceRef,
@@ -35,8 +36,8 @@ from vault_graph.graph.graph_contracts import (
     GraphTombstone,
     RelationshipRecord,
 )
-from vault_graph.graph.graph_identity import graph_scope_key, stable_entity_id, stable_relationship_id
-from vault_graph.graph.graph_query import (
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key, stable_entity_id, stable_relationship_id
+from vault_graph.retrieval.graph.graph_query import (
     GraphEntityIdentity,
     GraphEntityQuery,
     GraphEntityQueryResult,
@@ -44,7 +45,6 @@ from vault_graph.graph.graph_query import (
     GraphRelationshipQuery,
     GraphRelationshipQueryResult,
 )
-from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
 from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.interfaces.metadata_store import MetadataStore

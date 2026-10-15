@@ -1,17 +1,11 @@
-"""Stable parser boundary for language-specific code projection adapters."""
+"""Compatibility import for :mod:`vault_graph.project.code.parser_adapter`."""
 
-from __future__ import annotations
+import sys
+from typing import Protocol as Protocol
 
-from typing import Protocol
+from vault_graph.project.code import parser_adapter as _implementation
+from vault_graph.project.code.code_models import CodeFileInput as CodeFileInput
+from vault_graph.project.code.code_models import CodeParseResult as CodeParseResult
+from vault_graph.project.code.parser_adapter import CodeParserAdapter as CodeParserAdapter
 
-from vault_graph.code_index.code_models import CodeFileInput, CodeParseResult
-
-
-class CodeParserAdapter(Protocol):
-    """Parse one already-read source file without filesystem or process I/O."""
-
-    language: str
-    parser_spec_version: str
-
-    def parse(self, file: CodeFileInput) -> CodeParseResult:
-        """Return deterministic structural records and bounded diagnostics."""
+sys.modules[__name__] = _implementation

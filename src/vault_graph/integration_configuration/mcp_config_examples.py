@@ -1,36 +1,15 @@
-from __future__ import annotations
+"""Compatibility import for :mod:`vault_graph.operation.integration.mcp.mcp_config_examples`."""
 
-import json
-from typing import TypedDict
+import json as json
+import sys
+from typing import TypedDict as TypedDict
 
+from vault_graph.operation.integration.mcp import mcp_config_examples as _implementation
+from vault_graph.operation.integration.mcp.mcp_config_examples import (
+    CODEX_STDIO_CONFIG_EXAMPLE as CODEX_STDIO_CONFIG_EXAMPLE,
+)
+from vault_graph.operation.integration.mcp.mcp_config_examples import CodexMcpConfig as CodexMcpConfig
+from vault_graph.operation.integration.mcp.mcp_config_examples import CodexMcpServerConfig as CodexMcpServerConfig
+from vault_graph.operation.integration.mcp.mcp_config_examples import codex_stdio_config_json as codex_stdio_config_json
 
-class CodexMcpServerConfig(TypedDict):
-    command: str
-    args: list[str]
-
-
-class CodexMcpConfig(TypedDict):
-    mcpServers: dict[str, CodexMcpServerConfig]
-
-
-CODEX_STDIO_CONFIG_EXAMPLE: CodexMcpConfig = {
-    "mcpServers": {
-        "vault-graph": {
-            "command": "uv",
-            "args": [
-                "run",
-                "--python",
-                "3.12",
-                "vg",
-                "serve",
-                "--mcp",
-                "--graph-home",
-                "/path/to/.vault-graph",
-            ],
-        }
-    }
-}
-
-
-def codex_stdio_config_json() -> str:
-    return json.dumps(CODEX_STDIO_CONFIG_EXAMPLE, sort_keys=True, indent=2) + "\n"
+sys.modules[__name__] = _implementation

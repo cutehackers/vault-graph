@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from vault_graph.code_index.code_models import (
+from vault_graph.project.code.code_models import (
     CodeApplyResult,
     CodeFileSnapshot,
     CodeManifest,

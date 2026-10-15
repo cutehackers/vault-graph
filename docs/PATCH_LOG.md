@@ -3,6 +3,18 @@
 This log records implementation corrections made after review so that project
 changes remain traceable to Vault Graph's core values.
 
+## 2026-10-15 - Preserve Imports And Boundary Checks During Grouped Relocation
+
+**Trigger:** Fresh-process relocation checks found a project binding catalog import cycle. Independent inspection also found that old physical-source tests would inspect compatibility facades instead of the relocated implementations.
+
+**Scope:** Grouped package initialization, legacy static exports, canonical source-boundary tests, and installed CLI entry-point verification.
+
+**Core Values Protected:** Import compatibility, explicit ownership, unchanged behavior, and meaningful verification.
+
+**Changes Applied:** Keep project/context and parent-group exports lazy with static type declarations. Preserve legacy module identity and private patch targets. Inspect nonempty canonical source trees and canonical lazy-import names. Keep the four existing constructor-default exceptions narrowly checked.
+
+**Verification:** 1,509 tests passed with MCP stdio enabled. Ruff, 580-file format check, 560-file strict mypy, lock consistency, six isolated wheels, and diff checks passed. Independent review verified 148 mappings in both fresh import orders and found no actionable defects. [Relocation evidence](design/reports/2026-10-15-modularization-completion-ko.md#7-승인한-그룹별-폴더-재배치-검증).
+
 ## 2026-10-04 - Resolve Distribution Identity And Publication Retry
 
 **Trigger:** The existing `graph-search` distribution belongs to another publisher. The user selected `nolemy`; final independent review also found that PyPI publication could not resume after module publication succeeded but root publication failed.

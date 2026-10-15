@@ -6,7 +6,8 @@ from dataclasses import replace
 from pathlib import Path, PurePosixPath
 
 from vault_graph.errors import GraphReadOnlyViolation, GraphStoreError, GraphStoreUnavailable
-from vault_graph.graph.graph_contracts import (
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import (
     EntityRecord,
     GraphApplyResult,
     GraphEvidenceRef,
@@ -22,15 +23,14 @@ from vault_graph.graph.graph_contracts import (
     RelationshipRecord,
     current_graph_extraction_spec,
 )
-from vault_graph.graph.graph_identity import graph_scope_key, normalize_entity_name
-from vault_graph.graph.graph_query import (
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key, normalize_entity_name
+from vault_graph.retrieval.graph.graph_query import (
     GraphEntityMatch,
     GraphEntityQuery,
     GraphEntityQueryResult,
     GraphRelationshipQuery,
     GraphRelationshipQueryResult,
 )
-from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
 from vault_graph.storage.interfaces.graph_store import GraphEntityIdentity, GraphRelationshipIdentity
 from vault_graph.storage.interfaces.store_health import StoreHealth

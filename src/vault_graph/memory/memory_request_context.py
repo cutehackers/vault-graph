@@ -1,69 +1,26 @@
-from __future__ import annotations
+"""Compatibility import for :mod:`vault_graph.context.memory.memory_request_context`."""
 
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Protocol
+import sys
+from collections.abc import Callable as Callable
+from dataclasses import dataclass as dataclass
+from datetime import UTC as UTC
+from datetime import datetime as datetime
+from typing import TYPE_CHECKING as TYPE_CHECKING
+from typing import Protocol as Protocol
 
-from vault_graph.errors import MemoryProjectionError
-from vault_graph.ingestion.document_normalizer import DocumentSnapshot
-from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
-from vault_graph.memory.memory_source_reader import MemorySourceReader
+from vault_graph.context.memory import memory_request_context as _implementation
+from vault_graph.context.memory.memory_request_context import MemoryRequestContext as MemoryRequestContext
+from vault_graph.context.memory.memory_request_context import MemoryStatusService as MemoryStatusService
+from vault_graph.context.memory.memory_request_context import MemoryVaultDocuments as MemoryVaultDocuments
+from vault_graph.context.memory.memory_request_context import _utc_now as _utc_now
+from vault_graph.context.memory.memory_request_context import (
+    build_memory_request_context as build_memory_request_context,
+)
+from vault_graph.context.memory.memory_source_reader import MemorySourceReader as MemorySourceReader
+from vault_graph.errors import MemoryProjectionError as MemoryProjectionError
+from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot as DocumentSnapshot
+from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes as actual_query_scopes
+from vault_graph.operation.scope.vault_catalog import QueryScope as QueryScope
+from vault_graph.operation.scope.vault_catalog import VaultCatalog as VaultCatalog
 
-if TYPE_CHECKING:
-    from vault_graph.projection_diagnostics.index_status_reader import StatusReport
-
-
-class MemoryStatusService(Protocol):
-    def status(self, *, scope: QueryScope | None = None) -> StatusReport: ...
-
-
-@dataclass(frozen=True)
-class MemoryVaultDocuments:
-    vault_id: str
-    scope: QueryScope
-    documents: tuple[DocumentSnapshot, ...]
-
-
-@dataclass(frozen=True)
-class MemoryRequestContext:
-    requested_scope: QueryScope
-    actual_scopes: tuple[QueryScope, ...]
-    status_report: StatusReport
-    documents_by_vault: tuple[MemoryVaultDocuments, ...]
-    generated_at: str
-
-
-def build_memory_request_context(
-    *,
-    catalog: VaultCatalog,
-    source_reader: MemorySourceReader,
-    status_service: MemoryStatusService,
-    requested_scope: QueryScope,
-    clock: Callable[[], datetime] | None = None,
-) -> MemoryRequestContext:
-    status_report = status_service.status(scope=requested_scope)
-    if not status_report.metadata_ok or not status_report.metadata_schema_compatible:
-        raise MemoryProjectionError(f"metadata_unavailable: {status_report.metadata_message}")
-    actual_scopes = actual_query_scopes(catalog=catalog, scope=requested_scope)
-    generated_at = (clock or _utc_now)().isoformat()
-    documents_by_vault = tuple(
-        MemoryVaultDocuments(
-            vault_id=actual_scope.vault_ids[0],
-            scope=actual_scope,
-            documents=source_reader.list_documents(scope=actual_scope),
-        )
-        for actual_scope in actual_scopes
-    )
-    return MemoryRequestContext(
-        requested_scope=requested_scope,
-        actual_scopes=actual_scopes,
-        status_report=status_report,
-        documents_by_vault=documents_by_vault,
-        generated_at=generated_at,
-    )
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
+sys.modules[__name__] = _implementation

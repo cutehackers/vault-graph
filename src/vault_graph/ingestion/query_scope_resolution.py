@@ -1,30 +1,11 @@
-from __future__ import annotations
+"""Compatibility import for :mod:`vault_graph.operation.scope.catalog_query_scopes`."""
 
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
+import sys
 
+from vault_graph.operation.scope import catalog_query_scopes as _implementation
+from vault_graph.operation.scope.catalog_query_scopes import _is_same_or_child as _is_same_or_child
+from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes as actual_query_scopes
+from vault_graph.operation.scope.vault_catalog import QueryScope as QueryScope
+from vault_graph.operation.scope.vault_catalog import VaultCatalog as VaultCatalog
 
-def actual_query_scopes(*, catalog: VaultCatalog, scope: QueryScope) -> tuple[QueryScope, ...]:
-    actual_scopes: list[QueryScope] = []
-    for vault_id in scope.vault_ids:
-        entry = catalog.resolve(vault_id)
-        content_scopes: list[str] = []
-        for query_scope in scope.content_scopes:
-            for entry_scope in entry.content_scopes:
-                if _is_same_or_child(path=query_scope, parent=entry_scope):
-                    content_scopes.append(query_scope)
-                elif _is_same_or_child(path=entry_scope, parent=query_scope):
-                    content_scopes.append(entry_scope)
-        deduped = tuple(dict.fromkeys(content_scopes))
-        if deduped:
-            actual_scopes.append(
-                QueryScope(
-                    vault_ids=(entry.vault_id,),
-                    content_scopes=deduped,
-                    include_cross_vault=scope.include_cross_vault,
-                )
-            )
-    return tuple(actual_scopes)
-
-
-def _is_same_or_child(*, path: str, parent: str) -> bool:
-    return path == parent or path.startswith(f"{parent}/")
+sys.modules[__name__] = _implementation

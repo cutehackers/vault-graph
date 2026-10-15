@@ -48,7 +48,7 @@ dev = [
 ]
 
 [project.scripts]
-vg = "vault_graph.cli.main:app"
+vg = "vault_graph.interface.cli.main:app"
 
 [project.urls]
 Homepage = "https://github.com/cutehackers/vault-graph"
@@ -80,10 +80,10 @@ target-version = "py312"
 select = ["B", "E", "F", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/vault_graph/cli/main.py" = ["B008"]
-"src/vault_graph/cli/code_commands.py" = ["B008"]
-"src/vault_graph/cli/harness_commands.py" = ["B008"]
-"src/vault_graph/cli/project_commands.py" = ["B008"]
+"src/vault_graph/interface/cli/main.py" = ["B008"]
+"src/vault_graph/interface/cli/code_commands.py" = ["B008"]
+"src/vault_graph/interface/cli/harness_commands.py" = ["B008"]
+"src/vault_graph/interface/cli/project_commands.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -1,5 +1,9 @@
-from __future__ import annotations
+"""Compatibility import for :mod:`vault_graph.interface.mcp.result_explanation_cache`."""
 
-from vault_graph.result_explanation.result_explanation_cache import CachedExplanation, ResultExplanationCache
+import sys
 
-__all__ = ["CachedExplanation", "ResultExplanationCache"]
+from vault_graph.interface.mcp import result_explanation_cache as _implementation
+from vault_graph.retrieval.explanation.result_explanation_cache import CachedExplanation as CachedExplanation
+from vault_graph.retrieval.explanation.result_explanation_cache import ResultExplanationCache as ResultExplanationCache
+
+sys.modules[__name__] = _implementation

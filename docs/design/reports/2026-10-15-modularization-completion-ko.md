@@ -2,6 +2,7 @@
 
 - Parent: [VG-MOD-20261015](../specs/2026-10-15-vault-graph-modular-architecture-ko.md)
 - Related Contract: [SEL-20261015](../specs/2026-10-15-search-evidence-linking-ko.md)
+- Current Architecture: [실제 그룹 구조·의존·호환 규칙](../../ARCHITECTURE.md)
 - Plan: [단계0–8](../plans/2026-10-15-vault-graph-modularization-plan-ko.md)
 - Status: Complete — 승인된 모듈 정리·SEL 구현·독립 결과 리뷰·시각화를 완료했다. 이후 발견한 legacy 색인 결함의 수정은 §5에 기록한다.
 - 기준: `4ea7e3c` 이후 현재 작업 트리. 원래 작업 중이던 명세·결정·보정 기록을 보존했다.
@@ -12,59 +13,96 @@
 
 | 모듈 | 현재 구현 | 정리한 책임 |
 |---|---|---|
-| M01 범위·등록 | `vault_scope/`, `ingestion/vault_catalog.py` | catalog·Graph Home·안전 경로. 범위 해석은 기존 구현 재사용 |
-| M02 문서 준비 | `ingestion/` | 파일 읽기·리더·정규화·청크 |
-| M03 투영 색인 | `indexing/`, `extraction/` | 색인 선택·계획·반영. `IndexService` 구현을 기능 위치로 이전 |
-| M04 세대 발행 | `projection_publication/` | 비공개 세대·검증·활성화·복구 |
-| M05 통합 검색 | `retrieval/` | 후보·순위·주변 청크. 공통 EvidenceLinker로 근거 조회 |
-| M06 그래프 조회 | `graph_retrieval/`, `projection/` | 관련 항목·결정 경로·리소스. 검색 알고리즘은 기존 패키지 사용 |
-| M07 근거 연결 | `vault_adapter/evidence_linking.py`, `evidence_read_context.py`, `storage/interfaces/evidence_owner_lookup.py` | 대상→근거 및 근거→그래프 소유자. 두 백엔드의 제한 SQL 조회 |
-| M08 문맥 팩 | `context/` | 기존 근거 선택·예산·문맥 팩 보존 |
-| M09 발췌 답변 | `answer/` | 답변 서비스 구현을 기능 위치로 이전. 기존 수집·인용 검증 보존 |
-| M10 기억 조회 | `memory/` | 프로젝트·결정·질문·타임라인. 설명 캐시와 진단 구현 분리 |
-| M11 코드 투영·조회 | `code_index/` | 저장소 포트·읽기/쓰기 factory 주입. SQLite 구성은 Vault 어댑터 소유 |
-| M12 프로젝트 문맥 | `project_context/` | 기존 소비자 포트 재사용. binding의 상위 app 의존 제거 |
-| M13 결과 설명 | `result_explanation/` | 검색 이유와 최대 256건 임시 캐시 |
-| M14 준비 상태 | `projection_readiness/` | 색인·해시·리비전 확인. 검색 응답 타입으로의 역의존 제거 |
-| M15 진단 | `projection_diagnostics/` | 상태·위생·확장 준비 설명. 자동 복구하지 않음 |
-| M16 실행 운영 | `runtime_operations/` | 초기 설정·주기 색인·중단. 색인 소비자 포트와 자원 정리 |
-| M17 연동 설정 | `integration_configuration/`, `harness/`, `project_context/project_binding_catalog.py` | 명시적 설정 기록과 지침 관리. 각 파일 형식의 기존 구현 유지 |
+| M01 범위·등록 | `operation/scope/` | catalog·Graph Home·안전 경로. 범위 해석은 기존 구현 재사용 |
+| M02 문서 준비 | `indexing/ingestion/` | 파일 읽기·리더·정규화·청크 |
+| M03 투영 색인 | `indexing/`, `indexing/extraction/`, `indexing/vector_index_adapter.py` | 색인 선택·계획·반영. `IndexService` 구현을 기능 위치로 이전 |
+| M04 세대 발행 | `indexing/publication/` | 비공개 세대·검증·활성화·복구 |
+| M05 통합 검색 | `retrieval/search/` | 후보·순위·주변 청크. 공통 EvidenceLinker로 근거 조회 |
+| M06 그래프 조회 | `retrieval/graph/` | 관련 항목·결정 경로·리소스. 검색 알고리즘은 기존 패키지 사용 |
+| M07 근거 연결 | `retrieval/evidence/`, `storage/interfaces/evidence_owner_lookup.py` | 대상→근거 및 근거→그래프 소유자. 두 백엔드의 제한 SQL 조회 |
+| M08 문맥 팩 | `context/pack/` | 기존 근거 선택·예산·문맥 팩 보존 |
+| M09 발췌 답변 | `context/answer/` | 답변 서비스 구현을 기능 위치로 이전. 기존 수집·인용 검증 보존 |
+| M10 기억 조회 | `context/memory/` | 프로젝트·결정·질문·타임라인. 설명 캐시와 진단 구현 분리 |
+| M11 코드 투영·조회 | `project/code/` | 저장소 포트·읽기/쓰기 factory 주입. SQLite 기본 구성은 composition 어댑터 소유 |
+| M12 프로젝트 문맥 | `project/context/` | 기존 소비자 포트 재사용. binding의 상위 app 의존 제거 |
+| M13 결과 설명 | `retrieval/explanation/` | 검색 이유와 최대 256건 임시 캐시 |
+| M14 준비 상태 | `operation/readiness/` | 색인·해시·리비전 확인. 검색 응답 타입으로의 역의존 제거 |
+| M15 진단 | `operation/diagnostics/` | 상태·위생·확장 준비 설명. 자동 복구하지 않음 |
+| M16 실행 운영 | `operation/runtime/` | 초기 설정·주기 색인·중단. 색인 소비자 포트와 자원 정리 |
+| M17 연동 설정 | `operation/integration/` | 명시적 설정 기록과 지침 관리. 각 파일 형식의 기존 구현 유지 |
 
-CLI/MCP/HTTP는 전송 계층이다. `app`의 실제 factory는 자원 구성·주입을 유지한다. 기존 `app` 서비스 파일은 호환 경로이다. `IndexService.status()`는 기존 호출을 위해 진단 조회를 위임하는 호환 진입점으로 유지하며, 준비 상태 판정과 진단 응답의 소유자는 분리했다. 모델·설정·코드 저장소 생성의 기존 선택 인자는 어댑터에 있는 기본 factory로 보존한다.
+CLI/MCP/HTTP는 `interface/`의 전송 계층이다. 실제 factory는 `interface/composition/`에서 자원 구성·주입을 담당한다. 기존 `app` 파일은 호환 경로이다. `IndexService.status()`는 기존 호출을 위해 진단 조회를 위임하는 호환 진입점으로 유지하며, 준비 상태 판정과 진단 응답의 소유자는 분리했다. 모델·설정·코드 저장소 생성의 기존 선택 인자는 composition 어댑터의 기본 factory로 보존한다. runtime의 setup/watch 및 코드 투영/최신성 생성자는 이 기본값을 지연 가져오는 제한된 호환 예외를 유지한다. 새 기능은 소비자 포트 주입을 우선하며 세부 규칙은 현재 구현 아키텍처를 따른다.
 
 독립 패키지는 `graph_search`, `graph_document`, `text_embeddings`, `vector_search`, `vector_index`의 기존 5개이다. 일반 패키지·저장 형식은 이번에 변경하지 않았다.
 
-## 2. 처리 흐름
+## 2. 기능 그룹과 처리 흐름
 
-각 노드에 실제 Python 모듈·패키지 이름과 역할을 표시했다. 내부 경로는 `vault_graph` 기준이며, M 번호는 §1의 책임 경계와 대응한다. 화살표는 주요 처리 흐름이다. 모든 기능이 항상 실행되는 것은 아니다. 특히 그래프 후보는 기존처럼 선택적이며 근거 역조회는 명시적 내부 호출이다.
+다섯 기능 그룹과 `interface`·`storage`는 실제 디렉터리이다. `engine`은 이동하지 않은 `packages/`의 일반 패키지를 묶는 논리적 분류이다. 내부 경로는 `vault_graph` 기준이며, 각 노드의 M 번호는 §1의 책임 경계와 대응한다.
+
+| 그룹 | 이름 | 역할 |
+|---|---|---|
+| 그룹1 | `indexing` · 문서 준비·색인 | 문서 읽기부터 관계 추출·색인·세대 발행까지 |
+| 그룹2 | `retrieval` · 검색·근거 | 검색·그래프 조회·근거 연결·결과 설명 |
+| 그룹3 | `context` · 문맥·답변 | 근거 선택·기억 조회·발췌 답변 구성 |
+| 그룹4 | `project` · 코드·프로젝트 탐색 | 코드 투영·영향 조회·Vault 근거 조합 |
+| 그룹5 | `operation` · 운영·연동 | 등록·범위·준비 상태·진단·주기 실행·설정 관리 |
+
+지원 영역은 `interface`(진입점·조립), `storage`(파생 저장소), `engine`(독립 배포 패키지 5개)으로 구분한다. 이름과 소유 범위는 [기능 그룹 용어](../glossary.md#vg-mod-functional-groups)를 따른다. `project/context`의 문맥 조합은 그룹4, `operation/integration/project_binding_catalog.py`의 명시적 설정 기록은 그룹5에 속한다.
+
+실선은 주요 처리 흐름, 점선은 공통 지원 또는 선택적 연동이다. 함수 호출·가져오기 전체를 나열한 그림은 아니다. 독립 패키지와 내부 기능 사이의 연결은 책임별 Vault 어댑터를 거친다. 그림은 처리 흐름이며 그룹 전체의 가져오기 순서를 규정하지 않는다. 그래프 후보는 선택적이며 근거 역조회는 명시적 내부 호출이다.
 
 ```mermaid
 flowchart TB
-    SOURCE["Vault 문서<br/>읽기 전용"] --> INGEST["M02 ingestion<br/>문서 읽기·정규화·청크"]
-    INGEST --> INDEX["M03 indexing · extraction<br/>투영 색인·명시적 관계 추출"]
-    INDEX --> PUBLISH["M04 projection_publication<br/>세대 검증·발행·복구"]
-    PUBLISH --> DATA["storage.interfaces · storage.local<br/>메타데이터·그래프·벡터·코드 투영"]
-    ENTRY["cli · mcp · http<br/>공개 진입점"] --> ROOT["app.*_factory<br/>범위와 자원 구성"]
-    ROOT --> SCOPE["M01 vault_scope<br/>Vault 등록·조회 범위·경로 보호"]
-    SCOPE --> READY["M14 projection_readiness<br/>색인·해시·리비전 확인"]
-    READY --> SEARCH["M05 retrieval<br/>키워드·벡터·그래프 후보 통합"]
-    READY --> GRAPH["M06 graph_retrieval · projection<br/>관련 항목·결정 경로·리소스 조회"]
-    SEARCH --> LINK["M07 vault_adapter.evidence_linking<br/>EvidenceLinker: 대상 ↔ 문서·청크 ↔ 그래프 소유자"]
-    GRAPH --> LINK
-    LINK --> DATA
-    SEARCH --> CONTEXT["M08 context<br/>근거 선택·예산·문맥 팩"]
-    DATA --> MEMORY["M10 memory<br/>프로젝트·결정·질문·타임라인"]
-    CONTEXT --> ANSWER["M09 answer<br/>발췌 답변·인용 검증"]
-    MEMORY --> ANSWER
-    REPO["코드 저장소<br/>읽기 전용"] --> CODE["M11 code_index<br/>코드 투영·심볼·호출·영향 조회"]
-    CODE --> PROJECT["M12 project_context<br/>코드·Vault 근거 조합"]
-    CONTEXT --> PROJECT
-    ROOT --> OPS["M16 runtime_operations<br/>초기 설정·주기 색인·중단 처리"]
-    ROOT --> CONFIG["M17 integration_configuration · harness<br/>project_context.project_binding_catalog<br/>명시적 등록·프로젝트 연결·지침 관리"]
-    OPS --> INDEX
-    ROOT --> EXPLAIN["M13 result_explanation<br/>검색 이유·임시 설명 캐시"]
-    ROOT --> DIAG["M15 projection_diagnostics<br/>상태·투영 위생·준비 상태 설명"]
-    subgraph PACKAGES["독립 배포 패키지 5개: Vault 의존 없음"]
+    subgraph INTERFACES["interface · 진입점·조립"]
+        ENTRY["interface.cli · interface.mcp · interface.http<br/>공개 진입점"] --> ROOT["interface.composition<br/>서비스 구성·자원 주입"]
+    end
+
+    SOURCE["Vault 문서 · 읽기 전용"]
+    REPO["코드 저장소 · 읽기 전용"]
+
+    subgraph DOCUMENT["그룹1 indexing · 문서 준비·색인"]
+        INGEST["M02 indexing.ingestion<br/>문서 읽기·정규화·청크"]
+        INDEX["M03 indexing · indexing.extraction<br/>색인·명시적 관계 추출"]
+        PUBLISH["M04 indexing.publication<br/>세대 검증·발행·복구"]
+        INGEST --> INDEX --> PUBLISH
+    end
+
+    subgraph RETRIEVAL["그룹2 retrieval · 검색·근거"]
+        SEARCH["M05 retrieval.search<br/>키워드·벡터·그래프 후보 통합"]
+        GRAPH["M06 retrieval.graph<br/>관련 항목·결정 경로·리소스"]
+        LINK["M07 retrieval.evidence<br/>EvidenceLinker · 양방향 근거 연결"]
+        EXPLAIN["M13 retrieval.explanation<br/>검색 이유·임시 설명 캐시"]
+        SEARCH --> LINK
+        GRAPH --> LINK
+    end
+
+    subgraph CONTEXT_GROUP["그룹3 context · 문맥·답변"]
+        CONTEXT["M08 context.pack<br/>근거 선택·예산·문맥 팩"]
+        MEMORY["M10 context.memory<br/>프로젝트·결정·질문·타임라인"]
+        ANSWER["M09 context.answer<br/>발췌 답변·인용 검증"]
+        CONTEXT --> ANSWER
+        MEMORY --> ANSWER
+    end
+
+    subgraph PROJECT_GROUP["그룹4 project · 코드·프로젝트 탐색"]
+        CODE["M11 project.code<br/>코드 투영·심볼·호출·영향 조회"]
+        PROJECT["M12 project.context<br/>코드·Vault 근거 조합"]
+        CODE --> PROJECT
+    end
+
+    subgraph OPERATIONS["그룹5 operation · 운영·연동"]
+        SCOPE["M01 operation.scope<br/>등록·조회 범위·경로 보호"]
+        READY["M14 operation.readiness<br/>색인·해시·리비전 확인"]
+        DIAG["M15 operation.diagnostics<br/>상태·투영 위생·진단"]
+        OPS["M16 operation.runtime<br/>초기 설정·주기 실행·중단"]
+        CONFIG["M17 operation.integration<br/>명시적 등록·연결 설정·지침 관리"]
+    end
+
+    subgraph STORAGE["storage · 파생 저장소"]
+        DATA["storage.interfaces · storage.local<br/>메타데이터·그래프·벡터·코드 투영"]
+    end
+
+    subgraph PACKAGES["engine · 기존 packages/의 독립 배포 패키지 5개"]
         TE["text_embeddings<br/>텍스트 → 벡터"]
         VS["vector_search<br/>벡터 저장·검색"]
         VI["vector_index<br/>증분 색인 계획·반영"]
@@ -74,6 +112,25 @@ flowchart TB
         VI --> VS
         GD -. "선택적 search_bridge" .-> GS
     end
+
+    SOURCE --> INGEST
+    REPO --> CODE
+    PUBLISH --> DATA
+    DATA --> MEMORY
+    CODE <--> DATA
+    ROOT --> SCOPE
+    SCOPE -.-> READY
+    READY -.-> SEARCH
+    READY -.-> GRAPH
+    ROOT --> OPS
+    ROOT --> CONFIG
+    ROOT --> DIAG
+    ROOT --> EXPLAIN
+    OPS --> INDEX
+    LINK --> DATA
+    SEARCH --> CONTEXT
+    CONTEXT --> PROJECT
+    GRAPH -.-> PROJECT
     VI --> INDEX
     GD --> INDEX
     VS --> SEARCH
@@ -83,6 +140,8 @@ flowchart TB
 벡터 항목과 그래프 노드를 같은 ID로 취급하지 않는다. M07은 문서·청크의 근거 키를 기준으로 다대다 연결을 반환한다. 부분 결과·누락·준비 안 됨을 구분하고, 조회 중 세대/리비전이 달라지면 연결과 출처를 함께 초기화한다. 소유자의 마지막 변경 리비전과 조회 범위의 현재 리비전은 별도로 검증한다.
 
 ## 3. 실행 증거
+
+아래 수치는 최초 모듈 정리와 §5 후속 수정 당시의 실행 기록이다. 이후 승인된 그룹 디렉터리 재배치의 검증 결과를 대신하지 않는다. 현재 경로 기준은 [ARCHITECTURE.md](../../ARCHITECTURE.md)이며 재배치의 새 검사 결과는 실제 실행 후 별도로 기록한다.
 
 변경 전 전체 검사: `uv run --python 3.12 --no-sync --all-packages --all-extras pytest -q tests packages/*/tests` → **1,352 passed, 1 skipped**.
 
@@ -151,3 +210,20 @@ uv run --python 3.12 --no-sync python -m tests.benchmarks.measure_evidence_linki
 ```
 
 문서 그래프 성능은 기존 측정기를 사용하고 `REPORT_PATH`만 새 날짜 경로로 지정했다. 과거 측정 원본을 덮어쓰지 않았다.
+
+
+## 7. 승인한 그룹별 폴더 재배치 검증
+
+사용자가 승인한 그룹을 실제 디렉터리에 적용하고 [ARCHITECTURE.md](../../ARCHITECTURE.md)를 현재 구조의 기준으로 추가했다. 독립 패키지 5개의 배포·저장 위치와 저장 스키마는 유지한다. 정식 구현 128개를 옮기고 이전 모듈 148개를 같은 모듈 객체로 연결하는 호환 파일로 보존했다. `vg`의 배포 진입점은 `vault_graph.interface.cli.main:app`이다.
+
+| 검사 | 실제 결과 |
+|---|---|
+| 전체 회귀 | 공식 MCP stdio 활성화: **1,509 passed, 0 skipped, 25.92초**. 기존 Starlette TestClient 사용 중단 예고 1건 |
+| 정적 검사 | Ruff 전체 통과, Python 파일 **580개** 형식 검사 통과, strict mypy **560개** 파일 통과, `uv lock --check` 통과 |
+| 설치 검사 | 저장소 밖에서 SHA256을 확인한 **6개 wheel**의 root-only 설치·독립 그래프/벡터 pipeline·Vault 어댑터 검사 통과(exit 0). 새 CLI 진입점과 이전/정식 클래스·CLI 객체의 동일성도 확인. 기존 로컬 검증 HTTP 서버의 비치명적 BrokenPipe traceback은 남음 |
+| 독립 리뷰 | 수정 없이 **지적 사항 없음**. 148개 호환 매핑을 새 경로 우선·이전 경로 우선으로 각각 새 프로세스에서 검사해 **296회 통과**. 이전한 구현 128개와 기존 위치의 수정 구현 19개에서 가져오기·문서 문자열·경로 문자열을 제외한 AST의 동작 변경 없음 확인. 기존 패키지 공개 목록 보존·정식 경로 참조·실제 소스를 읽는 경계 검사·아키텍처 문서 소유권 대조 |
+| 문서·변경 검사 | 구조와 상대 링크 확인, `git diff --check` 통과 |
+
+초기 재배치 검사에서 드러난 프로젝트 연결 catalog와 프로젝트 문맥 패키지 초기화의 순환 참조는 공개 재노출을 지연 처리해 해결했다. 기존 경로를 읽던 정적 검사는 정식 구현을 검사하며 파일 목록이 비어 있지 않음을 확인하도록 바꿨다. 호환 파일의 타입·비공개 함수 재노출을 보정해 기존 가져오기와 monkeypatch 대상을 보존했다.
+
+이 검증은 이번 폴더 재배치와 호환성의 로컬 증거이다. §3의 성능 측정은 재실행하지 않았으며 외부 배포나 운영 환경 검증을 뜻하지 않는다.

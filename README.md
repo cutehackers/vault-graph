@@ -229,7 +229,7 @@ uv build --all-packages
 uv run --python 3.12 python tests/verify_graph_module_wheels.py
 ```
 
-The last command installs all six wheels outside the workspace and verifies standalone use, the graph bridge, the text-to-vector indexing pipeline, and Vault integration. These packages are local build artifacts until separately published. Vault Graph requires the five module distributions. Vault-specific text preparation, scope, identity, evidence, status, and publication remain in `vault_graph.vault_adapter`. See the [vector module contract](docs/design/specs/2026-10-06-vector-modules-ko.md).
+The last command installs all six wheels outside the workspace and verifies standalone use, the graph bridge, the text-to-vector indexing pipeline, and Vault integration. These packages are local build artifacts until separately published. Vault Graph requires the five module distributions. Vault-specific text preparation, scope, identity, evidence, status, and publication remain in the Vault Graph functional groups. Concrete providers are assembled in `vault_graph.interface.composition`. Legacy `vault_graph.vault_adapter` imports remain compatible. See the [vector module contract](docs/design/specs/2026-10-06-vector-modules-ko.md).
 
 To select the document graph backend for an existing Data Home:
 
@@ -245,6 +245,7 @@ Switching back to the document backend rebuilds its staging cache. For an incomp
 
 ## More Documentation
 
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): current source structure, ownership, composition, and import compatibility
 - [`docs/SPEC.md`](docs/SPEC.md): Software Invariant Engine specification and architecture (v5.0)
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): accepted architectural and product decisions (ADR)
 - [`docs/FEATURES.md`](docs/FEATURES.md): user-facing feature catalog (Phase 1 coexistence)

@@ -153,7 +153,7 @@ factory = McpServiceFactory(graph_home_path=graph_home_path)
 factory.open_project_memory_service()
 factory.open_issue_memory_service()
 factory.open_decision_memory_service()
-for name in ("vault_graph.projection.rustworkx_projection", "rustworkx"):
+for name in ("vault_graph.retrieval.graph.projection.rustworkx_projection", "rustworkx"):
     if name in sys.modules:
         raise SystemExit(name)
 """
@@ -176,13 +176,13 @@ graph_home_path = Path({str(tmp_path / "state")!r})
 runner = CliRunner()
 runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 service = McpServiceFactory(graph_home_path=graph_home_path).open_decision_memory_service()
-if "vault_graph.projection.rustworkx_projection" in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")
 try:
     service._decision_trace_provider_factory()
 except Exception:
     pass
-if "vault_graph.projection.rustworkx_projection" not in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" not in sys.modules:
     raise SystemExit("missing")
 """
     completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
@@ -199,7 +199,7 @@ try:
     McpServiceFactory(graph_home_path=Path('/definitely/missing/state')).open_read_only()
 except Exception:
     pass
-for name in ('vault_graph.projection.rustworkx_projection', 'rustworkx'):
+for name in ('vault_graph.retrieval.graph.projection.rustworkx_projection', 'rustworkx'):
     if name in sys.modules:
         raise SystemExit(name)
 """
@@ -249,7 +249,7 @@ factory = McpServiceFactory(graph_home_path=graph_home_path)
 service = factory.open_retrieval_service(include_graph=False)
 if service is None:
     raise SystemExit("missing service")
-if "vault_graph.projection.rustworkx_projection" in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")
 """
     completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
@@ -273,13 +273,13 @@ runner = CliRunner()
 runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 factory = McpServiceFactory(graph_home_path=graph_home_path)
 factory.open_context_pack_builder(include_graph=False)
-if "vault_graph.projection.rustworkx_projection" in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")
 try:
     factory.open_context_pack_builder(include_graph=True)
 except Exception:
     pass
-if "vault_graph.projection.rustworkx_projection" not in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" not in sys.modules:
     raise SystemExit("missing")
 """
     completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
@@ -303,13 +303,13 @@ runner = CliRunner()
 runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 factory = McpServiceFactory(graph_home_path=graph_home_path)
 factory.open_read_only()
-if "vault_graph.projection.rustworkx_projection" in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")
 try:
     factory.open_graph_retrieval_service()
 except Exception:
     pass
-if "vault_graph.projection.rustworkx_projection" not in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" not in sys.modules:
     raise SystemExit("missing")
 """
     completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
@@ -333,13 +333,13 @@ runner = CliRunner()
 runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 factory = McpServiceFactory(graph_home_path=graph_home_path)
 factory.open_read_only()
-if "vault_graph.projection.rustworkx_projection" in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("eager")
 try:
     factory.open_graph_resource_service()
 except Exception:
     pass
-if "vault_graph.projection.rustworkx_projection" in sys.modules:
+if "vault_graph.retrieval.graph.projection.rustworkx_projection" in sys.modules:
     raise SystemExit("resource service imported rustworkx")
 """
     completed = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)

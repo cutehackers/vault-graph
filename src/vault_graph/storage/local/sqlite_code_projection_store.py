@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
-from vault_graph.code_index.code_models import (
+from vault_graph.project.code.code_models import (
     CODE_PARSER_SPEC_VERSION,
     CODE_PROJECTION_SCHEMA_VERSION,
     CodeApplyResult,
@@ -1274,7 +1274,7 @@ def _normalize_repository_ids(repository_ids: object) -> tuple[str, ...]:
 
 
 def _file_id(snapshot: CodeFileSnapshot) -> str:
-    from vault_graph.code_index.code_models import code_file_identity
+    from vault_graph.project.code.code_models import code_file_identity
 
     return code_file_identity(snapshot.repository_id, snapshot.relative_path)
 

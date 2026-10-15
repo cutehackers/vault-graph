@@ -73,7 +73,7 @@ def __getattr__(name: str) -> Any:
         "ExplanationWarningSeverity",
         "explanation_record_to_dict",
     }:
-        from vault_graph.result_explanation.result_explanation import (
+        from vault_graph.retrieval.explanation.result_explanation import (
             CachedExplanationView,
             ExplainResultService,
             ExplanationCacheReader,
@@ -99,7 +99,7 @@ def __getattr__(name: str) -> Any:
             "explanation_record_to_dict": explanation_record_to_dict,
         }[name]
     if name in {"MemorySourceReader", "MemoryDocumentRead", "MemoryHeadingRef", "document_resource_kinds_for_document"}:
-        from vault_graph.memory.memory_source_reader import (
+        from vault_graph.context.memory.memory_source_reader import (
             MemoryDocumentRead,
             MemoryHeadingRef,
             MemorySourceReader,
@@ -113,7 +113,7 @@ def __getattr__(name: str) -> Any:
             "document_resource_kinds_for_document": document_resource_kinds_for_document,
         }[name]
     if name in {"MemoryRequestContext", "MemoryVaultDocuments", "build_memory_request_context"}:
-        from vault_graph.memory.memory_request_context import (
+        from vault_graph.context.memory.memory_request_context import (
             MemoryRequestContext,
             MemoryVaultDocuments,
             build_memory_request_context,
@@ -125,15 +125,15 @@ def __getattr__(name: str) -> Any:
             "build_memory_request_context": build_memory_request_context,
         }[name]
     if name in {"DecisionMemoryService", "DecisionTraceProvider"}:
-        from vault_graph.memory.decision_memory import DecisionMemoryService, DecisionTraceProvider
+        from vault_graph.context.memory.decision_memory import DecisionMemoryService, DecisionTraceProvider
 
         return {"DecisionMemoryService": DecisionMemoryService, "DecisionTraceProvider": DecisionTraceProvider}[name]
     if name == "IssueMemoryService":
-        from vault_graph.memory.issue_memory import IssueMemoryService
+        from vault_graph.context.memory.issue_memory import IssueMemoryService
 
         return IssueMemoryService
     if name == "ProjectMemoryService":
-        from vault_graph.memory.project_memory import ProjectMemoryService
+        from vault_graph.context.memory.project_memory import ProjectMemoryService
 
         return ProjectMemoryService
     if name in {
@@ -148,7 +148,7 @@ def __getattr__(name: str) -> Any:
         "stable_timeline_item_id",
         "parse_timeline_since",
     }:
-        from vault_graph.memory.timeline_memory import (
+        from vault_graph.context.memory.timeline_memory import (
             RecentChangesProjection,
             TimelineEvidenceRef,
             TimelineFreshness,
@@ -182,7 +182,7 @@ def __getattr__(name: str) -> Any:
         "ReadinessStatus",
         "ScaleUpAdapterReadiness",
     }:
-        from vault_graph.projection_diagnostics.health_explorer import (
+        from vault_graph.operation.diagnostics.health_explorer import (
             BackendReadinessRecord,
             HealthBackendKind,
             HealthExplorerReport,
@@ -219,7 +219,7 @@ def __getattr__(name: str) -> Any:
         "ProjectMemoryVault",
         "stable_memory_item_id",
     }:
-        from vault_graph.memory.memory_models import (
+        from vault_graph.context.memory.memory_models import (
             DecisionMemoryProjection,
             DecisionMemoryVault,
             MemoryBackendRevision,
