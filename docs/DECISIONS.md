@@ -668,3 +668,14 @@ source of truth.
 **Reason:** The goal is predictable functional ownership and changeability. Additional distributions or a wholesale directory rewrite would add compatibility work without a demonstrated consumer.
 
 **Implications:** Preserve source content, public responses, existing imports, schemas and generation recovery. New internal reverse lookup remains explicit and bounded. Implementation and outcome review, whole-suite/static checks, independent wheel installation, applicable performance checks and a current module diagram are required. Evidence is recorded in [the implementation report](design/reports/2026-10-15-modularization-completion-ko.md). This accepts implementation scope and design, not a claim of deployed readiness.
+
+<a id="vg-mod-20261015-grouped-layout"></a>
+## 2026-10-15 - Apply Approved Functional Groups To Source Directories
+
+**Question:** Should the selected functional groups remain documentation labels or become the physical source structure?
+
+**Decision:** Apply the user-approved grouped directories inside `vault_graph`: `indexing/{ingestion,extraction,publication}`, `retrieval/{search,graph,evidence,explanation}`, `context/{pack,memory,answer}`, `project/{code,context}`, `operation/{scope,readiness,diagnostics,runtime,integration}`, and `interface/{cli,mcp,http,composition}`. Keep `storage/interfaces` and `storage/local`, preserving existing stored representations. Treat `engine` as a logical category for the five unchanged distributions under `packages/`, without creating an engine directory.
+
+**Reason:** The user explicitly approved the names and physical grouping so that source location follows the accepted ownership map. This extends the earlier limited-move decision without changing functional scope or package contracts.
+
+**Implications:** [ARCHITECTURE.md](ARCHITECTURE.md) is the current source-structure reference. Retain legacy public imports through same-module compatibility facades and preserve leaf package APIs. New dependencies use consumer ports with concrete composition under `interface/composition`; the documented lazy constructor defaults remain limited compatibility exceptions. Preserve source immutability, rebuildable projections, normal read-only queries, explicit setup/configuration writer boundaries, and the five domain-neutral packages' prohibition on importing `vault_graph`. Record fresh relocation checks only after execution and retain earlier verification evidence as historical results.

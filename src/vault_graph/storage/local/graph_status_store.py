@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from vault_graph.graph.graph_contracts import GraphExtractionSpec
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec
 
 
 @dataclass(frozen=True)

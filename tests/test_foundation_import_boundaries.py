@@ -7,19 +7,34 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.parametrize("package", ["vault_scope", "projection_readiness", "projection_publication"])
+@pytest.mark.parametrize("package", ["operation/scope", "operation/readiness", "indexing/publication"])
 def test_foundation_policy_does_not_import_application_or_transport(package: str) -> None:
     root = Path("src/vault_graph") / package
     assert root.is_dir()
-    for path in root.rglob("*.py"):
+    paths = tuple(root.rglob("*.py"))
+    assert paths
+    for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
                 assert not (node.module or "").startswith(
-                    ("vault_graph.app", "vault_graph.cli", "vault_graph.mcp", "vault_graph.http")
+                    (
+                        "vault_graph.app",
+                        "vault_graph.cli",
+                        "vault_graph.mcp",
+                        "vault_graph.http",
+                        "vault_graph.interface",
+                    )
                 ), path
-                if package == "projection_readiness":
-                    assert not (node.module or "").startswith("vault_graph.retrieval"), path
+                if package == "operation/readiness":
+                    assert not (node.module or "").startswith(
+                        (
+                            "vault_graph.retrieval.search",
+                            "vault_graph.retrieval.graph.graph_retrieval_service",
+                            "vault_graph.retrieval.graph.graph_resource_service",
+                            "vault_graph.retrieval.graph.projection",
+                        )
+                    ), path
 
 
 @pytest.mark.parametrize(
@@ -62,7 +77,13 @@ def test_feature_placement_preserves_legacy_module_and_class(legacy: str, owner:
     new_module = importlib.import_module(f"vault_graph.{owner}")
     assert old_module is new_module
     assert getattr(old_module, symbol) is getattr(new_module, symbol)
-    source = Path("src/vault_graph") / f"{owner.replace('.', '/')}.py"
+    source_owner = {
+        "answer.answer_service": "context.answer.answer_service",
+        "projection_diagnostics.index_status_reader": "operation.diagnostics.index_status_reader",
+        "projection_diagnostics.projection_hygiene_service": "operation.diagnostics.projection_hygiene_service",
+        "projection_diagnostics.health_explorer": "operation.diagnostics.health_explorer",
+    }.get(owner, owner)
+    source = Path("src/vault_graph") / f"{source_owner.replace('.', '/')}.py"
     for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
         if isinstance(node, ast.ImportFrom):
-            assert not (node.module or "").startswith("vault_graph.app")
+            assert not (node.module or "").startswith(("vault_graph.app", "vault_graph.interface"))

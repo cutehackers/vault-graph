@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from vault_graph.errors import KeywordIndexError
-from vault_graph.ingestion.document_authority import DocumentRole
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.ingestion.document_authority import DocumentRole
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 

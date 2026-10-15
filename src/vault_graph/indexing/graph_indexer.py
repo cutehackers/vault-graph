@@ -5,11 +5,17 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from vault_graph.errors import GraphIndexingError, GraphRecordInvalid, GraphStoreError
-from vault_graph.extraction.entity_extractor import EntityExtractor
-from vault_graph.extraction.graph_occurrences import EntityOccurrence, RelationshipOccurrence, entity_occurrence_key
-from vault_graph.extraction.graph_source_store import GraphExtractionContext, GraphSourceStore
-from vault_graph.extraction.relationship_extractor import RelationshipExtractor
-from vault_graph.graph.graph_contracts import (
+from vault_graph.indexing.extraction.entity_extractor import EntityExtractor
+from vault_graph.indexing.extraction.graph_occurrences import (
+    EntityOccurrence,
+    RelationshipOccurrence,
+    entity_occurrence_key,
+)
+from vault_graph.indexing.extraction.graph_source_store import GraphExtractionContext, GraphSourceStore
+from vault_graph.indexing.extraction.relationship_extractor import RelationshipExtractor
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import (
     EntityRecord,
     GraphApplyResult,
     GraphEvidenceRef,
@@ -20,15 +26,13 @@ from vault_graph.graph.graph_contracts import (
     GraphTombstone,
     RelationshipRecord,
 )
-from vault_graph.graph.graph_identity import (
+from vault_graph.retrieval.graph.graph_identity import (
     graph_scope_key,
     stable_entity_id,
     stable_evidence_ref_id,
     stable_graph_tombstone_id,
     stable_relationship_id,
 )
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.graph_store import GraphStore
 
 

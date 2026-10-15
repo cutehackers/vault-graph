@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 
 
 @dataclass(frozen=True)

@@ -1,9 +1,9 @@
-"""Legacy default construction for explicitly requested runtime operations."""
+"""Compatibility import for :mod:`vault_graph.interface.composition.adapters.runtime_indexing`."""
 
-from vault_graph.runtime_operations.indexing import OperationsIndexFactory
+import sys
 
+from vault_graph.interface.composition.adapters import runtime_indexing as _implementation
+from vault_graph.interface.composition.adapters.runtime_indexing import default_index_factory as default_index_factory
+from vault_graph.operation.runtime.indexing import OperationsIndexFactory as OperationsIndexFactory
 
-def default_index_factory() -> OperationsIndexFactory:
-    from vault_graph.app.local_index_service_factory import LocalIndexServiceFactory
-
-    return LocalIndexServiceFactory()
+sys.modules[__name__] = _implementation

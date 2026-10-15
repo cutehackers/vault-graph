@@ -49,7 +49,7 @@ __all__ = [
 
 def __getattr__(name: str) -> Any:
     if name in {"McpServerConfig", "RegisteredMcpServer", "create_mcp_server", "run_mcp_server", "serve_mcp"}:
-        from vault_graph.mcp.mcp_server import (
+        from vault_graph.interface.mcp.mcp_server import (
             McpServerConfig,
             RegisteredMcpServer,
             create_mcp_server,
@@ -65,15 +65,15 @@ def __getattr__(name: str) -> Any:
             "serve_mcp": serve_mcp,
         }[name]
     if name in {"McpServiceFactory", "McpServices"}:
-        from vault_graph.mcp.mcp_service_factory import McpServiceFactory, McpServices
+        from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory, McpServices
 
         return {"McpServiceFactory": McpServiceFactory, "McpServices": McpServices}[name]
     if name in {"McpScopeInput", "scope_from_mcp_input"}:
-        from vault_graph.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input
+        from vault_graph.interface.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input
 
         return {"McpScopeInput": McpScopeInput, "scope_from_mcp_input": scope_from_mcp_input}[name]
     if name in {"McpErrorPayload", "McpProtocolError", "map_exception_to_mcp_error"}:
-        from vault_graph.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
+        from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
 
         return {
             "McpErrorPayload": McpErrorPayload,
@@ -81,7 +81,7 @@ def __getattr__(name: str) -> Any:
             "map_exception_to_mcp_error": map_exception_to_mcp_error,
         }[name]
     if name in {"McpResourceUri", "parse_mcp_resource_uri", "encode_resource_segment", "decode_resource_segment"}:
-        from vault_graph.mcp.mcp_uri import (
+        from vault_graph.interface.mcp.mcp_uri import (
             McpResourceUri,
             decode_resource_segment,
             encode_resource_segment,
@@ -95,7 +95,7 @@ def __getattr__(name: str) -> Any:
             "decode_resource_segment": decode_resource_segment,
         }[name]
     if name in {"McpResourceRequest", "McpResourceBody", "McpResourceRegistry"}:
-        from vault_graph.mcp.mcp_resources import McpResourceBody, McpResourceRegistry, McpResourceRequest
+        from vault_graph.interface.mcp.mcp_resources import McpResourceBody, McpResourceRegistry, McpResourceRequest
 
         return {
             "McpResourceRequest": McpResourceRequest,
@@ -103,7 +103,7 @@ def __getattr__(name: str) -> Any:
             "McpResourceRegistry": McpResourceRegistry,
         }[name]
     if name in {"McpPromptRegistry", "PHASE_5C_PROMPT_NAMES", "register_mcp_prompts"}:
-        from vault_graph.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES, McpPromptRegistry, register_mcp_prompts
+        from vault_graph.interface.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES, McpPromptRegistry, register_mcp_prompts
 
         return {
             "McpPromptRegistry": McpPromptRegistry,
@@ -126,7 +126,7 @@ def __getattr__(name: str) -> Any:
         "parse_summarize_project_memory_input",
         "register_mcp_tools",
     }:
-        from vault_graph.mcp.mcp_tools import (
+        from vault_graph.interface.mcp.mcp_tools import (
             ExplainResultInput,
             ExploreProjectInput,
             GetOpenQuestionsInput,
@@ -160,18 +160,18 @@ def __getattr__(name: str) -> Any:
             "register_mcp_tools": register_mcp_tools,
         }[name]
     if name in {"ContextPackResourceCache", "CachedContextPack"}:
-        from vault_graph.mcp.context_pack_resource_cache import CachedContextPack, ContextPackResourceCache
+        from vault_graph.interface.mcp.context_pack_resource_cache import CachedContextPack, ContextPackResourceCache
 
         return {"ContextPackResourceCache": ContextPackResourceCache, "CachedContextPack": CachedContextPack}[name]
     if name in {"CachedExplanation", "ResultExplanationCache"}:
-        from vault_graph.mcp.result_explanation_cache import CachedExplanation, ResultExplanationCache
+        from vault_graph.interface.mcp.result_explanation_cache import CachedExplanation, ResultExplanationCache
 
         return {
             "CachedExplanation": CachedExplanation,
             "ResultExplanationCache": ResultExplanationCache,
         }[name]
     if name == "codex_stdio_config_json":
-        from vault_graph.integration_configuration.mcp_config_examples import codex_stdio_config_json
+        from vault_graph.operation.integration.mcp.mcp_config_examples import codex_stdio_config_json
 
         return codex_stdio_config_json
     raise AttributeError(name)

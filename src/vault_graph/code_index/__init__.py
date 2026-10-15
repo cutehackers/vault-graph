@@ -1,11 +1,11 @@
 """Deterministic, read-only code projection contracts and services."""
 
-from vault_graph.code_index.code_generation import (
+from vault_graph.project.code.code_generation import (
     CodeGenerationError,
     CodeGenerationLayout,
     CodeProjectionGenerationManager,
 )
-from vault_graph.code_index.code_models import (
+from vault_graph.project.code.code_models import (
     CODE_DART_GRAMMAR_REVISION,
     CODE_DART_GRAMMAR_SOURCE,
     CODE_DART_GRAMMAR_SOURCE_REVISION,
@@ -65,18 +65,18 @@ from vault_graph.code_index.code_models import (
     ResolutionResult,
     code_file_identity,
 )
-from vault_graph.code_index.dart_parser import DartCodeParserAdapter, DartParserAdapter
-from vault_graph.code_index.parser_adapter import CodeParserAdapter
-from vault_graph.code_index.python_parser import PythonCodeParserAdapter, PythonParserAdapter
-from vault_graph.code_index.reference_resolution import CodeReferenceResolver
-from vault_graph.code_index.repository_catalog import (
+from vault_graph.project.code.dart_parser import DartCodeParserAdapter, DartParserAdapter
+from vault_graph.project.code.parser_adapter import CodeParserAdapter
+from vault_graph.project.code.python_parser import PythonCodeParserAdapter, PythonParserAdapter
+from vault_graph.project.code.reference_resolution import CodeReferenceResolver
+from vault_graph.project.code.repository_catalog import (
     SUPPORTED_CODE_LANGUAGES,
     SUPPORTED_GIT_REVISION_POLICIES,
     CodeRepositoryCatalog,
     CodeRepositoryCatalogService,
     repository_policy_revision,
 )
-from vault_graph.code_index.source_scanning import (
+from vault_graph.project.code.source_scanning import (
     CodeScanResult,
     CodeSourceScanError,
     CodeSourceScanner,
@@ -90,15 +90,15 @@ def __getattr__(name: str) -> object:
     """Load orchestration services lazily to keep storage imports acyclic."""
 
     if name in {"CodeFreshness", "CodeFreshnessService"}:
-        from vault_graph.code_index.code_freshness import CodeFreshness, CodeFreshnessService
+        from vault_graph.project.code.code_freshness import CodeFreshness, CodeFreshnessService
 
         return {"CodeFreshness": CodeFreshness, "CodeFreshnessService": CodeFreshnessService}[name]
     if name == "CodeProjectionService":
-        from vault_graph.code_index.code_projection_service import CodeProjectionService
+        from vault_graph.project.code.code_projection_service import CodeProjectionService
 
         return CodeProjectionService
     if name == "CodeQueryService":
-        from vault_graph.code_index.code_query_service import CodeQueryService
+        from vault_graph.project.code.code_query_service import CodeQueryService
 
         return CodeQueryService
     raise AttributeError(name)

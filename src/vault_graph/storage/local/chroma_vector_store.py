@@ -1,13 +1,11 @@
 """Compatibility import path for Vault Graph's vector storage adapter."""
 
-from vault_graph.vault_adapter.vector_store import (
+from vault_graph.storage.local.vector_store_adapter import (
     CHROMA_BACKEND,
     CHROMA_VECTOR_SCHEMA_VERSION,
     COLLECTION_PREFIX,
 )
-from vault_graph.vault_adapter.vector_store import (
-    ChromaVectorStore as _VaultChromaVectorStore,
-)
+from vault_graph.storage.local.vector_store_adapter import ChromaVectorStore as _VaultChromaVectorStore
 
 SQLITE_VECTOR_ID_BATCH_SIZE = 500
 

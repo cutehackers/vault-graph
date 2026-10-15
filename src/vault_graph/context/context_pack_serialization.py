@@ -1,110 +1,36 @@
-from __future__ import annotations
+"""Compatibility import for :mod:`vault_graph.context.pack.context_pack_serialization`."""
 
-import dataclasses
-import hashlib
-import json
-import math
-from dataclasses import replace
-from pathlib import Path
-from typing import Any
+import dataclasses as dataclasses
+import hashlib as hashlib
+import json as json
+import math as math
+import sys
+from dataclasses import replace as replace
+from pathlib import Path as Path
+from typing import Any as Any
 
-from vault_graph.context.context_pack import (
-    ContextEvidence,
-    ContextEvidenceRef,
-    ContextPack,
-    ContextPackActualScope,
-    ContextPackBackend,
-    ContextPackBackendUse,
-    ContextPackBudget,
-    ContextPackItem,
-    ContextPackRequestedScope,
-    ContextPackScope,
-    ContextPackSignal,
-    ContextPackStoreRevision,
-    ContextPackVault,
-    ContextPackVaultRevision,
-    ContextPackWarning,
-)
-from vault_graph.errors import ContextPackError
+from vault_graph.context.pack import context_pack_serialization as _implementation
+from vault_graph.context.pack.context_pack import ContextEvidence as ContextEvidence
+from vault_graph.context.pack.context_pack import ContextEvidenceRef as ContextEvidenceRef
+from vault_graph.context.pack.context_pack import ContextPack as ContextPack
+from vault_graph.context.pack.context_pack import ContextPackActualScope as ContextPackActualScope
+from vault_graph.context.pack.context_pack import ContextPackBackend as ContextPackBackend
+from vault_graph.context.pack.context_pack import ContextPackBackendUse as ContextPackBackendUse
+from vault_graph.context.pack.context_pack import ContextPackBudget as ContextPackBudget
+from vault_graph.context.pack.context_pack import ContextPackItem as ContextPackItem
+from vault_graph.context.pack.context_pack import ContextPackRequestedScope as ContextPackRequestedScope
+from vault_graph.context.pack.context_pack import ContextPackScope as ContextPackScope
+from vault_graph.context.pack.context_pack import ContextPackSignal as ContextPackSignal
+from vault_graph.context.pack.context_pack import ContextPackStoreRevision as ContextPackStoreRevision
+from vault_graph.context.pack.context_pack import ContextPackVault as ContextPackVault
+from vault_graph.context.pack.context_pack import ContextPackVaultRevision as ContextPackVaultRevision
+from vault_graph.context.pack.context_pack import ContextPackWarning as ContextPackWarning
+from vault_graph.context.pack.context_pack_serialization import _to_json_value as _to_json_value
+from vault_graph.context.pack.context_pack_serialization import compute_pack_id as compute_pack_id
+from vault_graph.context.pack.context_pack_serialization import context_pack_identity_dict as context_pack_identity_dict
+from vault_graph.context.pack.context_pack_serialization import context_pack_to_dict as context_pack_to_dict
+from vault_graph.context.pack.context_pack_serialization import render_context_pack_json as render_context_pack_json
+from vault_graph.context.pack.context_pack_serialization import with_computed_pack_id as with_computed_pack_id
+from vault_graph.errors import ContextPackError as ContextPackError
 
-_DTO_TYPES = {
-    ContextPack,
-    ContextPackVault,
-    ContextPackVaultRevision,
-    ContextPackRequestedScope,
-    ContextPackActualScope,
-    ContextPackScope,
-    ContextPackStoreRevision,
-    ContextPackBackendUse,
-    ContextPackBackend,
-    ContextEvidenceRef,
-    ContextPackWarning,
-    ContextEvidence,
-    ContextPackSignal,
-    ContextPackItem,
-    ContextPackBudget,
-}
-
-
-def context_pack_to_dict(pack: ContextPack) -> dict[str, Any]:
-    converted = _to_json_value(pack)
-    if not isinstance(converted, dict):
-        raise ContextPackError("context pack serialization produced a non-object")
-    return converted
-
-
-def render_context_pack_json(pack: ContextPack) -> str:
-    try:
-        return (
-            json.dumps(
-                context_pack_to_dict(pack),
-                ensure_ascii=False,
-                sort_keys=True,
-                indent=2,
-                allow_nan=False,
-            )
-            + "\n"
-        )
-    except ValueError as exc:
-        raise ContextPackError(f"context pack JSON serialization failed: {exc}") from exc
-
-
-def context_pack_identity_dict(pack: ContextPack) -> dict[str, Any]:
-    payload = context_pack_to_dict(pack)
-    payload.pop("pack_id", None)
-    payload.pop("generated_at", None)
-    return payload
-
-
-def compute_pack_id(pack: ContextPack) -> str:
-    identity_json = json.dumps(
-        context_pack_identity_dict(pack),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    )
-    return hashlib.sha256(identity_json.encode("utf-8")).hexdigest()
-
-
-def with_computed_pack_id(pack: ContextPack) -> ContextPack:
-    return replace(pack, pack_id=compute_pack_id(pack))
-
-
-def _to_json_value(value: object) -> object:
-    if dataclasses.is_dataclass(value):
-        value_type = type(value)
-        if value_type not in _DTO_TYPES:
-            raise ContextPackError(f"unsupported dataclass in context pack serialization: {value_type.__name__}")
-        return {field.name: _to_json_value(getattr(value, field.name)) for field in dataclasses.fields(value)}
-    if isinstance(value, tuple):
-        return [_to_json_value(item) for item in value]
-    if isinstance(value, float):
-        if not math.isfinite(value):
-            raise ContextPackError("non-finite float values are not supported in context pack JSON")
-        return value
-    if isinstance(value, str | int | bool) or value is None:
-        return value
-    if isinstance(value, Path | bytes | bytearray | list | dict | set):
-        raise ContextPackError(f"unsupported value in context pack serialization: {type(value).__name__}")
-    raise ContextPackError(f"unsupported value in context pack serialization: {type(value).__name__}")
+sys.modules[__name__] = _implementation

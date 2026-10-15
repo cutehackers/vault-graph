@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from vault_graph.embeddings.text_embeddings import EmbeddingModelSpec
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingModelSpec
 
 
 @dataclass(frozen=True)

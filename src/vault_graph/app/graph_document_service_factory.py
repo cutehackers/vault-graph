@@ -1,33 +1,20 @@
-"""Connect MetadataStore to a separate, rebuildable document graph cache."""
+"""Compatibility import for :mod:`vault_graph.interface.composition.graph_document_service_factory`."""
 
-from pathlib import Path
+import sys
+from pathlib import Path as Path
 
-from graph_document import GraphLimits, ReadLimits
+from graph_document import GraphLimits as GraphLimits
+from graph_document import ReadLimits as ReadLimits
 
-from vault_graph.extraction.vault_graph_document_adapter import VaultGraphDocumentAdapter
-from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
-from vault_graph.vault_scope.catalog_service import CatalogService
-from vault_graph.vault_scope.graph_home import GraphHomeResolver
+from vault_graph.indexing.extraction.vault_graph_document_adapter import (
+    VaultGraphDocumentAdapter as VaultGraphDocumentAdapter,
+)
+from vault_graph.interface.composition import graph_document_service_factory as _implementation
+from vault_graph.interface.composition.graph_document_service_factory import (
+    GraphDocumentServiceFactory as GraphDocumentServiceFactory,
+)
+from vault_graph.operation.scope.catalog_service import CatalogService as CatalogService
+from vault_graph.operation.scope.graph_home import GraphHomeResolver as GraphHomeResolver
+from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore as SQLiteMetadataStore
 
-
-class GraphDocumentServiceFactory:
-    """Opening an adapter reads configuration only; synchronization is explicit."""
-
-    def __init__(self, *, graph_home_path: Path) -> None:
-        self._graph_home_path = graph_home_path
-
-    def open_adapter(self, *, graph_limits: GraphLimits, read_limits: ReadLimits) -> VaultGraphDocumentAdapter:
-        home = GraphHomeResolver().require_initialized(self._graph_home_path)
-        catalog_service = CatalogService(graph_home_path=home.root_path)
-        catalog = catalog_service.load_catalog()
-        db_path = home.child_path("cache", "graph-document", "derived.sqlite3")
-        manifest_dir = home.child_path("cache", "graph-document", "manifests")
-        for target in (db_path, manifest_dir):
-            catalog_service.assert_graph_home_write_target_safe(target_path=target, catalog=catalog)
-        return VaultGraphDocumentAdapter(
-            metadata_store=SQLiteMetadataStore(catalog_service.metadata_path, initialize=False),
-            db_path=db_path,
-            manifest_dir=manifest_dir,
-            graph_limits=graph_limits,
-            read_limits=read_limits,
-        )
+sys.modules[__name__] = _implementation

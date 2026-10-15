@@ -3,16 +3,16 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from vault_graph.indexing.revision_planner import MetadataIndexPreview, MetadataRevisionPlan
-from vault_graph.ingestion.document_authority import assign_provenance_families
-from vault_graph.ingestion.document_normalizer import (
+from vault_graph.indexing.ingestion.document_authority import assign_provenance_families
+from vault_graph.indexing.ingestion.document_normalizer import (
     ChunkSnapshot,
     DocumentNormalizer,
     DocumentSnapshot,
     NormalizedDocument,
 )
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
-from vault_graph.ingestion.vault_loader import VaultLoader
+from vault_graph.indexing.ingestion.vault_loader import VaultLoader
+from vault_graph.indexing.revision_planner import MetadataIndexPreview, MetadataRevisionPlan
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import DocumentState, MetadataStore
 
 

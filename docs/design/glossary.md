@@ -1,5 +1,23 @@
 # 설계 용어
 
+<a id="vg-mod-functional-groups"></a>
+## VG-MOD-20261015: 기능 그룹
+
+상태: Confirmed. 출처: 사용자가 간결한 그룹 이름을 선택하고 관련 문서 수정과 실제 디렉터리 배치를 승인했다. [부모 명세](specs/2026-10-15-vault-graph-modular-architecture-ko.md)와 [현재 구조도](reports/2026-10-15-modularization-completion-ko.md)에 적용한다.
+
+| 구분 | 이름 | 의미·소유 범위 |
+|---|---|---|
+| 그룹1 | `indexing` | 문서 준비·색인·세대 발행. M02·M03·M04 |
+| 그룹2 | `retrieval` | 검색·그래프 조회·근거 연결·결과 설명. M05·M06·M07·M13 |
+| 그룹3 | `context` | 문맥 팩·기억 조회·발췌 답변. M08·M09·M10 |
+| 그룹4 | `project` | 코드 투영·영향 조회·프로젝트 문맥 조합. M11·M12 |
+| 그룹5 | `operation` | 범위·준비 상태·진단·실행 운영·명시적 연동 설정. M01·M14·M15·M16·M17 |
+| 지원1 | `interface` | CLI·MCP·HTTP 진입점과 서비스 구성 지점 |
+| 지원2 | `storage` | 메타데이터·벡터·그래프·코드 파생 저장소의 포트와 구현 |
+| 지원3 | `engine` | 독립 배포 패키지 5개: `graph_search`, `graph_document`, `text_embeddings`, `vector_search`, `vector_index` |
+
+다섯 기능 그룹과 `interface`·`storage`는 실제 Python 디렉터리이다. 하위 모듈의 정식 경로와 의존 규칙은 [현재 구현 아키텍처](../ARCHITECTURE.md)를 따른다. `engine`은 기존 `packages/`의 배포 패키지 5개를 묶는 논리적 분류이며 실제 디렉터리를 추가하지 않는다. 배포명과 M 번호는 유지한다. `project/context`의 문맥 조합은 `project`, `operation/integration/project_binding_catalog.py`의 설정 기록은 `operation`에 속한다.
+
 <a id="sel-20261015"></a>
 ## SEL-20261015: 검색 대상·근거 연결
 

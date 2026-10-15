@@ -1,29 +1,14 @@
-"""Indexing and resource lifetime required by setup and watch operations."""
+"""Compatibility import for :mod:`vault_graph.operation.runtime.indexing`."""
 
-from pathlib import Path
-from typing import Protocol
+import sys
+from pathlib import Path as Path
+from typing import Protocol as Protocol
 
-from vault_graph.indexing.index_service import IndexRunReport
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.index_service import IndexRunReport as IndexRunReport
+from vault_graph.operation.runtime import indexing as _implementation
+from vault_graph.operation.runtime.indexing import OperationsIndexBundle as OperationsIndexBundle
+from vault_graph.operation.runtime.indexing import OperationsIndexer as OperationsIndexer
+from vault_graph.operation.runtime.indexing import OperationsIndexFactory as OperationsIndexFactory
+from vault_graph.operation.scope.vault_catalog import QueryScope as QueryScope
 
-
-class OperationsIndexer(Protocol):
-    def run_apply(self, *, scope: QueryScope, full: bool = False) -> IndexRunReport: ...
-
-
-class OperationsIndexBundle(Protocol):
-    @property
-    def index_service(self) -> OperationsIndexer: ...
-
-    def close(self) -> None: ...
-
-
-class OperationsIndexFactory(Protocol):
-    def open(
-        self,
-        *,
-        graph_home_path: Path,
-        initialize_store: bool,
-        transactional: bool = False,
-        full: bool = False,
-    ) -> OperationsIndexBundle: ...
+sys.modules[__name__] = _implementation

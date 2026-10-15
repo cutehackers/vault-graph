@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from vault_graph.ingestion.document_authority import DocumentRole
-from vault_graph.ingestion.document_models import SourceLocator
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.ingestion.document_authority import DocumentRole
+from vault_graph.indexing.ingestion.document_models import SourceLocator
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 

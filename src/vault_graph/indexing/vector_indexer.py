@@ -1,6 +1,6 @@
 """Compatibility path for Vault-specific vector indexing."""
 
-from vault_graph.vault_adapter.vector_index import (
+from vault_graph.indexing.vector_index_adapter import (
     ChunkListingStore,
     VectorApplyResult,
     VectorIndexer,

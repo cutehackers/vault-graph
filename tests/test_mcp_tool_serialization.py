@@ -407,6 +407,7 @@ def test_explanation_payload_resource_links_round_trip() -> None:
 
 
 def test_tool_serialization_does_not_import_cli_helpers() -> None:
-    source = Path("src/vault_graph/mcp/mcp_tool_serialization.py").read_text(encoding="utf-8")
+    source = Path("src/vault_graph/interface/mcp/mcp_tool_serialization.py").read_text(encoding="utf-8")
 
     assert "vault_graph.cli" not in source
+    assert "vault_graph.interface.cli" not in source

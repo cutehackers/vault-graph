@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from vault_graph.graph.graph_contracts import (
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import (
     EntityRecord,
     GraphApplyResult,
     GraphExtractionSpec,
@@ -11,7 +12,7 @@ from vault_graph.graph.graph_contracts import (
     GraphRevision,
     RelationshipRecord,
 )
-from vault_graph.graph.graph_query import (
+from vault_graph.retrieval.graph.graph_query import (
     GraphEntityIdentity,
     GraphEntityMatch,
     GraphEntityQuery,
@@ -20,7 +21,6 @@ from vault_graph.graph.graph_query import (
     GraphRelationshipQuery,
     GraphRelationshipQueryResult,
 )
-from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 __all__ = [

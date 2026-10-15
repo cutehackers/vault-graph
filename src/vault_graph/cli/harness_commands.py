@@ -1,86 +1,21 @@
-"""Thin CLI adapter for explicit coding-harness instruction guidance."""
+"""Compatibility import for :mod:`vault_graph.interface.cli.harness_commands`."""
 
-from __future__ import annotations
+import sys
+from pathlib import Path as Path
 
-from pathlib import Path
+import typer as typer
 
-import typer
+from vault_graph.errors import VaultGraphError as VaultGraphError
+from vault_graph.interface.cli import harness_commands as _implementation
+from vault_graph.interface.cli.harness_commands import _run as _run
+from vault_graph.interface.cli.harness_commands import _vault_roots as _vault_roots
+from vault_graph.interface.cli.harness_commands import guidance_app as guidance_app
+from vault_graph.interface.cli.harness_commands import harness_app as harness_app
+from vault_graph.interface.cli.harness_commands import install as install
+from vault_graph.interface.cli.harness_commands import preview as preview
+from vault_graph.interface.cli.harness_commands import remove as remove
+from vault_graph.operation.integration.harness.harness_guidance import HarnessGuidanceRequest as HarnessGuidanceRequest
+from vault_graph.operation.runtime.setup_service import SetupService as SetupService
+from vault_graph.operation.scope.catalog_service import CatalogService as CatalogService
 
-from vault_graph.errors import VaultGraphError
-from vault_graph.harness.harness_guidance import HarnessGuidanceRequest
-from vault_graph.runtime_operations.setup_service import SetupService
-from vault_graph.vault_scope.catalog_service import CatalogService
-
-harness_app = typer.Typer(no_args_is_help=True)
-guidance_app = typer.Typer(no_args_is_help=True)
-harness_app.add_typer(guidance_app, name="guidance")
-
-
-@guidance_app.command("install")
-def install(
-    target: Path = typer.Option(..., "--target"),
-    file_name: str = typer.Option(..., "--file-name"),
-    backup: Path | None = typer.Option(None, "--backup"),
-    preview: bool = typer.Option(False, "--preview"),
-    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
-) -> None:
-    _run("install", target, file_name, backup, preview, state)
-
-
-@guidance_app.command("remove")
-def remove(
-    target: Path = typer.Option(..., "--target"),
-    file_name: str = typer.Option(..., "--file-name"),
-    preview: bool = typer.Option(False, "--preview"),
-    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
-) -> None:
-    _run("remove", target, file_name, None, preview, state)
-
-
-@guidance_app.command("preview")
-def preview(
-    target: Path = typer.Option(..., "--target"),
-    file_name: str = typer.Option(..., "--file-name"),
-    state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home"),
-) -> None:
-    _run("preview", target, file_name, None, True, state)
-
-
-def _run(
-    action: str,
-    target: Path,
-    file_name: str,
-    backup: Path | None,
-    preview: bool,
-    state: Path,
-) -> None:
-    try:
-        report = SetupService().manage_harness_guidance(
-            action=action,
-            request=HarnessGuidanceRequest(
-                target=target,
-                file_name=file_name,  # type: ignore[arg-type]
-                backup_path=backup,
-                preview=preview,
-            ),
-            vault_roots=_vault_roots(state),
-        )
-    except (ValueError, VaultGraphError) as exc:
-        typer.echo(str(exc))
-        raise typer.Exit(1) from exc
-    typer.echo(f"action: {report.action}")
-    typer.echo(f"target_path: {report.target_path}")
-    typer.echo(f"changed: {report.changed}")
-    typer.echo(f"preview: {report.preview}")
-    if report.backup_path is not None:
-        typer.echo(f"backup_path: {report.backup_path}")
-    if report.preview:
-        typer.echo(report.content, nl=False)
-
-
-def _vault_roots(state: Path) -> tuple[Path, ...]:
-    catalog = CatalogService(graph_home_path=state).load_catalog()
-    return tuple(entry.root_path for entry in catalog.entries())
-
-
-__all__ = ["harness_app"]
+sys.modules[__name__] = _implementation

@@ -1,18 +1,18 @@
 """Bounded, read-only composition of code and Vault evidence."""
 
-from vault_graph.project_context.project_binding import (
+from vault_graph.operation.integration.project_binding_catalog import (
+    PROJECT_BINDING_SCHEMA_VERSION,
+    ProjectBindingCatalog,
+    ProjectBindingCatalogService,
+)
+from vault_graph.project.context.project_binding import (
     MAX_PROJECT_BINDING_CONTENT_SCOPES,
     MAX_PROJECT_BINDING_EVIDENCE_MAPPINGS,
     MAX_PROJECT_BINDING_ID_LENGTH,
     MAX_PROJECT_BINDING_VAULT_IDS,
     ProjectBinding,
 )
-from vault_graph.project_context.project_binding_catalog import (
-    PROJECT_BINDING_SCHEMA_VERSION,
-    ProjectBindingCatalog,
-    ProjectBindingCatalogService,
-)
-from vault_graph.project_context.project_context_models import (
+from vault_graph.project.context.project_context_models import (
     DEFAULT_PROJECT_CONTEXT_DEPTH,
     DEFAULT_PROJECT_CONTEXT_LIMIT,
     DEFAULT_PROJECT_CONTEXT_TOKENS,

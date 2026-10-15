@@ -10,6 +10,8 @@ renames, rewrites, or deletes Vault content.
 
 - Read `docs/SPEC.md` before changing architecture, indexing, retrieval, graph,
   or context-pack behavior.
+- Read `docs/ARCHITECTURE.md` for current source ownership, grouped paths,
+  composition, and import compatibility before moving or adding modules.
 - Follow `docs/CONVENTIONS.md` for Python style and naming.
 
 ## Documentation Operation Rules

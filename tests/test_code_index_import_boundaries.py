@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.test_functional_module_boundaries import assert_policy_imports
+
 
 def test_code_services_do_not_import_concrete_storage_or_composition() -> None:
-    root = Path(__file__).parents[1] / "src" / "vault_graph" / "code_index"
-    source = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
-
-    for forbidden in ("vault_graph.storage.local", "vault_graph.app", "vault_graph.mcp", "vault_graph.http"):
-        assert forbidden not in source
+    root = Path(__file__).parents[1] / "src" / "vault_graph" / "project" / "code"
+    assert_policy_imports(root, forbidden=("vault_graph.storage.local",))

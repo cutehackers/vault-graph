@@ -87,7 +87,17 @@ assert lookup.by_edge_id[0][1][0].document_id == 'doc'
 )
 
 VAULT_SMOKE = r"""
+import importlib.metadata
+from vault_graph.interface.composition.graph_document_service_factory import (
+    GraphDocumentServiceFactory as CanonicalGraphDocumentServiceFactory,
+)
 from vault_graph.app.graph_document_service_factory import GraphDocumentServiceFactory
+from vault_graph.interface.cli.main import app as canonical_cli_app
+from vault_graph.cli.main import app as legacy_cli_app
+assert GraphDocumentServiceFactory is CanonicalGraphDocumentServiceFactory
+assert canonical_cli_app is legacy_cli_app
+entrypoint = next(iter(importlib.metadata.distribution('vault-graph').entry_points.select(name='vg')))
+assert entrypoint.value == 'vault_graph.interface.cli.main:app'
 from vault_graph.projection import VaultGraphProjectionAdapter
 from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
 from vault_graph.projection.graph_projection import GraphProjectionInput, GraphProjectionNode

@@ -2,12 +2,15 @@
 
 - Parent Contract: [VG-MOD-20261015](../specs/2026-10-15-vault-graph-modular-architecture-ko.md)
 - Status: Approved roadmap — 사용자가 명세·계획의 구현을 지시했다. 구현용 Vertical Slice 계약은 생성하지 않았다.
+- Current Architecture: [현재 정식 경로·의존·호환 규칙](../../ARCHITECTURE.md)
 - Created: 2026-10-15
 - Implementation: Complete — [단계0–8 실제 구현·검증·독립 리뷰](../reports/2026-10-15-modularization-completion-ko.md). 당시 발견한 legacy 색인 결함의 후속 수정은 같은 기록 §5에 설명한다.
 
 ## 1. 실행 원칙
 
-기존 디렉터리와 서비스를 재사용한다. 먼저 기능별 진입점·의존 방향·행동 보존을 검증하고, 파일 이전은 그 경계를 강제할 때만 한다. 각 단계는 공개 진입점부터 저장/조회와 응답까지 이어지는 동작으로 끝낸다. 클래스나 디렉터리만 이동한 상태는 완료가 아니다.
+승인된 실제 디렉터리의 기능 그룹은 `indexing`, `retrieval`, `context`, `project`, `operation`을 사용하고, 지원 영역은 `interface`, `storage`, `engine`을 사용한다. [그룹 이름·소유 범위](../glossary.md#vg-mod-functional-groups)를 기준으로 아래 M 번호와 현재 구조도를 해석한다. 단계 번호·책임·기존 배포 이름은 유지한다. 정식 모듈 경로는 승인된 그룹 아래로 옮기고 이전 경로는 호환 파일로 보존한다. `engine`은 기존 `packages/`의 논리적 분류이다.
+
+기존 서비스와 책임을 재사용한다. 최초 전환은 필요한 파일만 이전했으며, 후속 승인을 받은 그룹 배치에서는 아래 정식 경로를 사용한다. 경로 이전 전후에 진입점·소비자 포트·행동·모듈 identity를 검증한다. 각 단계는 공개 진입점부터 저장/조회와 응답까지 이어지는 동작으로 끝낸다. 클래스나 디렉터리만 이동한 상태는 완료가 아니다.
 
 현재 공개 인터페이스·저장 형식·배포 패키지 계약을 보존한다. 단계가 실패하면 그 단계의 코드 변경과 비활성 파생 세대만 되돌리며 사용자 파일과 활성 세대를 덮어쓰지 않는다. 이 계획 자체가 커밋 되돌리기나 데이터 삭제의 실행 지시는 아니다.
 
@@ -29,30 +32,30 @@
 
 ## 3. 현재 코드의 소유권과 검증 지도
 
-표의 파일명은 `src/vault_graph/` 기준이다. 테스트명은 `tests/` 기준이며 실제 변경 범위에 맞춰 선택한다.
+표는 후속 그룹 배치의 정식 경로이며 `src/vault_graph/` 기준이다. 과거 단계별 실행 결과는 완료 기록에 보존한다. 테스트명은 `tests/` 기준이며 실제 변경 범위에 맞춰 선택한다.
 
 | 소유 경계 | 현재 소스 | 기존 검증 출발점 |
 |---|---|---|
-| M01 | `app/{catalog_service,graph_home,path_guard,query_scope_resolution}.py` | catalog·scope·graph home·path guard 테스트 |
-| M02 | `ingestion/` | `test_vault_loader.py`, `test_document_readers.py`, `test_document_models.py` |
-| M03 | `indexing/`, `extraction/`, `app/index_service.py`, `vault_adapter/vector_index.py` | `test_graph_indexer.py`, `test_graph_source_store.py`, metadata/vector indexer 테스트 |
-| M04 | `app/projection_generation.py`; local bundle의 commit/close | generation·bundle publication·local index factory 실패 테스트 |
-| M05 | `retrieval/` 중 그래프 인터페이스·readiness 제외 | `test_search_include_graph.py`, keyword·ranking·retrieval 테스트 |
-| M06 | `projection/`, `app/{graph_retrieval_service,graph_resource_service}.py`, `retrieval/graph_retrieval.py` | `test_multi_vault_graph_retrieval.py`, `test_cli_related.py`, `test_cli_decision_trace.py` |
-| M07 | 제안 `vault_adapter/evidence_linking.py` + 소비자의 분산 근거 조회 | SEL 수용 기준, 이후 추가할 행동 검증 |
-| M08 | `context/` | `test_context_pack_builder.py`, `test_context_pack_import_boundaries.py`, `test_context_pack_read_only_boundary.py` |
-| M09 | `answer/`, `app/answer_service.py` | `test_answer_composer.py`, `test_answer_renderer.py`, `test_answer_import_boundaries.py` |
-| M10 | `memory/`의 기억 모델·reader·context·project/decision/issue/timeline 서비스 | `test_project_memory_service.py`, `test_decision_memory_service.py`, `test_issue_memory_service.py`, `test_timeline_memory_service.py` |
-| M11 | `code_index/` | `test_code_projection_service.py`, `test_code_generation.py`, `test_code_query_service.py`, `test_code_query_read_only_boundary.py` |
-| M12 | `project_context/` 중 binding catalog 제외 | `test_project_context_service.py`, `test_project_context_scope.py`, `test_project_context_budget.py`, `test_project_context_import_boundaries.py` |
-| M13 | `memory/`의 result explanation·cache | `test_result_explanation.py`, `test_mcp_result_explanation_cache.py`, `test_mcp_explain_result.py` |
-| M14 | `app/{graph_readiness_service,search_readiness_service}.py`, `retrieval/search_readiness.py` | `test_app_search_readiness_service.py`, graph readiness 테스트 |
-| M15 | `app/{index_status_reader,projection_hygiene_service}.py`, `memory/health_explorer.py` | `test_health_explorer_service.py`, projection hygiene·status 테스트 |
-| M16 | `app/{setup_service,watch_service}.py` | `test_setup_service.py`, `test_cli_watch.py` |
-| M17 | `harness/`, `project_context/project_binding_catalog.py`, MCP config/registration | `test_harness_guidance.py`, `test_harness_guidance_read_only.py`, `test_setup_harness_guidance.py`, `test_project_binding_catalog.py`, `test_mcp_config_registration.py` |
-| 구성 지점 | `app/{read_only_service_factory,local_index_service_factory,code_index_factory,graph_store_factory,graph_document_service_factory}.py`, `mcp/mcp_service_factory.py`, `http/http_service_factory.py` | factory·read-only·backend selection·세대 정리 테스트 |
-| 전송 | `cli/`, `mcp/` 중 설정/등록/factory 제외, `http/` 중 factory 제외 | `test_mcp_stdio_smoke.py`, `test_mcp_scope.py`, `test_mcp_tool_serialization.py`, CLI/HTTP 회귀 |
-| 저장·어댑터·호환 | `storage/`, `vault_adapter/`의 나머지 파일, `embeddings/`, `graph/`, `errors.py`, 패키지 초기화 | 저장소 계약·일반 패키지 역의존 금지·기존 가져오기·독립 wheel |
+| M01 | `operation/scope/` | catalog·scope·graph home·path guard 테스트 |
+| M02 | `indexing/ingestion/` | `test_vault_loader.py`, `test_document_readers.py`, `test_document_models.py` |
+| M03 | `indexing/`, `indexing/extraction/`, `indexing/vector_index_adapter.py` | `test_graph_indexer.py`, `test_graph_source_store.py`, metadata/vector indexer 테스트 |
+| M04 | `indexing/publication/` | generation·bundle publication·local index factory 실패 테스트 |
+| M05 | `retrieval/search/` | `test_search_include_graph.py`, keyword·ranking·retrieval 테스트 |
+| M06 | `retrieval/graph/` | `test_multi_vault_graph_retrieval.py`, `test_cli_related.py`, `test_cli_decision_trace.py` |
+| M07 | `retrieval/evidence/`, `storage/interfaces/evidence_owner_lookup.py` | `test_evidence_linking.py`, `test_evidence_owner_lookup.py`, SEL 수용 기준 |
+| M08 | `context/pack/` | `test_context_pack_builder.py`, `test_context_pack_import_boundaries.py`, `test_context_pack_read_only_boundary.py` |
+| M09 | `context/answer/` | `test_answer_composer.py`, `test_answer_renderer.py`, `test_answer_import_boundaries.py` |
+| M10 | `context/memory/` | `test_project_memory_service.py`, `test_decision_memory_service.py`, `test_issue_memory_service.py`, `test_timeline_memory_service.py` |
+| M11 | `project/code/` | `test_code_projection_service.py`, `test_code_generation.py`, `test_code_query_service.py`, `test_code_query_read_only_boundary.py` |
+| M12 | `project/context/` | `test_project_context_service.py`, `test_project_context_scope.py`, `test_project_context_budget.py`, `test_project_context_import_boundaries.py` |
+| M13 | `retrieval/explanation/` | `test_result_explanation.py`, `test_mcp_result_explanation_cache.py`, `test_mcp_explain_result.py` |
+| M14 | `operation/readiness/` | `test_app_search_readiness_service.py`, graph readiness 테스트 |
+| M15 | `operation/diagnostics/` | `test_health_explorer_service.py`, projection hygiene·status 테스트 |
+| M16 | `operation/runtime/` | `test_setup_service.py`, `test_cli_watch.py` |
+| M17 | `operation/integration/` | `test_harness_guidance.py`, `test_harness_guidance_read_only.py`, `test_setup_harness_guidance.py`, `test_project_binding_catalog.py`, `test_mcp_config_registration.py` |
+| 구성 지점 | `interface/composition/`, `interface/mcp/mcp_service_factory.py`, `interface/http/http_service_factory.py` | factory·read-only·backend selection·세대 정리 테스트 |
+| 전송 | `interface/cli/`, `interface/mcp/`, `interface/http/` 중 factory 제외 | `test_mcp_stdio_smoke.py`, `test_mcp_scope.py`, `test_mcp_tool_serialization.py`, CLI/HTTP 회귀 |
+| 저장·어댑터·호환 | `storage/`, 책임별 어댑터, 이전 경로의 호환 파일, `errors.py`, 패키지 초기화 | 저장소 계약·일반 패키지 역의존 금지·기존 가져오기·독립 wheel |
 
 물리적 파일 하나에 두 책임이 있는 경우, 예를 들어 local bundle의 발행과 factory의 자원 조립, 현재 위치와 목표 책임을 구분한다. 단계별 변경 후에는 정책별 소유자가 하나가 되도록 정리한다. 모든 물리 파일을 별도 기능으로 만들지 않는다. 새 파일이 생기면 이 지도에 소유 경계를 추가한다.
 

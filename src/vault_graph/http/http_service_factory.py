@@ -1,48 +1,12 @@
-from __future__ import annotations
+"""Compatibility import for :mod:`vault_graph.interface.http.http_service_factory`."""
 
-from pathlib import Path
-from typing import TYPE_CHECKING
+import sys
+from pathlib import Path as Path
+from typing import TYPE_CHECKING as TYPE_CHECKING
 
-from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory, ReadOnlyServices
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory as ReadOnlyServiceFactory
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServices as ReadOnlyServices
+from vault_graph.interface.http import http_service_factory as _implementation
+from vault_graph.interface.http.http_service_factory import HttpServiceFactory as HttpServiceFactory
 
-if TYPE_CHECKING:
-    from vault_graph.answer.answer_service import AnswerService
-    from vault_graph.context.context_pack_builder import ContextPackBuilder
-    from vault_graph.graph_retrieval.graph_retrieval_service import GraphRetrievalService
-    from vault_graph.indexing.index_service import IndexService
-    from vault_graph.memory.issue_memory import IssueMemoryService
-    from vault_graph.memory.project_memory import ProjectMemoryService
-    from vault_graph.memory.timeline_memory import TimelineMemoryService
-    from vault_graph.retrieval.retrieval_service import RetrievalService
-
-
-class HttpServiceFactory:
-    def __init__(self, *, graph_home_path: Path, read_only_factory: ReadOnlyServiceFactory | None = None) -> None:
-        self._read_only_factory = read_only_factory or ReadOnlyServiceFactory(graph_home_path=graph_home_path)
-
-    def open_read_only(self) -> ReadOnlyServices:
-        return self._read_only_factory.open_read_only()
-
-    def open_retrieval_service(self, *, include_graph: bool = False) -> RetrievalService:
-        return self._read_only_factory.open_retrieval_service(include_graph=include_graph)
-
-    def open_context_pack_builder(self, *, include_graph: bool = False) -> ContextPackBuilder:
-        return self._read_only_factory.open_context_pack_builder(include_graph=include_graph)
-
-    def open_answer_service(self, *, include_graph: bool = False) -> AnswerService:
-        return self._read_only_factory.open_answer_service(include_graph=include_graph)
-
-    def open_status_service(self) -> IndexService:
-        return self._read_only_factory.open_status_service()
-
-    def open_graph_retrieval_service(self) -> GraphRetrievalService:
-        return self._read_only_factory.open_graph_retrieval_service()
-
-    def open_project_memory_service(self) -> ProjectMemoryService:
-        return self._read_only_factory.open_project_memory_service()
-
-    def open_issue_memory_service(self) -> IssueMemoryService:
-        return self._read_only_factory.open_issue_memory_service()
-
-    def open_timeline_memory_service(self) -> TimelineMemoryService:
-        return self._read_only_factory.open_timeline_memory_service()
+sys.modules[__name__] = _implementation

@@ -1,6 +1,6 @@
 """Graph contracts for derived entity and relationship state."""
 
-from vault_graph.graph.graph_contracts import (
+from vault_graph.retrieval.graph.graph_contracts import (
     EntityRecord,
     GraphApplyResult,
     GraphEvidenceRef,
@@ -16,7 +16,7 @@ from vault_graph.graph.graph_contracts import (
     RelationshipRecord,
     current_graph_extraction_spec,
 )
-from vault_graph.graph.graph_identity import (
+from vault_graph.retrieval.graph.graph_identity import (
     graph_scope_key,
     normalize_entity_name,
     stable_entity_id,
