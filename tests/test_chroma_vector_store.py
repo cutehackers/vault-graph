@@ -320,3 +320,20 @@ def _tree_snapshot(root: Path) -> dict[str, tuple[int, bytes]]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+
+
+def test_wrong_tombstone_does_not_remove_readonly_vector_payload(tmp_path: Path) -> None:
+    path = tmp_path / "chroma"
+    writable = ChromaVectorStore(path, initialize=True)
+    record = make_record(vault_id="default", path="wiki/page.md", text="alpha", content_scope="wiki")
+    writable.apply_vector_revision(vector_index_revision="vector-1", records=(record,), tombstones=())
+    writable.apply_vector_revision(
+        vector_index_revision="vector-2",
+        records=(),
+        tombstones=(VectorTombstone(record.vector_id, "other", record.chunk_id, record.embedding.model_spec),),
+    )
+    writable.close()
+    hits = ChromaVectorStore(path, read_only=True).search(
+        make_query(text="alpha", scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
+    )
+    assert tuple(hit.vector_id for hit in hits) == (record.vector_id,)

@@ -2380,3 +2380,24 @@ indexer regression tests.
 **Verification:**
 
 - `uv run --python 3.12 pytest tests/test_vault_loader.py::test_loader_allows_query_scope_narrower_than_entry_scope tests/test_metadata_indexer.py::test_narrower_policy_scope_indexes_existing_file_under_broader_entry_scope -q`
+
+## 2026-10-06 - Vector Module Contract Review Corrections
+
+**Trigger:** Independent module review found underspecified deletion authority, model provenance, input identity validation, and backend deletion/queue-fallback risks.
+
+**Scope:** [Vector module contract](design/specs/2026-10-06-vector-modules-ko.md), three independent vector packages, and Vault adapters.
+
+**Core Values Protected:** Domain-neutral reuse, scope-bounded deletion, correct vector-space identity, unchanged read-only evidence, and staged publication.
+
+**Changes Applied:**
+
+- Distinguished logical deletion partitions from physical model collections and required manifests across old spaces.
+- Required a configured backend or pinned local model directory instead of unversioned model-name loading.
+- Rejected duplicate input identities across batches and validated directly constructed plans before execution.
+- Preserved collision-free embedding IDs through the Vault provider bridge and namespaced stored IDs across logical collections.
+- Removed payloads only for matched deletions, rejected metadata conflicts before writes, and matched legacy queue vectors by collection and active sequence.
+- Recomputed plans from current manifests before execution, checked codec storage identities, and validated finite vectors before mutation.
+- Removed Vault-specific metadata interpretation from generic code and made legacy compatibility settings explicit in the Vault adapter.
+- Extended isolated-wheel verification to resolve the Vault root by distribution name and verify all six local artifacts.
+
+**Verification:** Public regression tests in `packages/*/tests`, existing Vault vector/index tests, and `tests/verify_graph_module_wheels.py`. Final commands and results are recorded in the [completion report](design/reports/2026-10-06-vector-modules-completion-ko.md).

@@ -21,14 +21,15 @@ classifiers = [
 ]
 dependencies = [
   "PyYAML>=6.0.2",
-  "chromadb>=1.5.9,<2.0",
-  "fastembed>=0.8.0,<1.0",
   "fastapi>=0.115,<1",
   "huggingface-hub>=0.31,<1.0",
   "mcp>=1.27,<2",
   "rustworkx>=0.17,<0.18",
   "nolemy-graph-search==0.1.0",
   "nolemy-graph-document==0.1.0",
+  "nolemy-text-embeddings[fastembed]==0.1.0",
+  "nolemy-vector-search[chroma]==0.1.0",
+  "nolemy-vector-index==0.1.0",
   "typer>=0.12.5",
   "uvicorn>=0.30,<1",
   "tree-sitter==0.25.2",
@@ -58,11 +59,14 @@ Issues = "https://github.com/cutehackers/vault-graph/issues"
 packages = ["src/vault_graph"]
 
 [tool.uv.workspace]
-members = ["packages/graph-search", "packages/graph-document"]
+members = ["packages/graph-search", "packages/graph-document", "packages/text-embeddings", "packages/vector-search", "packages/vector-index"]
 
 [tool.uv.sources]
 nolemy-graph-search = { workspace = true }
 nolemy-graph-document = { workspace = true }
+nolemy-text-embeddings = { workspace = true }
+nolemy-vector-search = { workspace = true }
+nolemy-vector-index = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

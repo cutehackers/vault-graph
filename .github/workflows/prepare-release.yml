@@ -70,11 +70,11 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
       - name: Lint
-        run: uv run --python 3.12 ruff check src tests
+        run: uv run --python 3.12 ruff check src tests packages
       - name: Type check
-        run: uv run --python 3.12 mypy src tests
+        run: uv run --python 3.12 mypy src tests packages/text-embeddings/src packages/vector-search/src packages/vector-index/src
       - name: Test
-        run: uv run --python 3.12 pytest -q
+        run: uv run --python 3.12 --all-packages --all-extras pytest -q tests packages/*/tests
       - name: Verify independently installed module wheels and Vault integration
         run: uv run --python 3.12 python tests/verify_graph_module_wheels.py
       - name: Build distributions

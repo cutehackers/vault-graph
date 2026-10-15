@@ -1608,3 +1608,11 @@ ID 대응, 복수 경로 점수·순위, 빌드 ID, 근거 연결을 보존한�
 패키지별 독립 사용을 먼저 검증하고 연동을 단계적으로 구현하는 순서는
 [graph_search·graph_document 구현 순서](design/plans/2026-10-04-graph-modules-implementation-order-ko.md)에 정리한다.
 이는 실행 순서 제안이며 기존 네 설계 계약의 범위·승인 상태를 변경하지 않는다.
+
+## 12. Independent Embedding And Vector Modules
+
+사용자가 승인한 2차 리팩터링의 책임·입출력·삭제 범위·실패 처리·호환성 계약은
+[임베딩·벡터 모듈 계약](design/specs/2026-10-06-vector-modules-ko.md)에 정의한다.
+`text_embeddings`, `vector_search`, `vector_index`는 Vault와 그래프 모듈에 의존하지 않는다.
+Vault 전용 정책과 기존 저장 형식의 변환은 `vault_graph.vault_adapter`에서 수행한다.
+이 분리는 §1.7의 포트·어댑터 경계를 따르며 불변성 엔진의 기능이나 정책을 변경하지 않는다.

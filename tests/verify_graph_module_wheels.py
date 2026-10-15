@@ -206,7 +206,7 @@ def install_from_local_simple_index(
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        root_name, root_version = distributions[-1]
+        root_name, root_version = next(row for row in distributions if canonicalize_name(row[0]) == "vault-graph")
         requirement = f"{root_name}=={root_version}"
         without_index = subprocess.run(
             ["uv", "pip", "install", "--quiet", "--no-cache", "--no-index", "--python", str(executable), requirement],
@@ -255,11 +255,76 @@ def install_from_local_simple_index(
         )
         installed = json.loads(probe.stdout)
         assert installed == {name: [name, version] for name, version in distributions}, installed
-        print("Root-only dependency resolution used all three SHA256-verified localhost wheel artifacts.")
+        print("Root-only dependency resolution used all six SHA256-verified localhost wheel artifacts.")
     finally:
         server.shutdown()
         server.server_close()
         thread.join()
+
+
+TEXT_SMOKE = """
+import importlib.util
+from text_embeddings import EmbeddingInput, EmbeddingModelSpec, FastEmbedTextEmbeddings
+assert importlib.util.find_spec('vault_graph') is None
+assert importlib.util.find_spec('fastembed') is None
+class Backend:
+    def embed(self, documents, **kwargs):
+        return [(1.0, 0.0) for _ in documents]
+provider = FastEmbedTextEmbeddings(model_spec=EmbeddingModelSpec('fixture', 'v1', 2, 'v1'),
+                                  backend_factory=Backend)
+assert provider.embed((EmbeddingInput('example', 'Text'),))[0].values == (1.0, 0.0)
+"""
+
+VECTOR_SMOKE = """
+import importlib.util
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from vector_search import ChromaVectorStore, CollectionSpec
+assert importlib.util.find_spec('vault_graph') is None
+assert importlib.util.find_spec('text_embeddings') is None
+assert importlib.util.find_spec('chromadb') is None
+with TemporaryDirectory() as directory:
+    path = Path(directory) / 'absent'
+    store = ChromaVectorStore(path, read_only=True)
+    assert store.search(CollectionSpec('vectors_example', 2), (1.0, 0.0), 10) == ()
+    assert not path.exists()
+"""
+
+INDEX_SMOKE = """
+import hashlib
+import importlib.util
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from text_embeddings import EmbeddingModelSpec, EmbeddingVector
+from vector_search import ChromaVectorStore
+from vector_index import ChromaIndexStore, IndexItem, VectorIndex
+assert importlib.util.find_spec('vault_graph') is None
+assert importlib.util.find_spec('graph_search') is None
+assert importlib.util.find_spec('graph_document') is None
+class Provider:
+    def model_spec(self):
+        return EmbeddingModelSpec('fixture', 'v1', 2, 'v1')
+    def embed(self, inputs):
+        return tuple(EmbeddingVector(item.input_id, (1.0, 0.0), self.model_spec()) for item in inputs)
+with TemporaryDirectory() as directory:
+    path = Path(directory) / 'vectors'
+    store = ChromaVectorStore(path, initialize=True)
+    codec = ChromaIndexStore(store)
+    index = VectorIndex(codec, Provider())
+    items = (IndexItem('notes', 'a', 'a-v1', 'Text', 'r1'),)
+    plan = index.plan(items, collection_ids=('notes',), input_kind='snapshot')
+    index.apply(plan)
+    assert index.plan(items, collection_ids=('notes',), input_kind='snapshot').unchanged_count == 1
+    spec = codec.collection_spec(plan.space_id, 2)
+    assert store.search(spec, (1.0, 0.0), 1)[0].metadata['item_id'] == 'a'
+    store.close()
+    def hashes():
+        return {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in path.rglob('*') if p.is_file()}
+    before = hashes()
+    reader = ChromaVectorStore(path, read_only=True)
+    assert abs(reader.search(spec, (1.0, 0.0), 1)[0].score - 1.0) < 1e-6
+    assert hashes() == before
+"""
 
 
 def main() -> None:
@@ -269,7 +334,14 @@ def main() -> None:
         wheels = temporary / "dist"
         built: list[Path] = []
         distributions: list[tuple[str, str]] = []
-        for directory_name in ("packages/graph-search", "packages/graph-document", "."):
+        for directory_name in (
+            "packages/graph-search",
+            "packages/graph-document",
+            ".",
+            "packages/text-embeddings",
+            "packages/vector-search",
+            "packages/vector-index",
+        ):
             project = tomllib.loads((root / directory_name / "pyproject.toml").read_text())["project"]
             run(["uv", "build", "--package", project["name"], "--out-dir", str(wheels)], cwd=root)
             wheel = next(wheels.glob(f"{project['name'].replace('-', '_')}-{project['version']}-*.whl"))
@@ -288,10 +360,12 @@ def main() -> None:
                         expected = Requirement(f"{dependency}; extra == '{extra}'")
                         assert expected in requirements, (str(expected), declared)
             built.append(wheel)
-        search_wheel, document_wheel, vault_wheel = built
+        search_wheel, document_wheel, vault_wheel, text_wheel, vector_wheel, index_wheel = built
         for name, wheel, smoke in (
             ("search", search_wheel, SEARCH_SMOKE),
             ("document", document_wheel, DOCUMENT_SMOKE),
+            ("text", text_wheel, TEXT_SMOKE),
+            ("vector", vector_wheel, VECTOR_SMOKE),
         ):
             environment = temporary / name
             run(["uv", "venv", "--python", sys.executable, str(environment)])
@@ -301,12 +375,30 @@ def main() -> None:
             if name == "document":
                 run(["uv", "pip", "install", "--quiet", "--python", str(executable), str(search_wheel)])
                 run([str(executable), "-I", "-c", BRIDGE_SMOKE], cwd=temporary)
+        environment = temporary / "vector-index"
+        run(["uv", "venv", "--python", sys.executable, str(environment)])
+        executable = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+        run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--quiet",
+                "--python",
+                str(executable),
+                str(text_wheel),
+                str(vector_wheel),
+                str(index_wheel),
+                "chromadb>=1.5.9,<2",
+            ]
+        )
+        run([str(executable), "-I", "-c", INDEX_SMOKE], cwd=temporary)
         environment = temporary / "vault"
         run(["uv", "venv", "--python", sys.executable, str(environment)])
         executable = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
         install_from_local_simple_index(
             executable=executable,
-            wheels=(search_wheel, document_wheel, vault_wheel),
+            wheels=tuple(built),
             distributions=tuple(distributions),
             cwd=temporary,
         )
@@ -320,7 +412,7 @@ def main() -> None:
             text=True,
         )
         assert "Usage:" in help_result.stdout
-    print("Independent wheels, document/search bridge, and installed Vault adapters verified.")
+    print("All independent wheels, graph bridge, vector pipeline, and installed Vault adapters verified.")
 
 
 if __name__ == "__main__":

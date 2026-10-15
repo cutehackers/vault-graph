@@ -631,3 +631,18 @@ source of truth.
   release; compatibility can be reconsidered after real release evidence.
 - Historical design artifacts are not rewritten to fabricate a migration
   history; current code and canonical docs use the guard-and-rebuild policy.
+
+## 2026-10-06 - Independent Embedding And Vector Modules
+
+**Question:** Should embedding, vector search/storage, and incremental vector indexing become reusable modules while Vault policy remains separate?
+
+**Decision:** Implement `nolemy-text-embeddings`, `nolemy-vector-search`, and `nolemy-vector-index` with domain-neutral public contracts. Keep Vault input preparation, identity/scope mapping, evidence, offline policy, status, and generation publication in `vault_graph.vault_adapter`. Preserve existing import paths and stored vector identities.
+
+**Reason:** The user approved independent functional modules that can be used without Vault and requested complete integration with the existing system.
+
+**Implications:**
+
+- Generic packages do not import Vault or graph packages or interpret Vault metadata.
+- Complete snapshots and partial changes have distinct deletion authority over explicit logical collections.
+- Generic write operations do not promise rollback. Vault retains private staged writes and generation activation.
+- Contracts and completion checks are defined in [the vector module specification](design/specs/2026-10-06-vector-modules-ko.md).

@@ -208,12 +208,16 @@ Vault Graph user-facing features preserve these guarantees:
 - visible backend health and index freshness status
 - durable knowledge publication only through Vault
 
-## Independent Graph Modules
+## Independent Modules
 
-The workspace includes two reusable packages with separate wheels and public APIs:
+The workspace includes five reusable packages with separate wheels and public APIs:
 
 - [`nolemy-graph-search`](packages/graph-search/README.md) accepts node and edge IDs and provides bounded graph traversal. It has no Vault, document, database, or model dependency.
 - [`nolemy-graph-document`](packages/graph-document/README.md) accepts general document inputs and manages explicit relationships, document contributions, revisions, and evidence in a caller-selected SQLite database. It works without `nolemy-graph-search`.
+
+- [`nolemy-text-embeddings`](packages/text-embeddings/README.md) generates embeddings through a model provider. FastEmbed is an optional extra; the caller supplies a pinned local model or backend.
+- [`nolemy-vector-search`](packages/vector-search/README.md) stores and searches already-computed vectors with opaque metadata. Chroma writes are optional; read-only SQLite access does not load its SDK.
+- [`nolemy-vector-index`](packages/vector-index/README.md) plans and applies scope-bounded incremental indexing of prepared text. Complete snapshots and partial changes have distinct deletion semantics.
 
 The optional `graph_document.search_bridge` connects a document snapshot to graph traversal and retains the same snapshot for evidence lookup. Vault-specific identity, scope, confidence, ranking, and MetadataStore access remain in the Vault adapters.
 
@@ -225,7 +229,7 @@ uv build --all-packages
 uv run --python 3.12 python tests/verify_graph_module_wheels.py
 ```
 
-The last command installs each wheel outside the workspace and verifies standalone use and the optional bridge. These packages are local build artifacts until separately published. Vault Graph's wheel requires both module wheels when installing from local distributions.
+The last command installs all six wheels outside the workspace and verifies standalone use, the graph bridge, the text-to-vector indexing pipeline, and Vault integration. These packages are local build artifacts until separately published. Vault Graph requires the five module distributions. Vault-specific text preparation, scope, identity, evidence, status, and publication remain in `vault_graph.vault_adapter`. See the [vector module contract](docs/design/specs/2026-10-06-vector-modules-ko.md).
 
 To select the document graph backend for an existing Data Home:
 
