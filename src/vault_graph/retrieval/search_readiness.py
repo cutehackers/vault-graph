@@ -1,30 +1,11 @@
-from __future__ import annotations
+"""Compatibility import for :mod:`vault_graph.projection_readiness.search_readiness`."""
 
-from dataclasses import dataclass
-from typing import Protocol
+import sys
 
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.retrieval.search_response import SearchStoreRevision
-from vault_graph.storage.interfaces.store_health import StoreHealth
+from vault_graph.projection_readiness import search_readiness as _implementation
+from vault_graph.projection_readiness.search_readiness import SearchReadiness as SearchReadiness
+from vault_graph.projection_readiness.search_readiness import SearchReadinessReport as SearchReadinessReport
+from vault_graph.projection_readiness.search_readiness import SearchScopeReadiness as SearchScopeReadiness
 
-
-@dataclass(frozen=True)
-class SearchScopeReadiness:
-    scope_key: str
-    vault_ids: tuple[str, ...]
-    vector_stale_count: int | None
-
-
-@dataclass(frozen=True)
-class SearchReadinessReport:
-    metadata_health: StoreHealth
-    keyword_health: StoreHealth
-    vector_health: StoreHealth | None
-    vector_stale_count: int | None
-    can_embed_without_download: bool
-    store_revisions: tuple[SearchStoreRevision, ...]
-    scope_readiness: tuple[SearchScopeReadiness, ...] = ()
-
-
-class SearchReadiness(Protocol):
-    def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport: ...
+# Preserve historical module patch targets as well as class identities.
+sys.modules[__name__] = _implementation

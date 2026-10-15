@@ -4,10 +4,10 @@ from pathlib import Path
 
 from graph_document import GraphLimits, ReadLimits
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_home import GraphHomeResolver
 from vault_graph.extraction.vault_graph_document_adapter import VaultGraphDocumentAdapter
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+from vault_graph.vault_scope.catalog_service import CatalogService
+from vault_graph.vault_scope.graph_home import GraphHomeResolver
 
 
 class GraphDocumentServiceFactory:

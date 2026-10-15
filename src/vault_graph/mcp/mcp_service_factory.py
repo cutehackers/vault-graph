@@ -4,25 +4,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from vault_graph.app.catalog_service import CatalogService
 from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
 from vault_graph.ingestion.vault_catalog import VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
+from vault_graph.vault_scope.catalog_service import CatalogService
 
 if TYPE_CHECKING:
-    from vault_graph.app.answer_service import AnswerService
-    from vault_graph.app.graph_resource_service import GraphResourceService
-    from vault_graph.app.graph_retrieval_service import GraphRetrievalService
-    from vault_graph.app.index_service import IndexService
+    from vault_graph.answer.answer_service import AnswerService
     from vault_graph.context.context_pack_builder import ContextPackBuilder
     from vault_graph.context.context_pack_renderer import ContextPackRenderer
+    from vault_graph.graph_retrieval.graph_resource_service import GraphResourceService
+    from vault_graph.graph_retrieval.graph_retrieval_service import GraphRetrievalService
+    from vault_graph.indexing.index_service import IndexService
     from vault_graph.memory.decision_memory import DecisionMemoryService
-    from vault_graph.memory.health_explorer import HealthExplorerService
     from vault_graph.memory.issue_memory import IssueMemoryService
     from vault_graph.memory.memory_source_reader import MemorySourceReader
     from vault_graph.memory.project_memory import ProjectMemoryService
     from vault_graph.memory.timeline_memory import TimelineMemoryService
     from vault_graph.project_context.project_context_service import ProjectContextService
+    from vault_graph.projection_diagnostics.health_explorer import HealthExplorerService
     from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.retrieval_service import RetrievalService
 

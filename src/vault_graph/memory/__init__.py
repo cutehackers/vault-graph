@@ -73,7 +73,7 @@ def __getattr__(name: str) -> Any:
         "ExplanationWarningSeverity",
         "explanation_record_to_dict",
     }:
-        from vault_graph.memory.result_explanation import (
+        from vault_graph.result_explanation.result_explanation import (
             CachedExplanationView,
             ExplainResultService,
             ExplanationCacheReader,
@@ -182,7 +182,7 @@ def __getattr__(name: str) -> Any:
         "ReadinessStatus",
         "ScaleUpAdapterReadiness",
     }:
-        from vault_graph.memory.health_explorer import (
+        from vault_graph.projection_diagnostics.health_explorer import (
             BackendReadinessRecord,
             HealthBackendKind,
             HealthExplorerReport,

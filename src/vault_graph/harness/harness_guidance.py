@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Literal
 
 from vault_graph.errors import HarnessGuidanceError
-from vault_graph.mcp.mcp_prompts import HARNESS_GUIDANCE_END_MARKER, HARNESS_GUIDANCE_START_MARKER
+
+HARNESS_GUIDANCE_START_MARKER = "<!-- vault-graph:harness-guidance:start -->"
+HARNESS_GUIDANCE_END_MARKER = "<!-- vault-graph:harness-guidance:end -->"
 
 HarnessInstructionFile = Literal["AGENTS.md", "CLAUDE.md"]
 SUPPORTED_INSTRUCTION_FILES: tuple[HarnessInstructionFile, ...] = ("AGENTS.md", "CLAUDE.md")

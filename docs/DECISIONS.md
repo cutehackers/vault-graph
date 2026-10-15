@@ -646,3 +646,25 @@ source of truth.
 - Complete snapshots and partial changes have distinct deletion authority over explicit logical collections.
 - Generic write operations do not promise rollback. Vault retains private staged writes and generation activation.
 - Contracts and completion checks are defined in [the vector module specification](design/specs/2026-10-06-vector-modules-ko.md).
+
+<a id="sel-20261015-scope"></a>
+## 2026-10-15 - Group Bidirectional Search Evidence Linking Inside Vault Graph
+
+**Question:** Should Vault Graph group search-target/evidence mapping and include reverse lookup from a document/chunk to its graph owners?
+
+**Decision:** Specify one Vault-internal bidirectional linking capability. The user requested the internal capability, asked what reverse lookup means, and then explicitly answered ‘추가하라. 모듈구조를 생각해서 구현하는게 좋곘어.’ Keep generic packages independent and preserve current public search behavior. This accepts feature scope, not all detailed API choices or implementation slices.
+
+**Reason:** A chunk can support multiple graph nodes/relationships and one owner can have multiple evidence chunks. Reusing existing identities and references avoids requiring generic vector/graph packages to interpret Vault. The considered alternative was consolidating only the existing forward resolution; the user selected inclusion of reverse lookup.
+
+**Implications:** [SEL-20261015](design/specs/2026-10-15-search-evidence-linking-ko.md) defines the proposed API and validation. Owner and evidence Vaults remain distinct. Existing warning, rank, revision, read-only, and storage contracts remain unchanged. A new persistent mapping database, automatic vector-seeded graph expansion, and new external commands are excluded. GOAL-01/02 and INV-01–03 are affected. Detailed API proposal P-01 and technical assumptions remain in the parent contract; no old contract is retired.
+
+<a id="vg-mod-20261015-implementation"></a>
+## 2026-10-15 - Implement Functional Boundaries And Evidence Linking
+
+**Question:** Should the reviewed modular architecture and bidirectional evidence-linking proposals now be implemented, and should remaining Vault capabilities become additional distributions?
+
+**Decision:** Implement [VG-MOD-20261015](design/specs/2026-10-15-vault-graph-modular-architecture-ko.md), its ordered plan, and the SEL internal API. The user's explicit instruction to read and implement the specification and plan accepts Q-01/Q-02 and SEL P-01. Retain five reusable distributions and keep Vault-specific capabilities internal. Reuse cohesive implementations and move only the policies that need a clear owner. No durable slice contracts were created or implicitly approved.
+
+**Reason:** The goal is predictable functional ownership and changeability. Additional distributions or a wholesale directory rewrite would add compatibility work without a demonstrated consumer.
+
+**Implications:** Preserve source content, public responses, existing imports, schemas and generation recovery. New internal reverse lookup remains explicit and bounded. Implementation and outcome review, whole-suite/static checks, independent wheel installation, applicable performance checks and a current module diagram are required. Evidence is recorded in [the implementation report](design/reports/2026-10-15-modularization-completion-ko.md). This accepts implementation scope and design, not a claim of deployed readiness.

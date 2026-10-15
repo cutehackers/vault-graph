@@ -1,3 +1,8 @@
+from vault_graph.projection_readiness.search_readiness import (
+    SearchReadiness,
+    SearchReadinessReport,
+    SearchScopeReadiness,
+)
 from vault_graph.retrieval.context_expansion import CONTEXT_POLICY_VERSION, ContextExpander, ContextExpansion
 from vault_graph.retrieval.graph_candidates import (
     GraphCandidateProvider,
@@ -29,7 +34,6 @@ from vault_graph.retrieval.retrieval_result import (
     warning_for_stale_vector,
 )
 from vault_graph.retrieval.retrieval_service import RetrievalService
-from vault_graph.retrieval.search_readiness import SearchReadiness, SearchReadinessReport, SearchScopeReadiness
 from vault_graph.retrieval.search_response import (
     SearchOutputFormat,
     SearchRequest,

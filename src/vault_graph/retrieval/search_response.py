@@ -5,23 +5,11 @@ from typing import Literal
 
 from vault_graph.errors import SearchError
 from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.projection_readiness.search_readiness import SearchStoreRevision as SearchStoreRevision
 from vault_graph.retrieval.retrieval_result import RetrievalResult, RetrievalSeverity
 
 SearchOutputFormat = Literal["text", "json"]
 SearchMode = Literal["knowledge", "evidence", "operating", "audit", "all"]
-
-
-@dataclass(frozen=True)
-class SearchStoreRevision:
-    kind: str
-    revision: str
-    scope_key: str
-    vault_id: str | None = None
-
-    def __post_init__(self) -> None:
-        _require_non_empty(self.kind, "kind")
-        _require_non_empty(self.revision, "revision")
-        _require_non_empty(self.scope_key, "scope_key")
 
 
 @dataclass(frozen=True)

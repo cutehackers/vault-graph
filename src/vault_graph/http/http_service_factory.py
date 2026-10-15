@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING
 from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory, ReadOnlyServices
 
 if TYPE_CHECKING:
-    from vault_graph.app.answer_service import AnswerService
-    from vault_graph.app.graph_retrieval_service import GraphRetrievalService
-    from vault_graph.app.index_service import IndexService
+    from vault_graph.answer.answer_service import AnswerService
     from vault_graph.context.context_pack_builder import ContextPackBuilder
+    from vault_graph.graph_retrieval.graph_retrieval_service import GraphRetrievalService
+    from vault_graph.indexing.index_service import IndexService
     from vault_graph.memory.issue_memory import IssueMemoryService
     from vault_graph.memory.project_memory import ProjectMemoryService
     from vault_graph.memory.timeline_memory import TimelineMemoryService

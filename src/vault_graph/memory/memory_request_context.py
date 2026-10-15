@@ -12,7 +12,7 @@ from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.memory.memory_source_reader import MemorySourceReader
 
 if TYPE_CHECKING:
-    from vault_graph.app.index_service import StatusReport
+    from vault_graph.projection_diagnostics.index_status_reader import StatusReport
 
 
 class MemoryStatusService(Protocol):

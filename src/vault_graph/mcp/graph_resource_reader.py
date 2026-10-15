@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 
-from vault_graph.app.graph_resource_service import GraphEntityResource, GraphResourceService, GraphResourceWarning
 from vault_graph.graph.graph_contracts import EntityRecord, GraphEvidenceRef, RelationshipRecord
+from vault_graph.graph_retrieval.graph_resource_service import (
+    GraphEntityResource,
+    GraphResourceService,
+    GraphResourceWarning,
+)
 from vault_graph.mcp.mcp_errors import McpErrorPayload
 from vault_graph.mcp.mcp_resources import McpResourceBody
 from vault_graph.mcp.mcp_uri import McpResourceUri

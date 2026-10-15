@@ -16,12 +16,12 @@ from typing import Any, Protocol, runtime_checkable
 
 import yaml
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_home import DEFAULT_GRAPH_HOME
-from vault_graph.app.path_guard import assert_target_outside_vaults
 from vault_graph.code_index.code_models import CodeRepositoryEntry
 from vault_graph.errors import CatalogError
 from vault_graph.ingestion.vault_catalog import VaultCatalog
+from vault_graph.vault_scope.catalog_service import CatalogService
+from vault_graph.vault_scope.graph_home import DEFAULT_GRAPH_HOME
+from vault_graph.vault_scope.path_guard import assert_target_outside_vaults
 
 SUPPORTED_CODE_LANGUAGES = ("python", "dart")
 SUPPORTED_GIT_REVISION_POLICIES = ("head", "head-and-working-tree", "content-hash")

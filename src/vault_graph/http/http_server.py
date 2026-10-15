@@ -16,8 +16,8 @@ from vault_graph.http.http_explanation_serialization import (
 from vault_graph.http.http_serialization import domain_to_json_dict
 from vault_graph.http.http_service_factory import HttpServiceFactory
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
-from vault_graph.memory.result_explanation import ExplainResultService, explanation_record_to_dict
-from vault_graph.memory.result_explanation_cache import ResultExplanationCache
+from vault_graph.result_explanation.result_explanation import ExplainResultService, explanation_record_to_dict
+from vault_graph.result_explanation.result_explanation_cache import ResultExplanationCache
 
 if TYPE_CHECKING:
     from fastapi import FastAPI

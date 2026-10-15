@@ -4,31 +4,32 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_home import GraphHomeResolver
 from vault_graph.app.graph_store_factory import open_graph_store
 from vault_graph.ingestion.vault_catalog import VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
+from vault_graph.vault_scope.catalog_service import CatalogService
+from vault_graph.vault_scope.graph_home import GraphHomeResolver
 
 if TYPE_CHECKING:
-    from vault_graph.app.answer_service import AnswerService
-    from vault_graph.app.graph_resource_service import GraphResourceService
-    from vault_graph.app.graph_retrieval_service import GraphRetrievalService
-    from vault_graph.app.index_service import IndexService
+    from vault_graph.answer.answer_service import AnswerService
     from vault_graph.context.context_pack_builder import ContextPackBuilder
     from vault_graph.context.context_pack_renderer import ContextPackRenderer
     from vault_graph.embeddings.fastembed_text_embeddings import FastEmbedTextEmbeddings
+    from vault_graph.graph_retrieval.graph_resource_service import GraphResourceService
+    from vault_graph.graph_retrieval.graph_retrieval_service import GraphRetrievalService
+    from vault_graph.indexing.index_service import IndexService
     from vault_graph.memory.decision_memory import DecisionMemoryService
-    from vault_graph.memory.health_explorer import HealthExplorerService
     from vault_graph.memory.issue_memory import IssueMemoryService
     from vault_graph.memory.memory_source_reader import MemorySourceReader
     from vault_graph.memory.project_memory import ProjectMemoryService
     from vault_graph.memory.timeline_memory import TimelineMemoryService
+    from vault_graph.projection_diagnostics.health_explorer import HealthExplorerService
+    from vault_graph.projection_readiness.search_readiness import SearchReadiness
     from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.retrieval_service import RetrievalService
-    from vault_graph.retrieval.search_readiness import SearchReadiness
     from vault_graph.storage.interfaces.keyword_index import KeywordIndex
     from vault_graph.storage.interfaces.vector_store import VectorStore
+    from vault_graph.vault_adapter.evidence_linking import EvidenceLinker
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,28 @@ class _RetrievalComponents:
 class ReadOnlyServiceFactory:
     def __init__(self, *, graph_home_path: Path) -> None:
         self._graph_home_path = graph_home_path
+
+    def open_evidence_linker(self) -> EvidenceLinker:
+        """Open explicit evidence/owner lookup without embeddings or a vector writer."""
+        from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+        from vault_graph.projection_readiness.graph_readiness_service import ReadOnlyGraphReadiness
+        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+        from vault_graph.vault_adapter.evidence_read_context import build_evidence_linker
+
+        catalog_service, _ = self._catalog()
+        metadata = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
+        graph = open_graph_store(catalog_service, metadata_store=metadata)
+        readiness = ReadOnlyGraphReadiness(
+            metadata_store=metadata,
+            graph_store=graph,
+            expected_spec=current_graph_extraction_spec(),
+        )
+        return build_evidence_linker(
+            metadata_store=metadata,
+            graph_store=graph,
+            readiness=readiness,
+            read_context_id=str(catalog_service.metadata_path.parent.parent),
+        )
 
     def open_read_only(self) -> ReadOnlyServices:
         from vault_graph.context.context_pack_renderer import DefaultContextPackRenderer
@@ -85,9 +108,9 @@ class ReadOnlyServiceFactory:
 
     def open_answer_service(self, *, include_graph: bool = False) -> AnswerService:
         from vault_graph.answer.answer_composer import ExtractiveAnswerComposer
+        from vault_graph.answer.answer_service import AnswerService
         from vault_graph.answer.citation_guard import CitationGuard
         from vault_graph.answer.evidence_planner import EvidencePlanner
-        from vault_graph.app.answer_service import AnswerService
 
         return AnswerService(
             planner=EvidencePlanner(
@@ -101,9 +124,9 @@ class ReadOnlyServiceFactory:
         )
 
     def open_status_service(self) -> IndexService:
-        from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
-        from vault_graph.app.index_service import IndexService
         from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+        from vault_graph.indexing.index_service import IndexService
+        from vault_graph.projection_readiness.graph_readiness_service import ReadOnlyGraphReadiness
         from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
         from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -133,10 +156,10 @@ class ReadOnlyServiceFactory:
         )
 
     def open_graph_retrieval_service(self) -> GraphRetrievalService:
-        from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
-        from vault_graph.app.graph_retrieval_service import GraphRetrievalService
         from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+        from vault_graph.graph_retrieval.graph_retrieval_service import GraphRetrievalService
         from vault_graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
+        from vault_graph.projection_readiness.graph_readiness_service import ReadOnlyGraphReadiness
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
         catalog_service, catalog = self._catalog()
@@ -156,9 +179,9 @@ class ReadOnlyServiceFactory:
         )
 
     def open_graph_resource_service(self) -> GraphResourceService:
-        from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
-        from vault_graph.app.graph_resource_service import GraphResourceService
         from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+        from vault_graph.graph_retrieval.graph_resource_service import GraphResourceService
+        from vault_graph.projection_readiness.graph_readiness_service import ReadOnlyGraphReadiness
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
         catalog_service, catalog = self._catalog()
@@ -250,7 +273,7 @@ class ReadOnlyServiceFactory:
         )
 
     def open_health_explorer_service(self) -> HealthExplorerService:
-        from vault_graph.memory.health_explorer import HealthExplorerService
+        from vault_graph.projection_diagnostics.health_explorer import HealthExplorerService
 
         _, catalog = self._catalog()
         return HealthExplorerService(
@@ -259,7 +282,7 @@ class ReadOnlyServiceFactory:
         )
 
     def _open_retrieval_components(self) -> _RetrievalComponents:
-        from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
+        from vault_graph.projection_readiness.search_readiness_service import ReadOnlySearchReadiness
         from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
         from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore

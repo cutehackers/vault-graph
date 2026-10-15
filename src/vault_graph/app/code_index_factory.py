@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from vault_graph.app.catalog_service import CatalogService
 from vault_graph.code_index.code_freshness import CodeFreshnessService
 from vault_graph.code_index.code_generation import CodeProjectionGenerationManager
 from vault_graph.code_index.code_models import CODE_PARSER_SPEC_VERSION
@@ -19,6 +19,8 @@ from vault_graph.code_index.repository_catalog import CodeRepositoryCatalog, Cod
 from vault_graph.code_index.source_scanning import CodeSourceScanner
 from vault_graph.errors import VaultGraphError
 from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
+from vault_graph.vault_adapter.code_projection_storage import open_code_projection_reader, open_code_projection_writer
+from vault_graph.vault_scope.catalog_service import CatalogService
 
 if TYPE_CHECKING:
     from vault_graph.project_context.project_context_service import ProjectContextService
@@ -57,12 +59,16 @@ class CodeIndexFactory:
             parsers={"python": PythonCodeParserAdapter(), "dart": DartCodeParserAdapter()},
             resolver=resolver,
             generation_manager=generation_manager,
+            store_factory=open_code_projection_writer,
+            read_store_factory=partial(open_code_projection_reader, parser_spec_version=scanner.parser_spec_version),
+            failure_store_factory=partial(open_code_projection_writer, parser_spec_version=scanner.parser_spec_version),
         )
         freshness_service = CodeFreshnessService(
             catalog=repository_catalog,
             scanner=scanner,
             generation_manager=generation_manager,
             parser_spec_version=CODE_PARSER_SPEC_VERSION,
+            store_factory=partial(open_code_projection_reader, parser_spec_version=CODE_PARSER_SPEC_VERSION),
         )
         return CodeIndexServices(
             catalog_service=catalog_service,

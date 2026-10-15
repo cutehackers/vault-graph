@@ -15,6 +15,7 @@ from vault_graph.errors import (
 from vault_graph.ingestion.document_authority import DocumentRole
 from vault_graph.ingestion.query_scope_resolution import actual_query_scopes
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog
+from vault_graph.projection_readiness.search_readiness import SearchReadiness, SearchReadinessReport
 from vault_graph.retrieval.candidate_ranking import (
     candidate_from_keyword_hit,
     candidate_from_vector_hit,
@@ -26,7 +27,6 @@ from vault_graph.retrieval.evidence_result_assembly import EvidenceResultAssembl
 from vault_graph.retrieval.graph_candidates import GraphCandidateProvider, GraphCandidateResult
 from vault_graph.retrieval.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.retrieval_result import RetrievalResult
-from vault_graph.retrieval.search_readiness import SearchReadiness, SearchReadinessReport
 from vault_graph.retrieval.search_response import (
     SearchMode,
     SearchOutputFormat,

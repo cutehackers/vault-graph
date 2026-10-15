@@ -1,0 +1,97 @@
+{
+  "environment": {
+    "cold_open_definition": "new read-only store object in one process; OS page cache retained",
+    "graph_document_version": "0.1.0",
+    "graph_search_version": "0.1.0",
+    "machine": "arm64",
+    "memory_method": "separate tracemalloc run per operation; maximum peak reported",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "python": "3.12.11",
+    "timing_clock": "time.perf_counter_ns"
+  },
+  "latency": {
+    "cold_read_only_store_open": {
+      "p50_ms": 1347.673354,
+      "p95_ms": 1379.41819,
+      "sample_count": 20,
+      "samples_ms": [
+        1343.077334,
+        1347.763916,
+        1316.421333,
+        1345.062208,
+        1373.142125,
+        1347.587833,
+        1347.758875,
+        1346.297292,
+        1311.736791,
+        1379.402084,
+        1353.776916,
+        1357.724042,
+        1344.660916,
+        1357.28875,
+        1349.977416,
+        1336.03575,
+        1353.166041,
+        1379.724208,
+        1334.289541,
+        1339.713333
+      ],
+      "warmups": 3
+    },
+    "warm_related_query": {
+      "p50_ms": 119.81225,
+      "p95_ms": 151.04844,
+      "sample_count": 20,
+      "samples_ms": [
+        152.925125,
+        121.64175,
+        123.730209,
+        117.916708,
+        150.949667,
+        124.535584,
+        114.893958,
+        110.447375,
+        130.644208,
+        118.828292,
+        136.784875,
+        118.173458,
+        139.596208,
+        120.796208,
+        118.124292,
+        110.41225,
+        137.102291,
+        112.65575,
+        112.886667,
+        112.429416
+      ],
+      "warmups": 3
+    }
+  },
+  "passed": {
+    "cold_open_p95": true,
+    "python_peak": true,
+    "warm_related_p95": true
+  },
+  "python_allocation_peak_bytes": {
+    "cold_open": 76638391,
+    "maximum": 76638391,
+    "warm_related": 7310037
+  },
+  "read_only_checks": {
+    "data_home_unchanged": true,
+    "vault_unchanged": true
+  },
+  "targets": {
+    "cold_open_p95_ms": 2000.0,
+    "python_peak_mib": 128.0,
+    "warm_related_p95_ms": 200.0
+  },
+  "workload": {
+    "bytes_per_document": 4096,
+    "graph_entities": 1002,
+    "graph_relationships": 2999,
+    "related_target": "Page 0500",
+    "total_source_bytes": 4096000,
+    "vault_document_count": 1000
+  }
+}

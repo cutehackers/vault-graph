@@ -20,7 +20,6 @@ from vault_graph.code_index.code_models import (
 from vault_graph.code_index.repository_catalog import CodeRepositoryCatalog, repository_policy_revision
 from vault_graph.code_index.source_scanning import CodeScanResult, CodeSourceScanner
 from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
-from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
 
 StoreFactory = Callable[[Path, str], CodeProjectionStore]
 
@@ -289,7 +288,11 @@ class CodeFreshnessService:
         if self._store is not None:
             return self._store
         if self._store_factory is None:
-            return SQLiteCodeProjectionStore.open_read_only(database_path, policy_revision=policy_revision)
+            from vault_graph.vault_adapter.code_projection_storage import open_code_projection_reader
+
+            return open_code_projection_reader(
+                database_path, policy_revision, parser_spec_version=self._parser_spec_version
+            )
         return self._store_factory(database_path, policy_revision)
 
 

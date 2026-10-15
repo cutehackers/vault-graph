@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import uuid
 from collections.abc import Callable, Iterable, Mapping
+from functools import partial
 from pathlib import Path
 from typing import Literal
 
@@ -43,7 +44,6 @@ from vault_graph.code_index.reference_resolution import CodeReferenceResolver
 from vault_graph.code_index.repository_catalog import CodeRepositoryCatalog, repository_policy_revision
 from vault_graph.code_index.source_scanning import CodeScanResult, CodeSourceScanner
 from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
-from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
 
 StoreFactory = Callable[[Path, str], CodeProjectionStore]
 
@@ -60,6 +60,8 @@ class CodeProjectionService:
         resolver: CodeReferenceResolver | None = None,
         generation_manager: CodeProjectionGenerationManager,
         store_factory: StoreFactory | None = None,
+        read_store_factory: Callable[[Path, str | None], CodeProjectionStore] | None = None,
+        failure_store_factory: Callable[[Path], CodeProjectionStore] | None = None,
     ) -> None:
         self._entries = _entries_from_catalog(catalog)
         self._scanner = scanner or CodeSourceScanner()
@@ -68,7 +70,22 @@ class CodeProjectionService:
         )
         self._resolver = resolver or CodeReferenceResolver()
         self.generation_manager = generation_manager
-        self._store_factory = store_factory or _sqlite_store
+        if store_factory is None or read_store_factory is None or failure_store_factory is None:
+            from vault_graph.vault_adapter.code_projection_storage import (
+                open_code_projection_reader,
+                open_code_projection_writer,
+            )
+
+            store_factory = store_factory or open_code_projection_writer
+            read_store_factory = read_store_factory or partial(
+                open_code_projection_reader, parser_spec_version=self._scanner.parser_spec_version
+            )
+            failure_store_factory = failure_store_factory or partial(
+                open_code_projection_writer, parser_spec_version=self._scanner.parser_spec_version
+            )
+        self._store_factory = store_factory
+        self._read_store_factory = read_store_factory
+        self._failure_store_factory = failure_store_factory
         self._parsed: dict[str, CodeParseResult] = {}
         self._snapshots: dict[str, CodeFileInput | CodeFileSnapshot] = {}
         self._pending: tuple[PendingCodeReference, ...] = ()
@@ -338,6 +355,7 @@ class CodeProjectionService:
             scanner=self._scanner,
             generation_manager=self.generation_manager,
             parser_spec_version=self._scanner.parser_spec_version,
+            store_factory=self._read_store_factory,
         )
         report = freshness.compare(CodeFreshnessRequest(repository_ids=tuple(entry.repository_id for entry in entries)))
         if self._syncing:
@@ -349,13 +367,10 @@ class CodeProjectionService:
     def _scan(self, entries: tuple[CodeRepositoryEntry, ...]) -> tuple[CodeScanResult, ...]:
         return tuple(self._scanner.scan(entry) for entry in entries)
 
-    def _open_active_store(self, active: CodeGenerationLayout | None) -> SQLiteCodeProjectionStore | None:
+    def _open_active_store(self, active: CodeGenerationLayout | None) -> CodeProjectionStore | None:
         if active is None or not active.database_path.exists():
             return None
-        store = SQLiteCodeProjectionStore.open_read_only(
-            active.database_path,
-            parser_spec_version=self._scanner.parser_spec_version,
-        )
+        store = self._read_store_factory(active.database_path, None)
         health = store.health()
         if not health.schema_compatible:
             raise RuntimeError(f"active code projection is incompatible: {health.message}")
@@ -390,16 +405,10 @@ class CodeProjectionService:
             active = self.generation_manager.active_layout(())
             if active is None or not active.database_path.exists():
                 return
-            reader = SQLiteCodeProjectionStore.open_read_only(
-                active.database_path,
-                parser_spec_version=self._scanner.parser_spec_version,
-            )
+            reader = self._read_store_factory(active.database_path, None)
             if not reader.health().schema_compatible:
                 return
-            writer = SQLiteCodeProjectionStore.open_writable(
-                active.database_path,
-                parser_spec_version=self._scanner.parser_spec_version,
-            )
+            writer = self._failure_store_factory(active.database_path)
             writer.record_freshness(
                 "partial",
                 (f"code projection run failed for {','.join(repository_ids) or 'all repositories'}: {message}",),
@@ -411,7 +420,7 @@ class CodeProjectionService:
 
     def _existing_snapshots(
         self,
-        active_store: SQLiteCodeProjectionStore | None,
+        active_store: CodeProjectionStore | None,
         repository_ids: tuple[str, ...],
     ) -> dict[str, CodeFileInput | CodeFileSnapshot]:
         if active_store is not None:
@@ -519,10 +528,6 @@ def _generation_repository_ids(
 
 def _as_snapshot(value: CodeFileInput | CodeFileSnapshot) -> CodeFileSnapshot:
     return value.snapshot() if isinstance(value, CodeFileInput) else value
-
-
-def _sqlite_store(database_path: Path, policy_revision: str) -> CodeProjectionStore:
-    return SQLiteCodeProjectionStore.open_writable(database_path, policy_revision=policy_revision)
 
 
 def _rebind_parse_result(previous: CodeParseResult, file: CodeFileInput) -> CodeParseResult:

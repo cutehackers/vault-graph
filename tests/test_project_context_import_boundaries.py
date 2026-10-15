@@ -9,3 +9,6 @@ def test_project_context_application_modules_do_not_import_storage_or_mcp() -> N
 
     assert "vault_graph.storage" not in source
     assert "vault_graph.mcp" not in source
+    assert "vault_graph.app" not in source
+    assert "vault_graph.cli" not in source
+    assert "vault_graph.http" not in source

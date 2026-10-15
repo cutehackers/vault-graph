@@ -49,7 +49,7 @@ def test_graph_projection_does_not_import_sqlite_stores() -> None:
 
 
 def test_graph_retrieval_service_uses_interfaces_not_local_sqlite_helpers() -> None:
-    source = Path("src/vault_graph/app/graph_retrieval_service.py").read_text(encoding="utf-8")
+    source = Path("src/vault_graph/graph_retrieval/graph_retrieval_service.py").read_text(encoding="utf-8")
 
     assert "vault_graph.storage.interfaces.graph_store" in source
     assert "vault_graph.storage.interfaces.metadata_store" in source

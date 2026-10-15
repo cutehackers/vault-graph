@@ -2401,3 +2401,39 @@ indexer regression tests.
 - Extended isolated-wheel verification to resolve the Vault root by distribution name and verify all six local artifacts.
 
 **Verification:** Public regression tests in `packages/*/tests`, existing Vault vector/index tests, and `tests/verify_graph_module_wheels.py`. Final commands and results are recorded in the [completion report](design/reports/2026-10-06-vector-modules-completion-ko.md).
+
+## 2026-10-15 - Search Evidence Linking Specification Review
+
+**Trigger:** Independent review of SEL-20261015 found an overstated row bound, ambiguous per-key partial results, and inconsistent failure result fields.
+
+**Scope:** [The new linking specification](design/specs/2026-10-15-search-evidence-linking-ko.md), its intent record and glossary. No runtime code or old module contract was changed.
+
+**Core Values Protected:** Honest work bounds, scope separation, complete/partial result distinction, revision consistency, and current behavior compatibility.
+
+**Changes Applied:** Limited row guarantees to new reverse lookup/minimal validation while disclosing existing readiness/open costs. Added per-key completeness. Defined link/outcome/revision resets for unavailable providers and revision changes. Kept existing warning/hash/ranking policies in their owners.
+
+**Verification:** Independent reviewer rechecked SEL-R1/R2/R3 and found no remaining blocking issue in the corrected design. Document links, Mermaid fences and graph node references are checked separately. This is specification evidence, not implementation or runtime evidence.
+
+## 2026-10-15 - Preserve Scope And Revision Semantics During Modularization
+
+**Trigger:** Independent implementation review found that cross-Vault requests rejected valid local-scope fallback attestations, all-missing evidence results omitted metadata provenance, and malformed relationship endpoint IDs could pass validation. A legacy file-path assertion also inspected the compatibility facade instead of its moved implementation.
+
+**Scope:** Vault-internal evidence linking, its read context, feature import boundaries and their regression tests. No generic package, schema, ranking or original source changes.
+
+**Core Values Protected:** Functional ownership, backward-compatible public behavior, bounded scope, truthful partial results and read-only evidence.
+
+**Changes Applied:** Keep owner update revisions separate from current scope attestations. Capture local fallback revisions without weakening authorized scope checks. Report metadata-used and graph-queried provenance separately, reject malformed provider output with a controlled error, and clear all results if revisions or current evidence change. Move harness marker ownership below MCP. Preserve historical import/module identities and inspect canonical implementations in boundary checks.
+
+**Verification:** Independent reviewer reproduced and rechecked the corrected cases on both actual graph backends. Final integrated suite with official MCP stdio enabled: 1,468 passed. Ruff, formatting and strict mypy passed; isolated wheel installation and local performance evidence are recorded in [the completion report](design/reports/2026-10-15-modularization-completion-ko.md). A separately reproduced pre-existing legacy incremental-indexing defect remains explicitly documented, with active data preserved.
+
+## 2026-10-15 - Reconcile Superseded Legacy Graph Evidence Atomically
+
+**Trigger:** User requested repair of the confirmed legacy SQLite reindexing defect. Six focused regressions reproduced publication failures after replacement/deletion and loss of shared-owner scope behavior. Independent review additionally reproduced a surviving local/cross alias exposing an owner supported only outside the retired scope.
+
+**Scope:** SQLite graph evidence reconciliation and retired owner reads, plus actual CLI/storage regressions. Existing module changes, generic packages, schemas, source content and publication hygiene checks are preserved.
+
+**Core Values Protected:** Current evidence, read-only source ownership, scope isolation, transactional rollback and safe generation publication.
+
+**Changes Applied:** Remove superseded references for changed or historical owners only within selected evidence Vault/path scopes, retaining desired IDs, unknown paths, unmentioned active owners and unrelated contributions. Keep cleanup in the existing transaction. Retire equivalent local/cross memberships together, preserve shared owners supported in other scopes, and retain tombstone metadata while treating retired zero-reference owners as absent. Clean historical zero-reference memberships without weakening active record validation.
+
+**Verification:** Ten new regressions pass, including replacement/deletion through incremental/full CLI indexing twice, source/prior-generation hashes, scope/Vault preservation, local/cross retirement, late SQL failure rollback, unchanged desired evidence and literal path-prefix handling. Independent final review reran all ten and passed. Root MCP-enabled complete suite: 1,478 passed, no skips; Ruff, 424-file formatting, strict mypy on 404 files and diff checks passed. [Current correction evidence](design/reports/2026-10-15-modularization-completion-ko.md#5-발견한-기존-결함과-후속-수정).
