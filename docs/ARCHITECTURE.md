@@ -129,7 +129,7 @@ flowchart TB
         DATA["storage.interfaces · storage.local<br/>메타데이터·그래프·벡터·코드 투영"]
     end
 
-    subgraph PACKAGES["engine · 기존 packages/의 독립 배포 패키지 5개"]
+    subgraph PACKAGES["engine · 기존 packages/의 독립 모듈 5개(현재 vault-graph wheel에 포함해 배포)"]
         TE["text_embeddings<br/>텍스트 → 벡터"]
         VS["vector_search<br/>벡터 저장·검색"]
         VI["vector_index<br/>증분 색인 계획·반영"]
@@ -174,7 +174,7 @@ flowchart TB
 | `nolemy-vector-search` | `vector_search` | `packages/vector-search/src/vector_search/` |
 | `nolemy-vector-index` | `vector_index` | `packages/vector-index/src/vector_index/` |
 
-이 다섯 패키지는 `vault_graph`를 가져오지 않고 Vault ID·역할·경로·세대 정책을 해석하지 않는다. `vector_index`는 임베딩·벡터 계약을 사용하고 `graph_document`는 선택적 `search_bridge`로 그래프 검색과 연결된다. 다섯 패키지 사이의 모든 의존을 금지하는 규칙은 아니다. 배포 이름과 `packages/` 위치는 유지한다.
+이 독립 모듈 5개(현재 `vault-graph` wheel에 포함해 배포)는 `vault_graph`를 가져오지 않고 Vault ID·역할·경로·세대 정책을 해석하지 않는다. `vector_index`는 임베딩·벡터 계약을 사용하고 `graph_document`는 선택적 `search_bridge`로 그래프 검색과 연결된다. 다섯 패키지 사이의 모든 의존을 금지하는 규칙은 아니다. 배포 이름과 `packages/` 위치는 유지한다.
 
 Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베딩 계약은 `storage/interfaces/text_embeddings.py`, Chroma 연결은 `storage/local/vector_store_adapter.py`가 소유한다. 제공자·모델 경로·오프라인 정책의 구체 구성은 `interface/composition/adapters/text_embeddings.py`에서 맡는다.
 

@@ -78,9 +78,11 @@ jobs:
       - name: Verify independently installed module wheels and Vault integration
         run: uv run --python 3.12 python tests/verify_graph_module_wheels.py
       - name: Build distributions
-        run: uv build --all-packages
+        run: uv build
       - name: Check distributions
         run: uv run --python 3.12 --with twine python -m twine check dist/*
+      - name: Verify release distributions
+        run: uv run --python 3.12 python tests/verify_release_dist.py dist
       - name: Write manual release notes
         if: ${{ inputs.release_notes != '' }}
         run: |

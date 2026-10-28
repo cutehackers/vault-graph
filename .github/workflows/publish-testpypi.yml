@@ -30,14 +30,11 @@ jobs:
       - name: Verify independently installed module wheels and Vault integration
         run: uv run --python 3.12 python tests/verify_graph_module_wheels.py
       - name: Build distributions
-        run: uv build --all-packages
+        run: uv build
       - name: Check distributions
         run: uv run --python 3.12 --with twine python -m twine check dist/*
-      - name: Publish independent modules to TestPyPI
-        run: >-
-          uv publish --publish-url https://test.pypi.org/legacy/
-          --check-url https://test.pypi.org/simple/ --trusted-publishing always
-          dist/nolemy_*
+      - name: Verify release distributions
+        run: uv run --python 3.12 python tests/verify_release_dist.py dist
       - name: Publish Vault Graph to TestPyPI
         run: >-
           uv publish --publish-url https://test.pypi.org/legacy/

@@ -679,3 +679,13 @@ source of truth.
 **Reason:** The user explicitly approved the names and physical grouping so that source location follows the accepted ownership map. This extends the earlier limited-move decision without changing functional scope or package contracts.
 
 **Implications:** [ARCHITECTURE.md](ARCHITECTURE.md) is the current source-structure reference. Retain legacy public imports through same-module compatibility facades and preserve leaf package APIs. New dependencies use consumer ports with concrete composition under `interface/composition`; the documented lazy constructor defaults remain limited compatibility exceptions. Preserve source immutability, rebuildable projections, normal read-only queries, explicit setup/configuration writer boundaries, and the five domain-neutral packages' prohibition on importing `vault_graph`. Record fresh relocation checks only after execution and retain earlier verification evidence as historical results.
+
+## 2026-10-28 - Publish Only Vault Graph And Defer Module Distributions
+
+**Question:** After the v0.2.0 PyPI upload failed on the first `nolemy-*` wheel, should the five modules be published as separate PyPI projects?
+
+**Decision:** No. The user approved publishing only `vault-graph`, with the five module import packages bundled in its wheel and their external dependencies declared directly. `nolemy-*` move to the root development dependency group. The fix ships as 0.2.1 after a TestPyPI check. Separate module publishing to PyPI is deferred.
+
+**Reason:** Trusted Publishing cannot create a PyPI project that does not exist yet, and each module would need its own project setup. One distribution restores the install path used through 0.1.4 while CI keeps enforcing module boundaries.
+
+**Implications:** [Spec 2026-10-28-single-package-release](specs/2026-10-28-single-package-release/spec.md) defines the build and verification changes. No module Trusted Publisher is registered. Module `pyproject.toml` files, `nolemy-*` names, and version 0.1.0 stay unchanged so separate publishing can be enabled later. The 2026-10-04 naming decision still applies. The bundled top-level import names may collide with other distributions, and this change does not address that risk.

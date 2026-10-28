@@ -1,20 +1,14 @@
 """Install built wheels outside the workspace and exercise their public contracts."""
 
-import hashlib
-import json
 import subprocess
 import sys
-import threading
 import tomllib
 import zipfile
 from email.parser import Parser
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from urllib.parse import quote, unquote, urlparse
 
 from packaging.requirements import Requirement
-from packaging.utils import canonicalize_name
 
 SEARCH_SMOKE = """
 import importlib.util
@@ -86,6 +80,18 @@ assert lookup.by_edge_id[0][1][0].document_id == 'doc'
 """
 )
 
+VAULT_PACKAGE_SMOKE = """
+import importlib
+import importlib.metadata
+installed = sorted(name for name in (dist.metadata['Name'] for dist in importlib.metadata.distributions())
+                   if name and name.lower().replace('_', '-').startswith('nolemy-'))
+assert not installed, f'nolemy-* distributions must not be installed: {installed}'
+files = {path.as_posix() for path in importlib.metadata.files('vault-graph') or ()}
+for module in ('graph_search', 'graph_document', 'text_embeddings', 'vector_search', 'vector_index'):
+    importlib.import_module(module)
+    assert f'{module}/__init__.py' in files, f'{module}/__init__.py is not owned by vault-graph'
+"""
+
 VAULT_SMOKE = r"""
 import importlib.metadata
 from vault_graph.interface.composition.graph_document_service_factory import (
@@ -155,121 +161,6 @@ def run(arguments: list[str], *, cwd: Path | None = None) -> None:
     result = subprocess.run(arguments, cwd=cwd, capture_output=True, text=True, check=False)
     if result.returncode:
         raise RuntimeError(f"Command failed: {arguments}\n{result.stdout}{result.stderr}")
-
-
-def install_from_local_simple_index(
-    *,
-    executable: Path,
-    wheels: tuple[Path, ...],
-    distributions: tuple[tuple[str, str], ...],
-    cwd: Path,
-) -> None:
-    """Resolve one root requirement with local built wheels ahead of PyPI."""
-    artifacts = {wheel.name: wheel.read_bytes() for wheel in wheels}
-    digests = {name: hashlib.sha256(content).hexdigest() for name, content in artifacts.items()}
-    names = {canonicalize_name(name): wheel.name for (name, _), wheel in zip(distributions, wheels, strict=True)}
-    requested_projects: list[str] = []
-    downloaded: list[tuple[str, str]] = []
-
-    class RepositoryHandler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            self._serve(head=False)
-
-        def do_HEAD(self) -> None:
-            self._serve(head=True)
-
-        def _serve(self, *, head: bool) -> None:
-            path = unquote(urlparse(self.path).path)
-            if path.startswith("/simple/") and path.endswith("/"):
-                project = canonicalize_name(path.removeprefix("/simple/").removesuffix("/"))
-                requested_projects.append(project)
-                filename = names.get(project)
-                if filename is None:
-                    self.send_error(404)
-                    return
-                href = f"/files/{quote(filename)}#sha256={digests[filename]}"
-                body = f'<html><body><a href="{href}">{filename}</a></body></html>'.encode()
-                content_type = "text/html"
-            elif path.startswith("/files/"):
-                filename = path.removeprefix("/files/")
-                if filename not in artifacts:
-                    self.send_error(404)
-                    return
-                body = artifacts[filename]
-                content_type = "application/octet-stream"
-            else:
-                self.send_error(404)
-                return
-            self.send_response(200)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            if not head:
-                self.wfile.write(body)
-                if path.startswith("/files/"):
-                    downloaded.append((filename, hashlib.sha256(body).hexdigest()))
-
-        def log_message(self, _format: str, *args: object) -> None:
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), RepositoryHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        root_name, root_version = next(row for row in distributions if canonicalize_name(row[0]) == "vault-graph")
-        requirement = f"{root_name}=={root_version}"
-        without_index = subprocess.run(
-            ["uv", "pip", "install", "--quiet", "--no-cache", "--no-index", "--python", str(executable), requirement],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert without_index.returncode != 0, "root requirement unexpectedly resolved without an index"
-        local_index = f"http://127.0.0.1:{server.server_port}/simple/"
-        run(
-            [
-                "uv",
-                "pip",
-                "install",
-                "--quiet",
-                "--no-cache",
-                "--index-strategy",
-                "first-index",
-                "--index",
-                local_index,
-                "--default-index",
-                "https://pypi.org/simple",
-                "--python",
-                str(executable),
-                requirement,
-            ],
-            cwd=cwd,
-        )
-        expected = {(wheel.name, digests[wheel.name]) for wheel in wheels}
-        assert expected <= set(downloaded), f"built wheel downloads missing: {expected - set(downloaded)}"
-        assert set(names) <= set(requested_projects), "not every built distribution was resolved from the local index"
-        probe = subprocess.run(
-            [
-                str(executable),
-                "-I",
-                "-c",
-                "import importlib.metadata as m, json, sys; print(json.dumps({name: "
-                "[m.distribution(name).metadata['Name'], m.version(name)] for name in sys.argv[1:]}))",
-                *(name for name, _ in distributions),
-            ],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        installed = json.loads(probe.stdout)
-        assert installed == {name: [name, version] for name, version in distributions}, installed
-        print("Root-only dependency resolution used all six SHA256-verified localhost wheel artifacts.")
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
 
 
 TEXT_SMOKE = """
@@ -343,7 +234,6 @@ def main() -> None:
         temporary = Path(directory)
         wheels = temporary / "dist"
         built: list[Path] = []
-        distributions: list[tuple[str, str]] = []
         for directory_name in (
             "packages/graph-search",
             "packages/graph-document",
@@ -360,7 +250,6 @@ def main() -> None:
                 metadata = Parser().parsestr(archive.read(metadata_path).decode())
                 assert metadata["Name"] == project["name"]
                 assert metadata["Version"] == project["version"]
-                distributions.append((metadata["Name"], metadata["Version"]))
                 declared = metadata.get_all("Requires-Dist", [])
                 requirements = [Requirement(value) for value in declared]
                 for dependency in project.get("dependencies", []):
@@ -406,12 +295,8 @@ def main() -> None:
         environment = temporary / "vault"
         run(["uv", "venv", "--python", sys.executable, str(environment)])
         executable = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
-        install_from_local_simple_index(
-            executable=executable,
-            wheels=tuple(built),
-            distributions=tuple(distributions),
-            cwd=temporary,
-        )
+        run(["uv", "pip", "install", "--quiet", "--python", str(executable), str(vault_wheel)], cwd=temporary)
+        run([str(executable), "-I", "-c", VAULT_PACKAGE_SMOKE], cwd=temporary)
         run([str(executable), "-I", "-c", VAULT_SMOKE], cwd=temporary)
         entrypoint = environment / ("Scripts/vg.exe" if sys.platform == "win32" else "bin/vg")
         help_result = subprocess.run(
