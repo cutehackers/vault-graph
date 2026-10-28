@@ -2827,14 +2827,11 @@ name = "vault-graph"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [
+    { name = "chromadb" },
     { name = "fastapi" },
+    { name = "fastembed" },
     { name = "huggingface-hub" },
     { name = "mcp" },
-    { name = "nolemy-graph-document" },
-    { name = "nolemy-graph-search" },
-    { name = "nolemy-text-embeddings", extra = ["fastembed"] },
-    { name = "nolemy-vector-index" },
-    { name = "nolemy-vector-search", extra = ["chroma"] },
     { name = "pyyaml" },
     { name = "rustworkx" },
     { name = "tree-sitter" },
@@ -2848,6 +2845,11 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
+    { name = "nolemy-graph-document" },
+    { name = "nolemy-graph-search" },
+    { name = "nolemy-text-embeddings" },
+    { name = "nolemy-vector-index" },
+    { name = "nolemy-vector-search" },
     { name = "packaging" },
     { name = "pytest" },
     { name = "ruff" },
@@ -2856,14 +2858,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "chromadb", specifier = ">=1.5.9,<2" },
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "fastembed", specifier = ">=0.8,<1" },
     { name = "huggingface-hub", specifier = ">=0.31,<1.0" },
     { name = "mcp", specifier = ">=1.27,<2" },
-    { name = "nolemy-graph-document", editable = "packages/graph-document" },
-    { name = "nolemy-graph-search", editable = "packages/graph-search" },
-    { name = "nolemy-text-embeddings", extras = ["fastembed"], editable = "packages/text-embeddings" },
-    { name = "nolemy-vector-index", editable = "packages/vector-index" },
-    { name = "nolemy-vector-search", extras = ["chroma"], editable = "packages/vector-search" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "rustworkx", specifier = ">=0.17,<0.18" },
     { name = "tree-sitter", specifier = "==0.25.2" },
@@ -2877,6 +2876,11 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=1.11" },
+    { name = "nolemy-graph-document", editable = "packages/graph-document" },
+    { name = "nolemy-graph-search", editable = "packages/graph-search" },
+    { name = "nolemy-text-embeddings", editable = "packages/text-embeddings" },
+    { name = "nolemy-vector-index", editable = "packages/vector-index" },
+    { name = "nolemy-vector-search", editable = "packages/vector-search" },
     { name = "packaging", specifier = ">=24" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "ruff", specifier = ">=0.6" },

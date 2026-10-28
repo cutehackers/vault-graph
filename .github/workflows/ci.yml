@@ -75,3 +75,5 @@ jobs:
         run: uv build
       - name: Check distributions
         run: uv run --python 3.12 --with twine python -m twine check dist/*
+      - name: Verify release distributions
+        run: uv run --python 3.12 python tests/verify_release_dist.py dist

@@ -40,6 +40,18 @@ distribution. Do not publish release artifacts from a local machine.
 - PyPI and TestPyPI use OIDC Trusted Publishing, not API tokens or GitHub
   secrets.
 
+## Published Package
+
+PyPI and TestPyPI receive only `vault-graph`. Its wheel bundles the five
+repository modules (`graph_search`, `graph_document`, `text_embeddings`,
+`vector_search`, `vector_index`) and declares their external dependencies
+directly, so it does not require any `nolemy-*` distribution.
+
+The `nolemy-*` module wheels are built only for CI checks and are not
+published. Release workflows build with `uv build` (root only) and run
+`tests/verify_release_dist.py dist` before upload. See the 2026-10-28 entry in
+[DECISIONS.md](DECISIONS.md).
+
 ## Required GitHub Settings
 
 Create these environments in the GitHub repository:
@@ -78,6 +90,9 @@ PyPI:
 - environment: `pypi`
 
 If the project does not exist yet, use PyPI's pending publisher flow.
+
+Do not register Trusted Publishers for the `nolemy-*` modules. They are not
+published.
 
 ## Release Verification
 

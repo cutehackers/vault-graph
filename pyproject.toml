@@ -25,11 +25,8 @@ dependencies = [
   "huggingface-hub>=0.31,<1.0",
   "mcp>=1.27,<2",
   "rustworkx>=0.17,<0.18",
-  "nolemy-graph-search==0.1.0",
-  "nolemy-graph-document==0.1.0",
-  "nolemy-text-embeddings[fastembed]==0.1.0",
-  "nolemy-vector-search[chroma]==0.1.0",
-  "nolemy-vector-index==0.1.0",
+  "fastembed>=0.8,<1",
+  "chromadb>=1.5.9,<2",
   "typer>=0.12.5",
   "uvicorn>=0.30,<1",
   "tree-sitter==0.25.2",
@@ -41,6 +38,11 @@ dependencies = [
 [dependency-groups]
 dev = [
   "mypy>=1.11",
+  "nolemy-graph-search",
+  "nolemy-graph-document",
+  "nolemy-text-embeddings",
+  "nolemy-vector-search",
+  "nolemy-vector-index",
   "packaging>=24",
   "pytest>=8.3",
   "ruff>=0.6",
@@ -56,7 +58,14 @@ Repository = "https://github.com/cutehackers/vault-graph"
 Issues = "https://github.com/cutehackers/vault-graph/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vault_graph"]
+packages = [
+  "src/vault_graph",
+  "packages/graph-search/src/graph_search",
+  "packages/graph-document/src/graph_document",
+  "packages/text-embeddings/src/text_embeddings",
+  "packages/vector-search/src/vector_search",
+  "packages/vector-index/src/vector_index",
+]
 
 [tool.uv.workspace]
 members = ["packages/graph-search", "packages/graph-document", "packages/text-embeddings", "packages/vector-search", "packages/vector-index"]
