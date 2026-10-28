@@ -76,8 +76,9 @@ class FastEmbedTextEmbeddings:
         except ImportError as exc:
             raise TextEmbeddingsError("install nolemy-text-embeddings[fastembed] to use FastEmbed") from exc
         assert self._model_path is not None
-        return TextEmbedding(
+        backend: FastEmbedBackend = TextEmbedding(
             model_name=self._model_spec.model_name,
             specific_model_path=str(self._model_path),
             local_files_only=True,
         )
+        return backend
