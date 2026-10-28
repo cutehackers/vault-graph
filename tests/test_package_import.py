@@ -3,7 +3,7 @@ from vault_graph.retrieval import GraphCandidateResult, GraphSearchCandidateProv
 
 
 def test_package_exposes_version() -> None:
-    assert __version__ == "0.1.4"
+    assert __version__ == "0.2.0"
 
 
 def test_retrieval_package_exports_graph_search_candidate_contracts() -> None:
