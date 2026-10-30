@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, Protocol
 
 from vault_graph.errors import UnsupportedGraphScopeWidthError
 from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
@@ -11,9 +12,6 @@ from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
 from vault_graph.indexing.vector_indexer import VectorApplyResult, VectorIndexer, VectorRevisionPlan
-from vault_graph.operation.diagnostics.index_status_reader import IndexStatusReader
-from vault_graph.operation.diagnostics.index_status_reader import StatusReport as StatusReport
-from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
@@ -40,6 +38,12 @@ class IndexRunReport:
         return 1 if getattr(self.vector, "failed", False) or getattr(self.graph, "failed", False) else 0
 
 
+class IndexStatusReading(Protocol):
+    """Status read port. Composition injects the M15 IndexStatusReader (보완3)."""
+
+    def read(self, *, scope: QueryScope | None = None) -> Any: ...
+
+
 class IndexService:
     def __init__(
         self,
@@ -52,10 +56,10 @@ class IndexService:
         embedding_batch_size: int = 256,
         embedding_parallelism: int | None = None,
         embedding_lazy_load: bool = True,
-        graph_readiness: ReadOnlyGraphReadiness | None = None,
         graph_store: GraphStore | None = None,
         graph_extraction_spec: GraphExtractionSpec | None = None,
         graph_status_store: LocalGraphStatusStore | None = None,
+        status_reader: IndexStatusReading | None = None,
     ) -> None:
         self._catalog = catalog
         self._metadata_store = metadata_store
@@ -65,10 +69,10 @@ class IndexService:
         self._embedding_batch_size = embedding_batch_size
         self._embedding_parallelism = embedding_parallelism
         self._embedding_lazy_load = embedding_lazy_load
-        self._graph_readiness = graph_readiness
         self._graph_store = graph_store
         self._graph_extraction_spec = graph_extraction_spec or current_graph_extraction_spec()
         self._graph_status_store = graph_status_store
+        self._status_reader = status_reader
 
     def plan(self, *, scope: QueryScope, full: bool = False) -> MetadataRevisionPlan:
         return MetadataIndexer(catalog=self._catalog, metadata_store=self._metadata_store).plan(scope=scope, full=full)
@@ -117,20 +121,10 @@ class IndexService:
         )
         return IndexRunReport(metadata=metadata_plan, vector=vector_result, graph=graph_result)
 
-    def status(self, *, scope: QueryScope | None = None) -> StatusReport:
-        return IndexStatusReader(
-            catalog=self._catalog,
-            metadata_store=self._metadata_store,
-            vector_store=self._vector_store,
-            text_embeddings=self._text_embeddings,
-            vector_status_store=self._vector_status_store,
-            embedding_batch_size=self._embedding_batch_size,
-            embedding_parallelism=self._embedding_parallelism,
-            embedding_lazy_load=self._embedding_lazy_load,
-            graph_readiness=self._graph_readiness,
-            graph_extraction_spec=self._graph_extraction_spec,
-            graph_status_store=self._graph_status_store,
-        ).read(scope=scope)
+    def status(self, *, scope: QueryScope | None = None) -> Any:
+        if self._status_reader is None:
+            raise RuntimeError("index status reader is not configured")
+        return self._status_reader.read(scope=scope)
 
     def close(self) -> None:
         close = getattr(self._vector_store, "close", None)

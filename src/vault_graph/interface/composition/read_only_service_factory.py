@@ -159,6 +159,7 @@ class ReadOnlyServiceFactory:
 
     def open_status_service(self) -> IndexService:
         from vault_graph.indexing.index_service import IndexService
+        from vault_graph.operation.diagnostics.index_status_reader import IndexStatusReader
         from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
         from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
         from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
@@ -170,22 +171,37 @@ class ReadOnlyServiceFactory:
         metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
         graph_store = open_graph_store(catalog_service, metadata_store=metadata_store)
         text_embeddings = self._search_text_embeddings(catalog_service)
+        vector_store = ChromaVectorStore(catalog_service.vector_path, initialize=False, read_only=True)
+        vector_status_store = LocalVectorStatusStore(catalog_service.vector_status_path)
+        graph_status_store = LocalGraphStatusStore(catalog_service.graph_status_path)
         return IndexService(
             catalog=catalog,
             metadata_store=metadata_store,
-            vector_store=ChromaVectorStore(catalog_service.vector_path, initialize=False, read_only=True),
+            vector_store=vector_store,
             text_embeddings=text_embeddings,
-            vector_status_store=LocalVectorStatusStore(catalog_service.vector_status_path),
+            vector_status_store=vector_status_store,
             embedding_batch_size=text_embeddings.config.embedding_batch_size,
             embedding_parallelism=text_embeddings.config.embedding_parallelism,
             embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
             graph_store=graph_store,
             graph_extraction_spec=current_graph_extraction_spec(),
-            graph_status_store=LocalGraphStatusStore(catalog_service.graph_status_path),
-            graph_readiness=ReadOnlyGraphReadiness(
+            graph_status_store=graph_status_store,
+            status_reader=IndexStatusReader(
+                catalog=catalog,
                 metadata_store=metadata_store,
-                graph_store=graph_store,
-                expected_spec=current_graph_extraction_spec(),
+                vector_store=vector_store,
+                text_embeddings=text_embeddings,
+                vector_status_store=vector_status_store,
+                embedding_batch_size=text_embeddings.config.embedding_batch_size,
+                embedding_parallelism=text_embeddings.config.embedding_parallelism,
+                embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
+                graph_readiness=ReadOnlyGraphReadiness(
+                    metadata_store=metadata_store,
+                    graph_store=graph_store,
+                    expected_spec=current_graph_extraction_spec(),
+                ),
+                graph_extraction_spec=current_graph_extraction_spec(),
+                graph_status_store=graph_status_store,
             ),
         )
 

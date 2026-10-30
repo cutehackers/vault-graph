@@ -5,6 +5,6 @@ import sys
 from vault_graph.indexing import index_service as _implementation
 from vault_graph.indexing.index_service import IndexRunReport as IndexRunReport
 from vault_graph.indexing.index_service import IndexService as IndexService
-from vault_graph.indexing.index_service import StatusReport as StatusReport
+from vault_graph.operation.diagnostics.index_status_reader import StatusReport as StatusReport
 
 sys.modules[__name__] = _implementation

@@ -12,7 +12,6 @@ from tests.test_graph_retrieval_contract import make_metadata_evidence_from_grap
 from tests.test_graph_store_contract import make_entity, make_relationship
 from tests.test_mcp_memory_tools import make_open_questions_projection, make_project_projection
 from tests.test_mcp_tool_serialization import make_search_response
-from vault_graph.app.index_service import StatusReport
 from vault_graph.context import ContextPack, ContextPackRequest, DefaultContextPackRenderer
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.graph.graph_readiness import GraphReadiness
@@ -32,6 +31,7 @@ from vault_graph.mcp.mcp_tools import (
     register_mcp_tools,
 )
 from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.operation.diagnostics.index_status_reader import StatusReport
 from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
 from vault_graph.retrieval.graph_retrieval import (
     DecisionTraceResponse,
