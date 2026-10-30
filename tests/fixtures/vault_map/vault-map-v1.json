@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "vaults": {
+    "personal": {"path": "{base}/vaults/personal", "role": "personal"}
+  },
+  "projects": {
+    "alpha": {"root": "{base}/repos/alpha", "vaults": ["personal"]}
+  }
+}
