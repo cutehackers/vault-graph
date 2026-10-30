@@ -19,6 +19,7 @@ from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.cli.main import app
 from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.interface.composition.read_only_service_factory import VectorIndexerStaleCounter
 from vault_graph.mcp.mcp_resources import McpResourceRequest
 from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
 from vault_graph.retrieval.retrieval_service import RetrievalService
@@ -163,6 +164,7 @@ def test_offline_search_threshold_degrades_without_embedding_or_cache_mutation(
         tombstones=[],
     )
     offline_embeddings = _OfflineTextEmbeddings()
+    readiness_vector_store = InMemoryVectorStore()
     before = file_bytes(tmp_path)
     service = RetrievalService(
         catalog=catalog,
@@ -173,8 +175,13 @@ def test_offline_search_threshold_degrades_without_embedding_or_cache_mutation(
         readiness=ReadOnlySearchReadiness(
             metadata_store=metadata_store,
             keyword_index=InMemoryKeywordIndex((_keyword_hit(document.document_id, chunk.chunk_id),)),
-            vector_store=InMemoryVectorStore(),
+            vector_store=readiness_vector_store,
             text_embeddings=offline_embeddings,
+            vector_stale_counter=VectorIndexerStaleCounter(
+                metadata_store=metadata_store,
+                vector_store=readiness_vector_store,
+                text_embeddings=offline_embeddings,
+            ),
         ),
     )
 
