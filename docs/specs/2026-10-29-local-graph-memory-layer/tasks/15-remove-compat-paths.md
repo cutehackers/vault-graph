@@ -37,3 +37,8 @@ A-20, A-22
 - [ ] 호환 파일 176개가 없다
 - [ ] wheel과 release 검증이 통과한다
 - [ ] `project-bindings.json` 관련 코드와 `vg vault add`가 남아 있다
+
+## 순서 변경 (2026-10-30 사용자 승인)
+
+- 작업13(한국어 조사)은 수동 기준선 측정을 기다리므로, 이 작업을 작업13보다 먼저 한다. blocker 13은 같은 테스트 파일을 동시에 고치지 않기 위한 것이었고 코드 의존은 없다.
+- `tests/test_feature_import_direction.py`의 남은 예외 2건(`context/memory/__init__.py`의 `health_explorer`, `result_explanation` 지연 재노출)도 이 작업에서 없앤다. 목표 상한은 0이다.
