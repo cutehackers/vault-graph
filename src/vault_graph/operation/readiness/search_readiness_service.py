@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from vault_graph.indexing.vector_indexer import VectorIndexer
+from typing import Protocol
+
 from vault_graph.operation.readiness.search_readiness import (
     SearchReadinessReport,
     SearchScopeReadiness,
@@ -14,6 +15,12 @@ from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
 from vault_graph.storage.interfaces.vector_store import VectorStore
 
 
+class VectorStaleCounter(Protocol):
+    """Counts vector records that differ from the metadata chunks of one scope."""
+
+    def stale_count(self, *, scope: QueryScope) -> int | None: ...
+
+
 class ReadOnlySearchReadiness:
     def __init__(
         self,
@@ -22,11 +29,13 @@ class ReadOnlySearchReadiness:
         keyword_index: KeywordIndex,
         vector_store: VectorStore | None = None,
         text_embeddings: TextEmbeddings | None = None,
+        vector_stale_counter: VectorStaleCounter | None = None,
     ) -> None:
         self._metadata_store = metadata_store
         self._keyword_index = keyword_index
         self._vector_store = vector_store
         self._text_embeddings = text_embeddings
+        self._vector_stale_counter = vector_stale_counter
 
     def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
         metadata_health = self._metadata_store.health()
@@ -90,12 +99,9 @@ class ReadOnlySearchReadiness:
             return None
         if not vector_health.ok or not vector_health.schema_compatible:
             return None
-        plan = VectorIndexer(
-            chunk_store=self._metadata_store,
-            vector_store=self._vector_store,
-            text_embeddings=self._text_embeddings,
-        ).plan(scopes=(scope,), full=False)
-        return plan.upsert_count + plan.tombstone_count
+        if self._vector_stale_counter is None:
+            return None
+        return self._vector_stale_counter.stale_count(scope=scope)
 
     def _store_revisions(
         self,

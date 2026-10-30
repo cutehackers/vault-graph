@@ -9,6 +9,7 @@ from tests.test_vector_indexer import SPEC
 from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.indexing.vector_indexer import VectorIndexer
 from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.interface.composition.read_only_service_factory import VectorIndexerStaleCounter
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -46,6 +47,9 @@ def test_search_readiness_reports_vector_freshness(tmp_path: Path) -> None:
         keyword_index=HealthyKeywordIndex(),
         vector_store=vector_store,
         text_embeddings=embeddings,
+        vector_stale_counter=VectorIndexerStaleCounter(
+            metadata_store=metadata_store, vector_store=vector_store, text_embeddings=embeddings
+        ),
     )
 
     report = readiness.check(actual_scopes=(scope,))
@@ -73,6 +77,9 @@ def test_search_readiness_reports_stale_vector_without_status_store(tmp_path: Pa
         keyword_index=HealthyKeywordIndex(),
         vector_store=vector_store,
         text_embeddings=embeddings,
+        vector_stale_counter=VectorIndexerStaleCounter(
+            metadata_store=new_store, vector_store=vector_store, text_embeddings=embeddings
+        ),
     )
 
     report = readiness.check(actual_scopes=(scope,))

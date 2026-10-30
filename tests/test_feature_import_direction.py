@@ -101,8 +101,6 @@ _KNOWN_VIOLATIONS: frozenset[tuple[str, str]] = frozenset(
         # Not in the 발견 table: lazy legacy re-exports of M15 and M13 from the M10 package (vault_graph.memory).
         ("context/memory/__init__.py", "vault_graph.operation.diagnostics.health_explorer"),
         ("context/memory/__init__.py", "vault_graph.retrieval.explanation.result_explanation"),
-        # 발견6 (보완2): M14 builds the M03 VectorIndexer.
-        ("operation/readiness/search_readiness_service.py", "vault_graph.indexing.vector_indexer"),
         # 발견7 (보완4): feature code types or builds concrete storage/local classes.
         ("indexing/index_service.py", "vault_graph.storage.local.graph_status_store"),
         ("indexing/index_service.py", "vault_graph.storage.local.vector_status_store"),
@@ -117,7 +115,7 @@ _KNOWN_VIOLATIONS: frozenset[tuple[str, str]] = frozenset(
         ("operation/scope/catalog_service.py", "vault_graph.indexing.publication.projection_generation"),
     }
 )
-_KNOWN_VIOLATION_CEILING = 12
+_KNOWN_VIOLATION_CEILING = 11
 
 _DYNAMIC_MODULE = re.compile(r"vault_graph(\.\w+)+")
 

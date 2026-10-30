@@ -8,7 +8,7 @@ from vault_graph.errors import VaultGraphError
 from vault_graph.interface.composition.graph_store_factory import open_graph_store
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
-from vault_graph.operation.scope.vault_catalog import VaultCatalog
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 if TYPE_CHECKING:
@@ -33,7 +33,33 @@ if TYPE_CHECKING:
     from vault_graph.retrieval.search.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.search.retrieval_service import RetrievalService
     from vault_graph.storage.interfaces.keyword_index import KeywordIndex
+    from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
     from vault_graph.storage.interfaces.vector_store import VectorStore
+
+
+class VectorIndexerStaleCounter:
+    """Counts stale vector records with the M03 VectorIndexer plan, for M14 search readiness."""
+
+    def __init__(
+        self,
+        *,
+        metadata_store: MetadataStore,
+        vector_store: VectorStore,
+        text_embeddings: TextEmbeddings,
+    ) -> None:
+        self._metadata_store = metadata_store
+        self._vector_store = vector_store
+        self._text_embeddings = text_embeddings
+
+    def stale_count(self, *, scope: QueryScope) -> int | None:
+        from vault_graph.indexing.vector_indexer import VectorIndexer
+
+        plan = VectorIndexer(
+            chunk_store=self._metadata_store,
+            vector_store=self._vector_store,
+            text_embeddings=self._text_embeddings,
+        ).plan(scopes=(scope,), full=False)
+        return plan.upsert_count + plan.tombstone_count
 
 
 @dataclass(frozen=True)
@@ -347,6 +373,11 @@ class ReadOnlyServiceFactory:
             keyword_index=keyword_index,
             vector_store=vector_store,
             text_embeddings=text_embeddings,
+            vector_stale_counter=VectorIndexerStaleCounter(
+                metadata_store=metadata_store,
+                vector_store=vector_store,
+                text_embeddings=text_embeddings,
+            ),
         )
         return _RetrievalComponents(
             catalog_service=catalog_service,
