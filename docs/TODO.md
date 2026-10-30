@@ -8,38 +8,81 @@ plan before changing code.
 ## Operating Rules
 
 - Vault remains the durable source of truth.
-- Vault Graph TODOs must preserve read-only, rebuildable, local-first behavior.
-- Do not add default hosted services, hidden write paths, or Vault mutation.
+- Vault Graph TODOs must preserve rebuildable, local-first behavior. Indexes stay
+  derived data.
+- Vault Graph never creates, edits, renames, or deletes Vault files directly.
+  The only Vault write is `remember` running the Vault tool's publish-draft.
+  Vault Graph never writes to `raw/`.
+- Do not add default hosted services or hidden write paths.
 - Keep future adapters behind existing deep module interfaces when possible.
-- Every accepted TODO needs tests for read-only behavior, multi-vault identity,
-  stale-state handling, and explicit warnings before implementation.
+- Every accepted TODO needs tests proving Vault is unchanged on every path
+  other than `remember`, plus multi-vault identity, stale-state handling, and
+  explicit warnings before implementation.
 
-## Active Roadmap: Software Invariant Engine (SPEC v5.0)
+## Active Roadmap: Local-Graph
 
-See [`docs/SPEC.md`](SPEC.md) for full contracts and acceptance criteria.
+See [`docs/SPEC.md`](SPEC.md) §9 for the summary and
+[spec 2026-10-29-local-graph-memory-layer](specs/2026-10-29-local-graph-memory-layer/spec.md)
+for full contracts and acceptance criteria.
 
-- [ ] **VS-1: Topological Invariant Verification Slice**
-  - Git tree-hash content-addressed cache (`~/.vault-graph/cache/graphs/<CacheKey>.rx`)
-  - Global $O(V+E)$ Tarjan SCC (`rustworkx.strongly_connected_components`) and incremental reachability
-  - Deep Module Index ($DMI$) calculation and 3 special exemptions
-  - Fast Path verification latency budget ($p95 < 50\text{ms}$)
-- [ ] **VS-2: Cross-Worktree Coordination & Virtual Grafting Slice**
-  - Runtime SQLite WAL coordination store (`~/.vault-graph/run/<repo_hash>/coordination.db`)
-  - `BEGIN IMMEDIATE` transactions, exponential backoff with jitter, UUIDv4 `client_request_id` deduplication
-  - Virtual stub projection (`.vault-graph/virtual_stubs/*.pyi`) with 6-line integrity headers
-  - 2-stage virtual pre-merge verification
-- [ ] **VS-3: Executable Conventions & Structural Linter Slice**
-  - Tree-sitter query engine for Python conventions
-  - Dual-tier syntax safety (Level 1 Draft advisory vs. Level 2 Fatal fail-closed)
-- [ ] **VS-4: Deterministic Test Contract & Verification Guard Slice**
-  - Staged delta file hash ($\Delta F$) verification ($h_{\text{pre}} == h_{\text{post}}$)
-  - File-descriptor read-only boundary (`O_RDONLY`)
-  - Code impact analysis and minimal regression test suite generator
-- [ ] **VS-5: Constitutional Discovery & Synthesis Slice**
-  - Greenfield bootstrap and brownfield coupling matrix mining
-- [ ] **VS-6: Gradual Evolutionary Governance & Exemption Ratchet Slice**
-  - `.vault-graph/exemptions.json` irreversible ratchet down enforcement
-  - DMI entropy diagnostics and orderly constitutional amendment
+The former Software Invariant Engine roadmap (VS-1 to VS-6) is archived in
+[`docs/archive/SPEC-v5.0.md`](archive/SPEC-v5.0.md) and will not be implemented.
+
+### First Pass (1차)
+
+- [ ] **1차-0:** Archive SPEC v5.0, write the Local-Graph SPEC, align boundary
+  documents on one write rule
+- [ ] **Prerequisites:** modularization remediation 1 and 5 before 1차-2,
+  remediation 6 before 1차-3, the rest in parallel or after the first pass
+- [ ] **1차-1:** Search parity baseline (measurement 1) before changes
+- [ ] **1차-2:** Read `vault-map.json` version 2 (decision 9)
+- [ ] **1차-3:** Session-start recall `vg hook session-start` (decision 10)
+- [ ] **1차-4:** MCP `remember` through Vault publish-draft (decision 8) and
+  README update
+- [ ] **1차-5:** Korean particle stripping in a separate keyword index column
+- [ ] **1차-6:** Re-run measurement 1 and record the result
+
+### Later Passes (n차)
+
+Promote each item to its own spec before starting.
+
+- [ ] **n차-1:** Exclude superseded claims from default results and recall,
+  weight recent memory (needs 의존4, 의존5)
+- [ ] **n차-2:** Interpret memory frontmatter and add `get_profile` (needs 의존5)
+- [ ] **n차-3:** Code and memory in one query, MCP `explain_symbol`, decide on
+  code chunk indexing (needs first pass)
+- [ ] **n차-4:** Compare embedding model replacement with measurement 1
+- [ ] **n차-5:** Replace polling watch with file change events (`watchfiles`)
+- [ ] **n차-6:** Classify `raw/sessions/<agent>/` by source and search them in
+  evidence mode (needs 의존2)
+- [ ] **n차-7:** Replace `project-bindings.json` and own Vault registration with
+  `vault-map.json` reading (needs 1차-2)
+- [ ] **n차-8:** MCP `recall` tool and question-based recall (needs 1차-3)
+- [ ] **n차-9:** Re-measure measurement 1 condition B with real collector
+  output (needs 의존2)
+- [ ] **n차-10:** Read-only `vg memory review` over usage records (needs 1차-3
+  and two weeks of usage records)
+- [ ] **n차-11:** UserPromptSubmit recall from the first prompt (needs
+  measurement 1 and an extended 의존1)
+- [ ] **n차-12:** Count `m:` ID mentions in `raw/sessions/` to improve usage
+  counts (needs 의존2)
+
+### Vault And vault-builder Dependencies (Not Implemented In Vault Graph)
+
+Vault Graph does not build these. The owner implements them.
+
+| Code | Dependency | Owner | Status |
+|---|---|---|---|
+| 의존1 | SessionStart hook branches to `vg hook session-start`, falls back to `recall.sh` on a non-zero exit | vault-builder (user-scope hook) | Not implemented |
+| 의존2 | Session collector and `raw/sessions/` (decision 5) | Vault tools, vault-builder template | Not implemented |
+| 의존3 | Vault `AGENTS.md` rule 1 exception: collector may only add new files under `raw/sessions/` (decision 11) | Vault, vault-builder | Not implemented, sent as request 1 |
+| 의존4 | Cleanup skill and automatic memory confirmation rule (decision 6) | Vault tools | Not implemented |
+| 의존5 | Memory frontmatter schema `vault-memory/v1` with `pin` and `memory_kind` | vault-builder, shipped in Vault tools | Not implemented |
+| 의존6 | Version marker for publish-draft command and draft format | Vault tools | Command exists, version marker not implemented |
+| 의존7 | Keep `vault-map.json` version 2 format | vault-builder | Implemented |
+
+vault-builder request document: vault-builder repository
+`docs/superpowers/specs/2026-10-29-vault-graph-requests-ko.md` (not committed yet).
 
 ## Deferred Product Candidates
 

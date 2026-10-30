@@ -689,3 +689,73 @@ source of truth.
 **Reason:** Trusted Publishing cannot create a PyPI project that does not exist yet, and each module would need its own project setup. One distribution restores the install path used through 0.1.4 while CI keeps enforcing module boundaries.
 
 **Implications:** [Spec 2026-10-28-single-package-release](specs/2026-10-28-single-package-release/spec.md) defines the build and verification changes. No module Trusted Publisher is registered. Module `pyproject.toml` files, `nolemy-*` names, and version 0.1.0 stay unchanged so separate publishing can be enabled later. The 2026-10-04 naming decision still applies. The bundled top-level import names may collide with other distributions, and this change does not address that risk.
+
+## 2026-10-30 - Archive SPEC v5.0 And Make Local-Graph The Active Contract
+
+**Question:** Which product contract is active: the Software Invariant Engine (SPEC v5.0) or a local search and recall layer over Vault (design page decision 4)?
+
+**Decision:** Option 1. Move SPEC v5.0 to `docs/archive/SPEC-v5.0.md` unchanged and make the Local-Graph [`docs/SPEC.md`](SPEC.md) the only active contract. The user chose this option and approved the spec on 2026-10-30.
+
+**Reason:** The code and README already describe a search layer. None of VS-1 to VS-6 was implemented, and v5.0 goal 4 ("remove the contact point between documents and code") conflicts with value 3 (code and decision records queried together).
+
+**Implications:** [Spec 2026-10-29-local-graph-memory-layer](specs/2026-10-29-local-graph-memory-layer/spec.md) defines the first pass, later passes, and Vault-side dependencies. The context pack JSON contract and the five independent module contracts move into the new SPEC unchanged. Older documents that link `docs/SPEC.md` sections are not edited; readers use the archived copies.
+
+## 2026-10-30 - Adopt Automatic Memory Confirmation As A Vault-Owned Policy
+
+**Question:** How should automatically extracted memory become confirmed knowledge (design page decision 6)?
+
+**Decision:** Adopt the recommendation. Episodes and facts the user stated directly (stated) are confirmed when they pass validation. Facts an LLM inferred (inferred) go through the review queue. This is a policy that Vault owns and executes through its cleanup skill (dependency 4), not a Vault Graph feature. The user chose this in spec question 8.
+
+**Reason:** Confirming everything automatically is fast but accumulates wrong facts. The review queue keeps inferred facts out of recall until a person approves them.
+
+**Implications:** Vault Graph does not index `scratch/review/`, and the first-pass `remember` handles stated content only. vault-builder request 7 is updated to this decided policy. Implementation stays with Vault tools.
+
+## 2026-10-30 - Vault Graph Does Not Call An LLM
+
+**Question:** Should Vault Graph call an LLM to compose answers, summaries, or extracted facts (design page decision 7)?
+
+**Decision:** No. Vault Graph returns evidence and sources only, and the calling agent does the reasoning. The user confirmed this in spec question 7.
+
+**Reason:** The Local principle means no hosted service, API key, or cost, and results stay reproducible.
+
+**Implications:** `remember` builds its draft only from the fields the agent passes. No LLM client import or dependency is added to `src` or `pyproject.toml`. The "LLM-Backed Answer Composer" TODO candidate stays deferred.
+
+## 2026-10-30 - Write To Vault Only Through Remember And Publish-Draft
+
+**Question:** Should Vault Graph offer a write path to Vault, and if so how (design page decision 8)?
+
+**Decision:** Add an MCP tool `remember` that runs the Vault tool's publish-draft. Vault Graph never creates, edits, renames, or deletes Vault files directly and never writes to `raw/`. The boundary rule changes from "read-only" to "the only Vault write is `remember` running publish-draft". The user adopted this and also redefined VG-MOD INV-01, INV-02, and INV-04 (spec questions 3, 4, 9).
+
+**Reason:** Agents need to know one MCP server, and every write passes the same validation as the llm-wiki MCP. One reviewer recommended removing `remember`; the user did not accept that.
+
+**Implications:** `AGENTS.md`, `docs/TODO.md`, `docs/ARCHITECTURE.md` §4, and VG-MOD INV-01/02/04 state the same rule. The draft is built in a temporary directory outside Vault and Graph Home and deleted afterwards. The target Vault is chosen only from an explicit argument or a single linked Vault. A failed publish-draft is reported, not retried or redirected. Other MCP tools, query, index, and watch never run publish-draft.
+
+## 2026-10-30 - Read Project And Vault Links Only From vault-map.json
+
+**Question:** Where should the link between a project and its Vaults be owned (design page decision 9)?
+
+**Decision:** `vault-map.json`, which vault-builder installs in the user scope and edits through install, link, and unlink, is the single source. Vault Graph only reads it. The user adopted this.
+
+**Reason:** Vault Graph's own `project-bindings.json` and Vault registration duplicate the same information.
+
+**Implications:** The first pass reads `vault-map.json` version 2 and falls back to `project-bindings.json` only when the project is missing. Removing `project-bindings.json` and own registration is later pass n차-7. Project lookup follows the llm-wiki router rule, which the router owns.
+
+## 2026-10-30 - Prefer Vault Graph Recall At Session Start With recall.sh Fallback
+
+**Question:** How should Vault Graph recall relate to vault-builder's `recall.sh` (design page decision 10)?
+
+**Decision:** The SessionStart hook uses Vault Graph recall when Vault Graph is installed and `recall.sh` otherwise. Vault Graph adds `vg hook session-start`. Exit code 0 means handled (output may be empty) and 3 means recall is not possible. The user adopted this.
+
+**Reason:** Session start is where an agent first notices memory, and Vault must keep working without Vault Graph.
+
+**Implications:** The hook branch itself is dependency 1, owned by vault-builder and not implemented yet. Recall does not run keyword or vector search, and appends usage records only under Graph Home `usage/`.
+
+## 2026-10-30 - Allow Session Files In raw/sessions As A Vault-Owned Rule Exception
+
+**Question:** May a session collector add files under Vault `raw/` despite Vault `AGENTS.md` rule 1 (design page decision 11)?
+
+**Decision:** Yes, as an exception owned by Vault and vault-builder: the collector may only add new files under `raw/sessions/`. Editing or deleting existing files stays forbidden. The user adopted this. Vault Graph has no work for this decision.
+
+**Reason:** The collector cannot go through publish-draft because publish-draft cannot write outside `wiki/`.
+
+**Implications:** The rule change is sent to vault-builder as request 1 and tracked as dependency 3 (not implemented). This exception does not apply to Vault Graph, which never writes to `raw/`.

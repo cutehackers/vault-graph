@@ -2,9 +2,12 @@
 
 ## Project Boundary
 
-Vault Graph is a read-only, rebuildable access layer over Vault. Do not make
-Vault Graph a durable knowledge source, and do not add behavior that edits,
-renames, rewrites, or deletes Vault content.
+Vault Graph is a local search and recall layer over Vault. Its indexes are
+rebuildable derived data, not a durable knowledge source. Vault Graph never
+creates, edits, renames, rewrites, or deletes Vault files directly. The only
+path that writes to Vault is `remember`, which runs the Vault tool's
+publish-draft so the write passes Vault's own validation. Vault Graph never
+writes to `raw/`.
 
 ## Source Documents
 
