@@ -271,7 +271,10 @@ def test_calls_for_the_same_vault_run_one_at_a_time(tmp_path: Path) -> None:
     service = make_service(tmp_path, publisher, vaults=(main,))
     other_service = make_service(tmp_path, publisher, vaults=(main,))
     threads = [
-        threading.Thread(target=(service if index % 2 else other_service).remember, args=(make_request(),))
+        threading.Thread(
+            target=(service if index % 2 else other_service).remember,
+            args=(make_request(title=f"Decision {index}"),),
+        )
         for index in range(4)
     ]
 
@@ -282,6 +285,37 @@ def test_calls_for_the_same_vault_run_one_at_a_time(tmp_path: Path) -> None:
 
     assert len(publisher.calls) == 4
     assert publisher.max_active == 1
+
+
+class PageWritingPublisher(RecordingPublisher):
+    """Stands in for publish-draft by creating the target page, as a successful run does."""
+
+    def publish_draft(self, vault_root: Path, draft_path: Path, *, timeout_s: float) -> PublishOutcome:
+        outcome = super().publish_draft(vault_root, draft_path, timeout_s=timeout_s)
+        target = vault_root / str(self.drafts[-1]["path"])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("# page\n", encoding="utf-8")
+        return outcome
+
+
+def test_concurrent_calls_for_the_same_page_publish_once(tmp_path: Path) -> None:
+    main = make_vault(tmp_path, "main")
+    publisher = PageWritingPublisher(delay_s=0.05)
+    service = make_service(tmp_path, publisher, vaults=(main,))
+    other_service = make_service(tmp_path, publisher, vaults=(main,))
+    results: list[str] = []
+
+    def call(target_service: object) -> None:
+        results.append(target_service.remember(make_request()).status)  # type: ignore[attr-defined]
+
+    threads = [threading.Thread(target=call, args=(service if index % 2 else other_service,)) for index in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(publisher.calls) == 1
+    assert sorted(results) == ["published", "rejected", "rejected", "rejected"]
 
 
 def test_remember_creates_no_file_under_the_vault_root(tmp_path: Path) -> None:
