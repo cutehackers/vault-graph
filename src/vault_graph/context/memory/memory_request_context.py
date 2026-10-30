@@ -3,20 +3,18 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
 from vault_graph.context.memory.memory_source_reader import MemorySourceReader
+from vault_graph.context.memory.memory_status_view import MemoryStatusView
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 
-if TYPE_CHECKING:
-    from vault_graph.operation.diagnostics.index_status_reader import StatusReport
-
 
 class MemoryStatusService(Protocol):
-    def status(self, *, scope: QueryScope | None = None) -> StatusReport: ...
+    def status(self, *, scope: QueryScope | None = None) -> MemoryStatusView: ...
 
 
 @dataclass(frozen=True)
@@ -30,7 +28,7 @@ class MemoryVaultDocuments:
 class MemoryRequestContext:
     requested_scope: QueryScope
     actual_scopes: tuple[QueryScope, ...]
-    status_report: StatusReport
+    status_report: MemoryStatusView
     documents_by_vault: tuple[MemoryVaultDocuments, ...]
     generated_at: str
 

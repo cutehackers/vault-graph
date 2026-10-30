@@ -98,9 +98,6 @@ _ALLOWED: dict[str, frozenset[str]] = {
 # Do not add entries. A new violation must be fixed or recorded as a VG-MOD rule exception (결정2).
 _KNOWN_VIOLATIONS: frozenset[tuple[str, str]] = frozenset(
     {
-        # 발견5 (보완6): M10 -> M15 StatusReport, TYPE_CHECKING only.
-        ("context/memory/memory_request_context.py", "vault_graph.operation.diagnostics.index_status_reader"),
-        ("context/memory/timeline_memory.py", "vault_graph.operation.diagnostics.index_status_reader"),
         # Not in the 발견 table: lazy legacy re-exports of M15 and M13 from the M10 package (vault_graph.memory).
         ("context/memory/__init__.py", "vault_graph.operation.diagnostics.health_explorer"),
         ("context/memory/__init__.py", "vault_graph.retrieval.explanation.result_explanation"),
@@ -123,7 +120,7 @@ _KNOWN_VIOLATIONS: frozenset[tuple[str, str]] = frozenset(
         ("operation/scope/catalog_service.py", "vault_graph.indexing.publication.projection_generation"),
     }
 )
-_KNOWN_VIOLATION_CEILING = 16
+_KNOWN_VIOLATION_CEILING = 14
 
 _DYNAMIC_MODULE = re.compile(r"vault_graph(\.\w+)+")
 

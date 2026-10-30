@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Literal
 
 from vault_graph.context.memory.memory_models import MemoryWarning, MemoryWarningSeverity
 from vault_graph.context.memory.memory_request_context import MemoryStatusService
+from vault_graph.context.memory.memory_status_view import MemoryStatusView
 from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 
@@ -121,7 +122,7 @@ class HealthExplorerService:
 
 def _backend_records(
     *,
-    report: StatusReport,
+    report: MemoryStatusView,
     vault_id: str | None,
     scope_key: str,
     affected_vault_ids: tuple[str, ...],

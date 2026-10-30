@@ -5,18 +5,16 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from vault_graph.context.memory.memory_models import MemoryBackendRevision, MemoryWarning, MemoryWarningSeverity
 from vault_graph.context.memory.memory_request_context import MemoryStatusService
+from vault_graph.context.memory.memory_status_view import MemoryStatusView
 from vault_graph.errors import MemoryProjectionError, MetadataStoreError
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
-
-if TYPE_CHECKING:
-    from vault_graph.operation.diagnostics.index_status_reader import StatusReport
 
 TimelineOrigin = Literal["document_snapshot_change", "index_change", "projection_change", "warning"]
 TimelineSourceKind = Literal["document", "metadata_status", "vector_status", "graph_status"]
@@ -201,7 +199,7 @@ class TimelineMemoryService:
         self,
         *,
         actual_scope: QueryScope,
-        report: StatusReport,
+        report: MemoryStatusView,
         documents: tuple[DocumentSnapshot, ...],
         since: str | None,
         limit: int,
@@ -359,7 +357,7 @@ def _metadata_status_item(*, vault_id: str, scope_key: str) -> TimelineItem:
     )
 
 
-def _vector_items(*, report: StatusReport, vault_id: str) -> tuple[TimelineItem, ...]:
+def _vector_items(*, report: MemoryStatusView, vault_id: str) -> tuple[TimelineItem, ...]:
     if (
         report.vector_backend == "none"
         and report.vector_ok
@@ -431,7 +429,7 @@ def _vector_items(*, report: StatusReport, vault_id: str) -> tuple[TimelineItem,
     )
 
 
-def _graph_items(*, report: StatusReport, vault_id: str) -> tuple[TimelineItem, ...]:
+def _graph_items(*, report: MemoryStatusView, vault_id: str) -> tuple[TimelineItem, ...]:
     graph = report.graph_readiness
     warnings: list[MemoryWarning] = []
     if not graph.backend_available:
@@ -587,7 +585,7 @@ def _vault_revisions(items: tuple[TimelineItem, ...]) -> tuple[MemoryBackendRevi
     return tuple(revisions)
 
 
-def _freshness_for_report(report: StatusReport) -> TimelineFreshness:
+def _freshness_for_report(report: MemoryStatusView) -> TimelineFreshness:
     if not report.metadata_ok or not report.metadata_schema_compatible:
         return "unavailable"
     graph = report.graph_readiness
