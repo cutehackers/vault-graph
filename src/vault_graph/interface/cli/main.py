@@ -48,14 +48,16 @@ from vault_graph.retrieval.graph.graph_contracts import (
     current_graph_extraction_spec,
 )
 from vault_graph.retrieval.graph.graph_identity import graph_scope_key
-from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
-from vault_graph.retrieval.search import (
+from vault_graph.retrieval.graph.graph_retrieval import (
     DecisionTraceResponse,
     GraphOutputFormat,
     GraphRetrievalRevision,
     GraphRetrievalWarning,
-    GraphSearchCandidateProvider,
     RelatedResponse,
+)
+from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
+from vault_graph.retrieval.search import (
+    GraphSearchCandidateProvider,
     RetrievalResult,
     RetrievalService,
     RetrievalSignal,

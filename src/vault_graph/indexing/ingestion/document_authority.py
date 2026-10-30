@@ -5,30 +5,13 @@ import re
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
+
+from vault_graph.indexing.ingestion.document_snapshots import ALL_DOCUMENT_ROLES as ALL_DOCUMENT_ROLES
+from vault_graph.indexing.ingestion.document_snapshots import DocumentRole as DocumentRole
 
 if TYPE_CHECKING:
-    from vault_graph.indexing.ingestion.document_normalizer import NormalizedDocument
-
-DocumentRole = Literal[
-    "raw_evidence",
-    "canonical_knowledge",
-    "source_manifest",
-    "operating_contract",
-    "generated_view",
-    "operation_log",
-    "audit_record",
-]
-
-ALL_DOCUMENT_ROLES: tuple[DocumentRole, ...] = (
-    "raw_evidence",
-    "canonical_knowledge",
-    "source_manifest",
-    "operating_contract",
-    "generated_view",
-    "operation_log",
-    "audit_record",
-)
+    from vault_graph.indexing.ingestion.document_snapshots import NormalizedDocument
 
 _PROVENANCE_FIELDS = ("canonical_source", "derived_from", "supersedes", "redirects")
 _WIKI_RELATIVE_PREFIXES = (

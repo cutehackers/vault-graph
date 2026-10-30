@@ -109,13 +109,9 @@ _KNOWN_VIOLATIONS: frozenset[tuple[str, str]] = frozenset(
         ("operation/diagnostics/projection_hygiene_service.py", "vault_graph.storage.local.chroma_vector_store"),
         ("operation/diagnostics/projection_hygiene_service.py", "vault_graph.storage.local.document_graph_store"),
         ("operation/diagnostics/projection_hygiene_service.py", "vault_graph.storage.local.sqlite_metadata_store"),
-        # 발견8-b (보완7): the M05 package re-exports M06.
-        ("retrieval/search/__init__.py", "vault_graph.retrieval.graph.graph_retrieval"),
-        # 발견8-c (보완7): M01 builds the M04 ProjectionGenerationManager.
-        ("operation/scope/catalog_service.py", "vault_graph.indexing.publication.projection_generation"),
     }
 )
-_KNOWN_VIOLATION_CEILING = 11
+_KNOWN_VIOLATION_CEILING = 9
 
 _DYNAMIC_MODULE = re.compile(r"vault_graph(\.\w+)+")
 

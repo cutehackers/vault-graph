@@ -11,7 +11,7 @@ from urllib.parse import quote, unquote, urlsplit
 from vault_graph.context.pack.context_pack import ContextEvidence, ContextPack, ContextPackSignal, ContextPackWarning
 from vault_graph.context.pack.context_pack_serialization import context_pack_to_dict
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload
-from vault_graph.interface.mcp.mcp_tools import McpResourceLink
+from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink
 from vault_graph.interface.mcp.mcp_uri import encode_resource_segment
 from vault_graph.operation.diagnostics.index_status_reader import StatusReport
 from vault_graph.operation.scope.vault_catalog import QueryScope

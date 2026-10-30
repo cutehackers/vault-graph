@@ -9,7 +9,7 @@ from vault_graph.context.answer.answer_response import (
     AnswerWarning,
 )
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload
-from vault_graph.interface.mcp.mcp_tools import McpResourceLink
+from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink
 from vault_graph.interface.mcp.mcp_uri import encode_resource_segment
 from vault_graph.retrieval.explanation.result_explanation import (
     ExplanationEvidenceRef,

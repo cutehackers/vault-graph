@@ -3,17 +3,6 @@ from vault_graph.operation.readiness.search_readiness import (
     SearchReadinessReport,
     SearchScopeReadiness,
 )
-from vault_graph.retrieval.graph.graph_retrieval import (
-    DecisionTraceResponse,
-    DecisionTraceStep,
-    GraphOutputFormat,
-    GraphRetrievalRevision,
-    GraphRetrievalWarning,
-    GraphWarningSeverity,
-    RelatedItem,
-    RelatedRequest,
-    RelatedResponse,
-)
 from vault_graph.retrieval.search.context_expansion import CONTEXT_POLICY_VERSION, ContextExpander, ContextExpansion
 from vault_graph.retrieval.search.graph_candidates import (
     GraphCandidateProvider,
@@ -46,19 +35,10 @@ __all__ = [
     "CONTEXT_POLICY_VERSION",
     "ContextExpansion",
     "ContextExpander",
-    "DecisionTraceResponse",
-    "DecisionTraceStep",
     "GraphCandidateProvider",
     "GraphCandidateResult",
     "GraphSearchCandidateProvider",
-    "GraphOutputFormat",
-    "GraphRetrievalRevision",
-    "GraphRetrievalWarning",
-    "GraphWarningSeverity",
     "RelationshipStatus",
-    "RelatedItem",
-    "RelatedRequest",
-    "RelatedResponse",
     "RetrievalCandidate",
     "RetrievalResult",
     "RetrievalSeverity",

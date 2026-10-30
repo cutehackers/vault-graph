@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
 from vault_graph.context.memory.memory_models import (
     MemoryBackendRevision,
@@ -19,6 +19,7 @@ from vault_graph.context.memory.timeline_memory import (
     TimelineVault,
 )
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload
+from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink
 from vault_graph.interface.mcp.mcp_uri import encode_resource_segment
 from vault_graph.operation.diagnostics.health_explorer import (
     BackendReadinessRecord,
@@ -28,9 +29,6 @@ from vault_graph.operation.diagnostics.health_explorer import (
     ScaleUpAdapterReadiness,
 )
 from vault_graph.operation.scope.vault_catalog import QueryScope
-
-if TYPE_CHECKING:
-    from vault_graph.interface.mcp.mcp_tools import McpResourceLink
 
 
 def project_memory_projection_to_payload(projection: ProjectMemoryProjection) -> dict[str, object]:
@@ -90,8 +88,6 @@ def memory_warning_to_mcp_error(warning: MemoryWarning) -> McpErrorPayload:
 def resource_links_for_memory_projection(
     projection: ProjectMemoryProjection | OpenQuestionsProjection,
 ) -> tuple[McpResourceLink, ...]:
-    from vault_graph.interface.mcp.mcp_tools import McpResourceLink
-
     links: list[McpResourceLink] = []
     for item in _items_for_projection(projection):
         evidence = item.evidence[0]
@@ -155,8 +151,6 @@ def resource_links_for_memory_projection(
 
 
 def resource_links_for_recent_changes(projection: RecentChangesProjection) -> tuple[McpResourceLink, ...]:
-    from vault_graph.interface.mcp.mcp_tools import McpResourceLink
-
     links: list[McpResourceLink] = []
     for vault in projection.vaults:
         for item in vault.items:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload
-from vault_graph.interface.mcp.mcp_resources import McpResourceBody
+from vault_graph.interface.mcp.mcp_resource_models import McpResourceBody
 from vault_graph.interface.mcp.mcp_uri import McpResourceUri
 from vault_graph.retrieval.graph.graph_contracts import EntityRecord, GraphEvidenceRef, RelationshipRecord
 from vault_graph.retrieval.graph.graph_resource_service import (

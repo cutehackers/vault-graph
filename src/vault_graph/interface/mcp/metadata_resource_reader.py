@@ -6,7 +6,7 @@ from typing import NoReturn
 
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError
-from vault_graph.interface.mcp.mcp_resources import McpResourceBody
+from vault_graph.interface.mcp.mcp_resource_models import McpResourceBody
 from vault_graph.interface.mcp.mcp_uri import McpResourceUri
 from vault_graph.operation.scope.vault_catalog import VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
