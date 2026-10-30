@@ -12,7 +12,7 @@ from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 
 if TYPE_CHECKING:
-    from vault_graph.operation.diagnostics.index_status_reader import StatusReport
+    from vault_graph.indexing.index_service import IndexStatusReport
 
 ReadinessStatus = Literal["ready", "degraded", "unavailable", "not_configured"]
 HealthBackendKind = Literal["metadata", "keyword", "vector", "graph", "mcp_runtime_cache"]
@@ -85,7 +85,7 @@ class HealthExplorerService:
         *,
         requested_scope: QueryScope,
         runtime_caches: tuple[McpRuntimeCacheRecord, ...] = (),
-        status_report: StatusReport | None = None,
+        status_report: IndexStatusReport | None = None,
     ) -> HealthExplorerReport:
         actual_scopes = actual_query_scopes(catalog=self._catalog, scope=requested_scope)
         reports = (

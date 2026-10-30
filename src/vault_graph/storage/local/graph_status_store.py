@@ -1,23 +1,15 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from vault_graph.operation.scope.vault_catalog import QueryScope
-from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec
-
-
-@dataclass(frozen=True)
-class GraphRunStatus:
-    scope_key: str
-    graph_spec_key: str
-    last_success_revision: str | None = None
-    last_success_at: str | None = None
-    last_error: str | None = None
-    last_error_at: str | None = None
+# The run status type and key functions live on the port. Re-exported for existing imports.
+from vault_graph.storage.interfaces.graph_status_store import GraphRunStatus as GraphRunStatus
+from vault_graph.storage.interfaces.graph_status_store import graph_scope_status_key as graph_scope_status_key
+from vault_graph.storage.interfaces.graph_status_store import graph_spec_key as graph_spec_key
 
 
 class LocalGraphStatusStore:
@@ -80,15 +72,6 @@ class LocalGraphStatusStore:
             runs[_run_key(scope_key=status.scope_key, graph_spec_key=status.graph_spec_key)] = asdict(status)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(json.dumps(loaded, sort_keys=True, indent=2), encoding="utf-8")
-
-
-def graph_spec_key(spec: GraphExtractionSpec) -> str:
-    return f"{spec.spec_version}|{spec.spec_digest}"
-
-
-def graph_scope_status_key(scope: QueryScope) -> str:
-    cross_vault = "cross" if scope.include_cross_vault else "local"
-    return f"{','.join(scope.vault_ids)}:{','.join(scope.content_scopes)}:{cross_vault}"
 
 
 def _run_key(*, scope_key: str, graph_spec_key: str) -> str:

@@ -1,23 +1,15 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from vault_graph.operation.scope.vault_catalog import QueryScope
-from vault_graph.storage.interfaces.text_embeddings import EmbeddingModelSpec
-
-
-@dataclass(frozen=True)
-class VectorRunStatus:
-    scope_key: str
-    embedding_spec_key: str
-    last_success_revision: str | None = None
-    last_success_at: str | None = None
-    last_error: str | None = None
-    last_error_at: str | None = None
+# The run status type and key functions live on the port. Re-exported for existing imports.
+from vault_graph.storage.interfaces.vector_status_store import VectorRunStatus as VectorRunStatus
+from vault_graph.storage.interfaces.vector_status_store import embedding_spec_key as embedding_spec_key
+from vault_graph.storage.interfaces.vector_status_store import scope_key_for_status as scope_key_for_status
 
 
 class LocalVectorStatusStore:
@@ -80,14 +72,6 @@ class LocalVectorStatusStore:
             runs[_run_key(scope_key=status.scope_key, embedding_spec_key=status.embedding_spec_key)] = asdict(status)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(json.dumps(loaded, sort_keys=True, indent=2), encoding="utf-8")
-
-
-def embedding_spec_key(spec: EmbeddingModelSpec) -> str:
-    return "|".join((spec.model_name, spec.model_version, str(spec.dimensions), spec.spec_version))
-
-
-def scope_key_for_status(scope: QueryScope) -> str:
-    return f"{','.join(scope.vault_ids)}:{','.join(scope.content_scopes)}"
 
 
 def _run_key(*, scope_key: str, embedding_spec_key: str) -> str:

@@ -9,20 +9,20 @@ from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
 from vault_graph.retrieval.graph.graph_identity import graph_scope_key
 from vault_graph.retrieval.graph.graph_readiness import GraphReadiness, GraphScopeReadiness
-from vault_graph.storage.interfaces.metadata_store import MetadataStore
-from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
-from vault_graph.storage.interfaces.vector_store import VectorStore
-from vault_graph.storage.local.graph_status_store import (
+from vault_graph.storage.interfaces.graph_status_store import (
     GraphRunStatus,
-    LocalGraphStatusStore,
+    GraphStatusStore,
     graph_scope_status_key,
     graph_spec_key,
 )
-from vault_graph.storage.local.vector_status_store import (
-    LocalVectorStatusStore,
+from vault_graph.storage.interfaces.metadata_store import MetadataStore
+from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
+from vault_graph.storage.interfaces.vector_status_store import (
+    VectorStatusStore,
     embedding_spec_key,
     scope_key_for_status,
 )
+from vault_graph.storage.interfaces.vector_store import VectorStore
 
 
 @dataclass(frozen=True)
@@ -65,13 +65,13 @@ class IndexStatusReader:
         metadata_store: MetadataStore,
         vector_store: VectorStore | None = None,
         text_embeddings: TextEmbeddings | None = None,
-        vector_status_store: LocalVectorStatusStore | None = None,
+        vector_status_store: VectorStatusStore | None = None,
         embedding_batch_size: int = 256,
         embedding_parallelism: int | None = None,
         embedding_lazy_load: bool = True,
         graph_readiness: ReadOnlyGraphReadiness | None = None,
         graph_extraction_spec: GraphExtractionSpec | None = None,
-        graph_status_store: LocalGraphStatusStore | None = None,
+        graph_status_store: GraphStatusStore | None = None,
     ) -> None:
         self._catalog = catalog
         self._metadata_store = metadata_store

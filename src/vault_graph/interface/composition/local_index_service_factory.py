@@ -418,17 +418,7 @@ def _write_projection_component_manifests(
             revision=graph_revision,
         )
         enabled_components.append("graph")
-    hygiene = ProjectionHygieneService(
-        metadata_path=catalog_service.metadata_path,
-        vector_path=catalog_service.vector_path,
-        graph_path=catalog_service.graph_path,
-        graph_store=open_graph_store(
-            catalog_service,
-            metadata_store=SQLiteMetadataStore(catalog_service.metadata_path, initialize=False),
-        )
-        if selected_graph_backend(catalog_service) == "document"
-        else None,
-    ).audit(
+    hygiene = open_projection_hygiene_service(catalog_service).audit(
         scope=catalog.scope_for_vault_ids(report.metadata.vault_ids),
         active_generation_id=staged.generation_id,
     )
@@ -440,3 +430,23 @@ def _write_projection_component_manifests(
     if any(count for count in dangling.values()):
         raise ProjectionGenerationError(f"projection bundle hygiene failed: dangling references {dangling}")
     return tuple(enabled_components)
+
+
+def open_projection_hygiene_service(catalog_service: CatalogService) -> ProjectionHygieneService:
+    """Build the read-only projection audit with local stores (보완4)."""
+    from vault_graph.storage.local.document_graph_store import DocumentGraphStore
+
+    metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
+    graph_store = (
+        open_graph_store(catalog_service, metadata_store=metadata_store)
+        if selected_graph_backend(catalog_service) == "document"
+        else None
+    )
+    return ProjectionHygieneService(
+        metadata_path=catalog_service.metadata_path,
+        metadata_store=metadata_store,
+        open_vector_store=lambda: ChromaVectorStore(catalog_service.vector_path, read_only=True),
+        graph_path=catalog_service.graph_path,
+        graph_store=graph_store,
+        document_evidence_refs=graph_store if isinstance(graph_store, DocumentGraphStore) else None,
+    )
