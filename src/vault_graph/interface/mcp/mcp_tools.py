@@ -15,6 +15,7 @@ from vault_graph.context.pack.context_pack import (
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
+from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink as McpResourceLink
 from vault_graph.interface.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input
 from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory, McpServices
 from vault_graph.interface.mcp.mcp_uri import encode_resource_segment
@@ -67,34 +68,6 @@ class McpToolServer(Protocol):
         structured_output: bool | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class McpResourceLink:
-    rel: str
-    uri: str
-    title: str | None = None
-    vault_id: str | None = None
-    document_id: str | None = None
-    chunk_id: str | None = None
-    repository_id: str | None = None
-    relative_path: str | None = None
-    start_line: int | None = None
-    end_line: int | None = None
-
-    def to_json_dict(self) -> dict[str, object]:
-        return {
-            "rel": self.rel,
-            "uri": self.uri,
-            "title": self.title,
-            "vault_id": self.vault_id,
-            "document_id": self.document_id,
-            "chunk_id": self.chunk_id,
-            "repository_id": self.repository_id,
-            "relative_path": self.relative_path,
-            "start_line": self.start_line,
-            "end_line": self.end_line,
-        }
 
 
 @dataclass(frozen=True)

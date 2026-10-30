@@ -5,12 +5,14 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, NoReturn, Protocol
+from typing import TYPE_CHECKING, NoReturn, Protocol
 
 from vault_graph.context.memory.memory_models import MemoryWarning, ProjectMemoryProjection
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
+from vault_graph.interface.mcp.mcp_resource_models import McpResourceBody as McpResourceBody
+from vault_graph.interface.mcp.mcp_resource_models import McpResourceContentMime as McpResourceContentMime
 from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory, McpServices
 from vault_graph.interface.mcp.mcp_uri import McpResourceUri, parse_mcp_resource_uri
 from vault_graph.operation.scope.vault_catalog import VaultCatalog
@@ -20,39 +22,10 @@ if TYPE_CHECKING:
     from vault_graph.interface.mcp.graph_resource_reader import GraphResourceReader
     from vault_graph.interface.mcp.metadata_resource_reader import MetadataResourceReader
 
-McpResourceContentMime = Literal["text/markdown", "application/json"]
-
 
 @dataclass(frozen=True)
 class McpResourceRequest:
     uri: str
-
-
-@dataclass(frozen=True)
-class McpResourceBody:
-    uri: str
-    content_mime_type: McpResourceContentMime
-    text: str
-    metadata: dict[str, object]
-    warnings: tuple[McpErrorPayload, ...] = ()
-
-    def to_json_dict(self) -> dict[str, object]:
-        return {
-            "uri": self.uri,
-            "content_mime_type": self.content_mime_type,
-            "text": self.text,
-            "metadata": self.metadata,
-            "warnings": [
-                {
-                    "code": warning.code,
-                    "message": warning.message,
-                    "severity": warning.severity,
-                    "affected_vault_ids": list(warning.affected_vault_ids),
-                    "recovery_hint": warning.recovery_hint,
-                }
-                for warning in self.warnings
-            ],
-        }
 
 
 class McpResourceServer(Protocol):

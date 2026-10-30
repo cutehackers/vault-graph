@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
+from vault_graph.operation.scope.active_projection import active_projection_layout
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
 from vault_graph.operation.scope.path_guard import (
     assert_graph_home_outside_vaults,
@@ -18,7 +18,7 @@ class CatalogService:
         GraphHomeResolver().resolve(self.graph_home_path)
         self.config_path = self.graph_home_path / "configs" / "vaults.yaml"
         self.code_config_path = self.graph_home_path / "configs" / "repositories.yaml"
-        active = ProjectionGenerationManager(self.graph_home_path).active_layout()
+        active = active_projection_layout(self.graph_home_path)
         projection_path = active.root_path if active is not None else self.graph_home_path
         self.metadata_path = projection_path / "metadata" / "metadata.sqlite3"
         self.vector_path = projection_path / "vector" / "chroma"

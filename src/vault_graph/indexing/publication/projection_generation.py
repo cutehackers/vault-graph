@@ -11,25 +11,16 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from vault_graph.errors import VaultGraphError
+from vault_graph.operation.scope.active_projection import ProjectionGenerationError as ProjectionGenerationError
+from vault_graph.operation.scope.active_projection import ProjectionLayout as ProjectionLayout
+from vault_graph.operation.scope.active_projection import active_projection_layout, validated_generation_path
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
-
-
-class ProjectionGenerationError(VaultGraphError):
-    pass
-
 
 PROJECTION_BUNDLE_FORMAT = "vault-graph-projection-bundle-v1"
 PROJECTION_COMPONENT_FORMAT = "vault-graph-projection-component-v1"
 PROJECTION_BUNDLE_SCHEMA_VERSION = 1
 PROJECTION_COMPONENTS = ("metadata", "vector", "graph", "code")
 _SAFE_RUN_ID_CHARACTERS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
-
-
-@dataclass(frozen=True)
-class ProjectionLayout:
-    generation_id: str
-    root_path: Path
 
 
 @dataclass(frozen=True)
@@ -88,46 +79,7 @@ class ProjectionGenerationManager:
         return self.stage(copy_active=self.active_layout() is not None)
 
     def active_layout(self) -> ProjectionLayout | None:
-        data_home_manifest = self._graph_home_path / "data-home.json"
-        if data_home_manifest.exists():
-            return self._active_layout_from_data_home()
-        if not self._active_manifest.exists():
-            return None
-        payload = json.loads(self._active_manifest.read_text(encoding="utf-8"))
-        generation_id = str(payload.get("generation_id", ""))
-        relative_path = str(payload.get("generation_path", ""))
-        if not generation_id or not relative_path:
-            raise ProjectionGenerationError("active projection manifest is incomplete")
-        candidate = self._validated_generation_path(relative_path)
-        if candidate.name != generation_id:
-            raise ProjectionGenerationError("active projection generation identity mismatch")
-        if not candidate.is_dir():
-            raise ProjectionGenerationError("active projection generation is missing")
-        return ProjectionLayout(generation_id=generation_id, root_path=candidate)
-
-    def _active_layout_from_data_home(self) -> ProjectionLayout | None:
-        descriptor = GraphHomeResolver().require_initialized(self._graph_home_path)
-        assert descriptor.manifest is not None
-        manifest = descriptor.manifest
-        if manifest.active_generation_id is None or manifest.active_generation_path is None:
-            if self._active_manifest.exists():
-                raise ProjectionGenerationError("data home and active projection manifests disagree")
-            return None
-        candidate = self._validated_generation_path(manifest.active_generation_path)
-        if candidate.name != manifest.active_generation_id or not candidate.is_dir():
-            raise ProjectionGenerationError("active Data Home generation is missing or mismatched")
-        if not self._active_manifest.exists():
-            raise ProjectionGenerationError("active projection manifest is missing")
-        try:
-            payload = json.loads(self._active_manifest.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ProjectionGenerationError("active projection manifest is unreadable") from exc
-        if (
-            payload.get("generation_id") != manifest.active_generation_id
-            or payload.get("generation_path") != manifest.active_generation_path
-        ):
-            raise ProjectionGenerationError("data home and active projection manifests disagree")
-        return ProjectionLayout(generation_id=manifest.active_generation_id, root_path=candidate)
+        return active_projection_layout(self._graph_home_path)
 
     def activate(self, staged: ProjectionLayout) -> None:
         expected = self.validate_layout(staged)
@@ -229,14 +181,7 @@ class ProjectionGenerationManager:
         return payload
 
     def _validated_generation_path(self, relative_path: str) -> Path:
-        raw = Path(relative_path)
-        if raw.is_absolute() or ".." in raw.parts:
-            raise ProjectionGenerationError("projection generation path escapes Data Home root")
-        candidate = (self._graph_home_path / raw).resolve()
-        generations_root = self._generations_root.resolve()
-        if candidate.parent != generations_root or candidate.is_symlink():
-            raise ProjectionGenerationError("projection generation path is not a direct generation child")
-        return candidate
+        return validated_generation_path(self._graph_home_path, relative_path)
 
 
 class ProjectionBundlePublisher:
