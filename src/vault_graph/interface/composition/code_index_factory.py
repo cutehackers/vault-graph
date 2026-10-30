@@ -118,6 +118,7 @@ class CodeIndexFactory:
 
         from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
         from vault_graph.operation.integration.project_binding_catalog import ProjectBindingCatalogService
+        from vault_graph.project.context.project_binding_reader import ProjectBindingReader
         from vault_graph.project.context.project_context_service import (
             IndexStatusVaultFreshness,
             ProjectContextService,
@@ -126,7 +127,8 @@ class CodeIndexFactory:
 
         code_services = self.open()
         vault_services = ReadOnlyServiceFactory(graph_home_path=self.graph_home_path).open_read_only()
-        bindings = ProjectBindingCatalogService(
+        # M17 implements the M12 binding read Protocol. The service only sees the Protocol.
+        bindings: ProjectBindingReader = ProjectBindingCatalogService(
             catalog_service=code_services.catalog_service,
             repository_catalog=code_services.repository_catalog,
             vault_catalog=vault_services.catalog,

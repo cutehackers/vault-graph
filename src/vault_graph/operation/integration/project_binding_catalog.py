@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.vault_catalog import VaultCatalog
 from vault_graph.project.context.project_binding import ProjectBinding
+from vault_graph.project.context.project_binding_reader import ProjectBindingReader
 
 PROJECT_BINDING_SCHEMA_VERSION = "project-bindings-v1"
 
@@ -20,10 +21,8 @@ class RepositoryCatalog(Protocol):
     def resolve(self, repository_id: str) -> object: ...
 
 
-class ProjectBindingCatalog(Protocol):
-    def entries(self) -> tuple[ProjectBinding, ...]: ...
-
-    def resolve(self, repository_id: str) -> ProjectBinding: ...
+# Kept as the public name of the M12 binding read Protocol that this catalog implements.
+ProjectBindingCatalog = ProjectBindingReader
 
 
 class ProjectBindingCatalogService:
@@ -42,7 +41,7 @@ class ProjectBindingCatalogService:
         self.graph_home_path = catalog_service.graph_home_path
         self.config_path = self.graph_home_path / "configs" / "project-bindings.json"
 
-    def load(self) -> ProjectBindingCatalog:
+    def load(self) -> ProjectBindingReader:
         self._catalog_service.assert_graph_home_write_target_safe(
             target_path=self.config_path, catalog=self._vault_catalog
         )
@@ -50,7 +49,7 @@ class ProjectBindingCatalogService:
         self._validate(bindings)
         return _ProjectBindingCatalog(bindings)
 
-    def bind(self, binding: ProjectBinding) -> ProjectBindingCatalog:
+    def bind(self, binding: ProjectBinding) -> ProjectBindingReader:
         if not isinstance(binding, ProjectBinding):
             raise ValueError("binding must be a ProjectBinding")
         current = self.load().entries()
@@ -138,7 +137,7 @@ class ProjectBindingCatalogService:
                     raise ValueError(f"content scope is not enabled for vault_id: {vault_id}")
 
 
-class _ProjectBindingCatalog:
+class _ProjectBindingCatalog(ProjectBindingReader):
     def __init__(self, bindings: tuple[ProjectBinding, ...]) -> None:
         self._bindings = tuple(sorted(bindings, key=lambda item: item.repository_id))
 

@@ -4,13 +4,6 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from vault_graph.operation.integration.project_binding_catalog import (
-        PROJECT_BINDING_SCHEMA_VERSION as PROJECT_BINDING_SCHEMA_VERSION,
-    )
-    from vault_graph.operation.integration.project_binding_catalog import ProjectBindingCatalog as ProjectBindingCatalog
-    from vault_graph.operation.integration.project_binding_catalog import (
-        ProjectBindingCatalogService as ProjectBindingCatalogService,
-    )
     from vault_graph.project.context.project_binding import (
         MAX_PROJECT_BINDING_CONTENT_SCOPES as MAX_PROJECT_BINDING_CONTENT_SCOPES,
     )
@@ -24,6 +17,7 @@ if TYPE_CHECKING:
         MAX_PROJECT_BINDING_VAULT_IDS as MAX_PROJECT_BINDING_VAULT_IDS,
     )
     from vault_graph.project.context.project_binding import ProjectBinding as ProjectBinding
+    from vault_graph.project.context.project_binding_reader import ProjectBindingReader as ProjectBindingCatalog
     from vault_graph.project.context.project_context_models import (
         DEFAULT_PROJECT_CONTEXT_DEPTH as DEFAULT_PROJECT_CONTEXT_DEPTH,
     )
@@ -86,12 +80,10 @@ __all__ = [
     "MAX_PROJECT_CONTEXT_LIMIT",
     "MAX_PROJECT_CONTEXT_TOKENS",
     "MIN_PROJECT_CONTEXT_TOKENS",
-    "PROJECT_BINDING_SCHEMA_VERSION",
     "PROJECT_CONTEXT_SCHEMA_VERSION",
     "ProjectAuthorityFreshness",
     "ProjectBinding",
     "ProjectBindingCatalog",
-    "ProjectBindingCatalogService",
     "ProjectContext",
     "ProjectContextBudget",
     "ProjectContextRequest",
@@ -105,15 +97,7 @@ __all__ = [
 ]
 
 _EXPORTS = {
-    "PROJECT_BINDING_SCHEMA_VERSION": (
-        "vault_graph.operation.integration.project_binding_catalog",
-        "PROJECT_BINDING_SCHEMA_VERSION",
-    ),
-    "ProjectBindingCatalog": ("vault_graph.operation.integration.project_binding_catalog", "ProjectBindingCatalog"),
-    "ProjectBindingCatalogService": (
-        "vault_graph.operation.integration.project_binding_catalog",
-        "ProjectBindingCatalogService",
-    ),
+    "ProjectBindingCatalog": ("vault_graph.project.context.project_binding_reader", "ProjectBindingReader"),
     "MAX_PROJECT_BINDING_CONTENT_SCOPES": (
         "vault_graph.project.context.project_binding",
         "MAX_PROJECT_BINDING_CONTENT_SCOPES",

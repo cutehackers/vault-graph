@@ -9,7 +9,6 @@ from urllib.parse import quote
 
 from vault_graph.context.pack.context_pack import ContextPack, ContextPackBudget, ContextPackRequest
 from vault_graph.errors import VaultGraphError
-from vault_graph.operation.integration.project_binding_catalog import ProjectBindingCatalog
 from vault_graph.operation.scope.vault_catalog import DEFAULT_CONTENT_SCOPES, QueryScope, VaultCatalog
 from vault_graph.project.code.code_models import (
     CodeImpactRequest,
@@ -21,6 +20,7 @@ from vault_graph.project.code.code_models import (
     CodeTraversalResponse,
 )
 from vault_graph.project.context.project_binding import ProjectBinding
+from vault_graph.project.context.project_binding_reader import ProjectBindingReader
 from vault_graph.project.context.project_context_models import (
     ProjectAuthorityFreshness,
     ProjectContext,
@@ -226,7 +226,7 @@ class ProjectContextService:
         self,
         *,
         repository_catalog: ProjectRepositoryCatalog,
-        binding_catalog: ProjectBindingCatalog,
+        binding_catalog: ProjectBindingReader,
         context_pack_builder: ProjectContextPackBuilder,
         vault_status_service: ProjectVaultStatusService,
         code_query_service: ProjectCodeQueryService | None = None,
@@ -640,7 +640,7 @@ class ProjectContextService:
             raise ValueError("vault status must include every selected Vault authority")
 
 
-def _has_binding(catalog: ProjectBindingCatalog, repository_id: str) -> bool:
+def _has_binding(catalog: ProjectBindingReader, repository_id: str) -> bool:
     try:
         catalog.resolve(repository_id)
     except ValueError:
