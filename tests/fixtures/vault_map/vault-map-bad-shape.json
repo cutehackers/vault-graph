@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "vaults": {
+    "personal": {"path": "{base}/vaults/personal"}
+  },
+  "projects": {}
+}

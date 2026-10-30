@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "vaults": {
+    "personal": {"path": "{base}/vaults/personal", "role": "personal"},
+    "team": {"path": "{base}/vaults/team", "role": "team"}
+  },
+  "projects": {
+    "alpha": {"root": "{base}/repos/alpha", "vaults": ["personal"], "remote": "git@git.example.test:org/alpha.git"},
+    "beta": {"root": "{base}/old-location/beta", "vaults": ["team", "personal"], "remote": "https://git.example.test/org/beta"},
+    "gamma": {"root": "{base}/old-location/gamma", "vaults": ["team"]},
+    "delta": {"root": "{base}/repos/delta-a", "vaults": ["personal"], "remote": "git@git.example.test:org/delta.git"},
+    "delta-copy": {"root": "{base}/repos/delta-b", "vaults": ["team"], "remote": "https://git.example.test/org/delta.git"}
+  }
+}

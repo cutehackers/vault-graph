@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -29,7 +30,9 @@ from vault_graph.interface.composition.adapters.text_embeddings import (
 )
 from vault_graph.interface.composition.graph_store_factory import GraphBackend, open_graph_store, selected_graph_backend
 from vault_graph.interface.composition.local_index_service_factory import LocalIndexServiceFactory
+from vault_graph.interface.composition.query_scope_resolution import registered_vault_ids
 from vault_graph.operation.diagnostics.projection_hygiene_service import ProjectionHygieneService
+from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, VaultMapOpening, open_vault_map, vault_map_path
 from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.operation.readiness.search_readiness_service import ReadOnlySearchReadiness
 from vault_graph.operation.scope.catalog_service import CatalogService
@@ -68,6 +71,11 @@ from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 if TYPE_CHECKING:
     from vault_graph.context.answer.answer_service import AnswerService
+    from vault_graph.operation.runtime.setup_service import SetupReport
+
+VAULT_MAP_OPTION_HELP = (
+    f"vault-map.json path. Defaults to ${VAULT_MAP_ENV}, then $HOME/.claude/vault-builder/vault-map.json."
+)
 
 app = typer.Typer(no_args_is_help=True)
 vault_app = typer.Typer(no_args_is_help=True)
@@ -356,7 +364,9 @@ def mcp_register(
 
 @app.command()
 def setup(
-    vault: Path = typer.Option(..., "--vault", help="Vault repository root."),
+    vault: Path | None = typer.Option(
+        None, "--vault", help="Vault repository root. When omitted, every Vault in vault-map.json is set up."
+    ),
     state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str = typer.Option("default", "--vault-id", help="Registered Vault ID."),
     agent: str | None = typer.Option("codex", "--agent", help="Agent config format."),
@@ -364,6 +374,7 @@ def setup(
     mcp_config_path: Path | None = typer.Option(None, "--mcp-config-path", help="Explicit agent MCP config path."),
     print_mcp_config: bool = typer.Option(False, "--print-mcp-config", help="Print MCP config JSON."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Report setup without writing state."),
+    vault_map: Path | None = typer.Option(None, "--vault-map", help=VAULT_MAP_OPTION_HELP),
 ) -> None:
     from vault_graph.operation.integration.mcp.mcp_config_registration import McpAgent
     from vault_graph.operation.runtime.setup_service import SetupRequest, SetupService
@@ -371,20 +382,65 @@ def setup(
     setup_service = SetupService(
         index_factory=LocalIndexServiceFactory(text_embeddings_factory=_text_embeddings),
     )
-    report = _exit_on_domain_error(
-        lambda: setup_service.setup(
-            SetupRequest(
-                vault_path=vault,
-                graph_home_path=state,
-                vault_id=vault_id,
-                agent=cast(McpAgent, agent) if agent is not None else None,
-                register_mcp=mcp,
-                mcp_config_path=mcp_config_path,
-                print_mcp_config=print_mcp_config,
-                dry_run=dry_run,
-            )
+    targets = ((vault, vault_id),) if vault is not None else _vault_map_setup_targets(state, vault_map, dry_run=dry_run)
+    for position, (target_path, target_id) in enumerate(targets):
+        last = position == len(targets) - 1
+        if vault is None and not dry_run:
+            _register_map_vault(state, vault_path=target_path, vault_id=target_id)
+        request = SetupRequest(
+            vault_path=target_path,
+            graph_home_path=state,
+            vault_id=target_id,
+            # MCP output and registration happen once, after the last Vault.
+            agent=cast(McpAgent, agent) if agent is not None and last else None,
+            register_mcp=mcp and last,
+            mcp_config_path=mcp_config_path,
+            print_mcp_config=print_mcp_config and last,
+            dry_run=dry_run,
         )
+        _echo_setup_report(_exit_on_domain_error(partial(setup_service.setup, request)))
+
+
+def _vault_map_setup_targets(state: Path, explicit: Path | None, *, dry_run: bool) -> tuple[tuple[Path, str], ...]:
+    """Return (path, vault_id) for every map Vault. A Vault already registered keeps its id."""
+    opening = open_vault_map(vault_map_path(explicit))
+    if opening.vault_map is None or not opening.vault_map.vaults:
+        if opening.warning is not None:
+            typer.echo(f"warning: {opening.warning}", err=True)
+        typer.echo(f"setup_vault_required: pass --vault, or provide a version 2 vault map at {opening.path}")
+        raise typer.Exit(1)
+    descriptor = _exit_on_domain_error(lambda: GraphHomeResolver().resolve(state))
+    catalog = None
+    if descriptor.initialized:
+        config = CatalogService(graph_home_path=descriptor.root_path)
+        if config.config_path.exists():
+            catalog = _exit_on_domain_error(config.load_catalog)
+    mapped = opening.vault_map.vaults
+    if catalog is None:
+        return tuple((item.path, item.name) for item in mapped)
+    by_path = {entry.root_path.resolve(): entry.vault_id for entry in catalog.entries()}
+    return tuple((item.path, by_path.get(item.path.resolve(), item.name)) for item in mapped)
+
+
+def _register_map_vault(state: Path, *, vault_path: Path, vault_id: str) -> None:
+    """Add a map Vault to an existing catalog so SetupService can index it. A new catalog is left to SetupService."""
+    descriptor = _exit_on_domain_error(lambda: GraphHomeResolver().resolve(state))
+    if not descriptor.initialized:
+        return
+    config = CatalogService(graph_home_path=descriptor.root_path)
+    if not config.config_path.exists():
+        return
+    catalog = _exit_on_domain_error(config.load_catalog)
+    if any(entry.vault_id == vault_id for entry in catalog.entries()):
+        return
+    entry = _exit_on_domain_error(lambda: VaultCatalogEntry.from_root(vault_id=vault_id, root_path=vault_path))
+    updated = _exit_on_domain_error(
+        lambda: VaultCatalog.from_entries(entries=(*catalog.entries(), entry), active_vault_id=catalog.active_vault_id)
     )
+    _exit_on_domain_error(lambda: config.save_catalog(updated))
+
+
+def _echo_setup_report(report: SetupReport) -> None:
     typer.echo(f"graph_home: {report.graph_home_path}")
     typer.echo(f"vault_id: {report.vault_id}")
     typer.echo(f"vault_path: {report.vault_path}")
@@ -885,6 +941,7 @@ def status(
     vault_id: str | None = typer.Option(None, "--vault-id", help="Report one registered Vault ID."),
     all_vaults: bool = typer.Option(False, "--all-vaults", help="Report all enabled registered Vaults."),
     output_format: str = typer.Option("text", "--format", help="Output format: text or json."),
+    vault_map: Path | None = typer.Option(None, "--vault-map", help=VAULT_MAP_OPTION_HELP),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
@@ -892,6 +949,7 @@ def status(
     if output_format not in {"text", "json"}:
         typer.echo("unsupported_format")
         raise typer.Exit(1)
+    map_opening = open_vault_map(vault_map_path(vault_map))
     config, _, service = _exit_on_domain_error(lambda: _service(state, initialize_store=False))
     _, catalog = _exit_on_domain_error(lambda: _catalog(state))
     if all_vaults:
@@ -910,6 +968,7 @@ def status(
     )
     if output_format == "json":
         payload = _status_report_json(report, config=config, selected_scope=scope)
+        payload["vault_map"] = _vault_map_status(map_opening, catalog)
         typer.echo(json.dumps(payload, sort_keys=True, indent=2))
         return
     typer.echo(f"graph_home: {config.graph_home_path}")
@@ -963,6 +1022,26 @@ def status(
     for row in graph.scope_readiness:
         typer.echo(f"graph_scope: {row.actual_scope} {row.freshness} {row.last_graph_revision}")
     typer.echo(f"graph_recovery_hint: {graph.recovery_hint}")
+    map_status = _vault_map_status(map_opening, catalog)
+    typer.echo(f"vault_map_path: {map_status['path']}")
+    typer.echo(f"vault_map_state: {map_status['state']}")
+    typer.echo(f"vault_map_version: {map_status['version']}")
+    if map_status["warning"] is not None:
+        typer.echo(f"vault_map_warning: {map_status['warning']}")
+    for unregistered in cast(list[dict[str, str]], map_status["unregistered_vaults"]):
+        typer.echo(f"vault_map_unregistered_vault: {unregistered['name']} {unregistered['path']}")
+
+
+def _vault_map_status(opening: VaultMapOpening, catalog: VaultCatalog) -> dict[str, object]:
+    """Describe the map for status. Map Vaults match registered Vaults by real path."""
+    unregistered = registered_vault_ids(opening.vault_map.vaults, catalog)[1] if opening.vault_map else ()
+    return {
+        "path": str(opening.path),
+        "state": opening.state,
+        "version": opening.version,
+        "warning": opening.warning,
+        "unregistered_vaults": [{"name": item.name, "path": str(item.path)} for item in unregistered],
+    }
 
 
 @app.command()
