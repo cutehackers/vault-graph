@@ -38,3 +38,8 @@ A-20
 - [ ] 기능 영역에서 `storage.local`을 가져오는 곳이 0건이다
 - [ ] 구체 클래스 생성은 composition에만 있다
 - [ ] `tests/test_feature_import_direction.py` 예외 목록에서 발견7이 빠졌다
+
+## 작업6에서 넘어온 사항 (2026-10-30)
+
+- 작업6에서 `IndexService.status`의 반환 타입이 `StatusReport`에서 `Any`로 바뀌었다. M03이 M15의 `StatusReport`를 가져올 수 없기 때문이다. 실행 시 반환 객체는 같다.
+- 이 작업에서 상태 보고 필드를 담은 Protocol을 `storage/interfaces` 또는 `indexing`에 두고 `IndexStatusReading.read`와 `IndexService.status`의 반환 타입을 그 Protocol로 되돌린다. M10의 `MemoryStatusView`(19개 필드)를 참고한다.
