@@ -233,7 +233,7 @@ uv build --all-packages
 uv run --python 3.12 python tests/verify_graph_module_wheels.py
 ```
 
-The last command installs all six wheels outside the workspace and verifies standalone use, the graph bridge, the text-to-vector indexing pipeline, and Vault integration. These packages are local build artifacts until separately published. Vault Graph requires the five module distributions. Vault-specific text preparation, scope, identity, evidence, status, and publication remain in the Vault Graph functional groups. Concrete providers are assembled in `vault_graph.interface.composition`. Legacy `vault_graph.vault_adapter` imports remain compatible. See the [vector module contract](docs/design/specs/2026-10-06-vector-modules-ko.md).
+The last command installs all six wheels outside the workspace and verifies standalone use, the graph bridge, the text-to-vector indexing pipeline, and Vault integration. These packages are local build artifacts until separately published. Vault Graph requires the five module distributions. Vault-specific text preparation, scope, identity, evidence, status, and publication remain in the Vault Graph functional groups. Concrete providers are assembled in `vault_graph.interface.composition`. Previous import paths such as `vault_graph.vault_adapter` were removed. Import from the functional groups instead. See the [vector module contract](docs/design/specs/2026-10-06-vector-modules-ko.md).
 
 To select the document graph backend for an existing Data Home:
 

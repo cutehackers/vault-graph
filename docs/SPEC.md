@@ -274,7 +274,7 @@ ID 대응, 복수 경로 점수·순위, 빌드 ID, 근거 연결을 보존한�
 사용자가 승인한 2차 리팩터링의 책임·입출력·삭제 범위·실패 처리·호환성 계약은
 [임베딩·벡터 모듈 계약](design/specs/2026-10-06-vector-modules-ko.md)에 정의한다.
 `text_embeddings`, `vector_search`, `vector_index`는 Vault와 그래프 모듈에 의존하지 않는다.
-Vault 전용 정책과 기존 저장 형식의 변환은 `vault_graph.vault_adapter`에서 수행한다.
+Vault 전용 정책과 기존 저장 형식의 변환은 `vault_graph.indexing.vector_index_adapter` 등 Vault Graph의 책임별 어댑터에서 수행한다([ARCHITECTURE.md](ARCHITECTURE.md) §2).
 이 분리는 §1.7의 포트·어댑터 경계를 따르며 불변성 엔진의 기능이나 정책을 변경하지 않는다.
 
 ## 9. 단계

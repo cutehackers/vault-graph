@@ -5,6 +5,7 @@
 - Current Architecture: [현재 정식 경로·의존·호환 규칙](../../ARCHITECTURE.md)
 - Created: 2026-10-15
 - Implementation: Complete — [단계0–8 실제 구현·검증·독립 리뷰](../reports/2026-10-15-modularization-completion-ko.md). 당시 발견한 legacy 색인 결함의 후속 수정은 같은 기록 §5에 설명한다.
+- 후속 보완: [모듈화 보완 계획](2026-10-29-modularization-remediation-plan-ko.md) (2026-10-29 재검증 결과와 보완1–9)
 
 ## 1. 실행 원칙
 
