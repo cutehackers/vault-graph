@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES
 
 runner = CliRunner()
 

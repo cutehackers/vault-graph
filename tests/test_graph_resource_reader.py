@@ -7,22 +7,22 @@ from pathlib import Path
 import pytest
 
 from tests.test_graph_store_contract import make_entity, make_relationship
-from vault_graph.app.graph_resource_service import GraphResourceService
 from vault_graph.errors import GraphStoreError
-from vault_graph.graph.graph_contracts import EntityRecord, RelationshipRecord, current_graph_extraction_spec
-from vault_graph.graph.graph_identity import graph_scope_key
-from vault_graph.graph.graph_query import (
+from vault_graph.interface.mcp.graph_resource_reader import GraphResourceReader
+from vault_graph.interface.mcp.mcp_errors import map_exception_to_mcp_error
+from vault_graph.interface.mcp.mcp_uri import parse_mcp_resource_uri
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_contracts import EntityRecord, RelationshipRecord, current_graph_extraction_spec
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key
+from vault_graph.retrieval.graph.graph_query import (
     GraphEntityMatch,
     GraphEntityQuery,
     GraphEntityQueryResult,
     GraphRelationshipQuery,
     GraphRelationshipQueryResult,
 )
-from vault_graph.graph.graph_readiness import GraphReadiness, GraphScopeReadiness
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.mcp.graph_resource_reader import GraphResourceReader
-from vault_graph.mcp.mcp_errors import map_exception_to_mcp_error
-from vault_graph.mcp.mcp_uri import parse_mcp_resource_uri
+from vault_graph.retrieval.graph.graph_readiness import GraphReadiness, GraphScopeReadiness
+from vault_graph.retrieval.graph.graph_resource_service import GraphResourceService
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
 

@@ -1,43 +1,78 @@
-"""Grouped owners preserve imports and remain safe to load in a fresh process."""
+"""Only canonical grouped paths remain, and they are safe to load in a fresh process."""
 
-import ast
 import importlib
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-OWNERS = (
-    ("ingestion.document_models", "indexing.ingestion.document_models"),
-    ("extraction.entity_extractor", "indexing.extraction.entity_extractor"),
-    ("projection_publication.projection_generation", "indexing.publication.projection_generation"),
-    ("retrieval.retrieval_service", "retrieval.search.retrieval_service"),
-    ("graph_retrieval.graph_retrieval_service", "retrieval.graph.graph_retrieval_service"),
-    ("vault_adapter.evidence_linking", "retrieval.evidence.evidence_linking"),
-    ("result_explanation.result_explanation", "retrieval.explanation.result_explanation"),
-    ("context.context_pack", "context.pack.context_pack"),
-    ("memory.project_memory", "context.memory.project_memory"),
-    ("answer.answer_service", "context.answer.answer_service"),
-    ("code_index.code_query_service", "project.code.code_query_service"),
-    ("project_context.project_context_service", "project.context.project_context_service"),
-    ("vault_scope.catalog_service", "operation.scope.catalog_service"),
-    ("projection_readiness.search_readiness_service", "operation.readiness.search_readiness_service"),
-    ("projection_diagnostics.index_status_reader", "operation.diagnostics.index_status_reader"),
-    ("runtime_operations.setup_service", "operation.runtime.setup_service"),
-    ("project_context.project_binding_catalog", "operation.integration.project_binding_catalog"),
-    ("cli.main", "interface.cli.main"),
-    ("mcp.mcp_tools", "interface.mcp.mcp_tools"),
-    ("http.http_server", "interface.http.http_server"),
-    ("app.read_only_service_factory", "interface.composition.read_only_service_factory"),
-    ("embeddings.text_embeddings", "storage.interfaces.text_embeddings"),
-    ("vault_adapter.vector_store", "storage.local.vector_store_adapter"),
+# Previous import paths removed by 보완8 (remediation plan 결정1 옵션1). Only canonical paths remain.
+REMOVED_PACKAGES = (
+    "answer",
+    "app",
+    "cli",
+    "code_index",
+    "embeddings",
+    "extraction",
+    "graph",
+    "graph_retrieval",
+    "harness",
+    "http",
+    "ingestion",
+    "integration_configuration",
+    "mcp",
+    "memory",
+    "project_context",
+    "projection",
+    "projection_diagnostics",
+    "projection_publication",
+    "projection_readiness",
+    "result_explanation",
+    "runtime_operations",
+    "vault_adapter",
+    "vault_scope",
+)
+REMOVED_MODULES = (
+    "context.context_evidence_selection",
+    "context.context_pack",
+    "context.context_pack_builder",
+    "context.context_pack_renderer",
+    "context.context_pack_serialization",
+    "context.context_pack_warnings",
+    "retrieval.candidate_ranking",
+    "retrieval.context_expansion",
+    "retrieval.evidence_result_assembly",
+    "retrieval.graph_candidates",
+    "retrieval.graph_retrieval",
+    "retrieval.retrieval_candidate",
+    "retrieval.retrieval_result",
+    "retrieval.retrieval_service",
+    "retrieval.search_readiness",
+    "retrieval.search_response",
+    "indexing.vector_indexer",
 )
 
 
-@pytest.mark.parametrize(("legacy", "owner"), OWNERS)
-def test_grouped_owner_preserves_legacy_module_identity(legacy: str, owner: str) -> None:
-    assert importlib.import_module(f"vault_graph.{legacy}") is importlib.import_module(f"vault_graph.{owner}")
+@pytest.mark.parametrize("module", REMOVED_PACKAGES + REMOVED_MODULES)
+def test_previous_import_path_is_removed(module: str) -> None:
+    assert importlib.util.find_spec(f"vault_graph.{module}") is None
+
+
+@pytest.mark.parametrize(("group", "name"), (("context", "ContextPack"), ("retrieval", "RetrievalService")))
+def test_group_package_does_not_re_export_previous_names(group: str, name: str) -> None:
+    assert not hasattr(importlib.import_module(f"vault_graph.{group}"), name)
+
+
+def test_no_compatibility_facade_remains() -> None:
+    root = Path(__file__).parents[1] / "src" / "vault_graph"
+    facades = [
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*.py")
+        if "sys.modules[__name__]" in path.read_text(encoding="utf-8")
+    ]
+    assert facades == []
 
 
 @pytest.mark.parametrize(
@@ -62,24 +97,3 @@ assert not set(('chromadb', 'fastembed', 'huggingface_hub', 'rustworkx')) & set(
 """
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr or result.stdout
-
-
-def test_all_compatibility_facades_resolve_to_same_canonical_module() -> None:
-    root = Path(__file__).parents[1] / "src" / "vault_graph"
-    checked = 0
-    for path in root.rglob("*.py"):
-        source = path.read_text(encoding="utf-8")
-        if "sys.modules[__name__] = _implementation" not in source:
-            continue
-        legacy = "vault_graph." + ".".join(path.relative_to(root).with_suffix("").parts)
-        tree = ast.parse(source)
-        target = next(
-            f"{node.module}.{item.name}"
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            for item in node.names
-            if item.asname == "_implementation"
-        )
-        assert importlib.import_module(legacy) is importlib.import_module(target), legacy
-        checked += 1
-    assert checked >= len(OWNERS)

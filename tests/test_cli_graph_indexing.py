@@ -7,10 +7,10 @@ from typer.testing import CliRunner
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
 from tests.test_vector_indexer import SPEC
-from vault_graph.app.projection_generation import ProjectionGenerationManager
-from vault_graph.cli.main import app
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.errors import TextEmbeddingsError
+from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
+from vault_graph.interface.cli.main import app
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingVector
 
 runner = CliRunner()
 
@@ -47,7 +47,7 @@ def test_cli_index_dry_run_reports_graph_plan_without_graph_db(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
     graph_home_path = tmp_path / "state"
@@ -66,7 +66,7 @@ def test_cli_index_applies_graph_and_status_becomes_fresh(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
     graph_home_path = tmp_path / "state"
@@ -97,9 +97,9 @@ def test_cli_index_graph_failure_returns_nonzero_and_records_status(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
     monkeypatch.setattr(
-        "vault_graph.cli.main.SQLiteGraphStore.open_writable",
+        "vault_graph.interface.cli.main.SQLiteGraphStore.open_writable",
         lambda _: InMemoryGraphStore(read_only=True),
     )
     vault_root = tmp_path / "vault"
@@ -122,7 +122,7 @@ def test_cli_index_vector_failure_still_prints_graph_success(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _failing_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _failing_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
     graph_home_path = tmp_path / "state"

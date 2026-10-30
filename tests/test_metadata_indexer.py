@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 

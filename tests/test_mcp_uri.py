@@ -4,13 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_uri import (
-    decode_resource_segment,
-    encode_resource_segment,
-    parse_mcp_resource_uri,
-)
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_uri import decode_resource_segment, encode_resource_segment, parse_mcp_resource_uri
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
 
 
 def make_catalog(tmp_path: Path) -> VaultCatalog:

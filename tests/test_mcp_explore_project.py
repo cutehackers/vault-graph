@@ -8,22 +8,22 @@ from typing import Any, cast
 import pytest
 
 from tests.test_mcp_tools import RecordingToolServer, fake_services
-from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_tool_serialization import (
+from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_tool_serialization import (
     project_context_to_payload,
     resource_links_for_project_context,
 )
-from vault_graph.mcp.mcp_tools import (
+from vault_graph.interface.mcp.mcp_tools import (
     ExploreProjectInput,
     McpToolRegistry,
     parse_explore_project_input,
     register_mcp_tools,
 )
-from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
-from vault_graph.project_context import (
+from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.project.context.project_binding import ProjectBinding
+from vault_graph.project.context.project_context_models import (
     ProjectAuthorityFreshness,
-    ProjectBinding,
     ProjectContext,
     ProjectContextBudget,
     ProjectContextWarning,

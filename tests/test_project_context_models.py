@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from vault_graph.project_context.project_context_models import (
+from vault_graph.project.context.project_context_models import (
     MAX_PROJECT_CONTEXT_DEPTH,
     MAX_PROJECT_CONTEXT_TOKENS,
     ProjectContextRequest,

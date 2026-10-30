@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from vault_graph.answer.answer_response import (
+from vault_graph.context.answer.answer_response import (
     AnswerClaim,
     AnswerEvidence,
     AnswerReasoningStep,
@@ -12,7 +12,7 @@ from vault_graph.answer.answer_response import (
     AnswerWarning,
 )
 from vault_graph.errors import AnswerError
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 def make_evidence(evidence_id: str = "ev_1_abcd") -> AnswerEvidence:

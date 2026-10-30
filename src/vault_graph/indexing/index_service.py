@@ -11,7 +11,7 @@ from vault_graph.indexing.graph_indexer import GraphIndexApplyResult, GraphIndex
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
-from vault_graph.indexing.vector_indexer import VectorApplyResult, VectorIndexer, VectorRevisionPlan
+from vault_graph.indexing.vector_index_adapter import VectorApplyResult, VectorIndexer, VectorRevisionPlan
 from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec

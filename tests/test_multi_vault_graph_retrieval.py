@@ -5,17 +5,17 @@ from pathlib import Path
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
 from tests.test_graph_retrieval_service import StaticGraphReadiness, apply_metadata_refs
 from tests.test_graph_store_contract import make_entity, make_plan, make_relationship
-from vault_graph.app.graph_retrieval_service import GraphRetrievalService
-from vault_graph.graph.graph_contracts import (
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_contracts import (
     EntityRecord,
     GraphEvidenceRef,
     RelationshipRecord,
     current_graph_extraction_spec,
 )
-from vault_graph.graph.graph_identity import graph_scope_key
-from vault_graph.graph.graph_readiness import GraphReadiness, GraphScopeReadiness
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key
+from vault_graph.retrieval.graph.graph_readiness import GraphReadiness, GraphScopeReadiness
+from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
+from vault_graph.retrieval.graph.projection.rustworkx_projection import RustworkxGraphProjection
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 

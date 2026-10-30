@@ -6,10 +6,10 @@ from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbedding
 from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from tests.test_vector_indexer import SPEC
-from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
-from vault_graph.indexing.vector_indexer import VectorIndexer
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.vector_index_adapter import VectorIndexer
 from vault_graph.interface.composition.read_only_service_factory import VectorIndexerStaleCounter
+from vault_graph.operation.readiness.search_readiness_service import ReadOnlySearchReadiness
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore

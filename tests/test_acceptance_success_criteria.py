@@ -13,17 +13,17 @@ from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from tests.test_read_only_boundary import file_bytes
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from tests.test_vector_indexer import SPEC
-from vault_graph.app.graph_home import GraphHomeResolver
-from vault_graph.app.projection_generation import ProjectionGenerationManager
-from vault_graph.app.search_readiness_service import ReadOnlySearchReadiness
-from vault_graph.cli.main import app
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
+from vault_graph.interface.cli.main import app
 from vault_graph.interface.composition.read_only_service_factory import VectorIndexerStaleCounter
-from vault_graph.mcp.mcp_resources import McpResourceRequest
-from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
-from vault_graph.retrieval.retrieval_service import RetrievalService
+from vault_graph.interface.mcp.mcp_resources import McpResourceRequest
+from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.operation.readiness.search_readiness_service import ReadOnlySearchReadiness
+from vault_graph.operation.scope.graph_home import GraphHomeResolver
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.search.retrieval_service import RetrievalService
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
@@ -84,7 +84,7 @@ def test_deleted_vault_graph_index_state_rebuilds_from_vault_without_mutating_va
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _fake_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _fake_text_embeddings)
     runner = CliRunner()
     vault_root = tmp_path / "vault"
     graph_home_path = tmp_path / "state"

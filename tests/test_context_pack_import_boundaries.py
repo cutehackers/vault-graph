@@ -9,9 +9,7 @@ from pathlib import Path
 def test_context_package_does_not_import_local_backends_or_llms() -> None:
     forbidden_prefixes = (
         "vault_graph.storage.local",
-        "vault_graph.cli",
         "vault_graph.interface",
-        "vault_graph.projection.rustworkx_projection",
         "vault_graph.retrieval.graph.projection.rustworkx_projection",
         "rustworkx",
         "chromadb",
@@ -42,22 +40,14 @@ import sys
 import vault_graph.context
 import vault_graph.context.pack
 for name in (
-    'vault_graph.graph',
-    'vault_graph.graph.graph_contracts',
     'vault_graph.retrieval.graph.graph_contracts',
-    'vault_graph.graph.graph_identity',
     'vault_graph.retrieval.graph.graph_identity',
-    'vault_graph.graph.graph_query',
     'vault_graph.retrieval.graph.graph_query',
-    'vault_graph.cli.main',
     'vault_graph.interface.cli.main',
     'vault_graph.storage.local.sqlite_metadata_store',
     'vault_graph.storage.local.chroma_vector_store',
-    'vault_graph.retrieval.graph_retrieval',
     'vault_graph.retrieval.graph.graph_retrieval',
-    'vault_graph.retrieval.graph_candidates',
     'vault_graph.retrieval.search.graph_candidates',
-    'vault_graph.projection.rustworkx_projection',
     'vault_graph.retrieval.graph.projection.rustworkx_projection',
 ):
     if name in sys.modules:
@@ -69,18 +59,16 @@ for name in (
 
 
 def test_context_package_public_dir_lists_lazy_builder_exports() -> None:
-    import vault_graph.context
+    import vault_graph.context.pack
 
-    assert "SearchContextPackBuilder" in dir(vault_graph.context)
+    assert "SearchContextPackBuilder" in dir(vault_graph.context.pack)
 
 
 def test_cli_import_with_context_command_does_not_load_rustworkx_projection_adapter() -> None:
     code = """
 import sys
-import vault_graph.cli.main
 import vault_graph.interface.cli.main
 for name in (
-    'vault_graph.projection.rustworkx_projection',
     'vault_graph.retrieval.graph.projection.rustworkx_projection',
     'rustworkx',
 ):

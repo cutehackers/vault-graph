@@ -2,9 +2,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from vault_graph.embeddings.text_embeddings import EmbeddingModelSpec
 from vault_graph.errors import RetrievalContractError
-from vault_graph.retrieval import (
+from vault_graph.retrieval.search.retrieval_result import (
     RetrievalResult,
     RetrievalSignal,
     RetrievalSignalKind,
@@ -15,6 +14,7 @@ from vault_graph.retrieval import (
     warning_for_stale_vector,
 )
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingModelSpec
 from vault_graph.storage.interfaces.vector_store import VectorHit
 
 SPEC = EmbeddingModelSpec(

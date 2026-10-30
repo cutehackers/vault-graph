@@ -3,7 +3,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.keyword_index import KeywordQuery
 from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore

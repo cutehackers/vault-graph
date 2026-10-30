@@ -6,7 +6,7 @@ from collections.abc import Iterable
 
 import rustworkx as rx
 
-from vault_graph.projection.graph_projection import (
+from vault_graph.retrieval.graph.projection.graph_projection import (
     GRAPH_PROJECTION_VERSION,
     GraphPath,
     GraphProjectionEdge,

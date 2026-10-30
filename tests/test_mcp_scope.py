@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from vault_graph.errors import CatalogError
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
-from vault_graph.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input
+from vault_graph.interface.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
 
 
 def _catalog(tmp_path: Path) -> VaultCatalog:

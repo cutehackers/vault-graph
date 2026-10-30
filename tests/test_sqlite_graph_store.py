@@ -5,13 +5,13 @@ import pytest
 
 from tests.test_graph_store_contract import graph_store_contract, make_entity, make_plan
 from vault_graph.errors import GraphReadOnlyViolation, GraphStoreUnavailable
-from vault_graph.extraction.entity_extractor import DeterministicEntityExtractor
-from vault_graph.extraction.graph_source_store import PreviewGraphSourceStore
-from vault_graph.extraction.relationship_extractor import DeterministicRelationshipExtractor
-from vault_graph.graph.graph_contracts import GraphEvidenceRef, current_graph_extraction_spec
+from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
+from vault_graph.indexing.extraction.graph_source_store import PreviewGraphSourceStore
+from vault_graph.indexing.extraction.relationship_extractor import DeterministicRelationshipExtractor
 from vault_graph.indexing.graph_indexer import GraphIndexer
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import GraphEvidenceRef, current_graph_extraction_spec
 from vault_graph.storage.local.sqlite_graph_store import GRAPH_SCHEMA_VERSION, SQLiteGraphStore
 
 

@@ -5,11 +5,11 @@ from typing import Any, cast
 
 import pytest
 
-from vault_graph.app.index_service import IndexRunReport
-from vault_graph.app.setup_service import SetupRequest, SetupService
 from vault_graph.errors import LegacyDataHomeDetectedError
+from vault_graph.indexing.index_service import IndexRunReport
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.runtime.setup_service import SetupRequest, SetupService
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 class RecordingIndexService:

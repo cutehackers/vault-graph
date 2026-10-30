@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from vault_graph.app.query_scope_resolution import actual_query_scopes
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.interface.composition.query_scope_resolution import actual_query_scopes
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 
 
 def _entry(tmp_path: Path, vault_id: str, scopes: tuple[str, ...]) -> VaultCatalogEntry:

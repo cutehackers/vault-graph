@@ -4,11 +4,11 @@ import pytest
 
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.fakes.in_memory_vector_store import InMemoryVectorStore
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec
 from vault_graph.errors import CatalogError, VectorStoreError
-from vault_graph.ingestion.document_authority import DocumentRole
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.ingestion.document_authority import DocumentRole
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.store_health import StoreHealth
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingModelSpec
 from vault_graph.storage.interfaces.vector_store import (
     VectorEmbeddingRecord,
     VectorHit,

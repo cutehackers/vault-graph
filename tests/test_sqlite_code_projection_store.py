@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.code_index.code_models import (
+from vault_graph.project.code.code_models import (
     CODE_PARSER_SPEC_VERSION,
     CODE_PROJECTION_SCHEMA_VERSION,
     CodeEdgeRecord,

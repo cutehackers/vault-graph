@@ -4,7 +4,7 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from tests.test_cli_graph_indexing import _deterministic_text_embeddings
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 runner = CliRunner()
 
@@ -19,7 +19,7 @@ def test_graph_dry_run_does_not_create_state_or_modify_vault(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
     graph_home_path = tmp_path / "state"
@@ -40,7 +40,7 @@ def test_graph_apply_and_status_do_not_modify_vault_or_projection_cache(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
     graph_home_path = tmp_path / "state"

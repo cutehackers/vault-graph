@@ -2,7 +2,7 @@
 
 Source: modularization remediation plan, 보완1 (발견10), and VG-MOD-20261015 §4 DEP-01..07.
 The transport and composition ban for feature code stays in test_functional_module_boundaries.py.
-Storage layers and compatibility aliases (발견9) are import targets here, not checked sources.
+Storage layers are import targets here, not checked sources.
 """
 
 import ast
@@ -96,14 +96,8 @@ _ALLOWED: dict[str, frozenset[str]] = {
 
 # Current violations, fixed per (source file, imported module). Remove an entry when its fix lands.
 # Do not add entries. A new violation must be fixed or recorded as a VG-MOD rule exception (결정2).
-_KNOWN_VIOLATIONS: frozenset[tuple[str, str]] = frozenset(
-    {
-        # Not in the 발견 table: lazy legacy re-exports of M15 and M13 from the M10 package (vault_graph.memory).
-        ("context/memory/__init__.py", "vault_graph.operation.diagnostics.health_explorer"),
-        ("context/memory/__init__.py", "vault_graph.retrieval.explanation.result_explanation"),
-    }
-)
-_KNOWN_VIOLATION_CEILING = 2
+_KNOWN_VIOLATIONS: frozenset[tuple[str, str]] = frozenset()
+_KNOWN_VIOLATION_CEILING = 0
 
 _DYNAMIC_MODULE = re.compile(r"vault_graph(\.\w+)+")
 
@@ -170,7 +164,7 @@ def collect_imports(source: str, module: str, *, is_package: bool) -> set[str]:
 def _is_allowed(source_area: str, target: str) -> bool:
     target_area = _area_of_path(_module_path(target))
     if target_area is None:
-        # Compatibility alias or package root: feature code must import the canonical module.
+        # Unknown path or package root: feature code must import the canonical module.
         return False
     return (
         target_area == source_area
@@ -257,7 +251,7 @@ _EXPORTS = {"X": ("vault_graph.operation.integration.project_binding_catalog", "
         ("M08", "vault_graph.operation.integration.vault_map", False),  # recall gets the vault map injected
         ("M12", "vault_graph.operation.integration.vault_map", False),  # DEP-01
         ("M17", "vault_graph.storage.local.usage_log", False),
-        ("M05", "vault_graph.retrieval.retrieval_service", False),  # compatibility alias
+        ("M05", "vault_graph.retrieval.retrieval_service", False),  # removed previous path
         ("M08", "vault_graph.context.memory.project_memory", True),
         ("M07", "vault_graph.retrieval.graph.graph_contracts", True),
         ("M07", "vault_graph.retrieval.graph.graph_retrieval_service", False),

@@ -9,21 +9,21 @@ import pytest
 from graph_document import GraphDocument, GraphLimits, ReadLimits
 
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
-from vault_graph.extraction.entity_extractor import DeterministicEntityExtractor
-from vault_graph.extraction.graph_source_store import PreviewGraphSourceStore
-from vault_graph.extraction.relationship_extractor import DeterministicRelationshipExtractor
-from vault_graph.extraction.vault_graph_document_adapter import (
+from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
+from vault_graph.indexing.extraction.graph_source_store import PreviewGraphSourceStore
+from vault_graph.indexing.extraction.relationship_extractor import DeterministicRelationshipExtractor
+from vault_graph.indexing.extraction.vault_graph_document_adapter import (
     VaultDocumentMappingError,
     VaultGraphDocumentAdapter,
     VaultProjectionRequest,
 )
-from vault_graph.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
-from vault_graph.graph.graph_identity import stable_entity_id
 from vault_graph.indexing.graph_indexer import GraphIndexer
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.projection.graph_projection import GraphProjectionEdge, GraphProjectionNode
-from vault_graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
+from vault_graph.retrieval.graph.graph_identity import stable_entity_id
+from vault_graph.retrieval.graph.projection.graph_projection import GraphProjectionEdge, GraphProjectionNode
+from vault_graph.retrieval.graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 

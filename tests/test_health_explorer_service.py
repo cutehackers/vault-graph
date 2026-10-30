@@ -5,12 +5,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from tests.test_mcp_tools import make_status_report
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.memory.health_explorer import (
-    HealthExplorerService,
-    McpRuntimeCacheRecord,
-)
+from vault_graph.operation.diagnostics.health_explorer import HealthExplorerService, McpRuntimeCacheRecord
 from vault_graph.operation.diagnostics.index_status_reader import StatusReport
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 
 
 class RecordingStatusService:

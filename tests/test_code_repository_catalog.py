@@ -4,14 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_home import DEFAULT_GRAPH_HOME
-from vault_graph.code_index.code_models import CodeRepositoryEntry
-from vault_graph.code_index.repository_catalog import (
-    CodeRepositoryCatalogService,
-    repository_policy_revision,
-)
 from vault_graph.errors import CatalogError
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.graph_home import DEFAULT_GRAPH_HOME
+from vault_graph.project.code.code_models import CodeRepositoryEntry
+from vault_graph.project.code.repository_catalog import CodeRepositoryCatalogService, repository_policy_revision
 
 
 def _vault_and_service(tmp_path: Path) -> tuple[Path, CodeRepositoryCatalogService]:

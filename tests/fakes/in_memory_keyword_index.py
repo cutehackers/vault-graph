@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery
 from vault_graph.storage.interfaces.store_health import StoreHealth
 

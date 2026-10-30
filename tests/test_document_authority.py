@@ -2,13 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.ingestion.document_authority import (
-    assign_provenance_families,
-    classify_document_role,
-)
-from vault_graph.ingestion.document_normalizer import DocumentNormalizer, NormalizedDocument
-from vault_graph.ingestion.vault_frontmatter_reader import read_frontmatter
-from vault_graph.ingestion.vault_loader import LoadedVaultDocument
+from vault_graph.indexing.ingestion.document_authority import assign_provenance_families, classify_document_role
+from vault_graph.indexing.ingestion.document_normalizer import DocumentNormalizer, NormalizedDocument
+from vault_graph.indexing.ingestion.vault_frontmatter_reader import read_frontmatter
+from vault_graph.indexing.ingestion.vault_loader import LoadedVaultDocument
 
 
 @pytest.mark.parametrize(

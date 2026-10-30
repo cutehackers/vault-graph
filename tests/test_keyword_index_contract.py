@@ -1,7 +1,7 @@
 import pytest
 
 from vault_graph.errors import KeywordIndexError
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery
 
 

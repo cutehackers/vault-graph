@@ -3,17 +3,17 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from vault_graph.code_index.code_models import (
+from vault_graph.project.code.code_models import (
     CodeIndexRequest,
     CodeRepositoryEntry,
     CodeSymbolRequest,
     CodeSymbolSearchRequest,
 )
-from vault_graph.code_index.code_projection_service import CodeProjectionService
+from vault_graph.project.code.code_projection_service import CodeProjectionService
 
 
 def test_querying_live_source_does_not_mutate_repository_or_projection(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_query_service import CodeQueryService
+    from vault_graph.project.code.code_query_service import CodeQueryService
     from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
 
     repository = tmp_path / "repository"
@@ -55,7 +55,7 @@ def test_querying_live_source_does_not_mutate_repository_or_projection(tmp_path:
 
 
 def test_changed_source_keeps_only_a_safe_relative_path_attribution(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_query_service import CodeQueryService
+    from vault_graph.project.code.code_query_service import CodeQueryService
     from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
 
     repository = tmp_path / "repository"
@@ -96,7 +96,7 @@ def test_changed_source_keeps_only_a_safe_relative_path_attribution(tmp_path: Pa
 
 
 def test_unavailable_source_keeps_only_a_safe_relative_path_attribution(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_query_service import CodeQueryService
+    from vault_graph.project.code.code_query_service import CodeQueryService
     from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
 
     repository = tmp_path / "repository"
@@ -137,8 +137,8 @@ def test_unavailable_source_keeps_only_a_safe_relative_path_attribution(tmp_path
 
 
 def test_non_utf8_source_returns_safe_unavailable_evidence(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_models import CodeSymbolRecord
-    from vault_graph.code_index.source_evidence_reader import SourceEvidenceReader
+    from vault_graph.project.code.code_models import CodeSymbolRecord
+    from vault_graph.project.code.source_evidence_reader import SourceEvidenceReader
 
     repository = tmp_path / "repository"
     repository.mkdir()

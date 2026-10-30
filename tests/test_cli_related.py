@@ -6,15 +6,15 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from tests.test_graph_store_contract import make_entity, make_relationship
-from vault_graph.cli.main import app
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
-from vault_graph.retrieval.graph_retrieval import (
+from vault_graph.interface.cli.main import app
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_retrieval import (
     GraphRetrievalRevision,
     GraphRetrievalWarning,
     RelatedItem,
     RelatedResponse,
 )
+from vault_graph.retrieval.graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
 runner = CliRunner()
@@ -34,7 +34,7 @@ def test_cli_related_text_renders_evidence_linked_items(tmp_path: Path, monkeypa
     response = related_response()
     fake_service = _FakeGraphRetrievalService(response)
     monkeypatch.setattr(
-        "vault_graph.cli.main._graph_retrieval_service",
+        "vault_graph.interface.cli.main._graph_retrieval_service",
         fake_graph_service_factory(tmp_path, fake_service),
     )
 
@@ -56,7 +56,7 @@ def test_cli_related_text_renders_cross_vault_actual_scope(tmp_path: Path, monke
     response = related_response(include_cross_vault=True)
     fake_service = _FakeGraphRetrievalService(response)
     monkeypatch.setattr(
-        "vault_graph.cli.main._graph_retrieval_service",
+        "vault_graph.interface.cli.main._graph_retrieval_service",
         fake_graph_service_factory(tmp_path, fake_service),
     )
 
@@ -74,7 +74,7 @@ def test_cli_related_json_uses_related_response_contract(tmp_path: Path, monkeyp
     response = related_response()
     fake_service = _FakeGraphRetrievalService(response)
     monkeypatch.setattr(
-        "vault_graph.cli.main._graph_retrieval_service",
+        "vault_graph.interface.cli.main._graph_retrieval_service",
         fake_graph_service_factory(tmp_path, fake_service),
     )
 
@@ -139,7 +139,7 @@ def test_cli_related_ambiguous_target_exits_zero_with_warning(tmp_path: Path, mo
     )
     fake_service = _FakeGraphRetrievalService(response)
     monkeypatch.setattr(
-        "vault_graph.cli.main._graph_retrieval_service",
+        "vault_graph.interface.cli.main._graph_retrieval_service",
         fake_graph_service_factory(tmp_path, fake_service),
     )
 

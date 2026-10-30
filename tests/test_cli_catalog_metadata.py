@@ -2,7 +2,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 runner = CliRunner()
 

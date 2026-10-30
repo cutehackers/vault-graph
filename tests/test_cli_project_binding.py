@@ -4,7 +4,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 
 def test_cli_project_binding_persists_and_lists_explicit_authorities(tmp_path: Path) -> None:

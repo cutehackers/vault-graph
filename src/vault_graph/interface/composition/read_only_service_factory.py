@@ -52,7 +52,7 @@ class VectorIndexerStaleCounter:
         self._text_embeddings = text_embeddings
 
     def stale_count(self, *, scope: QueryScope) -> int | None:
-        from vault_graph.indexing.vector_indexer import VectorIndexer
+        from vault_graph.indexing.vector_index_adapter import VectorIndexer
 
         plan = VectorIndexer(
             chunk_store=self._metadata_store,

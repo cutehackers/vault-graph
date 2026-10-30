@@ -5,14 +5,14 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from tests.test_cli_search import _deterministic_text_embeddings, write_page
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 runner = CliRunner()
 
 
 def test_all_vault_search_keeps_identical_paths_separate(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     first = tmp_path / "first"
     second = tmp_path / "second"
     write_page(first, "wiki/same.md", "# Same\nGraphRAG from first\n")
@@ -37,8 +37,8 @@ def test_all_vault_search_keeps_identical_paths_separate(tmp_path: Path, monkeyp
 
 
 def test_single_vault_search_does_not_leak_other_vault_results(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     first = tmp_path / "first"
     second = tmp_path / "second"
     write_page(first, "wiki/same.md", "# Same\nGraphRAG from first\n")

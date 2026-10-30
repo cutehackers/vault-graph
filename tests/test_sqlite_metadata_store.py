@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 
 from vault_graph.errors import MetadataStoreError
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 

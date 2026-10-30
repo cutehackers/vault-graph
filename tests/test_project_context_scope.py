@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from vault_graph.project_context import ProjectFreshness, combine_freshness
-from vault_graph.project_context.project_context_service import _vault_freshness_from_status
+from vault_graph.project.context.project_context_models import ProjectFreshness, combine_freshness
+from vault_graph.project.context.project_context_service import _vault_freshness_from_status
 
 
 @pytest.mark.parametrize(

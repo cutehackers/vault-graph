@@ -1,8 +1,8 @@
-from vault_graph.extraction.entity_extractor import DeterministicEntityExtractor
-from vault_graph.extraction.graph_source_store import GraphExtractionContext, PreviewGraphSourceStore
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
+from vault_graph.indexing.extraction.graph_source_store import GraphExtractionContext, PreviewGraphSourceStore
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
 
 
 def document(

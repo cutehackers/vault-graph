@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.harness.harness_guidance import HarnessGuidanceError, HarnessGuidanceRequest, HarnessGuidanceService
+from vault_graph.operation.integration.harness.harness_guidance import (
+    HarnessGuidanceError,
+    HarnessGuidanceRequest,
+    HarnessGuidanceService,
+)
 
 
 def test_preview_does_not_write_instruction_or_backup(tmp_path: Path) -> None:
@@ -45,7 +49,7 @@ def test_atomic_write_converts_temporary_file_errors_to_domain_error(
     def fail_mkstemp(**_: object) -> tuple[int, str]:
         raise OSError("temporary directory is not writable")
 
-    monkeypatch.setattr("vault_graph.harness.harness_guidance.tempfile.mkstemp", fail_mkstemp)
+    monkeypatch.setattr("vault_graph.operation.integration.harness.harness_guidance.tempfile.mkstemp", fail_mkstemp)
 
     with pytest.raises(HarnessGuidanceError, match="harness_guidance_write_failed"):
         HarnessGuidanceService(vault_roots=(tmp_path / "vault",)).install(

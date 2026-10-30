@@ -6,10 +6,10 @@ from typing import cast
 import pytest
 
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.context import ContextEvidenceRef, ContextPackBudget
-from vault_graph.context.context_pack_builder import MetadataContextEvidenceResolver
+from vault_graph.context.pack.context_pack import ContextEvidenceRef, ContextPackBudget
+from vault_graph.context.pack.context_pack_builder import MetadataContextEvidenceResolver
 from vault_graph.errors import ContextPackError
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from vault_graph.errors import ResultExplanationError
-from vault_graph.memory.result_explanation import (
+from vault_graph.retrieval.explanation.result_explanation import (
     CachedExplanationView,
     ExplainResultService,
     ExplanationEvidenceRef,

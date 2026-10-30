@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector
 from vault_graph.errors import TextEmbeddingsError
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector
 
 
 def test_empty_input_returns_empty_output() -> None:

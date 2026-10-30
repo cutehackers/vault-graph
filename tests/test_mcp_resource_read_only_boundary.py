@@ -7,10 +7,10 @@ from typer.testing import CliRunner
 
 from tests.test_read_only_boundary import file_bytes
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_resources import McpResourceRequest
-from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_resources import McpResourceRequest
+from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 runner = CliRunner()
@@ -123,7 +123,7 @@ def test_resource_reads_do_not_call_vault_loader(tmp_path: Path, monkeypatch: py
     def fail_load_documents(*args: object, **kwargs: object) -> object:
         raise AssertionError("VaultLoader must not be called by MCP resource reads")
 
-    monkeypatch.setattr("vault_graph.ingestion.vault_loader.VaultLoader.load_documents", fail_load_documents)
+    monkeypatch.setattr("vault_graph.indexing.ingestion.vault_loader.VaultLoader.load_documents", fail_load_documents)
 
     body = registered.resource_registry.read(McpResourceRequest(uri="vault://default/documents/wiki%2Fpage.md"))
 

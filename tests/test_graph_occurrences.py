@@ -1,7 +1,7 @@
 import pytest
 
 from vault_graph.errors import GraphExtractionError
-from vault_graph.extraction.graph_occurrences import (
+from vault_graph.indexing.extraction.graph_occurrences import (
     EntityOccurrence,
     RelationshipOccurrence,
     entity_occurrence_key,

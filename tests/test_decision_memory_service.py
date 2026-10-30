@@ -11,12 +11,12 @@ from tests.test_graph_retrieval_contract import make_metadata_evidence_from_grap
 from tests.test_graph_store_contract import make_entity
 from tests.test_mcp_tools import make_decision_trace_response, make_status_report
 from tests.test_sqlite_metadata_store import make_chunk, make_document
+from vault_graph.context.memory.decision_memory import DecisionMemoryService
+from vault_graph.context.memory.memory_source_reader import MemorySourceReader
 from vault_graph.errors import MemoryProjectionError
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.memory.decision_memory import DecisionMemoryService
-from vault_graph.memory.memory_source_reader import MemorySourceReader
-from vault_graph.retrieval.graph_retrieval import DecisionTraceResponse, DecisionTraceStep
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_retrieval import DecisionTraceResponse, DecisionTraceStep
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
 

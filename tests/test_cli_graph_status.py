@@ -3,8 +3,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from vault_graph.cli.main import app
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.interface.cli.main import app
+from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
 
 runner = CliRunner()
 

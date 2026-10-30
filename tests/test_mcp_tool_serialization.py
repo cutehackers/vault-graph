@@ -8,7 +8,7 @@ from tests.test_context_pack_contract import make_pack
 from tests.test_graph_retrieval_contract import make_metadata_evidence_from_graph_ref
 from tests.test_graph_store_contract import make_entity, make_relationship
 from tests.test_retrieval_result_contract import make_evidence, make_signal, make_store_revisions
-from vault_graph.context import (
+from vault_graph.context.pack.context_pack import (
     ContextEvidence,
     ContextEvidenceRef,
     ContextPack,
@@ -16,9 +16,8 @@ from vault_graph.context import (
     ContextPackSignal,
     ContextPackWarning,
 )
-from vault_graph.context.context_pack_serialization import context_pack_to_dict
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.mcp.mcp_tool_serialization import (
+from vault_graph.context.pack.context_pack_serialization import context_pack_to_dict
+from vault_graph.interface.mcp.mcp_tool_serialization import (
     context_pack_to_payload,
     decision_trace_response_to_payload,
     explanation_payload_to_resource_links,
@@ -31,16 +30,17 @@ from vault_graph.mcp.mcp_tool_serialization import (
     resource_links_for_search,
     status_report_to_payload,
 )
-from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
-from vault_graph.retrieval import RetrievalResult
-from vault_graph.retrieval.graph_retrieval import (
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_retrieval import (
     DecisionTraceResponse,
     DecisionTraceStep,
     GraphRetrievalRevision,
     RelatedItem,
     RelatedResponse,
 )
-from vault_graph.retrieval.search_response import SearchResponse, SearchStoreRevision
+from vault_graph.retrieval.graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
+from vault_graph.retrieval.search.retrieval_result import RetrievalResult
+from vault_graph.retrieval.search.search_response import SearchResponse, SearchStoreRevision
 
 
 def make_search_response(*, path: str = "wiki/page.md") -> SearchResponse:
@@ -409,5 +409,4 @@ def test_explanation_payload_resource_links_round_trip() -> None:
 def test_tool_serialization_does_not_import_cli_helpers() -> None:
     source = Path("src/vault_graph/interface/mcp/mcp_tool_serialization.py").read_text(encoding="utf-8")
 
-    assert "vault_graph.cli" not in source
     assert "vault_graph.interface.cli" not in source

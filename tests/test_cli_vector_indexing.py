@@ -5,10 +5,10 @@ from typer.testing import CliRunner
 
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.test_vector_indexer import SPEC
-from vault_graph.app.projection_generation import ProjectionGenerationManager
-from vault_graph.cli.main import app
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.errors import TextEmbeddingsError
+from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
+from vault_graph.interface.cli.main import app
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingVector
 
 runner = CliRunner()
 
@@ -74,7 +74,7 @@ def test_cli_index_returns_nonzero_when_vector_step_fails(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _failing_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _failing_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nBody\n")
     graph_home_path = tmp_path / "state"
@@ -98,7 +98,7 @@ def test_failed_incremental_index_keeps_previous_projection_generation(
     graph_home_path = tmp_path / "state"
     runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
 
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
     first_result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
     assert first_result.exit_code == 0
     manager = ProjectionGenerationManager(graph_home_path)
@@ -106,7 +106,7 @@ def test_failed_incremental_index_keeps_previous_projection_generation(
     assert first is not None
 
     write_page(vault_root, "wiki/page.md", "# Page\nChanged\n")
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _failing_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _failing_text_embeddings)
     failed_result = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
 
     assert failed_result.exit_code == 1

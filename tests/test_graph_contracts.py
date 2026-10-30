@@ -3,17 +3,13 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from vault_graph.errors import GraphRecordInvalid
-from vault_graph.graph.graph_contracts import (
+from vault_graph.retrieval.graph.graph_contracts import (
     GraphEvidenceRef,
     GraphExtractionSpec,
     RelationshipRecord,
     current_graph_extraction_spec,
 )
-from vault_graph.graph.graph_identity import (
-    stable_entity_id,
-    stable_evidence_ref_id,
-    stable_relationship_id,
-)
+from vault_graph.retrieval.graph.graph_identity import stable_entity_id, stable_evidence_ref_id, stable_relationship_id
 
 
 def test_current_graph_extraction_spec_has_canonical_digest() -> None:

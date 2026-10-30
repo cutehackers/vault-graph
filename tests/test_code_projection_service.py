@@ -3,8 +3,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from vault_graph.code_index.code_models import CodeIndexRequest, CodeRepositoryEntry
-from vault_graph.code_index.code_projection_service import CodeProjectionService
+from vault_graph.project.code.code_models import CodeIndexRequest, CodeRepositoryEntry
+from vault_graph.project.code.code_projection_service import CodeProjectionService
 from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
 
 
@@ -225,7 +225,7 @@ def test_failed_run_persists_partial_marker_for_new_service(tmp_path: Path) -> N
 
 
 def test_projection_uses_injected_read_and_failure_stores(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_generation import CodeProjectionGenerationManager
+    from vault_graph.project.code.code_generation import CodeProjectionGenerationManager
     from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
 
     source = tmp_path / "main.py"

@@ -2,9 +2,9 @@ import pytest
 
 from tests.test_retrieval_result_contract import make_evidence, make_signal, make_store_revisions
 from vault_graph.errors import SearchError
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.retrieval import RetrievalResult
-from vault_graph.retrieval.search_response import (
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.search.retrieval_result import RetrievalResult
+from vault_graph.retrieval.search.search_response import (
     SearchOutputFormat,
     SearchRequest,
     SearchResponse,

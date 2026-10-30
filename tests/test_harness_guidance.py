@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.harness.harness_guidance import (
+from vault_graph.operation.integration.harness.harness_guidance import (
     HARNESS_GUIDANCE_END_MARKER,
     HARNESS_GUIDANCE_START_MARKER,
     HarnessGuidanceError,

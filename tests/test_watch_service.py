@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any, cast
 
 from tests.test_setup_service import RecordingIndexFactory
-from vault_graph.app.watch_service import WatchService
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.runtime.watch_service import WatchService
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 def test_watch_runs_incremental_index_until_max_iterations(tmp_path: Path) -> None:

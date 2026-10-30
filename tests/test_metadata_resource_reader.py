@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_uri import McpResourceUri, parse_mcp_resource_uri
-from vault_graph.mcp.metadata_resource_reader import MetadataResourceReader
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_uri import McpResourceUri, parse_mcp_resource_uri
+from vault_graph.interface.mcp.metadata_resource_reader import MetadataResourceReader
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceReference
 from vault_graph.storage.interfaces.store_health import StoreHealth
 

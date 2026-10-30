@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from vault_graph.answer.answer_plan import AnswerRequest, answer_id_for
+from vault_graph.context.answer.answer_plan import AnswerRequest, answer_id_for
 from vault_graph.errors import AnswerError
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 def scope(*, vault_ids: tuple[str, ...] = ("main",), include_cross_vault: bool = False) -> QueryScope:

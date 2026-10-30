@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from vault_graph.errors import McpConfigError
-from vault_graph.mcp.mcp_config_registration import (
+from vault_graph.operation.integration.mcp.mcp_config_registration import (
     McpConfigRegistrar,
     McpConfigRenderer,
     McpConfigRequest,

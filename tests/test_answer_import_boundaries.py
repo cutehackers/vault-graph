@@ -7,13 +7,13 @@ import sys
 def test_answer_package_import_is_mcp_and_backend_free() -> None:
     code = """
 import sys
-import vault_graph.answer
+import vault_graph.context.answer
 for name in (
     'mcp',
     'mcp.server.fastmcp',
-    'vault_graph.mcp.mcp_tools',
+    'vault_graph.interface.mcp.mcp_tools',
     'vault_graph.storage.local.chroma_vector_store',
-    'vault_graph.projection.rustworkx_projection',
+    'vault_graph.retrieval.graph.projection.rustworkx_projection',
     'chromadb',
     'fastembed',
     'rustworkx',

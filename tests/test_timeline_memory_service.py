@@ -9,11 +9,8 @@ import pytest
 
 from tests.test_mcp_tools import make_status_report
 from tests.test_sqlite_metadata_store import make_document
-from vault_graph.errors import MemoryProjectionError, MetadataStoreError
-from vault_graph.ingestion.document_normalizer import DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.memory.memory_models import MemoryWarning
-from vault_graph.memory.timeline_memory import (
+from vault_graph.context.memory.memory_models import MemoryWarning
+from vault_graph.context.memory.timeline_memory import (
     RecentChangesProjection,
     TimelineEvidenceRef,
     TimelineItem,
@@ -22,7 +19,10 @@ from vault_graph.memory.timeline_memory import (
     parse_timeline_since,
     stable_timeline_item_id,
 )
+from vault_graph.errors import MemoryProjectionError, MetadataStoreError
+from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 from vault_graph.operation.diagnostics.index_status_reader import StatusReport
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 

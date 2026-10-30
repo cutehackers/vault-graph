@@ -4,11 +4,11 @@ from dataclasses import replace
 
 from tests.test_mcp_tool_serialization import make_search_response
 from tests.test_mcp_tools import make_decision_trace_response
-from vault_graph.answer.answer_plan import AnswerRequest
-from vault_graph.answer.evidence_planner import EvidencePlanner
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.retrieval.graph_retrieval import DecisionTraceResponse
-from vault_graph.retrieval.search_response import SearchResponse, SearchWarning
+from vault_graph.context.answer.answer_plan import AnswerRequest
+from vault_graph.context.answer.evidence_planner import EvidencePlanner
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_retrieval import DecisionTraceResponse
+from vault_graph.retrieval.search.search_response import SearchResponse, SearchWarning
 
 
 class RecordingRetrievalService:

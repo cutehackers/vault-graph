@@ -15,15 +15,14 @@ from tests.test_cli_graph_indexing import (
     write_page,
 )
 from tests.test_graph_module_public_integration import fingerprints
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_store_factory import document_store_path
-from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
-from vault_graph.cli.main import app
-from vault_graph.http.http_errors import HttpServerConfig
-from vault_graph.http.http_server import create_http_app
-from vault_graph.mcp.mcp_resources import McpResourceRequest
-from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
-from vault_graph.mcp.mcp_tools import (
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.composition.graph_store_factory import document_store_path
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+from vault_graph.interface.http.http_errors import HttpServerConfig
+from vault_graph.interface.http.http_server import create_http_app
+from vault_graph.interface.mcp.mcp_resources import McpResourceRequest
+from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.interface.mcp.mcp_tools import (
     AskVaultInput,
     BuildContextPackInput,
     CheckIndexStatusInput,
@@ -31,6 +30,7 @@ from vault_graph.mcp.mcp_tools import (
     FindRelatedInput,
     SearchVaultInput,
 )
+from vault_graph.operation.scope.catalog_service import CatalogService
 
 
 class FixedIndexTime(datetime):
@@ -40,7 +40,7 @@ class FixedIndexTime(datetime):
 
 
 def _indexed_decision_home(tmp_path: Path, monkeypatch: MonkeyPatch) -> tuple[Path, Path]:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
 
     def embeddings(_self: object, config: object) -> _ConfiguredDeterministicTextEmbeddings:
         return _deterministic_text_embeddings(config)

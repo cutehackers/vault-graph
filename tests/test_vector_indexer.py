@@ -4,11 +4,11 @@ import pytest
 
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.fakes.in_memory_vector_store import InMemoryVectorStore
-from vault_graph.embeddings.text_embeddings import EmbeddingModelSpec
 from vault_graph.errors import VectorStoreError
-from vault_graph.indexing.vector_indexer import VectorIndexer
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.indexing.vector_index_adapter import VectorIndexer
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingModelSpec
 
 SPEC = EmbeddingModelSpec(model_name="deterministic", model_version="v1", dimensions=4, spec_version="spec-v1")
 SECOND_SPEC = EmbeddingModelSpec(model_name="deterministic", model_version="v2", dimensions=4, spec_version="spec-v2")

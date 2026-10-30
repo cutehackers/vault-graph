@@ -10,14 +10,11 @@ from typer.testing import CliRunner
 from tests.test_cli_search import _deterministic_text_embeddings, _unavailable_search_text_embeddings, write_page
 from tests.test_context_pack_contract import make_pack, make_pack_with_warning
 from tests.test_read_only_boundary import file_bytes
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.cli.main import app
-from vault_graph.context import (
+from vault_graph.context.pack.context_pack import (
     ContextEvidence,
     ContextEvidenceRef,
     ContextPack,
     ContextPackActualScope,
-    ContextPackRenderer,
     ContextPackRequest,
     ContextPackRequestedScope,
     ContextPackScope,
@@ -25,9 +22,11 @@ from vault_graph.context import (
     ContextPackVault,
     ContextPackVaultRevision,
     ContextPackWarning,
-    DefaultContextPackRenderer,
 )
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.context.pack.context_pack_renderer import ContextPackRenderer, DefaultContextPackRenderer
+from vault_graph.interface.cli.main import app
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 runner = CliRunner()
@@ -189,8 +188,8 @@ def _install_fake_context(
         builder.include_graph_from_factory = include_graph
         return builder, renderer or DefaultContextPackRenderer()
 
-    monkeypatch.setattr("vault_graph.cli.main._catalog", fake_catalog)
-    monkeypatch.setattr("vault_graph.cli.main._context_builder_service", fake_context_builder_service)
+    monkeypatch.setattr("vault_graph.interface.cli.main._catalog", fake_catalog)
+    monkeypatch.setattr("vault_graph.interface.cli.main._context_builder_service", fake_context_builder_service)
     return catalog
 
 
@@ -278,7 +277,7 @@ def test_cli_context_validates_options_before_opening_stores(tmp_path: Path, mon
     def fail_factory(*_: object, **__: object) -> object:
         raise AssertionError("invalid options must not open context stores")
 
-    monkeypatch.setattr("vault_graph.cli.main._context_builder_service", fail_factory, raising=False)
+    monkeypatch.setattr("vault_graph.interface.cli.main._context_builder_service", fail_factory, raising=False)
 
     invalid_format = runner.invoke(
         app,
@@ -336,8 +335,8 @@ def test_cli_context_unknown_vault_does_not_open_builder_or_graph(
     def fail_graph_open(_: object) -> object:
         raise AssertionError("unknown vault must not open graph retrieval state")
 
-    monkeypatch.setattr("vault_graph.cli.main._context_builder_service", fail_context_builder, raising=False)
-    monkeypatch.setattr("vault_graph.cli.main._graph_retrieval_service", fail_graph_open)
+    monkeypatch.setattr("vault_graph.interface.cli.main._context_builder_service", fail_context_builder, raising=False)
+    monkeypatch.setattr("vault_graph.interface.cli.main._graph_retrieval_service", fail_graph_open)
 
     result = runner.invoke(
         app,
@@ -363,8 +362,8 @@ def test_cli_context_rejects_single_vault_cross_vault_before_opening_builder_or_
     def fail_graph_open(_: object) -> object:
         raise AssertionError("invalid single-vault cross-vault scope must not open graph retrieval state")
 
-    monkeypatch.setattr("vault_graph.cli.main._context_builder_service", fail_context_builder)
-    monkeypatch.setattr("vault_graph.cli.main._graph_retrieval_service", fail_graph_open)
+    monkeypatch.setattr("vault_graph.interface.cli.main._context_builder_service", fail_context_builder)
+    monkeypatch.setattr("vault_graph.interface.cli.main._graph_retrieval_service", fail_graph_open)
 
     result = runner.invoke(
         app,
@@ -384,13 +383,13 @@ def test_cli_context_rejects_single_vault_cross_vault_before_opening_builder_or_
 
 
 def test_cli_context_without_include_graph_does_not_open_graph_state(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
 
     def fail_graph_open(_: object) -> None:
         raise AssertionError("plain context must not open graph retrieval state")
 
-    monkeypatch.setattr("vault_graph.cli.main._graph_retrieval_service", fail_graph_open)
+    monkeypatch.setattr("vault_graph.interface.cli.main._graph_retrieval_service", fail_graph_open)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
     graph_home_path = tmp_path / "state"
@@ -487,8 +486,8 @@ def test_cli_context_all_vaults_uses_real_retrieval_and_preserves_evidence_vault
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     first = tmp_path / "first"
     second = tmp_path / "second"
     write_page(first, "wiki/first.md", "# First\nGraphRAG shared evidence from first vault\n")
@@ -515,8 +514,8 @@ def test_cli_context_vector_unavailable_returns_keyword_pack_with_warning(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _unavailable_search_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _unavailable_search_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
     graph_home_path = tmp_path / "state"
@@ -539,8 +538,8 @@ def test_cli_context_include_graph_preserves_graph_unavailable_warning(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
 
     class _UnavailableGraphSearchSource:
         def graph_candidates_for_search(self, **_: object) -> object:
@@ -562,7 +561,7 @@ def test_cli_context_include_graph_preserves_graph_unavailable_warning(
     runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
     before_vault = file_bytes(vault_root)
     before_state = state_tree(graph_home_path)
-    monkeypatch.setattr("vault_graph.cli.main._graph_retrieval_service", graph_factory)
+    monkeypatch.setattr("vault_graph.interface.cli.main._graph_retrieval_service", graph_factory)
 
     result = runner.invoke(
         app,
@@ -601,7 +600,7 @@ def test_cli_context_all_vaults_does_not_modify_registered_vault_files(
     ) -> tuple[_RecordingContextPackBuilder, ContextPackRenderer]:
         return builder, DefaultContextPackRenderer()
 
-    monkeypatch.setattr("vault_graph.cli.main._context_builder_service", fake_context_builder_service)
+    monkeypatch.setattr("vault_graph.interface.cli.main._context_builder_service", fake_context_builder_service)
 
     result = runner.invoke(app, ["context", "--graph-home", str(graph_home_path), "--all-vaults", "GraphRAG"])
 

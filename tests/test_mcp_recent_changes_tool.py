@@ -9,17 +9,17 @@ import pytest
 from tests.test_mcp_memory_tools import make_recent_changes_projection
 from tests.test_mcp_tools import RecordingFactory, RecordingToolServer, fake_services
 from vault_graph.errors import MemoryProjectionError
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_service_factory import McpServices
-from vault_graph.mcp.mcp_tools import (
+from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_service_factory import McpServices
+from vault_graph.interface.mcp.mcp_tools import (
     GetRecentChangesInput,
     McpToolRegistry,
     parse_get_recent_changes_input,
     register_mcp_tools,
 )
-from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 
 
 class RecordingTimelineMemoryService:

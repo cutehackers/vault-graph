@@ -6,7 +6,7 @@ from pathlib import Path
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 runner = CliRunner()
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -35,7 +35,7 @@ def test_serve_http_delegates_to_local_http_server(tmp_path: Path, monkeypatch: 
         nonlocal seen
         seen = (config.graph_home_path, config.host, config.port)  # type: ignore[attr-defined]
 
-    monkeypatch.setattr("vault_graph.http.http_server.run_http_server", fake_run)
+    monkeypatch.setattr("vault_graph.interface.http.http_server.run_http_server", fake_run)
 
     result = runner.invoke(
         app,
@@ -60,7 +60,7 @@ def test_serve_mcp_missing_catalog_exits_before_stdio_start(tmp_path: Path, monk
         nonlocal called
         called = True
 
-    monkeypatch.setattr("vault_graph.mcp.mcp_server.run_mcp_server", fake_run)
+    monkeypatch.setattr("vault_graph.interface.mcp.mcp_server.run_mcp_server", fake_run)
 
     result = runner.invoke(app, ["serve", "--mcp", "--graph-home", str(tmp_path / "missing-state")])
 
@@ -81,7 +81,7 @@ def test_serve_mcp_delegates_without_stdout_startup_text(tmp_path: Path, monkeyp
         nonlocal seen_state
         seen_state = config.graph_home_path  # type: ignore[attr-defined]
 
-    monkeypatch.setattr("vault_graph.mcp.mcp_server.run_mcp_server", fake_run)
+    monkeypatch.setattr("vault_graph.interface.mcp.mcp_server.run_mcp_server", fake_run)
 
     result = runner.invoke(app, ["serve", "--mcp", "--graph-home", str(graph_home_path)])
 

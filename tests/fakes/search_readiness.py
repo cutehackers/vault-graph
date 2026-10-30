@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from vault_graph.retrieval.search_readiness import SearchReadinessReport
-from vault_graph.retrieval.search_response import SearchStoreRevision
+from vault_graph.operation.readiness.search_readiness import SearchReadinessReport
+from vault_graph.retrieval.search.search_response import SearchStoreRevision
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 

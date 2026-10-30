@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
 from typing import Any, cast
 
@@ -8,22 +7,9 @@ import pytest
 
 from tests.test_functional_module_boundaries import assert_policy_imports
 from tests.test_setup_service import RecordingIndexFactory, make_vault
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.runtime_operations.setup_service import SetupRequest, SetupService
-from vault_graph.runtime_operations.watch_service import WatchService
-
-
-@pytest.mark.parametrize(
-    ("legacy", "canonical"),
-    (
-        ("app.setup_service", "runtime_operations.setup_service"),
-        ("app.watch_service", "runtime_operations.watch_service"),
-        ("mcp.mcp_config_examples", "integration_configuration.mcp_config_examples"),
-        ("mcp.mcp_config_registration", "integration_configuration.mcp_config_registration"),
-    ),
-)
-def test_legacy_operation_modules_preserve_identity(legacy: str, canonical: str) -> None:
-    assert importlib.import_module(f"vault_graph.{legacy}") is importlib.import_module(f"vault_graph.{canonical}")
+from vault_graph.operation.runtime.setup_service import SetupRequest, SetupService
+from vault_graph.operation.runtime.watch_service import WatchService
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 @pytest.mark.parametrize("package", ("operation/runtime", "operation/integration"))

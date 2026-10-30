@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from vault_graph.mcp.mcp_config_examples import CODEX_STDIO_CONFIG_EXAMPLE, codex_stdio_config_json
+from vault_graph.operation.integration.mcp.mcp_config_examples import (
+    CODEX_STDIO_CONFIG_EXAMPLE,
+    codex_stdio_config_json,
+)
 
 
 def test_codex_stdio_config_example_uses_only_local_stdio() -> None:

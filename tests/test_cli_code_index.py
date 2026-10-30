@@ -4,7 +4,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 
 def test_code_repository_add_and_list_json(tmp_path: Path) -> None:

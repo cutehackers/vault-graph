@@ -4,8 +4,8 @@ from collections.abc import Callable
 
 import pytest
 
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES, McpPromptRegistry, register_mcp_prompts
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES, McpPromptRegistry, register_mcp_prompts
 
 
 class RecordingPromptServer:

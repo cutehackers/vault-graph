@@ -1,14 +1,14 @@
 from pathlib import Path
 
 from tests.test_graph_store_contract import make_entity, make_plan, make_relationship
-from vault_graph.graph.graph_contracts import GraphEvidenceRef, RelationshipRecord
-from vault_graph.graph.graph_identity import (
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import GraphEvidenceRef, RelationshipRecord
+from vault_graph.retrieval.graph.graph_identity import (
     graph_scope_key,
     stable_entity_id,
     stable_evidence_ref_id,
     stable_relationship_id,
 )
-from vault_graph.ingestion.vault_catalog import QueryScope
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 
 

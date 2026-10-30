@@ -6,11 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests.test_result_explanation import make_record
-from vault_graph.app.catalog_service import CatalogService
 from vault_graph.errors import DataHomeNotInitializedError, LegacyDataHomeDetectedError, VaultGraphError
-from vault_graph.http.http_errors import HttpRequestError, HttpServerConfig, map_exception_to_http_error
-from vault_graph.http.http_server import create_http_app
-from vault_graph.memory.result_explanation_cache import ResultExplanationCache
+from vault_graph.interface.http.http_errors import HttpRequestError, HttpServerConfig, map_exception_to_http_error
+from vault_graph.interface.http.http_server import create_http_app
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.retrieval.explanation.result_explanation_cache import ResultExplanationCache
 
 
 def make_state(tmp_path: Path) -> Path:
@@ -55,9 +55,9 @@ def test_http_data_home_errors_include_onboarding_recovery_hints() -> None:
 
 
 def test_http_package_does_not_import_mcp_modules() -> None:
-    import vault_graph.http.http_server as http_server
+    import vault_graph.interface.http.http_server as http_server
 
-    assert not any(name.startswith("vault_graph.mcp") for name in http_server.__dict__)
+    assert not any(name.startswith("vault_graph.interface.mcp") for name in http_server.__dict__)
     assert issubclass(HttpRequestError, VaultGraphError)
 
 

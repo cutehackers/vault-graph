@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from tests.test_answer_composer import make_planned_evidence
-from vault_graph.answer.answer_composer import ExtractiveAnswerComposer
-from vault_graph.answer.answer_plan import AnswerPlan, AnswerRequest, PlannedEvidence
-from vault_graph.answer.answer_response import AnswerDraft, AnswerResponse
-from vault_graph.answer.citation_guard import CitationGuard
-from vault_graph.app.answer_service import AnswerService
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.context.answer.answer_composer import ExtractiveAnswerComposer
+from vault_graph.context.answer.answer_plan import AnswerPlan, AnswerRequest, PlannedEvidence
+from vault_graph.context.answer.answer_response import AnswerDraft, AnswerResponse
+from vault_graph.context.answer.answer_service import AnswerService
+from vault_graph.context.answer.citation_guard import CitationGuard
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 class RecordingPlanner:

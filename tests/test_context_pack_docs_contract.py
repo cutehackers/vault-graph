@@ -5,12 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from tests.test_context_pack_contract import make_pack
-from vault_graph.context import (
-    CONTEXT_PACK_SCHEMA_VERSION,
-    ContextPack,
-    render_context_pack_json,
-    with_computed_pack_id,
-)
+from vault_graph.context.pack.context_pack import CONTEXT_PACK_SCHEMA_VERSION, ContextPack
+from vault_graph.context.pack.context_pack_serialization import render_context_pack_json, with_computed_pack_id
 
 
 def test_spec_and_features_context_pack_examples_match_dto_top_level_fields() -> None:

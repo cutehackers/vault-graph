@@ -16,22 +16,22 @@ from tests.test_cli_graph_indexing import write_page
 from tests.test_evidence_linking import Lookup, linked_store
 from tests.test_graph_module_public_integration import fingerprints, indexed_home
 from tests.test_graph_resource_reader import make_readiness
-from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
-from vault_graph.cli.main import app
 from vault_graph.errors import RetrievalContractError
-from vault_graph.graph.graph_readiness import GraphReadiness
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.projection_publication.projection_generation import ProjectionGenerationManager
-from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
-from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
-from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
-from vault_graph.vault_adapter.evidence_linking import (
+from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.evidence.evidence_linking import (
     EvidenceKey,
     EvidenceLinker,
     EvidenceSourceRevision,
     GraphLinksRequest,
 )
-from vault_graph.vault_scope.catalog_service import CatalogService
+from vault_graph.retrieval.graph.graph_readiness import GraphReadiness
+from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
+from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
+from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 
 class MetadataSpy:
@@ -173,8 +173,8 @@ def test_open_linker_keeps_selected_generation_after_new_publication(
 def test_explicit_lookup_never_constructs_models_or_chroma(
     tmp_path: Path, monkeypatch: MonkeyPatch, backend: str
 ) -> None:
-    from vault_graph.vault_adapter.text_embeddings import FastEmbedTextEmbeddings
-    from vault_graph.vault_adapter.vector_store import ChromaVectorStore
+    from vault_graph.interface.composition.adapters.text_embeddings import FastEmbedTextEmbeddings
+    from vault_graph.storage.local.vector_store_adapter import ChromaVectorStore
 
     vault, home = prepared_home(tmp_path, monkeypatch, backend)
     request = request_for_home(home)
@@ -204,16 +204,16 @@ class ForbiddenModelImports(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
         blocked = (
             "fastembed", "chromadb", "torch", "huggingface_hub",
-            "vault_graph.vault_adapter.text_embeddings", "vault_graph.vault_adapter.vector_store",
-            "vault_graph.embeddings.fastembed_text_embeddings", "vault_graph.storage.local.chroma_vector_store",
+            "vault_graph.interface.composition.adapters.text_embeddings",
+            "vault_graph.storage.local.vector_store_adapter", "vault_graph.storage.local.chroma_vector_store",
         )
         if any(fullname == name or fullname.startswith(name + ".") for name in blocked):
             raise AssertionError("evidence lookup imported " + fullname)
 sys.meta_path.insert(0, ForbiddenModelImports())
-from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
-from vault_graph.vault_adapter.evidence_linking import GraphLinksRequest
-from vault_graph.vault_scope.catalog_service import CatalogService
+from vault_graph.retrieval.evidence.evidence_linking import GraphLinksRequest
+from vault_graph.operation.scope.catalog_service import CatalogService
 home = Path(sys.argv[1])
 catalog = CatalogService(graph_home_path=home)
 scope = catalog.load_catalog().default_scope()

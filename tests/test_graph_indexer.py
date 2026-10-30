@@ -1,17 +1,17 @@
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
-from vault_graph.extraction.entity_extractor import DeterministicEntityExtractor
-from vault_graph.extraction.graph_occurrences import (
+from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
+from vault_graph.indexing.extraction.graph_occurrences import (
     EntityOccurrence,
     RelationshipOccurrence,
     entity_occurrence_key,
 )
-from vault_graph.extraction.graph_source_store import GraphExtractionContext, PreviewGraphSourceStore
-from vault_graph.extraction.relationship_extractor import DeterministicRelationshipExtractor
-from vault_graph.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
-from vault_graph.graph.graph_identity import graph_scope_key
+from vault_graph.indexing.extraction.graph_source_store import GraphExtractionContext, PreviewGraphSourceStore
+from vault_graph.indexing.extraction.relationship_extractor import DeterministicRelationshipExtractor
 from vault_graph.indexing.graph_indexer import GraphIndexer
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key
 
 
 def document(

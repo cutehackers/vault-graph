@@ -94,19 +94,17 @@ for module in ('graph_search', 'graph_document', 'text_embeddings', 'vector_sear
 
 VAULT_SMOKE = r"""
 import importlib.metadata
-from vault_graph.interface.composition.graph_document_service_factory import (
-    GraphDocumentServiceFactory as CanonicalGraphDocumentServiceFactory,
-)
-from vault_graph.app.graph_document_service_factory import GraphDocumentServiceFactory
-from vault_graph.interface.cli.main import app as canonical_cli_app
-from vault_graph.cli.main import app as legacy_cli_app
-assert GraphDocumentServiceFactory is CanonicalGraphDocumentServiceFactory
-assert canonical_cli_app is legacy_cli_app
+import importlib.util
+from vault_graph.interface.composition.graph_document_service_factory import GraphDocumentServiceFactory
+from vault_graph.interface.cli.main import app as cli_app
+assert callable(GraphDocumentServiceFactory) and callable(cli_app)
+for removed in ('vault_graph.app', 'vault_graph.cli', 'vault_graph.projection', 'vault_graph.vault_adapter'):
+    assert importlib.util.find_spec(removed) is None, f'{removed} must not be installed'
 entrypoint = next(iter(importlib.metadata.distribution('vault-graph').entry_points.select(name='vg')))
 assert entrypoint.value == 'vault_graph.interface.cli.main:app'
-from vault_graph.projection import VaultGraphProjectionAdapter
-from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
-from vault_graph.projection.graph_projection import GraphProjectionInput, GraphProjectionNode
+from vault_graph.retrieval.graph.projection import VaultGraphProjectionAdapter
+from vault_graph.retrieval.graph.projection.rustworkx_projection import RustworkxGraphProjection
+from vault_graph.retrieval.graph.projection.graph_projection import GraphProjectionInput, GraphProjectionNode
 node = GraphProjectionNode('v', 'a', 'Concept', 'A', 'a')
 request = GraphProjectionInput((node,), (node,), (), ('v:wiki:local',), ('graph-v1',),
                                1, 'both', (), ('stated',), False, 10, 500)
@@ -116,12 +114,12 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_store_factory import open_graph_store, write_graph_backend_selection
-from vault_graph.extraction.entity_extractor import DeterministicEntityExtractor
-from vault_graph.extraction.relationship_extractor import DeterministicRelationshipExtractor
-from vault_graph.extraction.graph_source_store import MetadataGraphSourceStore
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.interface.composition.graph_store_factory import open_graph_store, write_graph_backend_selection
+from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
+from vault_graph.indexing.extraction.relationship_extractor import DeterministicRelationshipExtractor
+from vault_graph.indexing.extraction.graph_source_store import MetadataGraphSourceStore
+from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.indexing.graph_indexer import GraphIndexer
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
@@ -148,7 +146,7 @@ with TemporaryDirectory() as directory:
     document.close()
     write_graph_backend_selection(config, 'document')
     config.graph_path.unlink()
-    result = subprocess.run([sys.executable, '-I', '-c', 'from vault_graph.cli.main import app; app()',
+    result = subprocess.run([sys.executable, '-I', '-c', 'from vault_graph.interface.cli.main import app; app()',
         'related', 'Source', '--graph-home', str(config.graph_home_path), '--format', 'json'],
         capture_output=True, text=True, check=True)
     payload = json.loads(result.stdout)

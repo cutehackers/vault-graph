@@ -25,8 +25,8 @@ from graph_document import GraphDocument
 from graph_document.search_bridge import prepare_search
 from graph_search import PathOptions, SearchOptions, graph_search, search_paths
 
-from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
-from vault_graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
+from vault_graph.retrieval.graph.projection.rustworkx_projection import RustworkxGraphProjection
+from vault_graph.retrieval.graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
 
 RSS_LIMIT_BYTES = 512 * 1024 * 1024
 DOCUMENT_DB_LIMIT_BYTES = 64 * 1024 * 1024

@@ -17,8 +17,8 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from tests.test_graph_module_public_integration import fingerprints, indexed_home
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
+from vault_graph.operation.scope.catalog_service import CatalogService
 
 
 def document_backend_home(tmp_path: Path, monkeypatch: MonkeyPatch) -> tuple[Path, Path, dict[str, str]]:
@@ -39,7 +39,14 @@ def test_document_backend_mcp_stdio_find_related_in_separate_process(tmp_path: P
     source_root = Path(__file__).resolve().parents[1] / "src"
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-c", "from vault_graph.cli.main import app; app()", "serve", "--mcp", "--graph-home", str(home)],
+        args=[
+            "-c",
+            "from vault_graph.interface.cli.main import app; app()",
+            "serve",
+            "--mcp",
+            "--graph-home",
+            str(home),
+        ],
         env={**os.environ, "PYTHONPATH": str(source_root)},
     )
 
@@ -70,7 +77,7 @@ def test_document_backend_http_related_in_separate_process(tmp_path: Path, monke
         [
             sys.executable,
             "-c",
-            "from vault_graph.cli.main import app; app()",
+            "from vault_graph.interface.cli.main import app; app()",
             "serve",
             "--http",
             "--host",

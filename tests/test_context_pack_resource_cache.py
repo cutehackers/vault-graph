@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from tests.test_context_pack_contract import make_pack
-from vault_graph.context import ContextPack
+from vault_graph.context.pack.context_pack import ContextPack
 from vault_graph.errors import ContextPackError
-from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
+from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 
 
 def fixed_clock() -> datetime:

@@ -6,21 +6,21 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.ingestion.document_chunking import DocumentChunker
-from vault_graph.ingestion.document_models import (
+from vault_graph.indexing.ingestion.document_chunking import DocumentChunker
+from vault_graph.indexing.ingestion.document_models import (
     ContentBlock,
     ContentUnit,
     ExtractedDocument,
     SourceDocument,
     SourceLocator,
 )
-from vault_graph.ingestion.document_readers import (
+from vault_graph.indexing.ingestion.document_readers import (
     DocumentReaderRegistry,
     DuplicateDocumentReaderError,
     MarkdownDocumentReader,
     UnsupportedDocumentFormatError,
 )
-from vault_graph.ingestion.vault_frontmatter_reader import FrontmatterProjection
+from vault_graph.indexing.ingestion.vault_frontmatter_reader import FrontmatterProjection
 
 
 def _source(path: str) -> SourceDocument:

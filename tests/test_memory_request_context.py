@@ -8,11 +8,11 @@ import pytest
 
 from tests.test_mcp_tools import make_status_report
 from tests.test_sqlite_metadata_store import make_document
+from vault_graph.context.memory.memory_request_context import build_memory_request_context
 from vault_graph.errors import MemoryProjectionError
-from vault_graph.ingestion.document_normalizer import DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.memory.memory_request_context import build_memory_request_context
+from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 from vault_graph.operation.diagnostics.index_status_reader import StatusReport
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 
 
 class RecordingSourceReader:

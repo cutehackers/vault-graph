@@ -5,26 +5,26 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.ingestion.document_chunking import (
+from vault_graph.indexing.ingestion.document_chunking import (
     CHUNKER_VERSION,
     ChunkDraft,
     chunk_document,
     contextual_embedding_text,
 )
-from vault_graph.ingestion.document_models import (
+from vault_graph.indexing.ingestion.document_models import (
     ContentBlock,
     ContentUnit,
     ExtractedDocument,
     SourceDocument,
     SourceLocator,
 )
-from vault_graph.ingestion.markdown_parser import (
+from vault_graph.indexing.ingestion.markdown_parser import (
     MarkdownSection,
     parse_markdown_blocks,
     parse_markdown_blocks_with_warnings,
     parse_sections,
 )
-from vault_graph.ingestion.vault_frontmatter_reader import FrontmatterProjection
+from vault_graph.indexing.ingestion.vault_frontmatter_reader import FrontmatterProjection
 
 
 def _source(path: str, raw: bytes = b"fixture") -> SourceDocument:

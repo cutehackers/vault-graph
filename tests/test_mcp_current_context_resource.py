@@ -8,12 +8,12 @@ from typer.testing import CliRunner
 
 from tests.test_read_only_boundary import file_bytes
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.cli.main import app
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_resources import McpResourceRequest
-from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_resources import McpResourceRequest
+from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 runner = CliRunner()

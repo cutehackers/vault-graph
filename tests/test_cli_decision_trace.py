@@ -7,15 +7,15 @@ from typer.testing import CliRunner
 
 from tests.test_graph_retrieval_service import relationship_with_type, typed_entity
 from tests.test_graph_store_contract import make_entity
-from vault_graph.cli.main import app
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
-from vault_graph.retrieval.graph_retrieval import (
+from vault_graph.interface.cli.main import app
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_retrieval import (
     DecisionTraceResponse,
     DecisionTraceStep,
     GraphRetrievalRevision,
     GraphRetrievalWarning,
 )
+from vault_graph.retrieval.graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
 runner = CliRunner()
@@ -35,7 +35,7 @@ def test_cli_decision_trace_text_renders_steps(tmp_path: Path, monkeypatch: Monk
     response = decision_trace_response()
     fake_service = _FakeGraphRetrievalService(response)
     monkeypatch.setattr(
-        "vault_graph.cli.main._graph_retrieval_service",
+        "vault_graph.interface.cli.main._graph_retrieval_service",
         fake_graph_service_factory(tmp_path, fake_service),
     )
 
@@ -62,7 +62,7 @@ def test_cli_decision_trace_json_uses_response_contract(tmp_path: Path, monkeypa
     response = decision_trace_response()
     fake_service = _FakeGraphRetrievalService(response)
     monkeypatch.setattr(
-        "vault_graph.cli.main._graph_retrieval_service",
+        "vault_graph.interface.cli.main._graph_retrieval_service",
         fake_graph_service_factory(tmp_path, fake_service),
     )
 
@@ -90,7 +90,7 @@ def test_cli_decision_trace_topic_trace_warning_is_visible(tmp_path: Path, monke
     response = decision_trace_response(trace_kind="topic")
     fake_service = _FakeGraphRetrievalService(response)
     monkeypatch.setattr(
-        "vault_graph.cli.main._graph_retrieval_service",
+        "vault_graph.interface.cli.main._graph_retrieval_service",
         fake_graph_service_factory(tmp_path, fake_service),
     )
 

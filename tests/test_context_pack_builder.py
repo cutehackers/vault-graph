@@ -8,21 +8,17 @@ from typing import cast
 
 import pytest
 
-from vault_graph.context import (
-    ContextEvidenceRef,
-    ContextPackBudget,
-    ContextPackRequest,
-    DefaultContextPackRenderer,
-)
-from vault_graph.context.context_pack_builder import (
+from vault_graph.context.pack.context_pack import ContextEvidenceRef, ContextPackBudget, ContextPackRequest
+from vault_graph.context.pack.context_pack_builder import (
     ContextRetrievalService,
     ResolvedContextEvidence,
     SearchContextPackBuilder,
 )
+from vault_graph.context.pack.context_pack_renderer import DefaultContextPackRenderer
 from vault_graph.errors import ContextPackError
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.retrieval.retrieval_result import RetrievalResult, RetrievalSignal, RetrievalWarning
-from vault_graph.retrieval.search_response import SearchResponse, SearchStoreRevision, SearchWarning
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSignal, RetrievalWarning
+from vault_graph.retrieval.search.search_response import SearchResponse, SearchStoreRevision, SearchWarning
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
 
