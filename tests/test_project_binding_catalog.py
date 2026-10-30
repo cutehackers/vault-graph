@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.code_index.code_models import CodeRepositoryEntry
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
-from vault_graph.project_context.project_binding import ProjectBinding
-from vault_graph.project_context.project_binding_catalog import ProjectBindingCatalogService
+from vault_graph.operation.integration.project_binding_catalog import ProjectBindingCatalogService
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.project.code.code_models import CodeRepositoryEntry
+from vault_graph.project.context.project_binding import ProjectBinding
 
 
 class _Repositories:

@@ -9,7 +9,6 @@ def test_retrieval_package_does_not_import_indexing_or_local_status_store() -> N
     assert retrieval_files
     combined = "\n".join(path.read_text(encoding="utf-8") for path in retrieval_files)
 
-    assert "vault_graph.app" not in combined
     assert "vault_graph.interface" not in combined
     for path in retrieval_files:
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
@@ -39,9 +38,7 @@ def test_cli_graph_retrieval_boundary_stays_at_app_and_dto_level() -> None:
 def test_cli_import_does_not_load_rustworkx_projection_adapter() -> None:
     script = """
 import sys
-import vault_graph.cli.main
 import vault_graph.interface.cli.main
-print("vault_graph.projection.rustworkx_projection" in sys.modules)
 print("vault_graph.retrieval.graph.projection.rustworkx_projection" in sys.modules)
 print("rustworkx" in sys.modules)
 """
@@ -52,7 +49,7 @@ print("rustworkx" in sys.modules)
         text=True,
     )
 
-    assert result.stdout.splitlines() == ["False", "False", "False"]
+    assert result.stdout.splitlines() == ["False", "False"]
 
 
 def test_graph_projection_does_not_import_sqlite_stores() -> None:

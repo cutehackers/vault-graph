@@ -4,7 +4,7 @@ from typing import Literal
 import pytest
 
 from vault_graph.errors import GraphStoreError
-from vault_graph.projection.graph_projection import (
+from vault_graph.retrieval.graph.projection.graph_projection import (
     DEFAULT_GRAPH_PROJECTION_EDGE_LIMIT,
     DEFAULT_GRAPH_RESULT_LIMIT,
     GRAPH_PROJECTION_VERSION,
@@ -12,7 +12,7 @@ from vault_graph.projection.graph_projection import (
     GraphProjectionInput,
     GraphProjectionNode,
 )
-from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
+from vault_graph.retrieval.graph.projection.rustworkx_projection import RustworkxGraphProjection
 
 
 def node(vault_id: str, entity_id: str, name: str) -> GraphProjectionNode:

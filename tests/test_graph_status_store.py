@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.storage.local.graph_status_store import (
     LocalGraphStatusStore,
     graph_scope_status_key,

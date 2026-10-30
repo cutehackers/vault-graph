@@ -10,7 +10,7 @@ from vault_graph.errors import (
     ResultExplanationError,
     VectorStoreError,
 )
-from vault_graph.mcp.mcp_errors import McpProtocolError, map_exception_to_mcp_error
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError, map_exception_to_mcp_error
 
 
 def test_catalog_error_maps_to_invalid_parameter() -> None:

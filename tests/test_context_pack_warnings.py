@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from vault_graph.context import (
+from vault_graph.context.pack.context_pack_warnings import (
     GRAPH_WARNING_CODE_MAP,
     SEARCH_WARNING_CODE_MAP,
     budget_warning,
@@ -11,9 +11,9 @@ from vault_graph.context import (
     context_warning_from_retrieval,
     context_warning_from_search,
 )
-from vault_graph.retrieval.graph_retrieval import GraphRetrievalWarning
-from vault_graph.retrieval.retrieval_result import RetrievalWarning
-from vault_graph.retrieval.search_response import SearchWarning
+from vault_graph.retrieval.graph.graph_retrieval import GraphRetrievalWarning
+from vault_graph.retrieval.search.retrieval_result import RetrievalWarning
+from vault_graph.retrieval.search.search_response import SearchWarning
 
 
 def test_vector_query_failed_becomes_search_degraded_with_source_code() -> None:

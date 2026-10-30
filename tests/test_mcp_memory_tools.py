@@ -3,25 +3,7 @@ from __future__ import annotations
 import json
 from typing import cast
 
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.mcp.mcp_memory_serialization import (
-    health_explorer_report_to_payload,
-    memory_warning_to_mcp_error,
-    open_questions_projection_to_payload,
-    project_memory_projection_to_payload,
-    recent_changes_projection_to_payload,
-    resource_links_for_memory_projection,
-    resource_links_for_recent_changes,
-    timeline_warnings,
-)
-from vault_graph.mcp.mcp_tool_serialization import tool_text_mirror
-from vault_graph.memory.health_explorer import (
-    BackendReadinessRecord,
-    HealthExplorerReport,
-    McpRuntimeCacheRecord,
-    ScaleUpAdapterReadiness,
-)
-from vault_graph.memory.memory_models import (
+from vault_graph.context.memory.memory_models import (
     MemoryBackendRevision,
     MemoryEvidenceRef,
     MemoryItem,
@@ -31,7 +13,30 @@ from vault_graph.memory.memory_models import (
     ProjectMemoryProjection,
     ProjectMemoryVault,
 )
-from vault_graph.memory.timeline_memory import RecentChangesProjection, TimelineEvidenceRef, TimelineItem, TimelineVault
+from vault_graph.context.memory.timeline_memory import (
+    RecentChangesProjection,
+    TimelineEvidenceRef,
+    TimelineItem,
+    TimelineVault,
+)
+from vault_graph.interface.mcp.mcp_memory_serialization import (
+    health_explorer_report_to_payload,
+    memory_warning_to_mcp_error,
+    open_questions_projection_to_payload,
+    project_memory_projection_to_payload,
+    recent_changes_projection_to_payload,
+    resource_links_for_memory_projection,
+    resource_links_for_recent_changes,
+    timeline_warnings,
+)
+from vault_graph.interface.mcp.mcp_tool_serialization import tool_text_mirror
+from vault_graph.operation.diagnostics.health_explorer import (
+    BackendReadinessRecord,
+    HealthExplorerReport,
+    McpRuntimeCacheRecord,
+    ScaleUpAdapterReadiness,
+)
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 def test_project_memory_projection_payload_preserves_claim_status_signals_evidence_and_warnings() -> None:

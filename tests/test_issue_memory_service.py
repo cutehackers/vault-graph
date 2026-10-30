@@ -8,10 +8,10 @@ import pytest
 
 from tests.test_decision_memory_service import FakeMetadataStore, FakeStatusService, make_catalog
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.memory.issue_memory import IssueMemoryService
-from vault_graph.memory.memory_source_reader import MemorySourceReader
+from vault_graph.context.memory.issue_memory import IssueMemoryService
+from vault_graph.context.memory.memory_source_reader import MemorySourceReader
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 def test_issue_service_returns_open_issue_path_with_active_status(tmp_path: Path) -> None:

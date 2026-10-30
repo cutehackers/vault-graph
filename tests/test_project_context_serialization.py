@@ -4,7 +4,10 @@ import json
 from typing import cast
 
 from tests.test_mcp_explore_project import _context
-from vault_graph.mcp.mcp_tool_serialization import project_context_to_payload, resource_links_for_project_context
+from vault_graph.interface.mcp.mcp_tool_serialization import (
+    project_context_to_payload,
+    resource_links_for_project_context,
+)
 
 
 def test_project_context_serialization_is_deterministic_and_source_body_free() -> None:

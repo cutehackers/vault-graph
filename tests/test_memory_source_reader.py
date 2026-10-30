@@ -5,10 +5,10 @@ from typing import Any
 import pytest
 
 from tests.test_sqlite_metadata_store import make_chunk, make_document
+from vault_graph.context.memory.memory_source_reader import MemorySourceReader, document_resource_kinds_for_document
 from vault_graph.errors import MemoryProjectionError
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.memory.memory_source_reader import MemorySourceReader, document_resource_kinds_for_document
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
 

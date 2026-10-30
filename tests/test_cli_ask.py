@@ -7,9 +7,9 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from tests.test_answer_response_contract import make_response
-from vault_graph.answer.answer_plan import AnswerRequest
-from vault_graph.cli.main import app
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.context.answer.answer_plan import AnswerRequest
+from vault_graph.interface.cli.main import app
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
 
 runner = CliRunner()
 
@@ -35,9 +35,9 @@ def fake_catalog(tmp_path: Path) -> VaultCatalog:
 def test_cli_ask_uses_active_vault_by_default(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     service = RecordingAnswerService()
     catalog = fake_catalog(tmp_path)
-    monkeypatch.setattr("vault_graph.cli.main._catalog", lambda state: (object(), catalog))
+    monkeypatch.setattr("vault_graph.interface.cli.main._catalog", lambda state: (object(), catalog))
     monkeypatch.setattr(
-        "vault_graph.cli.main._answer_service",
+        "vault_graph.interface.cli.main._answer_service",
         lambda state, include_graph=False: (object(), catalog, service),
         raising=False,
     )
@@ -52,9 +52,9 @@ def test_cli_ask_uses_active_vault_by_default(tmp_path: Path, monkeypatch: Monke
 def test_cli_ask_json_uses_answer_response_contract(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     service = RecordingAnswerService()
     catalog = fake_catalog(tmp_path)
-    monkeypatch.setattr("vault_graph.cli.main._catalog", lambda state: (object(), catalog))
+    monkeypatch.setattr("vault_graph.interface.cli.main._catalog", lambda state: (object(), catalog))
     monkeypatch.setattr(
-        "vault_graph.cli.main._answer_service",
+        "vault_graph.interface.cli.main._answer_service",
         lambda state, include_graph=False: (object(), catalog, service),
         raising=False,
     )

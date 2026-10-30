@@ -31,10 +31,10 @@ from tests.test_cli_graph_indexing import (
     _deterministic_text_embeddings,
     write_page,
 )
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_store_factory import open_graph_store, selected_graph_backend
-from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.composition.graph_store_factory import open_graph_store, selected_graph_backend
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 DOCUMENT_COUNT = 1000
@@ -62,7 +62,7 @@ def _body(index: int) -> str:
 
 
 def _index_fixture(root: Path, patch: MonkeyPatch) -> tuple[Path, Path]:
-    patch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    patch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
 
     def embeddings(_self: object, config: object) -> _ConfiguredDeterministicTextEmbeddings:
         return _deterministic_text_embeddings(config)

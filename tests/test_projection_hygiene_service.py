@@ -2,8 +2,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.app.projection_hygiene_service import ProjectionHygieneService
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.diagnostics.projection_hygiene_service import ProjectionHygieneService
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 

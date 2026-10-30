@@ -7,14 +7,14 @@ from typing import Any
 
 from tests.test_decision_memory_service import FakeMetadataStore, FakeStatusService, make_catalog
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.memory.decision_memory import DecisionMemoryService
-from vault_graph.memory.issue_memory import IssueMemoryService
-from vault_graph.memory.memory_models import DecisionMemoryProjection, OpenQuestionsProjection
-from vault_graph.memory.memory_request_context import MemoryRequestContext
-from vault_graph.memory.memory_source_reader import MemorySourceReader
-from vault_graph.memory.project_memory import ProjectMemoryService
+from vault_graph.context.memory.decision_memory import DecisionMemoryService
+from vault_graph.context.memory.issue_memory import IssueMemoryService
+from vault_graph.context.memory.memory_models import DecisionMemoryProjection, OpenQuestionsProjection
+from vault_graph.context.memory.memory_request_context import MemoryRequestContext
+from vault_graph.context.memory.memory_source_reader import MemorySourceReader
+from vault_graph.context.memory.project_memory import ProjectMemoryService
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 class RecordingDecisionService:

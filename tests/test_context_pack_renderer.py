@@ -3,12 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 
 from tests.test_context_pack_contract import make_pack
-from vault_graph.context import (
-    ContextEvidence,
-    ContextEvidenceRef,
-    ContextPackWarning,
-    DefaultContextPackRenderer,
-)
+from vault_graph.context.pack.context_pack import ContextEvidence, ContextEvidenceRef, ContextPackWarning
+from vault_graph.context.pack.context_pack_renderer import DefaultContextPackRenderer
 
 
 def test_markdown_renderer_uses_phase_4b_section_order() -> None:

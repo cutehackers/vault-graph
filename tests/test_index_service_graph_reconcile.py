@@ -6,12 +6,12 @@ from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbedding
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
 from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from tests.test_vector_indexer import SPEC
-from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
-from vault_graph.app.index_service import IndexService
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.indexing.graph_indexer import GraphIndexApplyResult, GraphIndexPlanReport
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.indexing.index_service import IndexService
+from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.storage.local.graph_status_store import (
     LocalGraphStatusStore,
     graph_scope_status_key,

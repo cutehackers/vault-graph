@@ -6,7 +6,8 @@ from typing import Any, cast
 
 import pytest
 
-from vault_graph.embeddings.fastembed_text_embeddings import (
+from vault_graph.errors import TextEmbeddingsError
+from vault_graph.interface.composition.adapters.text_embeddings import (
     DEFAULT_FASTEMBED_MODEL_SPEC,
     FASTEMBED_ARTIFACT_REPO_ID,
     SOURCE_MODEL_REVISION,
@@ -14,8 +15,7 @@ from vault_graph.embeddings.fastembed_text_embeddings import (
     FastEmbedTextEmbeddingsConfig,
     _default_backend_factory,
 )
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector
-from vault_graph.errors import TextEmbeddingsError
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingVector
 
 
 def test_default_model_spec_is_fixed() -> None:

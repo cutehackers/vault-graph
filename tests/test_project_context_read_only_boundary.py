@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tests.test_project_context_service import _Code, _service
-from vault_graph.project_context import ProjectContextRequest
+from vault_graph.project.context.project_context_models import ProjectContextRequest
 
 
 def test_project_context_query_does_not_write_vault_or_repository(tmp_path: Path) -> None:

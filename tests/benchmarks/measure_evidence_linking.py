@@ -25,16 +25,16 @@ from tests.benchmarks.measure_document_graph_backend import (
     _index_fixture,
     _samples,
 )
-from vault_graph.app.graph_store_factory import open_graph_store, selected_graph_backend
-from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
-from vault_graph.graph.graph_readiness import GraphReadiness
-from vault_graph.projection_readiness.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.interface.composition.graph_store_factory import open_graph_store, selected_graph_backend
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.retrieval.evidence.evidence_linking import GraphLinksRequest, GraphLinksResult
+from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.retrieval.graph.graph_readiness import GraphReadiness
 from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
 from vault_graph.storage.local.document_graph_store import DocumentGraphStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
-from vault_graph.vault_adapter.evidence_linking import GraphLinksRequest, GraphLinksResult
-from vault_graph.vault_scope.catalog_service import CatalogService
 
 REPORT_PATH = Path("docs/design/reports/2026-10-15-evidence-linking-performance.json")
 

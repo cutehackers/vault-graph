@@ -6,7 +6,7 @@ from typer.testing import CliRunner
 
 from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbeddings
 from tests.test_vector_indexer import SPEC
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 
 class _ConfiguredDeterministicTextEmbeddings(DeterministicTextEmbeddings):
@@ -27,7 +27,7 @@ def file_bytes(root: Path) -> dict[str, bytes]:
 
 
 def test_index_commands_do_not_modify_vault_files(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _fake_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _fake_text_embeddings)
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)
     (vault_root / "wiki" / "page.md").write_text("---\ntitle: Page\n---\n# Page\nBody\n", encoding="utf-8")

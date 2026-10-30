@@ -13,9 +13,9 @@ from tests.test_mcp_resource_read_only_boundary import initialized_state
 from tests.test_read_only_boundary import file_bytes
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from vault_graph.context.pack.recall import memory_item_id
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_resources import McpResourceRequest
-from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_resources import McpResourceRequest
+from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 PAGE_URI = "vault://default/pages/wiki%2Fpage.md"

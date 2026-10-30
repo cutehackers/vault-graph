@@ -3,8 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.app.graph_home import GraphHomeResolver
-from vault_graph.app.projection_generation import ProjectionGenerationError, ProjectionGenerationManager
+from vault_graph.indexing.publication.projection_generation import (
+    ProjectionGenerationError,
+    ProjectionGenerationManager,
+)
+from vault_graph.operation.scope.graph_home import GraphHomeResolver
 
 
 def test_activation_switches_one_manifest_and_preserves_previous_generation(tmp_path: Path) -> None:

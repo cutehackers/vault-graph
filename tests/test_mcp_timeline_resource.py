@@ -7,10 +7,10 @@ import pytest
 from typer.testing import CliRunner
 
 from tests.test_sqlite_metadata_store import make_document
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_resources import McpResourceRequest
-from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_resources import McpResourceRequest
+from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 runner = CliRunner()

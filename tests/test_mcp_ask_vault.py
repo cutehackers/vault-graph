@@ -5,10 +5,10 @@ from typing import Any, cast
 
 from tests.test_answer_response_contract import make_response
 from tests.test_mcp_tools import RecordingToolServer, fake_factory, fake_services
-from vault_graph.answer.answer_plan import AnswerRequest
-from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
-from vault_graph.mcp.mcp_tools import AskVaultInput, McpToolRegistry, register_mcp_tools
-from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.context.answer.answer_plan import AnswerRequest
+from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
+from vault_graph.interface.mcp.mcp_tools import AskVaultInput, McpToolRegistry, register_mcp_tools
+from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
 
 
 class RecordingAnswerService:

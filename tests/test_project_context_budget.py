@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from tests.test_project_context_service import _Code, _service
-from vault_graph.code_index.code_models import CodeSymbolResponse
-from vault_graph.project_context import (
+from vault_graph.project.code.code_models import CodeSymbolResponse
+from vault_graph.project.context.project_context_models import (
     ProjectContextRequest,
     compact_project_context_value,
     estimate_project_context_tokens,

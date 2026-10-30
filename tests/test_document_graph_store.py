@@ -15,14 +15,14 @@ from typer.testing import CliRunner
 
 from tests.test_cli_graph_indexing import write_page
 from tests.test_graph_module_public_integration import indexed_home
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
-from vault_graph.app.graph_store_factory import document_store_path
-from vault_graph.cli.main import app
 from vault_graph.errors import GraphStoreUnavailable
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
-from vault_graph.graph.graph_query import GraphEntityIdentity, GraphEntityQuery, GraphRelationshipQuery
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.composition.graph_store_factory import document_store_path
+from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.retrieval.graph.graph_query import GraphEntityIdentity, GraphEntityQuery, GraphRelationshipQuery
 from vault_graph.storage.local.document_graph_store import DocumentGraphStore, _snapshot_plan
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore

@@ -3,8 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from vault_graph.code_index.code_models import CodeFreshnessRequest, CodeRepositoryEntry
-from vault_graph.code_index.source_scanning import CodeSourceScanner
+from vault_graph.project.code.code_models import CodeFreshnessRequest, CodeRepositoryEntry
+from vault_graph.project.code.source_scanning import CodeSourceScanner
 
 
 def _entry(root: Path, *, include_globs: tuple[str, ...] = ()) -> CodeRepositoryEntry:

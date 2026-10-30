@@ -9,19 +9,19 @@ from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from tests.fakes.search_readiness import ready_report
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from tests.test_vector_indexer import SPEC
-from vault_graph.embeddings.text_embeddings import EmbeddingInput
 from vault_graph.errors import SearchError
-from vault_graph.indexing.vector_indexer import stable_vector_id
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.retrieval.context_expansion import ContextExpander
-from vault_graph.retrieval.graph_candidates import GraphCandidateResult
-from vault_graph.retrieval.retrieval_candidate import RetrievalCandidate
-from vault_graph.retrieval.retrieval_result import RetrievalSignal
-from vault_graph.retrieval.retrieval_service import RetrievalService
-from vault_graph.retrieval.search_readiness import SearchReadinessReport, SearchScopeReadiness
-from vault_graph.retrieval.search_response import SearchStoreRevision, SearchWarning
+from vault_graph.indexing.vector_index_adapter import stable_vector_id
+from vault_graph.operation.readiness.search_readiness import SearchReadinessReport, SearchScopeReadiness
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.search.context_expansion import ContextExpander
+from vault_graph.retrieval.search.graph_candidates import GraphCandidateResult
+from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
+from vault_graph.retrieval.search.retrieval_result import RetrievalSignal
+from vault_graph.retrieval.search.retrieval_service import RetrievalService
+from vault_graph.retrieval.search.search_response import SearchStoreRevision, SearchWarning
 from vault_graph.storage.interfaces.keyword_index import KeywordHit
 from vault_graph.storage.interfaces.store_health import StoreHealth
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput
 from vault_graph.storage.interfaces.vector_store import VectorEmbeddingRecord, VectorHit, VectorQuery
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 

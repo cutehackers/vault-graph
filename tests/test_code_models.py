@@ -7,7 +7,7 @@ from typing import cast
 
 import pytest
 
-from vault_graph.code_index.code_models import (
+from vault_graph.project.code.code_models import (
     CODE_EXTRACTION_STATUSES,
     CODE_FRESHNESS_STATES,
     CODE_PARSER_SPEC_VERSION,
@@ -377,7 +377,7 @@ def test_bool_fields_reject_integer_values() -> None:
     with pytest.raises(ValueError, match="full must be a bool"):
         CodeIndexRequest(full=1)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="changed must be a bool"):
-        from vault_graph.code_index.code_models import CodeRepositoryMutationResponse
+        from vault_graph.project.code.code_models import CodeRepositoryMutationResponse
 
         CodeRepositoryMutationResponse(repository_id="demo", changed=1)  # type: ignore[arg-type]
 

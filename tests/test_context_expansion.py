@@ -4,10 +4,10 @@ from typing import cast
 import pytest
 
 from vault_graph.errors import RetrievalContractError
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.retrieval.context_expansion import CONTEXT_POLICY_VERSION, ContextExpander
-from vault_graph.retrieval.retrieval_result import RetrievalWarning
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.search.context_expansion import CONTEXT_POLICY_VERSION, ContextExpander
+from vault_graph.retrieval.search.retrieval_result import RetrievalWarning
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 

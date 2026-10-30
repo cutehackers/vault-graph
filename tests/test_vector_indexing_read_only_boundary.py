@@ -2,9 +2,9 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.cli.main import app
 from vault_graph.errors import ReadOnlyBoundaryError
+from vault_graph.interface.cli.main import app
+from vault_graph.operation.scope.catalog_service import CatalogService
 
 runner = CliRunner()
 

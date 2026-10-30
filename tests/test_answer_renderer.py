@@ -6,7 +6,7 @@ from dataclasses import replace
 import pytest
 
 from tests.test_answer_response_contract import make_response
-from vault_graph.answer.answer_renderer import DefaultAnswerRenderer, answer_response_to_dict
+from vault_graph.context.answer.answer_renderer import DefaultAnswerRenderer, answer_response_to_dict
 from vault_graph.errors import AnswerError
 
 

@@ -3,7 +3,7 @@ from pathlib import Path
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 runner = CliRunner()
 
@@ -34,8 +34,8 @@ def test_successful_search_does_not_mutate_existing_state_or_vault(
 ) -> None:
     from tests.test_cli_search import _deterministic_text_embeddings
 
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
     graph_home_path = tmp_path / "state"

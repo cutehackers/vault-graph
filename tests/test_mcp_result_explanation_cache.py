@@ -6,7 +6,7 @@ import pytest
 
 from tests.test_result_explanation import make_record
 from vault_graph.errors import ResultExplanationError
-from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
 
 
 class Clock:

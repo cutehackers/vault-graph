@@ -7,16 +7,14 @@ from dataclasses import replace
 import pytest
 
 from tests.test_context_pack_contract import make_pack, make_pack_with_warning
-from vault_graph.context import (
+from vault_graph.context.pack.context_pack import (
     ContextEvidence,
     ContextEvidenceRef,
     ContextPackItem,
-    ContextPackRenderer,
     ContextPackSignal,
-    DefaultContextPackRenderer,
-    render_context_pack_json,
-    with_computed_pack_id,
 )
+from vault_graph.context.pack.context_pack_renderer import ContextPackRenderer, DefaultContextPackRenderer
+from vault_graph.context.pack.context_pack_serialization import render_context_pack_json, with_computed_pack_id
 from vault_graph.errors import ContextPackError
 
 

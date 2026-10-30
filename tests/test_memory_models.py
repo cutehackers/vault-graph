@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from vault_graph.errors import MemoryProjectionError
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.memory.memory_models import (
+from vault_graph.context.memory.memory_models import (
     MemoryBackendRevision,
     MemoryEvidenceRef,
     MemoryItem,
@@ -13,6 +11,8 @@ from vault_graph.memory.memory_models import (
     ProjectMemoryVault,
     stable_memory_item_id,
 )
+from vault_graph.errors import MemoryProjectionError
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 def make_evidence(

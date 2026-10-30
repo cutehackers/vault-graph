@@ -7,9 +7,9 @@ from typing import Any, cast
 from tests.test_mcp_explore_project import _context
 from tests.test_mcp_tools import fake_services
 from tests.test_read_only_boundary import file_bytes
-from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
-from vault_graph.mcp.mcp_tools import ExploreProjectInput, McpToolRegistry
-from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
+from vault_graph.interface.mcp.mcp_tools import ExploreProjectInput, McpToolRegistry
+from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
 
 
 @dataclass

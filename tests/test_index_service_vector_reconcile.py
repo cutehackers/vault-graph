@@ -4,10 +4,10 @@ from tests.fakes.deterministic_text_embeddings import DeterministicTextEmbedding
 from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from tests.test_vector_indexer import SPEC
 from tests.test_vector_store_contract import make_record
-from vault_graph.app.index_service import IndexService
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingVector
-from vault_graph.indexing.vector_indexer import VectorApplyResult
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.indexing.index_service import IndexService
+from vault_graph.indexing.vector_index_adapter import VectorApplyResult
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 from vault_graph.storage.local.vector_status_store import (
     LocalVectorStatusStore,

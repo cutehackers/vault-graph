@@ -19,8 +19,8 @@ import pytest
 from typer.testing import CliRunner, Result
 
 from tests.test_cli_setup import _deterministic_text_embeddings
-from vault_graph.cli.main import app
 from vault_graph.context.pack.recall import estimate_recall_tokens, memory_item_id
+from vault_graph.interface.cli.main import app
 
 FIXTURES = Path(__file__).parent / "fixtures" / "session_recall"
 runner = CliRunner()
@@ -51,7 +51,7 @@ def tree(root: Path, *, skip: str | None = None) -> dict[str, bytes]:
 
 @pytest.fixture(autouse=True)
 def fake_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
 
 
 @pytest.fixture(autouse=True)
@@ -281,7 +281,7 @@ def test_recall_never_builds_embeddings_or_a_vector_store(
     monkeypatch.setattr(
         "vault_graph.interface.composition.adapters.text_embeddings.FastEmbedTextEmbeddings.__init__", fail
     )
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", fail)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", fail)
 
     result = hook(graph_home, base)
 

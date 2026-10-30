@@ -5,9 +5,9 @@ from pathlib import Path
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
-from vault_graph.app.watch_service import WatchIterationReport, WatchReport, WatchService
-from vault_graph.cli.main import app
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.interface.cli.main import app
+from vault_graph.operation.runtime.watch_service import WatchIterationReport, WatchReport, WatchService
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 runner = CliRunner()
 
@@ -50,7 +50,7 @@ def test_cli_watch_delegates_selected_scope_without_running_forever(
             interrupted=False,
         )
 
-    monkeypatch.setattr("vault_graph.app.watch_service.WatchService.run", fake_run)
+    monkeypatch.setattr("vault_graph.operation.runtime.watch_service.WatchService.run", fake_run)
 
     result = runner.invoke(
         app,

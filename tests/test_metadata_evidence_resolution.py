@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 

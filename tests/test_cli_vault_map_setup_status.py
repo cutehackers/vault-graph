@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from tests.test_cli_setup import _deterministic_text_embeddings
 from tests.test_vault_map import fixture_files_stay_unchanged as fixture_files_stay_unchanged
 from tests.test_vault_map import make_vaults, render_fixture
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV
 
 runner = CliRunner()
@@ -24,7 +24,7 @@ def base(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def fake_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
 
 
 def _map(base: Path, name: str = "vault-map-v2.json") -> Path:

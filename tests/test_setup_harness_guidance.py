@@ -6,9 +6,9 @@ from typing import Any, cast
 from typer.testing import CliRunner
 
 from tests.test_setup_service import RecordingIndexFactory
-from vault_graph.app.setup_service import SetupRequest, SetupService
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.operation.runtime.setup_service import SetupRequest, SetupService
 
 runner = CliRunner()
 

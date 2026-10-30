@@ -12,36 +12,37 @@ from tests.test_graph_retrieval_contract import make_metadata_evidence_from_grap
 from tests.test_graph_store_contract import make_entity, make_relationship
 from tests.test_mcp_memory_tools import make_open_questions_projection, make_project_projection
 from tests.test_mcp_tool_serialization import make_search_response
-from vault_graph.context import ContextPack, ContextPackRequest, DefaultContextPackRenderer
+from vault_graph.context.pack.context_pack import ContextPack, ContextPackRequest
+from vault_graph.context.pack.context_pack_renderer import DefaultContextPackRenderer
 from vault_graph.errors import MemoryProjectionError
-from vault_graph.graph.graph_readiness import GraphReadiness
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.interface.mcp.mcp_tools import RememberInput
-from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_service_factory import McpServices
-from vault_graph.mcp.mcp_tools import (
+from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_service_factory import McpServices
+from vault_graph.interface.mcp.mcp_tools import (
     BuildContextPackInput,
     CheckIndexStatusInput,
     DecisionTraceInput,
     FindRelatedInput,
     GetOpenQuestionsInput,
     McpToolRegistry,
+    RememberInput,
     SearchVaultInput,
     SummarizeProjectMemoryInput,
     register_mcp_tools,
 )
-from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
 from vault_graph.operation.diagnostics.index_status_reader import StatusReport
 from vault_graph.operation.integration.remember_service import RememberRequest, RememberResult
-from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
-from vault_graph.retrieval.graph_retrieval import (
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_readiness import GraphReadiness
+from vault_graph.retrieval.graph.graph_retrieval import (
     DecisionTraceResponse,
     DecisionTraceStep,
     RelatedItem,
     RelatedResponse,
 )
-from vault_graph.retrieval.search_response import SearchResponse
+from vault_graph.retrieval.graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
+from vault_graph.retrieval.search.search_response import SearchResponse
 
 
 class RecordingToolServer:
@@ -720,7 +721,7 @@ def make_status_report() -> StatusReport:
 
 
 def make_health_explorer_report() -> object:
-    from vault_graph.memory.health_explorer import HealthExplorerReport
+    from vault_graph.operation.diagnostics.health_explorer import HealthExplorerReport
 
     return HealthExplorerReport(
         requested_scope=QueryScope(vault_ids=("main",), content_scopes=("wiki",)),

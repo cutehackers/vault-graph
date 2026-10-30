@@ -6,7 +6,9 @@ from typing import cast
 
 import pytest
 
-from vault_graph.code_index.code_models import (
+from vault_graph.context.pack.context_pack import ContextPack
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.project.code.code_models import (
     CodeImpactRequest,
     CodeSearchResponse,
     CodeSymbolHit,
@@ -14,15 +16,13 @@ from vault_graph.code_index.code_models import (
     CodeTraversalResponse,
     CodeTraversalResult,
 )
-from vault_graph.context import ContextPack
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.project_context import (
+from vault_graph.project.context.project_binding import ProjectBinding
+from vault_graph.project.context.project_context_models import (
     ProjectAuthorityFreshness,
-    ProjectBinding,
     ProjectContextRequest,
     ProjectFreshness,
 )
-from vault_graph.project_context.project_context_service import (
+from vault_graph.project.context.project_context_service import (
     ProjectContextService,
     ProjectGraphRelationLookup,
     VaultGraphRelationLookup,

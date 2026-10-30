@@ -1,5 +1,6 @@
 from vault_graph import __version__
-from vault_graph.retrieval import GraphCandidateResult, GraphSearchCandidateProvider, RetrievalCandidate
+from vault_graph.retrieval.search.graph_candidates import GraphCandidateResult, GraphSearchCandidateProvider
+from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 
 
 def test_package_exposes_version() -> None:

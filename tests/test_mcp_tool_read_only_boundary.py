@@ -11,10 +11,10 @@ from tests.test_answer_response_contract import make_response
 from tests.test_mcp_tool_serialization import make_pack_with_item, make_search_response
 from tests.test_read_only_boundary import file_bytes
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_errors import McpProtocolError
-from vault_graph.mcp.mcp_server import McpServerConfig, create_mcp_server
-from vault_graph.mcp.mcp_tools import (
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_errors import McpProtocolError
+from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
+from vault_graph.interface.mcp.mcp_tools import (
     AskVaultInput,
     BuildContextPackInput,
     CheckIndexStatusInput,

@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 
 from vault_graph.errors import CatalogError
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalogEntry
-from vault_graph.ingestion.vault_loader import VaultLoader
+from vault_graph.indexing.ingestion.vault_loader import VaultLoader
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalogEntry
 
 
 def test_loader_reads_allowed_markdown_paths(tmp_path: Path) -> None:

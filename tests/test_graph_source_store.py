@@ -1,8 +1,8 @@
 from typing import cast
 
-from vault_graph.extraction.graph_source_store import MetadataGraphSourceStore, PreviewGraphSourceStore
-from vault_graph.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.indexing.extraction.graph_source_store import MetadataGraphSourceStore, PreviewGraphSourceStore
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 

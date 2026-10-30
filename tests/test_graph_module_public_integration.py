@@ -21,23 +21,23 @@ from tests.test_cli_graph_indexing import (
     _deterministic_text_embeddings,
     write_page,
 )
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_document_service_factory import GraphDocumentServiceFactory
-from vault_graph.app.graph_store_factory import document_store_path
-from vault_graph.app.projection_generation import ProjectionGenerationManager
-from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
-from vault_graph.cli.main import app
-from vault_graph.extraction.vault_graph_document_adapter import VaultProjectionRequest
-from vault_graph.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
-from vault_graph.graph.graph_identity import graph_scope_key
-from vault_graph.http.http_errors import HttpServerConfig
-from vault_graph.http.http_server import create_http_app
-from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
-from vault_graph.mcp.mcp_tools import FindRelatedInput, McpToolRegistry
-from vault_graph.memory.result_explanation_cache import ResultExplanationCache
-from vault_graph.projection.graph_projection import GraphProjectionEdge, GraphProjectionNode
-from vault_graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
+from vault_graph.indexing.extraction.vault_graph_document_adapter import VaultProjectionRequest
+from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.composition.graph_document_service_factory import GraphDocumentServiceFactory
+from vault_graph.interface.composition.graph_store_factory import document_store_path
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+from vault_graph.interface.http.http_errors import HttpServerConfig
+from vault_graph.interface.http.http_server import create_http_app
+from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.mcp.mcp_tools import FindRelatedInput, McpToolRegistry
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.retrieval.explanation.result_explanation_cache import ResultExplanationCache
+from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key
+from vault_graph.retrieval.graph.projection.graph_projection import GraphProjectionEdge, GraphProjectionNode
+from vault_graph.retrieval.graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
 from vault_graph.storage.local.document_graph_store import DocumentGraphStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 
@@ -85,7 +85,7 @@ def indexed_home(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> tuple[Path, Path]:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
 
     def embeddings(_self: object, config: object) -> _ConfiguredDeterministicTextEmbeddings:
         return _deterministic_text_embeddings(config)
@@ -111,7 +111,7 @@ def test_real_public_factories_preserve_legacy_results_and_read_only_state(
     before_vault, before_state = fingerprints(vault), fingerprints(home)
     adapter_results = invoke_public_gateways(home)
     monkeypatch.setattr(
-        "vault_graph.projection.vault_graph_projection_adapter.VaultGraphProjectionAdapter",
+        "vault_graph.retrieval.graph.projection.vault_graph_projection_adapter.VaultGraphProjectionAdapter",
         LegacyGraphProjection,
     )
     legacy_results = invoke_public_gateways(home)
@@ -213,10 +213,10 @@ def test_full_document_rebuild_recovers_incompatible_cache(
             {**json.loads(current_graph_extraction_spec().serialized_spec), "spec_version": "next-extraction"}
         )
         for module in (
-            "vault_graph.extraction.vault_graph_document_adapter",
-            "vault_graph.app.local_index_service_factory",
-            "vault_graph.graph.graph_contracts",
-            "vault_graph.cli.main",
+            "vault_graph.indexing.extraction.vault_graph_document_adapter",
+            "vault_graph.interface.composition.local_index_service_factory",
+            "vault_graph.retrieval.graph.graph_contracts",
+            "vault_graph.interface.cli.main",
         ):
             monkeypatch.setattr(f"{module}.current_graph_extraction_spec", lambda: next_spec)
     previous = ProjectionGenerationManager(home).active_layout()
@@ -330,7 +330,7 @@ class MissingDocumentPackage(importlib.abc.MetaPathFinder):
         if fullname == 'graph_document' or fullname.startswith('graph_document.'):
             raise ModuleNotFoundError('graph_document intentionally unavailable')
 sys.meta_path.insert(0, MissingDocumentPackage())
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 app()
 """
     result = subprocess.run(

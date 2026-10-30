@@ -6,8 +6,8 @@ from typing import cast
 
 import pytest
 
-from vault_graph.code_index.code_freshness import CodeFreshnessService
-from vault_graph.code_index.code_models import (
+from vault_graph.project.code.code_freshness import CodeFreshnessService
+from vault_graph.project.code.code_models import (
     CodeFileOutlineRequest,
     CodeIndexRequest,
     CodeRepositoryEntry,
@@ -15,9 +15,9 @@ from vault_graph.code_index.code_models import (
     CodeSymbolSearchRequest,
     CodeTraversalRequest,
 )
-from vault_graph.code_index.code_projection_service import CodeProjectionService
-from vault_graph.code_index.code_query_service import CodeQueryService
-from vault_graph.code_index.source_scanning import CodeSourceScanner
+from vault_graph.project.code.code_projection_service import CodeProjectionService
+from vault_graph.project.code.code_query_service import CodeQueryService
+from vault_graph.project.code.source_scanning import CodeSourceScanner
 from vault_graph.storage.interfaces.code_projection_store import CodeProjectionStore
 
 
@@ -85,7 +85,7 @@ def test_unscoped_symbol_name_resolves_in_a_single_registered_repository(tmp_pat
 
 
 def test_query_reads_persisted_status_without_scanning_the_repository(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_freshness import CodeFreshnessService
+    from vault_graph.project.code.code_freshness import CodeFreshnessService
     from vault_graph.storage.local.sqlite_code_projection_store import SQLiteCodeProjectionStore
 
     repository = tmp_path / "repository"
@@ -131,7 +131,7 @@ def test_callers_stay_within_repository_and_follow_resolved_edges(tmp_path: Path
 
 
 def test_scoped_query_rejects_direct_ids_and_outlines_outside_its_repository(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_models import CodeFreshnessReport, CodeSymbolRecord
+    from vault_graph.project.code.code_models import CodeFreshnessReport, CodeSymbolRecord
 
     repository_a = tmp_path / "repository-a"
     repository_b = tmp_path / "repository-b"
@@ -181,7 +181,7 @@ def test_scoped_query_rejects_direct_ids_and_outlines_outside_its_repository(tmp
 
 
 def test_unscoped_name_reports_ambiguity_across_registered_repositories(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_models import CodeFreshnessReport, CodeSymbolRecord
+    from vault_graph.project.code.code_models import CodeFreshnessReport, CodeSymbolRecord
 
     first_root = tmp_path / "first"
     second_root = tmp_path / "second"
@@ -233,7 +233,12 @@ def test_unscoped_name_reports_ambiguity_across_registered_repositories(tmp_path
 
 
 def test_aggregate_query_excludes_projection_records_outside_the_registered_catalog(tmp_path: Path) -> None:
-    from vault_graph.code_index.code_models import CodeFreshnessReport, CodeSymbolHit, CodeSymbolQuery, CodeSymbolRecord
+    from vault_graph.project.code.code_models import (
+        CodeFreshnessReport,
+        CodeSymbolHit,
+        CodeSymbolQuery,
+        CodeSymbolRecord,
+    )
 
     repository = tmp_path / "repository"
     repository.mkdir()

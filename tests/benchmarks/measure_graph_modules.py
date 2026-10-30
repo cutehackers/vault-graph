@@ -51,9 +51,13 @@ from graph_search import (
     GraphLimits as SearchLimits,
 )
 
-from vault_graph.projection.graph_projection import GraphProjectionEdge, GraphProjectionInput, GraphProjectionNode
-from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
-from vault_graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
+from vault_graph.retrieval.graph.projection.graph_projection import (
+    GraphProjectionEdge,
+    GraphProjectionInput,
+    GraphProjectionNode,
+)
+from vault_graph.retrieval.graph.projection.rustworkx_projection import RustworkxGraphProjection
+from vault_graph.retrieval.graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
 
 BODY_MARKER = "PRIVATE_BODY_MARKER"
 BODY = BODY_MARKER + "x" * (4096 - len(BODY_MARKER))

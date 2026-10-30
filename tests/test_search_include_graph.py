@@ -12,15 +12,15 @@ from tests.test_graph_retrieval_service import (
 )
 from tests.test_graph_store_contract import make_entity, make_plan, make_relationship
 from tests.test_metadata_evidence_resolution import make_chunk, make_document
-from vault_graph.app.graph_retrieval_service import GraphRetrievalService
 from vault_graph.errors import GraphStoreError
-from vault_graph.graph.graph_contracts import EntityRecord, RelationshipRecord
-from vault_graph.graph.graph_query import GraphEntityQuery, GraphEntityQueryResult
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
-from vault_graph.projection.rustworkx_projection import RustworkxGraphProjection
-from vault_graph.retrieval.graph_candidates import GraphSearchCandidateProvider
-from vault_graph.retrieval.retrieval_service import RetrievalService
-from vault_graph.retrieval.search_readiness import SearchReadinessReport
+from vault_graph.operation.readiness.search_readiness import SearchReadinessReport
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_contracts import EntityRecord, RelationshipRecord
+from vault_graph.retrieval.graph.graph_query import GraphEntityQuery, GraphEntityQueryResult
+from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
+from vault_graph.retrieval.graph.projection.rustworkx_projection import RustworkxGraphProjection
+from vault_graph.retrieval.search.graph_candidates import GraphSearchCandidateProvider
+from vault_graph.retrieval.search.retrieval_service import RetrievalService
 from vault_graph.storage.interfaces.keyword_index import KeywordHit
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 

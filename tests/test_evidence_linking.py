@@ -8,12 +8,12 @@ from pytest import MonkeyPatch
 from tests.test_app_search_readiness_service import metadata_store_with_chunk
 from tests.test_graph_resource_reader import make_readiness
 from vault_graph.errors import RetrievalContractError
-from vault_graph.graph.graph_contracts import GraphEvidenceRef
-from vault_graph.graph.graph_identity import graph_scope_key
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.evidence.evidence_linking import EvidenceLinker, EvidenceSourceRevision, GraphLinksRequest
+from vault_graph.retrieval.graph.graph_contracts import GraphEvidenceRef
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key
 from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
-from vault_graph.vault_adapter.evidence_linking import EvidenceLinker, EvidenceSourceRevision, GraphLinksRequest
 
 
 def test_forward_preserves_positions_duplicates_and_missing(tmp_path: Path) -> None:
@@ -312,15 +312,15 @@ def test_actual_factory_reverse_lookup_is_read_only(
     cross_vault: bool,
 ) -> None:
     from tests.test_graph_module_public_integration import fingerprints, indexed_home
-    from vault_graph.app.read_only_service_factory import ReadOnlyServiceFactory
+    from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+    from vault_graph.operation.scope.catalog_service import CatalogService
     from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
-    from vault_graph.vault_scope.catalog_service import CatalogService
 
     vault, home = indexed_home(tmp_path, monkeypatch)
     if backend == "document":
         from typer.testing import CliRunner
 
-        from vault_graph.cli.main import app
+        from vault_graph.interface.cli.main import app
 
         switched = CliRunner().invoke(app, ["index", "--graph-home", str(home), "--graph-backend", "document"])
         assert switched.exit_code == 0, switched.output

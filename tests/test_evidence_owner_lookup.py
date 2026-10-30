@@ -7,7 +7,7 @@ import pytest
 from pytest import MonkeyPatch
 
 from tests.test_graph_store_contract import make_entity, make_plan, make_relationship
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.evidence_owner_lookup import EvidenceOwnerRecord
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 
@@ -172,7 +172,7 @@ def test_document_lookup_uses_verified_view_without_writes_or_full_owner_reads(
 ) -> None:
     from tests.test_document_graph_store import GRAPH_LIMITS, READ_LIMITS
     from tests.test_graph_module_public_integration import fingerprints, indexed_home
-    from vault_graph.app.catalog_service import CatalogService
+    from vault_graph.operation.scope.catalog_service import CatalogService
     from vault_graph.storage.local.document_graph_store import DocumentGraphStore
     from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
@@ -284,7 +284,7 @@ def test_lookup_matches_full_evidence_key_and_keeps_vault_identity(tmp_path: Pat
 
 
 def test_sqlite_lookup_applies_scope_before_returned_row_limit(tmp_path: Path) -> None:
-    from vault_graph.graph.graph_identity import graph_scope_key
+    from vault_graph.retrieval.graph.graph_identity import graph_scope_key
 
     store = SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3")
     entities = tuple(make_entity("default", name=f"Owner {index}") for index in range(12))
@@ -308,7 +308,7 @@ def test_sqlite_lookup_applies_scope_before_returned_row_limit(tmp_path: Path) -
 
 
 def test_lookup_attests_latest_scope_revision_without_changing_unchanged_owner_revision(tmp_path: Path) -> None:
-    from vault_graph.graph.graph_identity import graph_scope_key
+    from vault_graph.retrieval.graph.graph_identity import graph_scope_key
 
     store = SQLiteGraphStore.open_writable(tmp_path / "graph.sqlite3")
     entity = make_entity("default")

@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.graph_home import GraphHomeResolver
-from vault_graph.app.projection_generation import (
+from vault_graph.indexing.publication.projection_generation import (
     ProjectionBundlePublisher,
     ProjectionGenerationError,
     ProjectionLayout,
 )
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.graph_home import GraphHomeResolver
 
 
 def _write_components(

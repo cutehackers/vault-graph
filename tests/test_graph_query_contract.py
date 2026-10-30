@@ -2,14 +2,14 @@ import pytest
 
 from tests.test_graph_store_contract import make_entity, make_relationship
 from vault_graph.errors import GraphStoreError
-from vault_graph.graph.graph_query import (
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_query import (
     GraphEntityIdentity,
     GraphEntityMatch,
     GraphEntityQuery,
     GraphRelationshipQuery,
     GraphRelationshipQueryResult,
 )
-from vault_graph.ingestion.vault_catalog import QueryScope
 
 
 def test_graph_entity_query_requires_text() -> None:

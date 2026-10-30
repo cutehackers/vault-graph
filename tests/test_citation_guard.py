@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 
 from tests.test_answer_response_contract import make_evidence, make_response
-from vault_graph.answer.answer_response import AnswerClaim, AnswerWarning
-from vault_graph.answer.citation_guard import CitationGuard
+from vault_graph.context.answer.answer_response import AnswerClaim, AnswerWarning
+from vault_graph.context.answer.citation_guard import CitationGuard
 from vault_graph.errors import AnswerError
 
 

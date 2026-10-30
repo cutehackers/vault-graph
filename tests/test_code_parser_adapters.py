@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.code_index.code_models import CODE_PARSER_SPEC_VERSION, CODE_TREE_SITTER_ABI_VERSION, CodeFileInput
+from vault_graph.project.code.code_models import CODE_PARSER_SPEC_VERSION, CODE_TREE_SITTER_ABI_VERSION, CodeFileInput
 
 FIXTURES = Path(__file__).parent / "fixtures" / "code_index"
 
@@ -28,10 +28,10 @@ def _input(path: Path, *, language: str, is_test_file: bool = False) -> CodeFile
 
 def test_parser_spec_identifies_installed_grammars_without_network_side_effects() -> None:
     for name in tuple(sys.modules):
-        if name == "vault_graph.code_index" or name.startswith("vault_graph.code_index."):
+        if name == "vault_graph.project.code" or name.startswith("vault_graph.project.code."):
             del sys.modules[name]
     before = set(sys.modules)
-    module = importlib.import_module("vault_graph.code_index.code_models")
+    module = importlib.import_module("vault_graph.project.code.code_models")
     after = set(sys.modules)
 
     assert module.CODE_PARSER_SPEC_VERSION.startswith("code-parser-spec-v2/")
@@ -45,7 +45,7 @@ def test_parser_spec_identifies_installed_grammars_without_network_side_effects(
 
 
 def test_tree_sitter_runtime_and_grammars_share_the_pinned_abi() -> None:
-    from vault_graph.code_index.tree_sitter_parsing import load_language
+    from vault_graph.project.code.tree_sitter_parsing import load_language
 
     assert load_language("python").abi_version == CODE_TREE_SITTER_ABI_VERSION
     assert load_language("dart").abi_version == CODE_TREE_SITTER_ABI_VERSION
@@ -69,7 +69,7 @@ def test_file_input_is_the_parser_boundary_and_does_not_require_file_io() -> Non
 
 
 def test_python_adapter_extracts_deterministic_symbols_and_raw_references() -> None:
-    from vault_graph.code_index.python_parser import PythonCodeParserAdapter
+    from vault_graph.project.code.python_parser import PythonCodeParserAdapter
 
     result = PythonCodeParserAdapter().parse(_input(FIXTURES / "python/basic_project/service.py", language="python"))
     assert {symbol.kind for symbol in result.symbols} >= {"module", "class", "method", "property", "function"}
@@ -88,7 +88,7 @@ def test_python_adapter_extracts_deterministic_symbols_and_raw_references() -> N
 
 
 def test_python_adapter_reports_syntax_errors_without_crashing() -> None:
-    from vault_graph.code_index.python_parser import PythonCodeParserAdapter
+    from vault_graph.project.code.python_parser import PythonCodeParserAdapter
 
     result = PythonCodeParserAdapter().parse(
         _input(FIXTURES / "python/basic_project/malformed.py.fixture", language="python")
@@ -99,7 +99,7 @@ def test_python_adapter_reports_syntax_errors_without_crashing() -> None:
 
 
 def test_python_adapter_reports_known_unsupported_constructs() -> None:
-    from vault_graph.code_index.python_parser import PythonCodeParserAdapter
+    from vault_graph.project.code.python_parser import PythonCodeParserAdapter
 
     result = PythonCodeParserAdapter().parse(
         _input(FIXTURES / "python/basic_project/unsupported.py", language="python")
@@ -108,7 +108,7 @@ def test_python_adapter_reports_known_unsupported_constructs() -> None:
 
 
 def test_duplicate_python_declarations_receive_distinct_stable_ids() -> None:
-    from vault_graph.code_index.python_parser import PythonCodeParserAdapter
+    from vault_graph.project.code.python_parser import PythonCodeParserAdapter
 
     adapter = PythonCodeParserAdapter()
     file = _input(FIXTURES / "python/basic_project/duplicates.py", language="python")
@@ -122,7 +122,7 @@ def test_duplicate_python_declarations_receive_distinct_stable_ids() -> None:
 
 
 def test_duplicate_dart_methods_receive_distinct_stable_ids() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     adapter = DartCodeParserAdapter()
     file = _input(FIXTURES / "dart/basic_project/duplicates.dart", language="dart")
@@ -136,7 +136,7 @@ def test_duplicate_dart_methods_receive_distinct_stable_ids() -> None:
 
 
 def test_dart_adapter_extracts_constructors_and_each_property_initializer() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/members.dart", language="dart"))
     names = {symbol.qualified_name for symbol in result.symbols}
@@ -168,7 +168,7 @@ def test_dart_adapter_extracts_constructors_and_each_property_initializer() -> N
 
 
 def test_dart_adapter_extracts_library_declarations_and_annotations() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/greeter.dart", language="dart"))
     assert {symbol.kind for symbol in result.symbols} >= {"module", "class", "mixin", "method", "property", "test"}
@@ -193,14 +193,14 @@ def test_dart_adapter_extracts_library_declarations_and_annotations() -> None:
 
 
 def test_dart_adapter_reports_unmodeled_record_and_typedef_constructs() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/unsupported.dart", language="dart"))
     assert any(diagnostic.code == "unsupported-construct" for diagnostic in result.diagnostics)
 
 
 def test_dart_adapter_reports_unmodeled_top_level_variables() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(
         _input(FIXTURES / "dart/basic_project/top_level_variable.dart", language="dart")
@@ -209,7 +209,7 @@ def test_dart_adapter_reports_unmodeled_top_level_variables() -> None:
 
 
 def test_dart_adapter_does_not_infer_anonymous_function_call_targets() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/anonymous.dart", language="dart"))
     assert not any(
@@ -218,7 +218,7 @@ def test_dart_adapter_does_not_infer_anonymous_function_call_targets() -> None:
 
 
 def test_dart_adapter_excludes_call_arguments_from_callee_targets() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/calls.dart", language="dart"))
     targets = {reference.target_key for reference in result.references if reference.relation_kind == "CALLS"}
@@ -230,7 +230,7 @@ def test_dart_adapter_excludes_call_arguments_from_callee_targets() -> None:
 
 
 def test_dart_adapter_preserves_all_receiver_selectors_as_dynamic_targets() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(_input(FIXTURES / "dart/basic_project/receiver_calls.dart", language="dart"))
     targets = {reference.target_key for reference in result.references if reference.relation_kind == "CALLS"}
@@ -246,7 +246,7 @@ def test_dart_adapter_preserves_all_receiver_selectors_as_dynamic_targets() -> N
 
 
 def test_dart_adapter_extracts_new_and_const_constructor_calls() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(
         _input(FIXTURES / "dart/basic_project/constructor_calls.dart", language="dart")
@@ -257,7 +257,7 @@ def test_dart_adapter_extracts_new_and_const_constructor_calls() -> None:
 
 
 def test_dart_adapter_preserves_prefixed_and_implicit_constructor_targets() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     result = DartCodeParserAdapter().parse(
         _input(FIXTURES / "dart/basic_project/constructor_calls.dart", language="dart")
@@ -270,7 +270,7 @@ def test_dart_adapter_preserves_prefixed_and_implicit_constructor_targets() -> N
 
 
 def test_adapters_reject_a_file_for_the_wrong_language() -> None:
-    from vault_graph.code_index.dart_parser import DartCodeParserAdapter
+    from vault_graph.project.code.dart_parser import DartCodeParserAdapter
 
     file = _input(FIXTURES / "python/basic_project/service.py", language="python")
     with pytest.raises(ValueError, match="language"):
@@ -278,7 +278,7 @@ def test_adapters_reject_a_file_for_the_wrong_language() -> None:
 
 
 def test_python_signature_is_bounded_to_the_declaration_header() -> None:
-    from vault_graph.code_index.python_parser import PythonCodeParserAdapter
+    from vault_graph.project.code.python_parser import PythonCodeParserAdapter
 
     result = PythonCodeParserAdapter().parse(_input(FIXTURES / "python/basic_project/signature.py", language="python"))
     signature = next(symbol.signature for symbol in result.symbols if symbol.name == "one")
@@ -288,7 +288,7 @@ def test_python_signature_is_bounded_to_the_declaration_header() -> None:
 
 
 def test_python_adapter_emits_one_import_reference_per_imported_module() -> None:
-    from vault_graph.code_index.python_parser import PythonCodeParserAdapter
+    from vault_graph.project.code.python_parser import PythonCodeParserAdapter
 
     result = PythonCodeParserAdapter().parse(_input(FIXTURES / "python/basic_project/imports.py", language="python"))
     targets = {reference.target_key for reference in result.references if reference.relation_kind == "IMPORTS"}
@@ -318,6 +318,6 @@ def test_empty_source_file_has_no_dangling_synthetic_reference(
         is_test_file=False,
         parser_spec_version=CODE_PARSER_SPEC_VERSION,
     )
-    adapter = getattr(importlib.import_module(f"vault_graph.code_index.{adapter_module}"), adapter_name)()
+    adapter = getattr(importlib.import_module(f"vault_graph.project.code.{adapter_module}"), adapter_name)()
     result = adapter.parse(file)
     assert result.references == ()

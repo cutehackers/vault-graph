@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import hashlib
 
-from vault_graph.embeddings.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector
 from vault_graph.errors import TextEmbeddingsError
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingModelSpec, EmbeddingVector
 
 
 class DeterministicTextEmbeddings:

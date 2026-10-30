@@ -1,9 +1,9 @@
 from pathlib import Path
 
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
-from vault_graph.app.index_service import IndexService
-from vault_graph.graph.graph_identity import graph_scope_key
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.indexing.index_service import IndexService
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 

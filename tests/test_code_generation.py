@@ -3,10 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.code_index.code_generation import (
-    CodeGenerationError,
-    CodeProjectionGenerationManager,
-)
+from vault_graph.project.code.code_generation import CodeGenerationError, CodeProjectionGenerationManager
 
 
 def test_code_activation_preserves_previous_generation_and_vault_manifest(tmp_path: Path) -> None:

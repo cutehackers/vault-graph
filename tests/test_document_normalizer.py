@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
 
-from vault_graph.ingestion.document_normalizer import DocumentNormalizer
-from vault_graph.ingestion.vault_frontmatter_reader import read_frontmatter
-from vault_graph.ingestion.vault_loader import LoadedVaultDocument
+from vault_graph.indexing.ingestion.document_normalizer import DocumentNormalizer
+from vault_graph.indexing.ingestion.vault_frontmatter_reader import read_frontmatter
+from vault_graph.indexing.ingestion.vault_loader import LoadedVaultDocument
 
 
 def test_document_and_chunk_ids_are_vault_scoped(tmp_path: Path) -> None:

@@ -5,17 +5,17 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.app.graph_home import (
-    DATA_HOME_FORMAT,
-    GraphHomeManifest,
-    GraphHomeResolver,
-    data_home_id_for_root,
-)
 from vault_graph.errors import (
     DataHomeManifestError,
     DataHomeNotInitializedError,
     LegacyDataHomeDetectedError,
     ReadOnlyBoundaryError,
+)
+from vault_graph.operation.scope.graph_home import (
+    DATA_HOME_FORMAT,
+    GraphHomeManifest,
+    GraphHomeResolver,
+    data_home_id_for_root,
 )
 
 

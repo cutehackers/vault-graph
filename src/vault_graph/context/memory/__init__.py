@@ -3,19 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 __all__ = [
-    "CachedExplanationView",
     "DecisionMemoryService",
     "DecisionMemoryProjection",
     "DecisionMemoryVault",
     "DecisionTraceProvider",
-    "ExplainResultService",
-    "ExplanationCacheReader",
-    "ExplanationEvidenceRef",
-    "ExplanationRecord",
-    "ExplanationSignal",
-    "ExplanationSourceKind",
-    "ExplanationWarning",
-    "ExplanationWarningSeverity",
     "MemoryBackendRevision",
     "MemoryClaimStatus",
     "MemoryDocumentResourceKind",
@@ -44,16 +35,8 @@ __all__ = [
     "ProjectMemoryProjection",
     "ProjectMemoryService",
     "ProjectMemoryVault",
-    "BackendReadinessRecord",
-    "HealthBackendKind",
-    "HealthExplorerReport",
-    "HealthExplorerService",
-    "McpRuntimeCacheRecord",
-    "ReadinessStatus",
-    "ScaleUpAdapterReadiness",
     "build_memory_request_context",
     "document_resource_kinds_for_document",
-    "explanation_record_to_dict",
     "stable_memory_item_id",
     "stable_timeline_item_id",
     "parse_timeline_since",
@@ -61,43 +44,6 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
-    if name in {
-        "CachedExplanationView",
-        "ExplainResultService",
-        "ExplanationCacheReader",
-        "ExplanationEvidenceRef",
-        "ExplanationRecord",
-        "ExplanationSignal",
-        "ExplanationSourceKind",
-        "ExplanationWarning",
-        "ExplanationWarningSeverity",
-        "explanation_record_to_dict",
-    }:
-        from vault_graph.retrieval.explanation.result_explanation import (
-            CachedExplanationView,
-            ExplainResultService,
-            ExplanationCacheReader,
-            ExplanationEvidenceRef,
-            ExplanationRecord,
-            ExplanationSignal,
-            ExplanationSourceKind,
-            ExplanationWarning,
-            ExplanationWarningSeverity,
-            explanation_record_to_dict,
-        )
-
-        return {
-            "CachedExplanationView": CachedExplanationView,
-            "ExplainResultService": ExplainResultService,
-            "ExplanationCacheReader": ExplanationCacheReader,
-            "ExplanationEvidenceRef": ExplanationEvidenceRef,
-            "ExplanationRecord": ExplanationRecord,
-            "ExplanationSignal": ExplanationSignal,
-            "ExplanationSourceKind": ExplanationSourceKind,
-            "ExplanationWarning": ExplanationWarning,
-            "ExplanationWarningSeverity": ExplanationWarningSeverity,
-            "explanation_record_to_dict": explanation_record_to_dict,
-        }[name]
     if name in {"MemorySourceReader", "MemoryDocumentRead", "MemoryHeadingRef", "document_resource_kinds_for_document"}:
         from vault_graph.context.memory.memory_source_reader import (
             MemoryDocumentRead,
@@ -172,34 +118,6 @@ def __getattr__(name: str) -> Any:
             "TimelineVault": TimelineVault,
             "stable_timeline_item_id": stable_timeline_item_id,
             "parse_timeline_since": parse_timeline_since,
-        }[name]
-    if name in {
-        "BackendReadinessRecord",
-        "HealthBackendKind",
-        "HealthExplorerReport",
-        "HealthExplorerService",
-        "McpRuntimeCacheRecord",
-        "ReadinessStatus",
-        "ScaleUpAdapterReadiness",
-    }:
-        from vault_graph.operation.diagnostics.health_explorer import (
-            BackendReadinessRecord,
-            HealthBackendKind,
-            HealthExplorerReport,
-            HealthExplorerService,
-            McpRuntimeCacheRecord,
-            ReadinessStatus,
-            ScaleUpAdapterReadiness,
-        )
-
-        return {
-            "BackendReadinessRecord": BackendReadinessRecord,
-            "HealthBackendKind": HealthBackendKind,
-            "HealthExplorerReport": HealthExplorerReport,
-            "HealthExplorerService": HealthExplorerService,
-            "McpRuntimeCacheRecord": McpRuntimeCacheRecord,
-            "ReadinessStatus": ReadinessStatus,
-            "ScaleUpAdapterReadiness": ScaleUpAdapterReadiness,
         }[name]
     if name in {
         "DecisionMemoryProjection",

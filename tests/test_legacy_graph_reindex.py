@@ -11,14 +11,14 @@ from typer.testing import CliRunner
 from tests.test_cli_graph_indexing import write_page
 from tests.test_graph_module_public_integration import fingerprints, indexed_home
 from tests.test_graph_store_contract import make_entity, make_plan
-from vault_graph.cli.main import app
 from vault_graph.errors import GraphStoreUnavailable
-from vault_graph.graph.graph_contracts import GraphTombstone, current_graph_extraction_spec
-from vault_graph.graph.graph_identity import graph_scope_key
-from vault_graph.graph.graph_query import GraphEntityQuery
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.interface.cli.main import app
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import GraphTombstone, current_graph_extraction_spec
+from vault_graph.retrieval.graph.graph_identity import graph_scope_key
+from vault_graph.retrieval.graph.graph_query import GraphEntityQuery
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
-from vault_graph.vault_scope.catalog_service import CatalogService
 
 
 @pytest.mark.parametrize("full", [False, True])

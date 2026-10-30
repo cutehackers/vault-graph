@@ -5,10 +5,10 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from tests.test_cli_vector_indexing import _ConfiguredDeterministicTextEmbeddings
-from vault_graph.cli.main import _search_text_embeddings, app
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
-from vault_graph.retrieval.retrieval_result import RetrievalResult, RetrievalSignal, StoreRevision
-from vault_graph.retrieval.search_response import SearchResponse
+from vault_graph.interface.cli.main import _search_text_embeddings, app
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSignal, StoreRevision
+from vault_graph.retrieval.search.search_response import SearchResponse
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
 runner = CliRunner()
@@ -38,8 +38,8 @@ def _unavailable_search_text_embeddings(_: object) -> _UnavailableSearchTextEmbe
 
 
 def test_cli_search_uses_active_vault_by_default(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
     graph_home_path = tmp_path / "state"
@@ -58,8 +58,8 @@ def test_cli_search_text_output_prints_resolved_scope_for_zero_results(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _unavailable_search_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _unavailable_search_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
     graph_home_path = tmp_path / "state"
@@ -75,8 +75,8 @@ def test_cli_search_text_output_prints_resolved_scope_for_zero_results(
 
 
 def test_cli_search_json_uses_search_response_contract(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
     graph_home_path = tmp_path / "state"
@@ -98,8 +98,8 @@ def test_cli_search_after_graph_indexing_does_not_expose_graph_expansion(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
     graph_home_path = tmp_path / "state"
@@ -121,13 +121,13 @@ def test_cli_search_without_include_graph_does_not_open_graph_store(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("vault_graph.cli.main._text_embeddings", _deterministic_text_embeddings)
-    monkeypatch.setattr("vault_graph.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
 
     def fail_graph_open(_: object) -> None:
         raise AssertionError("plain search must not open graph retrieval state")
 
-    monkeypatch.setattr("vault_graph.cli.main._graph_retrieval_service", fail_graph_open)
+    monkeypatch.setattr("vault_graph.interface.cli.main._graph_retrieval_service", fail_graph_open)
     vault_root = tmp_path / "vault"
     write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
     graph_home_path = tmp_path / "state"
@@ -155,7 +155,7 @@ def test_cli_search_include_graph_renders_graph_signal(tmp_path: Path, monkeypat
         assert include_graph is True
         return object(), catalog, fake_service
 
-    monkeypatch.setattr("vault_graph.cli.main._search_service", fake_search_service)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_service", fake_search_service)
 
     result = runner.invoke(app, ["search", "--graph-home", str(tmp_path / "state"), "--include-graph", "GraphRAG"])
 
@@ -208,7 +208,7 @@ def test_cli_search_missing_keyword_projection_exits_nonzero_without_writes(tmp_
 
 
 def test_search_text_embeddings_uses_local_files_only(tmp_path: Path) -> None:
-    from vault_graph.app.catalog_service import CatalogService
+    from vault_graph.operation.scope.catalog_service import CatalogService
 
     config = CatalogService(graph_home_path=tmp_path / "state", embedding_cache_path=tmp_path / "embedding-cache")
 

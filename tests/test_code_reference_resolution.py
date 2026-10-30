@@ -5,14 +5,14 @@ from dataclasses import replace
 
 import pytest
 
-from vault_graph.code_index.code_models import (
+from vault_graph.project.code.code_models import (
     CODE_PARSER_SPEC_VERSION,
     CodeFileSnapshot,
     CodeReferenceRecord,
     CodeSymbolRecord,
     code_file_identity,
 )
-from vault_graph.code_index.reference_resolution import CodeReferenceResolver
+from vault_graph.project.code.reference_resolution import CodeReferenceResolver
 
 
 def _file(repository_id: str, path: str, revision: str = "revision") -> CodeFileSnapshot:

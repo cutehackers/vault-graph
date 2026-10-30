@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import replace
 
 from tests.test_answer_response_contract import make_evidence
-from vault_graph.answer.answer_composer import ExtractiveAnswerComposer
-from vault_graph.answer.answer_plan import AnswerPlan, AnswerRequest, EvidencePlanStep, PlannedEvidence
-from vault_graph.answer.answer_response import AnswerWarning
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.context.answer.answer_composer import ExtractiveAnswerComposer
+from vault_graph.context.answer.answer_plan import AnswerPlan, AnswerRequest, EvidencePlanStep, PlannedEvidence
+from vault_graph.context.answer.answer_response import AnswerWarning
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 def make_planned_evidence(

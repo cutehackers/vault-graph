@@ -17,19 +17,7 @@ from typing import Any, cast
 import pytest
 import yaml
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.app.code_index_factory import CodeIndexFactory
-from vault_graph.code_index.code_models import (
-    CodeFileOutlineRequest,
-    CodeFreshnessRequest,
-    CodeImpactRequest,
-    CodeIndexRequest,
-    CodeSymbolRequest,
-    CodeSymbolSearchRequest,
-    CodeTraversalRequest,
-    CodeTraversalResponse,
-)
-from vault_graph.context import (
+from vault_graph.context.pack.context_pack import (
     CONTEXT_PACK_SCHEMA_VERSION,
     ContextEvidence,
     ContextEvidenceRef,
@@ -43,12 +31,24 @@ from vault_graph.context import (
     ContextPackVaultRevision,
     context_scope_from_query_scopes,
 )
-from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
-from vault_graph.mcp.mcp_tools import ExploreProjectInput, McpToolRegistry
-from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
-from vault_graph.project_context import ProjectAuthorityFreshness, ProjectContextRequest
-from vault_graph.project_context.project_binding_catalog import ProjectBindingCatalogService
-from vault_graph.project_context.project_context_service import ProjectContextService
+from vault_graph.interface.composition.code_index_factory import CodeIndexFactory
+from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
+from vault_graph.interface.mcp.mcp_tools import ExploreProjectInput, McpToolRegistry
+from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.operation.integration.project_binding_catalog import ProjectBindingCatalogService
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.project.code.code_models import (
+    CodeFileOutlineRequest,
+    CodeFreshnessRequest,
+    CodeImpactRequest,
+    CodeIndexRequest,
+    CodeSymbolRequest,
+    CodeSymbolSearchRequest,
+    CodeTraversalRequest,
+    CodeTraversalResponse,
+)
+from vault_graph.project.context.project_context_models import ProjectAuthorityFreshness, ProjectContextRequest
+from vault_graph.project.context.project_context_service import ProjectContextService
 
 FIXTURE_ROOT = Path(__file__).parents[1] / "fixtures" / "project_context"
 MAX_TOKENS = 1200
@@ -373,7 +373,7 @@ def _run_explore_project(
 
 
 def _baseline_context_request(scenario: Scenario) -> ContextPackRequest:
-    from vault_graph.ingestion.vault_catalog import QueryScope
+    from vault_graph.operation.scope.vault_catalog import QueryScope
 
     return ContextPackRequest(
         goal=scenario.task,

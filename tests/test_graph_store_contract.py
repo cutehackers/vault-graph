@@ -6,7 +6,8 @@ import pytest
 
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
 from vault_graph.errors import GraphReadOnlyViolation, GraphStoreError
-from vault_graph.graph.graph_contracts import (
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import (
     EntityRecord,
     GraphEvidenceRef,
     GraphReconcilePlan,
@@ -15,15 +16,14 @@ from vault_graph.graph.graph_contracts import (
     RelationshipRecord,
     current_graph_extraction_spec,
 )
-from vault_graph.graph.graph_identity import (
+from vault_graph.retrieval.graph.graph_identity import (
     graph_scope_key,
     stable_entity_id,
     stable_evidence_ref_id,
     stable_graph_tombstone_id,
     stable_relationship_id,
 )
-from vault_graph.graph.graph_query import GraphEntityIdentity, GraphEntityQuery, GraphRelationshipQuery
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_query import GraphEntityIdentity, GraphEntityQuery, GraphRelationshipQuery
 from vault_graph.storage.interfaces.graph_store import GraphRelationshipIdentity, GraphStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 

@@ -2,15 +2,15 @@ import pytest
 
 from tests.test_graph_store_contract import make_entity, make_relationship
 from vault_graph.errors import SearchError
-from vault_graph.graph.graph_contracts import GraphEvidenceRef
-from vault_graph.ingestion.vault_catalog import QueryScope
-from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
-from vault_graph.retrieval.graph_retrieval import (
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import GraphEvidenceRef
+from vault_graph.retrieval.graph.graph_retrieval import (
     DecisionTraceStep,
     GraphRetrievalWarning,
     RelatedItem,
     RelatedResponse,
 )
+from vault_graph.retrieval.graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
 

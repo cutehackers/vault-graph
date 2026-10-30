@@ -10,9 +10,9 @@ from tests.fakes.in_memory_graph_store import InMemoryGraphStore
 from tests.test_graph_readiness import metadata_store_with_chunk_ids
 from tests.test_graph_store_contract import make_entity, make_plan
 from tests.test_sqlite_metadata_store import make_chunk, make_document
-from vault_graph.app.graph_readiness_service import ReadOnlyGraphReadiness
-from vault_graph.graph.graph_contracts import current_graph_extraction_spec
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
+from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 

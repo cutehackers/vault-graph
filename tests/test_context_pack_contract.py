@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from vault_graph.context import (
+from vault_graph.context.pack.context_pack import (
     CONTEXT_PACK_SCHEMA_VERSION,
     ContextEvidenceRef,
     ContextPack,
@@ -22,7 +22,7 @@ from vault_graph.context import (
     scope_key,
 )
 from vault_graph.errors import ContextPackError
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
 
 
 def make_pack(*, generated_at: str = "2026-06-12T00:00:00+00:00") -> ContextPack:

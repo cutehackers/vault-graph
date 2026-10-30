@@ -5,9 +5,9 @@ from typing import cast
 
 from tests.test_context_pack_builder import StaticResolver, make_resolved, make_search_response
 from tests.test_read_only_boundary import file_bytes
-from vault_graph.context import ContextEvidenceRef, ContextPackRequest
-from vault_graph.context.context_pack_builder import ContextRetrievalService, SearchContextPackBuilder
-from vault_graph.ingestion.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.context.pack.context_pack import ContextEvidenceRef, ContextPackRequest
+from vault_graph.context.pack.context_pack_builder import ContextRetrievalService, SearchContextPackBuilder
+from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
 
 
 class _StaticRetrievalService:

@@ -15,7 +15,7 @@ from typer.testing import CliRunner
 from tests import test_mcp_tool_read_only_boundary as mcp_read_only
 from tests import test_read_only_boundary as read_only
 from tests.test_read_only_boundary import _fake_text_embeddings, file_bytes
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 from vault_graph.interface.composition.adapters.vault_publish_cli import VaultPublishCli
 from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
 from vault_graph.operation.runtime.watch_service import WatchReport, WatchService

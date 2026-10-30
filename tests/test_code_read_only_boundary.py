@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.app.catalog_service import CatalogService
-from vault_graph.code_index.code_models import CodeRepositoryEntry
-from vault_graph.code_index.repository_catalog import CodeRepositoryCatalogService
 from vault_graph.errors import CatalogError, ReadOnlyBoundaryError
+from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.project.code.code_models import CodeRepositoryEntry
+from vault_graph.project.code.repository_catalog import CodeRepositoryCatalogService
 
 
 def _entry(root: Path) -> CodeRepositoryEntry:

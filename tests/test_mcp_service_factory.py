@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from tests.test_read_only_boundary import file_bytes
-from vault_graph.cli.main import app
+from vault_graph.interface.cli.main import app
 
 runner = CliRunner()
 
@@ -23,7 +23,7 @@ def initialized_state_for_factory(tmp_path: Path) -> Path:
 
 
 def test_mcp_factory_opens_read_only_services_without_creating_missing_state(tmp_path: Path) -> None:
-    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+    from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
     graph_home_path = initialized_state_for_factory(tmp_path)
     vault_root = tmp_path / "vault"
@@ -43,7 +43,7 @@ def test_mcp_factory_opens_read_only_services_without_creating_missing_state(tmp
 
 def test_mcp_factory_missing_catalog_fails_without_creating_state(tmp_path: Path) -> None:
     from vault_graph.errors import DataHomeNotInitializedError
-    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+    from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
     graph_home_path = tmp_path / "missing-state"
 
@@ -54,7 +54,7 @@ def test_mcp_factory_missing_catalog_fails_without_creating_state(tmp_path: Path
 
 
 def test_mcp_factory_uses_read_only_store_constructors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+    from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
@@ -89,7 +89,7 @@ def test_mcp_factory_opens_memory_source_reader_with_read_only_metadata_store(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+    from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
@@ -110,7 +110,7 @@ def test_mcp_factory_opens_memory_source_reader_with_read_only_metadata_store(
 
 
 def test_mcp_factory_opens_project_memory_service_without_creating_memory_state(tmp_path: Path) -> None:
-    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+    from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
     graph_home_path = initialized_state_for_factory(tmp_path)
 
@@ -122,7 +122,7 @@ def test_mcp_factory_opens_project_memory_service_without_creating_memory_state(
 
 
 def test_mcp_factory_opens_timeline_and_health_services_without_creating_memory_state(tmp_path: Path) -> None:
-    from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+    from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
     graph_home_path = initialized_state_for_factory(tmp_path)
     factory = McpServiceFactory(graph_home_path=graph_home_path)
@@ -141,8 +141,8 @@ def test_mcp_factory_memory_services_do_not_import_rustworkx_until_graph_enrichm
 from pathlib import Path
 import sys
 from typer.testing import CliRunner
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 vault_root.mkdir()
@@ -167,8 +167,8 @@ def test_mcp_factory_decision_memory_graph_provider_is_lazy(tmp_path: Path) -> N
 from pathlib import Path
 import sys
 from typer.testing import CliRunner
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 vault_root.mkdir()
@@ -194,7 +194,7 @@ def test_mcp_factory_open_read_only_does_not_import_rustworkx_projection() -> No
     code = """
 from pathlib import Path
 import sys
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 try:
     McpServiceFactory(graph_home_path=Path('/definitely/missing/state')).open_read_only()
 except Exception:
@@ -213,8 +213,8 @@ def test_mcp_factory_open_read_only_does_not_import_runtime_clients(tmp_path: Pa
 from pathlib import Path
 import sys
 from typer.testing import CliRunner
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 vault_root.mkdir()
@@ -236,8 +236,8 @@ def test_mcp_factory_open_retrieval_service_without_graph_is_lightweight(tmp_pat
 from pathlib import Path
 import sys
 from typer.testing import CliRunner
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 (vault_root / "wiki").mkdir(parents=True)
@@ -262,8 +262,8 @@ def test_mcp_factory_open_context_pack_builder_with_graph_imports_projection_laz
 from pathlib import Path
 import sys
 from typer.testing import CliRunner
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 (vault_root / "wiki").mkdir(parents=True)
@@ -292,8 +292,8 @@ def test_mcp_factory_graph_service_imports_rustworkx_only_when_requested(tmp_pat
 from pathlib import Path
 import sys
 from typer.testing import CliRunner
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 (vault_root / "wiki").mkdir(parents=True)
@@ -322,8 +322,8 @@ def test_mcp_factory_graph_resource_service_does_not_import_rustworkx_projection
 from pathlib import Path
 import sys
 from typer.testing import CliRunner
-from vault_graph.cli.main import app
-from vault_graph.mcp.mcp_service_factory import McpServiceFactory
+from vault_graph.interface.cli.main import app
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory
 
 vault_root = Path({str(tmp_path / "vault")!r})
 (vault_root / "wiki").mkdir(parents=True)

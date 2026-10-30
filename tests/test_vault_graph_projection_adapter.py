@@ -9,7 +9,7 @@ from graph_search import GraphSearchError, Path, PathSummary, TraversalStep
 
 from tests.fakes.legacy_graph_projection import LegacyGraphProjection
 from tests.test_graph_projection import edge, node, projection_input
-from vault_graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
+from vault_graph.retrieval.graph.projection.vault_graph_projection_adapter import VaultGraphProjectionAdapter
 
 
 @pytest.mark.parametrize("direction", ["out", "in", "both"])
@@ -103,7 +103,7 @@ def test_adapter_matches_frozen_oracle_across_generated_multigraphs() -> None:
 
 def test_explicit_execution_budget_never_publishes_partial_ranking() -> None:
     from vault_graph.errors import GraphStoreError
-    from vault_graph.projection.vault_graph_projection_adapter import ProjectionExecutionLimits
+    from vault_graph.retrieval.graph.projection.vault_graph_projection_adapter import ProjectionExecutionLimits
 
     seed = node("v", "s", "Seed")
     target = node("v", "t", "Target")
@@ -119,7 +119,7 @@ def test_explicit_execution_budget_never_publishes_partial_ranking() -> None:
 )
 def test_prefilter_input_budgets_reject_oversized_requests(changes: dict[str, int]) -> None:
     from vault_graph.errors import GraphStoreError
-    from vault_graph.projection.vault_graph_projection_adapter import ProjectionExecutionLimits
+    from vault_graph.retrieval.graph.projection.vault_graph_projection_adapter import ProjectionExecutionLimits
 
     seed = node("한", "seed", "Seed")
     target = node("한", "target", "Target")
@@ -159,7 +159,9 @@ def test_invalid_engine_mapping_surfaces_as_graph_store_error(monkeypatch: pytes
             )
         )
 
-    monkeypatch.setattr("vault_graph.projection.vault_graph_projection_adapter.search_paths", invalid_paths)
+    monkeypatch.setattr(
+        "vault_graph.retrieval.graph.projection.vault_graph_projection_adapter.search_paths", invalid_paths
+    )
     with pytest.raises(GraphStoreError, match="mapping failed") as raised:
         VaultGraphProjectionAdapter().project(request)
     assert isinstance(raised.value.__cause__, KeyError)
@@ -195,7 +197,9 @@ def test_incomplete_engine_traversal_never_returns_partial_ranking(
     def incomplete_paths(*args: object, **kwargs: object) -> Iterator[IncompleteTraversal]:
         yield IncompleteTraversal()
 
-    monkeypatch.setattr("vault_graph.projection.vault_graph_projection_adapter.search_paths", incomplete_paths)
+    monkeypatch.setattr(
+        "vault_graph.retrieval.graph.projection.vault_graph_projection_adapter.search_paths", incomplete_paths
+    )
     with pytest.raises(GraphStoreError, match="incomplete traversal"):
         VaultGraphProjectionAdapter().project(request)
 
@@ -211,7 +215,9 @@ def test_engine_fault_preserves_its_cause(monkeypatch: pytest.MonkeyPatch) -> No
     def failed_paths(*args: object, **kwargs: object) -> None:
         raise error
 
-    monkeypatch.setattr("vault_graph.projection.vault_graph_projection_adapter.search_paths", failed_paths)
+    monkeypatch.setattr(
+        "vault_graph.retrieval.graph.projection.vault_graph_projection_adapter.search_paths", failed_paths
+    )
     with pytest.raises(GraphStoreError, match="traversal failed") as raised:
         VaultGraphProjectionAdapter().project(request)
     assert raised.value.__cause__ is error

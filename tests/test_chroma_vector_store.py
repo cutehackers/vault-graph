@@ -7,7 +7,7 @@ from pytest import MonkeyPatch
 
 from tests.test_vector_store_contract import SECOND_SPEC, make_query, make_record
 from vault_graph.errors import VectorStoreError
-from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.vector_store import VectorTombstone
 from vault_graph.storage.local import chroma_vector_store
 from vault_graph.storage.local.chroma_vector_store import CHROMA_VECTOR_SCHEMA_VERSION, ChromaVectorStore

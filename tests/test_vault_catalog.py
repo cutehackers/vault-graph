@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from vault_graph.errors import CatalogError
-from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 
 
 def test_catalog_uses_default_active_vault(tmp_path: Path) -> None:
