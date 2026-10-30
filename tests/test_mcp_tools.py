@@ -16,6 +16,7 @@ from vault_graph.context import ContextPack, ContextPackRequest, DefaultContextP
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.graph.graph_readiness import GraphReadiness
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.interface.mcp.mcp_tools import RememberInput
 from vault_graph.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.mcp.mcp_errors import McpProtocolError
 from vault_graph.mcp.mcp_service_factory import McpServices
@@ -32,6 +33,7 @@ from vault_graph.mcp.mcp_tools import (
 )
 from vault_graph.mcp.result_explanation_cache import ResultExplanationCache
 from vault_graph.operation.diagnostics.index_status_reader import StatusReport
+from vault_graph.operation.integration.remember_service import RememberRequest, RememberResult
 from vault_graph.projection.graph_projection import GRAPH_PROJECTION_VERSION
 from vault_graph.retrieval.graph_retrieval import (
     DecisionTraceResponse,
@@ -166,6 +168,7 @@ class RecordingFactory:
         self.issue_memory_service = RecordingIssueMemoryService()
         self.health_explorer_service = RecordingHealthExplorerService()
         self.answer_service: object | None = None
+        self.remember_service: Any = None
         self.status_calls = 0
         self.graph_calls = 0
         self.retrieval_calls = 0
@@ -205,6 +208,10 @@ class RecordingFactory:
         self.health_calls += 1
         return self.health_explorer_service
 
+    def open_remember_service(self) -> Any:
+        assert self.remember_service is not None
+        return self.remember_service
+
     def open_answer_service(self, *, include_graph: bool = False) -> object:
         del include_graph
         self.answer_calls += 1
@@ -235,9 +242,102 @@ def test_register_mcp_tools_registers_exact_phase_6c_tools(tmp_path: Path) -> No
         "get_open_questions",
         "get_recent_changes",
         "explore_project",
+        "remember",
     )
     assert tuple(server.tools) == registry.tool_names
     assert all(server.structured_output[name] is True for name in registry.tool_names)
+
+
+# sha256 of the input and output schemas of the 11 read tools as registered at commit 28f1c96
+# (canonical JSON: sort_keys, separators=(",", ":"), tools keyed by name). A-15 keeps them unchanged.
+SCHEMAS_AT_28F1C96 = "6792f9841887ea174fc1a82e7969fa1771ac3a18877a040d1b3c272121923840"
+
+
+def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> None:
+    import asyncio
+    import hashlib
+    import json
+
+    from mcp.server.fastmcp import FastMCP
+
+    server = FastMCP("schema-check")
+    registry = register_mcp_tools(
+        server,
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, fake_factory()),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+    read_tools = sorted(name for name in registry.tool_names if name != "remember")
+    schemas = {name: {"input": tools[name].inputSchema, "output": tools[name].outputSchema} for name in read_tools}
+
+    assert len(read_tools) == 11
+    digest = hashlib.sha256(json.dumps(schemas, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    assert digest == SCHEMAS_AT_28F1C96
+    assert set(tools["remember"].inputSchema["properties"]) == {"title", "kind", "body", "evidence", "cwd", "vault"}
+    assert tools["remember"].inputSchema["required"] == ["title", "kind", "body", "evidence"]
+
+
+class RecordingRememberService:
+    def __init__(self, result: RememberResult) -> None:
+        self.result = result
+        self.requests: list[RememberRequest] = []
+
+    def remember(self, request: RememberRequest) -> RememberResult:
+        self.requests.append(request)
+        return self.result
+
+
+def test_remember_tool_passes_fields_to_the_remember_service(tmp_path: Path) -> None:
+    factory = fake_factory()
+    factory.remember_service = RecordingRememberService(
+        RememberResult("published", "main", ("wiki/decisions/a.md",), ("Applied draft: wiki/decisions/a.md",))
+    )
+    server = RecordingToolServer()
+    register_mcp_tools(
+        server,
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, factory),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    body = server.tools["remember"](
+        title="A", kind="decision", body="B", evidence=["E1", "E2"], cwd="/repo", vault="main"
+    )
+
+    assert factory.remember_service.requests == [
+        RememberRequest(title="A", kind="decision", body="B", evidence=("E1", "E2"), cwd="/repo", vault="main")
+    ]
+    assert body == {
+        "tool_name": "remember",
+        "payload": {
+            "status": "published",
+            "vault": "main",
+            "written_paths": ["wiki/decisions/a.md"],
+            "messages": ["Applied draft: wiki/decisions/a.md"],
+        },
+        "resource_links": [],
+        "warnings": [],
+        "text": cast(dict[str, object], body)["text"],
+    }
+
+
+def test_remember_tool_returns_rejected_as_payload_not_protocol_error(tmp_path: Path) -> None:
+    factory = fake_factory()
+    factory.remember_service = RecordingRememberService(RememberResult("rejected", None, (), ("title is empty",)))
+    registry = McpToolRegistry(
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, factory),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    body = registry.remember(RememberInput(title="", kind="decision", body="B", evidence=("E",)))
+
+    assert body.payload["status"] == "rejected"
+    assert body.payload["written_paths"] == []
 
 
 @pytest.mark.parametrize(

@@ -51,6 +51,7 @@ McpToolName = Literal[
     "get_open_questions",
     "get_recent_changes",
     "explore_project",
+    "remember",
 ]
 MAX_MCP_TOOL_LIMIT = 50
 MAX_MCP_PROJECT_TASK_CHARS = 4096
@@ -196,6 +197,16 @@ class ExploreProjectInput:
         )
 
 
+@dataclass(frozen=True)
+class RememberInput:
+    title: str
+    kind: str
+    body: str
+    evidence: tuple[str, ...]
+    cwd: str | None = None
+    vault: str | None = None
+
+
 class McpToolRegistry:
     tool_names: tuple[McpToolName, ...]
 
@@ -224,6 +235,7 @@ class McpToolRegistry:
             "get_open_questions",
             "get_recent_changes",
             "explore_project",
+            "remember",
         )
 
     def ask_vault(self, request: AskVaultInput) -> McpToolBody:
@@ -597,6 +609,32 @@ class McpToolRegistry:
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
+    def remember(self, request: RememberInput) -> McpToolBody:
+        """Hand one stated memory to the Vault publish-draft. The only tool that writes to a Vault."""
+
+        try:
+            from vault_graph.interface.mcp.mcp_tool_serialization import remember_result_to_payload
+            from vault_graph.operation.integration.remember_service import RememberRequest
+
+            result = self._service_factory.open_remember_service().remember(
+                RememberRequest(
+                    title=request.title,
+                    kind=request.kind,
+                    body=request.body,
+                    evidence=request.evidence,
+                    cwd=request.cwd,
+                    vault=request.vault,
+                )
+            )
+            return _tool_body(
+                tool_name="remember",
+                payload=remember_result_to_payload(result),
+                resource_links=(),
+                warnings=(),
+            )
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
 
 def register_mcp_tools(
     server: McpToolServer,
@@ -760,6 +798,18 @@ def register_mcp_tools(
         )
         return registry.explore_project(request).to_json_dict()
 
+    @server.tool("remember", structured_output=True)
+    def remember(
+        title: str,
+        kind: str,
+        body: str,
+        evidence: list[str],
+        cwd: str | None = None,
+        vault: str | None = None,
+    ) -> dict[str, object]:
+        request = parse_remember_input(title=title, kind=kind, body=body, evidence=evidence, cwd=cwd, vault=vault)
+        return registry.remember(request).to_json_dict()
+
     return registry
 
 
@@ -793,6 +843,28 @@ def mcp_scope_input_from_raw(
         content_scopes=_optional_string_tuple(scope.get("content_scopes"), "content_scopes"),
         include_cross_vault=include_cross_vault,
     )
+
+
+def parse_remember_input(
+    *,
+    title: str,
+    kind: str,
+    body: str,
+    evidence: list[str],
+    cwd: str | None = None,
+    vault: str | None = None,
+) -> RememberInput:
+    """Check only types here. Empty fields and unknown kinds come back as a ``rejected`` result."""
+
+    for value, field_name in ((title, "title"), (kind, "kind"), (body, "body")):
+        if not isinstance(value, str):
+            raise _invalid_arguments(f"{field_name} must be a string")
+    if not isinstance(evidence, list | tuple) or not all(isinstance(item, str) for item in evidence):
+        raise _invalid_arguments("evidence must be a list of strings")
+    for optional, field_name in ((cwd, "cwd"), (vault, "vault")):
+        if optional is not None and not isinstance(optional, str):
+            raise _invalid_arguments(f"{field_name} must be a string")
+    return RememberInput(title=title, kind=kind, body=body, evidence=tuple(evidence), cwd=cwd, vault=vault)
 
 
 def parse_ask_vault_input(
