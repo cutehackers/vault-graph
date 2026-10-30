@@ -63,3 +63,9 @@ A-10a, A-10b, A-10c, A-10d, A-10e, A-10f, A-10g, A-10h (수동), A-10i, A-11, A-
 - `tests/test_feature_import_direction.py`는 M08(`context/pack/recall.py`)이 M17(`vault_map`)과 `storage/local`(`usage_log`)을 직접 가져오는 것을 막는다. M08 → M12도 DEP-04의 반대 방향이라 허용되지 않는다.
 - 따라서 recall은 `vault-map` 조회와 사용 기록을 M08 또는 `storage/interfaces`에 정의한 Protocol로 주입받고, 구체 구현 연결은 composition에서 한다. spec 4.2.2의 "M12·M01이 쓰는 읽기 Protocol"과 별개로 recall용 Protocol을 둔다.
 - M08 → M10은 허용된다(`STALE_STATUSES` 재사용).
+
+## 작업7에서 넘어온 사항 (2026-10-30)
+
+- `cwd` → 연결 Vault 결정은 `interface/composition/query_scope_resolution.py`의 `resolve_project_vaults(cwd, *, vault_map, vault_catalog, bindings=None, repository_roots=None)`가 한다. map에 프로젝트가 있으면 map, 없거나 map이 없거나 깨졌으면 `project-bindings.json`, 한 단계에서 둘 이상 맞으면 정하지 않는다. recall(M08)은 이 함수를 직접 부르지 않고, composition이 결과를 Protocol로 주입한다.
+- map Vault와 Graph Home Vault id는 실제 경로로 맞춘다(`registered_vault_ids`).
+- 테스트는 `tests/conftest.py`의 autouse 고정으로 실제 `vault-map.json`을 읽지 않는다. 새 테스트는 `--vault-map` 또는 `VAULT_GRAPH_VAULT_MAP`을 명시한다.
