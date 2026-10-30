@@ -9,7 +9,6 @@ import pytest
 
 from tests.test_mcp_tools import make_status_report
 from tests.test_sqlite_metadata_store import make_document
-from vault_graph.app.index_service import StatusReport
 from vault_graph.errors import MemoryProjectionError, MetadataStoreError
 from vault_graph.ingestion.document_normalizer import DocumentSnapshot
 from vault_graph.ingestion.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
@@ -23,6 +22,7 @@ from vault_graph.memory.timeline_memory import (
     parse_timeline_since,
     stable_timeline_item_id,
 )
+from vault_graph.operation.diagnostics.index_status_reader import StatusReport
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 
 

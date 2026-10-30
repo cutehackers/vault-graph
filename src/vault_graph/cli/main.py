@@ -19,7 +19,6 @@ from vault_graph.context import MetadataContextEvidenceResolver as MetadataConte
 from vault_graph.context import SearchContextPackBuilder as SearchContextPackBuilder
 from vault_graph.errors import VaultGraphError as VaultGraphError
 from vault_graph.indexing.index_service import IndexService as IndexService
-from vault_graph.indexing.index_service import StatusReport as StatusReport
 from vault_graph.indexing.publication.projection_generation import (
     ProjectionGenerationManager as ProjectionGenerationManager,
 )
@@ -97,6 +96,7 @@ from vault_graph.interface.composition.graph_store_factory import selected_graph
 from vault_graph.interface.composition.local_index_service_factory import (
     LocalIndexServiceFactory as LocalIndexServiceFactory,
 )
+from vault_graph.operation.diagnostics.index_status_reader import StatusReport as StatusReport
 from vault_graph.operation.diagnostics.projection_hygiene_service import (
     ProjectionHygieneService as ProjectionHygieneService,
 )

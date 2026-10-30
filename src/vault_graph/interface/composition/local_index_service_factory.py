@@ -25,6 +25,7 @@ from vault_graph.interface.composition.graph_store_factory import (
     selected_graph_backend,
     write_graph_backend_selection,
 )
+from vault_graph.operation.diagnostics.index_status_reader import IndexStatusReader
 from vault_graph.operation.diagnostics.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.operation.scope.catalog_service import CatalogService
@@ -168,29 +169,44 @@ class LocalIndexServiceFactory:
                 _bootstrap_document_graph(graph_store, catalog_service, catalog)
             if initialize_store and (selected_backend == "document" or graph_backend is not None):
                 write_graph_backend_selection(catalog_service, selected_backend)
+            vector_store = ChromaVectorStore(
+                catalog_service.vector_path,
+                initialize=initialize_store,
+                read_only=not initialize_store,
+            )
+            vector_status_store = LocalVectorStatusStore(catalog_service.vector_status_path)
+            graph_status_store = LocalGraphStatusStore(catalog_service.graph_status_path)
             return LocalIndexServiceBundle(
                 catalog_service=catalog_service,
                 catalog=catalog,
                 index_service=IndexService(
                     catalog=catalog,
                     metadata_store=metadata_store,
-                    vector_store=ChromaVectorStore(
-                        catalog_service.vector_path,
-                        initialize=initialize_store,
-                        read_only=not initialize_store,
-                    ),
+                    vector_store=vector_store,
                     text_embeddings=text_embeddings,
-                    vector_status_store=LocalVectorStatusStore(catalog_service.vector_status_path),
+                    vector_status_store=vector_status_store,
                     embedding_batch_size=text_embeddings.config.embedding_batch_size,
                     embedding_parallelism=text_embeddings.config.embedding_parallelism,
                     embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
                     graph_store=graph_store,
                     graph_extraction_spec=current_graph_extraction_spec(),
-                    graph_status_store=LocalGraphStatusStore(catalog_service.graph_status_path),
-                    graph_readiness=ReadOnlyGraphReadiness(
+                    graph_status_store=graph_status_store,
+                    status_reader=IndexStatusReader(
+                        catalog=catalog,
                         metadata_store=metadata_store,
-                        graph_store=graph_store,
-                        expected_spec=current_graph_extraction_spec(),
+                        vector_store=vector_store,
+                        text_embeddings=text_embeddings,
+                        vector_status_store=vector_status_store,
+                        embedding_batch_size=text_embeddings.config.embedding_batch_size,
+                        embedding_parallelism=text_embeddings.config.embedding_parallelism,
+                        embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
+                        graph_readiness=ReadOnlyGraphReadiness(
+                            metadata_store=metadata_store,
+                            graph_store=graph_store,
+                            expected_spec=current_graph_extraction_spec(),
+                        ),
+                        graph_extraction_spec=current_graph_extraction_spec(),
+                        graph_status_store=graph_status_store,
                     ),
                 ),
                 generation_manager=generation_manager,

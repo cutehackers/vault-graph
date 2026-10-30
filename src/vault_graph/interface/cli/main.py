@@ -19,7 +19,7 @@ from vault_graph.context.pack import (
     SearchContextPackBuilder,
 )
 from vault_graph.errors import VaultGraphError
-from vault_graph.indexing.index_service import IndexService, StatusReport
+from vault_graph.indexing.index_service import IndexService
 from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
 from vault_graph.interface.cli.code_commands import code_app
 from vault_graph.interface.cli.harness_commands import harness_app
@@ -32,6 +32,7 @@ from vault_graph.interface.composition.adapters.text_embeddings import (
 from vault_graph.interface.composition.graph_store_factory import GraphBackend, open_graph_store, selected_graph_backend
 from vault_graph.interface.composition.local_index_service_factory import LocalIndexServiceFactory
 from vault_graph.interface.composition.query_scope_resolution import registered_vault_ids
+from vault_graph.operation.diagnostics.index_status_reader import StatusReport
 from vault_graph.operation.diagnostics.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, VaultMapOpening, open_vault_map, vault_map_path
 from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
