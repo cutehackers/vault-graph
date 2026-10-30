@@ -57,3 +57,9 @@ A-10a, A-10b, A-10c, A-10d, A-10e, A-10f, A-10g, A-10h (수동), A-10i, A-11, A-
 - [ ] 임베딩 제공자나 벡터 저장소를 만들면 실패하는 대역으로도 통과한다
 - [ ] (수동) 실제 Vault에서 연속 20회 실행의 p95가 2초 이하다
 - [ ] (수동) 의존1이 없으므로 사람이 사용자 범위 훅을 임시로 설정하고, 새 세션의 `/context`, resume 시 무추가, vg를 PATH에서 뺀 경우의 `recall.sh` 넘김을 확인했다
+
+## 작업2에서 넘어온 제약 (2026-10-30)
+
+- `tests/test_feature_import_direction.py`는 M08(`context/pack/recall.py`)이 M17(`vault_map`)과 `storage/local`(`usage_log`)을 직접 가져오는 것을 막는다. M08 → M12도 DEP-04의 반대 방향이라 허용되지 않는다.
+- 따라서 recall은 `vault-map` 조회와 사용 기록을 M08 또는 `storage/interfaces`에 정의한 Protocol로 주입받고, 구체 구현 연결은 composition에서 한다. spec 4.2.2의 "M12·M01이 쓰는 읽기 Protocol"과 별개로 recall용 Protocol을 둔다.
+- M08 → M10은 허용된다(`STALE_STATUSES` 재사용).
