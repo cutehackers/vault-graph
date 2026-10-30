@@ -106,15 +106,15 @@ class RememberService:
 
         draft = build_draft(request, today=self._today())
         target = str(draft["path"])
-        if (selected.path / target).exists():
-            return RememberResult(
-                "rejected",
-                selected.name,
-                (),
-                (f"A page already exists at {target}. remember only adds new pages.",),
-            )
-
+        # The existence check runs under the lock so concurrent calls for one page cannot both pass it.
         with _vault_lock(selected.path):
+            if (selected.path / target).exists():
+                return RememberResult(
+                    "rejected",
+                    selected.name,
+                    (),
+                    (f"A page already exists at {target}. remember only adds new pages.",),
+                )
             outcome = self._publish(selected.path, draft)
         messages = outcome.messages
         if outcome.status == "published":
