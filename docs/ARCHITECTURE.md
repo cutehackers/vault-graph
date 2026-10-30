@@ -14,7 +14,6 @@ src/vault_graph/
 │   ├── publication/         # Vault 투영 세대 발행
 │   ├── index_service.py
 │   ├── metadata_indexer.py
-│   ├── vector_indexer.py    # 기존 공개 경로를 보존하는 호환 진입점
 │   ├── vector_index_adapter.py # 실제 Vault 전용 벡터 색인 구현
 │   ├── graph_indexer.py
 │   └── revision_planner.py
@@ -72,7 +71,7 @@ src/vault_graph/
 | M16 실행 운영 | `operation/runtime/` | 초기 설정·주기 색인·중단·자원 정리 |
 | M17 연동 설정 | `operation/integration/` | MCP 등록·저장소 연결 catalog·지침의 명시적 변경 |
 
-`interface`는 입력 검증·전송·직렬화와 구성을 담당한다. `storage`는 포트의 구체 저장 방식과 저장 모델을 담당한다. `errors.py` 등 지원 파일과 이전 가져오기 경로도 남아 있으므로 위 트리는 전체 파일 목록이 아니다.
+`interface`는 입력 검증·전송·직렬화와 구성을 담당한다. `storage`는 포트의 구체 저장 방식과 저장 모델을 담당한다. `errors.py` 등 지원 파일과 하위 모듈은 생략했으므로 위 트리는 전체 파일 목록이 아니다.
 
 ### 1.1 모듈 흐름
 
@@ -187,6 +186,38 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 - **규칙3:** 문맥·답변·프로젝트 문맥은 검색·그래프·코드 조회를 조합한다. 준비 상태는 조회나 진단 응답에 의존하지 않는다. 진단은 상태를 설명하며 조회 정책이나 자동 복구를 소유하지 않는다.
 - **규칙4:** 새 기능은 구체 factory를 내부에서 다시 열지 않고 주입을 우선한다. 기존 생성자의 선택 인자를 보존하기 위해 `operation/runtime/{setup_service,watch_service}.py`는 `interface/composition/adapters/runtime_indexing.py`의 기본 구성을 지연 가져온다. `project/code/{code_projection_service,code_freshness}.py`도 `interface/composition/adapters/code_projection_storage.py`의 기본 구성을 지연 가져온다. 이 제한된 호환 기본값은 현재 구현의 예외이며 모든 상위 가져오기가 제거됐다는 뜻이 아니다.
 
+### 3.1 기능 영역 사이의 가져오기 방향
+
+아래 표는 `tests/test_feature_import_direction.py`의 `_ALLOWED` 표와 같다. 한쪽을 바꾸면 다른 쪽도 함께 바꾼다. 검사는 모듈 최상위 가져오기뿐 아니라 함수 안 지연 가져오기, `if TYPE_CHECKING` 가져오기, `import_module`에 넘기는 모듈 이름 문자열도 센다.
+
+| 영역 | 경로 | 가져올 수 있는 다른 기능 영역 | 근거 |
+|---|---|---|---|
+| M01 | `operation/scope/` | 없음 | DEP-01 |
+| M02 | `indexing/ingestion/` | M01 | |
+| M03 | `indexing/` (M02·M04 제외, `extraction/` 포함) | M01, M02 | DEP-06: M04 금지 |
+| M04 | `indexing/publication/` | M01 | |
+| M05 | `retrieval/search/` | M01, M02, M07, M14 | |
+| M06 | `retrieval/graph/` | M01, M02, M05, M07 | M05의 `GraphCandidateProvider` 포트를 구현하고 M05 DTO를 반환 |
+| M07 | `retrieval/evidence/` | M01 | DEP-05 |
+| M08 | `context/pack/` | M01, M02, M05, M06, M07, M10, M14 | 회상이 M10의 `STALE_STATUSES`를 재사용 |
+| M09 | `context/answer/` | M01, M02, M05, M06, M07, M08, M10, M14 | DEP-04 |
+| M10 | `context/memory/` | M01, M02, M05, M06, M07, M14 | DEP-02: M15 금지 |
+| M11 | `project/code/` | M01 | |
+| M12 | `project/context/` | M01, M02, M05, M06, M07, M08, M11, M14 | DEP-01, DEP-04: M17 금지 |
+| M13 | `retrieval/explanation/` | M01 | |
+| M14 | `operation/readiness/` | M01 | DEP-02 |
+| M15 | `operation/diagnostics/` | M01, M02, M03, M06, M10, M14 | DEP-02: 진단이 각 기능의 상태를 읽음 |
+| M16 | `operation/runtime/` | M01, M02, M03, M04, M17 | |
+| M17 | `operation/integration/` | M01, M12 | M12의 binding 읽기 Protocol을 구현(보완5) |
+
+표 외에 모든 기능 영역이 가져올 수 있는 대상은 다음과 같다.
+
+- 자기 영역, `storage/interfaces/`의 포트, `errors.py`.
+- 소유 기능 가까이 둔 계약 모듈 5개: `retrieval/graph/{graph_contracts,graph_identity,graph_readiness}.py`, `retrieval/graph/projection/graph_projection.py`, `project/code/code_models.py`.
+- `interface/` 아래 모듈. 단 기능 코드가 전송·구성 계층을 가져오는 것은 `tests/test_functional_module_boundaries.py`가 따로 막으며, 규칙4의 지연 가져오기만 예외다.
+
+기능 영역은 `storage/local/`을 가져오지 않는다. 구체 저장소는 `interface/composition/`이 만들어 주입한다. 패키지 루트처럼 영역에 속하지 않는 경로는 허용하지 않으므로 정식 모듈을 직접 가져온다. 방향 표에는 순환이 없고, `tests/test_module_import_cycles.py`는 `src/vault_graph` 안 모듈 단위 순환이 0건임을 확인한다. 테스트의 위반 예외 목록은 비어 있고 상한은 0이다. 새 위반은 고치거나 [VG-MOD](design/specs/2026-10-15-vault-graph-modular-architecture-ko.md) §10에 규칙 예외로 적은 뒤에만 표를 바꾼다.
+
 ## 4. 원본·투영·쓰기 경계
 
 등록 저장소의 소스는 읽기만 한다. Vault 문서는 vault-graph 프로세스가 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않고, Vault `raw/`에는 어떤 경로로도 쓰지 않는다. Vault에 쓰는 유일한 길은 remember다. remember는 Vault 도구의 publish-draft 하위 프로세스를 실행하는 명시적 쓰기 경로이며, 기록은 publish-draft의 검증을 거친다. 일반 조회·색인·watch와 다른 MCP 도구는 이 경로를 쓰지 않는다. 사용자 범위의 `vault-map.json`은 읽기만 한다. 메타데이터·벡터·그래프·코드 투영은 원본으로부터 다시 만들 수 있는 파생 데이터이며 지식의 공식 원본이 아니다. 임시 결과 설명 캐시도 영구 기억 저장소가 아니다.
@@ -195,15 +226,15 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 
 명시적으로 요청한 setup·index·watch는 해당 파생 데이터를 기록할 수 있다. MCP 등록·저장소 연결 설정·지침 설치/제거는 기존 경로·dry-run·사용자 수정 보존 규칙 아래에서만 설정 파일을 변경한다. 이 예외는 Vault 문서 편집 권한을 주지 않는다. Vault 쓰기는 위의 remember 경로에서만 일어난다.
 
-## 5. 가져오기 호환성과 변경 방법
+## 5. 가져오기 경로와 변경 방법
 
-새 구현과 내부 참조는 위 정식 경로를 사용한다. 이전 `app/`, `ingestion/`, `answer/`, `code_index/`, `vault_adapter/` 등의 공개 경로는 필요한 호환 파일로 남긴다. 이전 파일은 `sys.modules`를 통해 정식 모듈과 같은 객체를 가리켜 기존 클래스 identity와 monkeypatch 동작을 보존한다. 같은 기능을 두 경로에 복제하지 않는다.
+모든 코드와 테스트는 위 정식 경로를 사용한다. 이전 `app/`, `ingestion/`, `answer/`, `code_index/`, `vault_adapter/` 등의 최상위 경로와 `indexing/vector_indexer.py` 같은 그룹 안 별칭은 보완8(`ab19fa9`)에서 삭제했다. 0.x 단계의 호환성 변경이며, 이전 경로로 가져오는 외부 코드는 정식 경로로 바꿔야 한다. 같은 기능을 두 경로에 복제하지 않는다.
 
 기존 leaf 패키지의 `__init__.py` 공개 API를 보존한다. 새 상위 그룹의 초기화는 가볍게 유지하고 필요한 재노출은 지연 처리한다. 가져오기만으로 파일 기록·네트워크·색인·모델 준비를 실행하지 않는다.
 
 기능을 변경할 때는 소유 모듈·소비자 포트·구성 지점을 함께 확인한다. 경로를 변경하면 공개 가져오기와 모듈 identity, 전송 응답, 읽기 전용 경계, 실패 세대 비발행을 관련 검사로 확인한다. 단계별 구현과 과거 실행 증거는 [완료 기록](design/reports/2026-10-15-modularization-completion-ko.md)에 보존한다. 그 기록의 과거 테스트 횟수를 후속 변경의 새 실행 결과로 해석하지 않는다.
 
-호환 경로에는 새 정책이나 계산을 추가하지 않고 정식 구현으로 전달한다. `indexing/vector_indexer.py`처럼 새 그룹 안에도 호환 진입점이 있을 수 있으므로 파일 이름만으로 구현 소유자를 판단하지 않는다. 호환 경로를 없애려면 공개 가져오기·monkeypatch·설치된 진입점의 사용 여부와 호환성 변경 범위를 먼저 확인한다. 이번 재배치에서는 삭제 시점을 정하지 않는다.
+새 별칭 경로나 재노출용 호환 파일을 만들지 않는다. 공개 경로를 바꿔야 하면 설치된 진입점과 외부 사용 여부를 먼저 확인하고, 이전 경로를 남기지 않고 한 번에 옮긴다.
 
 ## 6. 새 코드를 배치할 때의 기준
 
@@ -218,4 +249,4 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 
 테스트는 현재 `tests/`의 기능별 파일, 공통 대역은 `tests/fakes/`, 원본 예제는 `tests/fixtures/`에 둔다. 독립 패키지 테스트는 각 `packages/<package>/tests/`에 둔다. 소스 그룹과 테스트 폴더를 일대일로 맞추기 위한 이동은 이번 구조에 포함하지 않는다.
 
-경로·초기화·의존을 바꾸면 `tests/test_grouped_module_layout.py`와 관련 `test_*_import_boundaries.py` 및 `test_*_boundaries.py`로 정식 소스의 경계와 기존 경로의 호환성을 확인한다. 정적 검사는 호환 파일만 읽거나 빈 파일 목록으로 통과하지 않아야 한다. 배포 경로를 바꾸면 `tests/verify_graph_module_wheels.py`로 저장소 밖 설치까지 검사한다. 전체 재현 명령은 [완료 기록 §6](design/reports/2026-10-15-modularization-completion-ko.md#6-재현-명령)을 따른다.
+경로·초기화·의존을 바꾸면 `tests/test_grouped_module_layout.py`와 관련 `test_*_import_boundaries.py` 및 `test_*_boundaries.py`로 정식 소스의 경계를 확인하고, `tests/test_feature_import_direction.py`와 `tests/test_module_import_cycles.py`로 §3.1의 방향 표와 순환 0건을 확인한다. 정적 검사는 빈 파일 목록으로 통과하지 않아야 한다. 배포 경로를 바꾸면 `tests/verify_graph_module_wheels.py`로 저장소 밖 설치까지 검사한다. 전체 재현 명령은 [완료 기록 §6](design/reports/2026-10-15-modularization-completion-ko.md#6-재현-명령)을 따른다.

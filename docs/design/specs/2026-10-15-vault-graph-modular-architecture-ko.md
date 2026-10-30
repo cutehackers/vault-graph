@@ -7,6 +7,7 @@
 - Source: User instruction — 독립 모듈 5개와 검색 대상·근거 연결 명세를 포함하고, 나머지 현재 기능의 모듈 구조와 구현 계획까지 완성해 제안한다.
 - Independent Design Review: Passed — 2026-10-15. 별도 리뷰 에이전트가 전체 기능 범위·SEL 계약·세대 발행·쓰기 예외·단계별 검증을 검토했다. 구현 검증은 아니다.
 - Implementation: Complete — [실제 구현·검증·현재 소유권 지도](../reports/2026-10-15-modularization-completion-ko.md). 당시 발견한 legacy 색인 결함은 후속 사용자 지시로 수정했으며 완료 기록 §5에 설명한다.
+- 후속 보완: Complete (2026-10-30) — [§10 재검증·보완 기록](#10-후속-재검증과-보완-기록-2026-10-30), [모듈화 보완 계획](../plans/2026-10-29-modularization-remediation-plan-ko.md)
 - Independent Implementation / Outcome Review: Passed — 최종 VG FA-01–06·SEL FA-01–10 대조, 독립 SEL 검사 61개 통과.
 - 확인 기준: `4ea7e3c` 및 현재 작업 트리의 SEL-20261015 명세
 - 현재 구현 기준: [ARCHITECTURE.md](../../ARCHITECTURE.md). 이 문서의 단계별 제안·과거 검증과 현재 물리 경로를 구분한다.
@@ -176,3 +177,27 @@ flowchart TB
 ## 9. 기존 제품 명세와의 관계
 
 [제품 명세](../../SPEC.md)는 활성 제품 계약으로 유지한다. 다만 그 문서의 불변성 엔진·조정 저장소·constitution 설계를 현재 구현 목록에 포함하지 않는다. 현재 소스에 `invariants` 패키지가 없으며, 이 작업은 그 엔진을 구현하거나 제품 방향을 변경하는 작업이 아니다. 현재 기능 정리와 향후 제품 구현의 범위를 구분한다.
+
+## 10. 후속 재검증과 보완 기록 (2026-10-30)
+
+2026-10-29에 `28f1c96` 기준으로 실제 가져오기 그래프를 다시 만들어 §4와 대조했다. 정식 디렉터리 배치, 독립 패키지의 `vault_graph` 비의존, 기능 모듈의 전송·구성 계층 비의존은 지켜졌다. 기능 모듈 사이 방향 규칙 일부가 어긋나 있었고 이를 검사하는 테스트가 없었다. 차이 목록과 보완 순서는 [모듈화 보완 계획](../plans/2026-10-29-modularization-remediation-plan-ko.md)에 있다.
+
+| 보완 | 내용 | 커밋 |
+|---|---|---|
+| 보완1 | 기능 영역 사이 가져오기 방향 테스트 `tests/test_feature_import_direction.py` 추가 | `0581364` |
+| 보완2 | M14 준비 상태 판정이 벡터 색인기를 직접 만들지 않고 주입받음 | `5c2dc3d` |
+| 보완3 | M03 색인 서비스가 M15 상태 조회기를 주입받음 | `64001dc` |
+| 보완4 | 기능 코드가 `storage/local` 대신 `storage/interfaces` Protocol을 사용 | `3c78aa4` |
+| 보완5 | M12가 binding 읽기 Protocol만 알고 M17이 구현. M12↔M17 순환 제거 | `68e8de5` |
+| 보완6 | M10이 M15 타입 대신 `MemoryStatusView` Protocol 사용 | `b1afb75` |
+| 보완7 | 남은 모듈 순환 3종 제거, 순환 0건 테스트 `tests/test_module_import_cycles.py` 추가 | `d1d0954` |
+| 보완8 | 이전 가져오기 경로 호환 파일 171개 삭제, 테스트를 정식 경로로 이전 | `ab19fa9` |
+
+결과는 다음과 같다.
+
+1. 허용 방향은 [ARCHITECTURE.md §3.1](../../ARCHITECTURE.md#31-기능-영역-사이의-가져오기-방향) 표와 `tests/test_feature_import_direction.py`의 `_ALLOWED` 표로 고정했다. 두 표는 같다. §4의 DEP-01~07은 이 표의 근거로 유지한다.
+2. 방향 테스트의 위반 예외 목록은 비어 있고 상한은 0이다(보완 계획 결정2). 현재 남은 규칙 예외는 없다. 앞으로 예외가 필요하면 이 절에 위치·사유·제거 조건을 적은 뒤에만 테스트에 넣는다.
+3. `src/vault_graph` 안 모듈 단위 가져오기 순환은 0건이다.
+4. 보완8로 이전 경로가 없어졌으므로 §4 표의 "기존 `vault_adapter/`는 호환 경로로 유지한다"와 "호환 경로" 행, §7 Q-02의 "기존 공개 경로의 모듈 identity를 보존"은 더 이상 현재 구현을 설명하지 않는다(보완 계획 결정1). 현재 경로 규칙은 [ARCHITECTURE.md §5](../../ARCHITECTURE.md#5-가져오기-경로와-변경-방법)를 따른다. DEP-04와 FA-02의 setup/watch·코드 투영 생성자 기본 구성 예외는 그대로 남아 있다.
+
+이 기록은 §8의 수용 기준을 바꾸지 않는다. FA-02의 정적 검사 증거에 위 두 테스트가 추가됐다.
