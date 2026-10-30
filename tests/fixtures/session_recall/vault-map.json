@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "vaults": {
+    "main": {"path": "{base}/vaults/main", "role": "personal"},
+    "other": {"path": "{base}/vaults/other", "role": "team"},
+    "ghost": {"path": "{base}/vaults/ghost", "role": "team"}
+  },
+  "projects": {
+    "alpha": {"root": "{base}/repos/alpha", "vaults": ["main"]},
+    "both": {"root": "{base}/repos/both", "vaults": ["main", "other"]},
+    "unregistered": {"root": "{base}/repos/unregistered", "vaults": ["ghost"]}
+  }
+}

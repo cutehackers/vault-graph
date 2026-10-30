@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from vault_graph.errors import VaultGraphError
 from vault_graph.interface.composition.graph_store_factory import open_graph_store
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
@@ -19,10 +20,13 @@ if TYPE_CHECKING:
     from vault_graph.context.memory.timeline_memory import TimelineMemoryService
     from vault_graph.context.pack.context_pack_builder import ContextPackBuilder
     from vault_graph.context.pack.context_pack_renderer import ContextPackRenderer
+    from vault_graph.context.pack.recall import RecallPorts, RecallScope
     from vault_graph.indexing.index_service import IndexService
+    from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
     from vault_graph.interface.composition.adapters.text_embeddings import FastEmbedTextEmbeddings
     from vault_graph.operation.diagnostics.health_explorer import HealthExplorerService
     from vault_graph.operation.readiness.search_readiness import SearchReadiness
+    from vault_graph.project.context.project_binding_reader import ProjectBindingReader
     from vault_graph.retrieval.evidence.evidence_linking import EvidenceLinker
     from vault_graph.retrieval.graph.graph_resource_service import GraphResourceService
     from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
@@ -77,6 +81,36 @@ class ReadOnlyServiceFactory:
             graph_store=graph,
             readiness=readiness,
             read_context_id=str(catalog_service.metadata_path.parent.parent),
+        )
+
+    def open_session_recall(self, *, vault_map_path: Path) -> RecallPorts:
+        """Open session start recall ports: metadata reads, map lookup and ``usage/`` only.
+
+        No keyword index, vector store or embeddings are opened. Raises ``RecallUnavailable``
+        without creating anything when the Graph Home is not set up.
+        """
+        from vault_graph.context.pack.recall import RecallPorts, RecallUnavailable
+        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+        from vault_graph.storage.local.usage_log import JsonlUsageLog
+
+        descriptor = GraphHomeResolver().resolve(self._graph_home_path)
+        if not descriptor.initialized:
+            raise RecallUnavailable(f"No Graph Home at {descriptor.root_path}. Run `vg setup`.")
+        catalog_service = CatalogService(graph_home_path=descriptor.root_path)
+        catalog = catalog_service.load_catalog()
+        metadata_path = catalog_service.metadata_path
+        return RecallPorts(
+            scope=_ProjectRecallScope(
+                vault_map_path=vault_map_path,
+                catalog_service=catalog_service,
+                catalog=catalog,
+            ),
+            documents=_MetadataRecallDocuments(
+                catalog=catalog,
+                metadata_store=SQLiteMetadataStore(metadata_path, initialize=False),
+                metadata_path=metadata_path,
+            ),
+            usage=JsonlUsageLog(descriptor.root_path),
         )
 
     def open_read_only(self) -> ReadOnlyServices:
@@ -363,3 +397,83 @@ class ReadOnlyServiceFactory:
                 local_files_only=True,
             )
         )
+
+
+class _ProjectRecallScope:
+    """Find the registered Vaults of a folder: ``vault-map.json`` first, then project bindings."""
+
+    def __init__(self, *, vault_map_path: Path, catalog_service: CatalogService, catalog: VaultCatalog) -> None:
+        self._vault_map_path = vault_map_path
+        self._catalog_service = catalog_service
+        self._catalog = catalog
+
+    def resolve(self, cwd: Path) -> RecallScope:
+        from vault_graph.context.pack.recall import RecallScope
+        from vault_graph.interface.composition.query_scope_resolution import resolve_project_vaults
+        from vault_graph.operation.integration.vault_map import open_vault_map
+
+        opening = open_vault_map(self._vault_map_path)
+        warnings = [opening.warning] if opening.warning else []
+        resolution = resolve_project_vaults(cwd, vault_map=opening.vault_map, vault_catalog=self._catalog)
+        if resolution.source is None and self._bindings_path.exists():
+            try:
+                bindings, roots = self._bindings()
+            except (OSError, ValueError, VaultGraphError) as exc:
+                warnings.append(f"Project bindings were not read: {exc}")
+            else:
+                resolution = resolve_project_vaults(
+                    cwd,
+                    vault_map=opening.vault_map,
+                    vault_catalog=self._catalog,
+                    bindings=bindings,
+                    repository_roots=roots,
+                )
+        unregistered = ", ".join(vault.name for vault in resolution.unregistered_vaults)
+        if unregistered and resolution.vault_ids:
+            warnings.append(f"Map Vault {unregistered} is not registered. Run `vg setup`.")
+        reason = resolution.reason
+        if unregistered and not resolution.vault_ids:
+            reason = f"Map Vault {unregistered} is not registered in the Graph Home. Run `vg setup`."
+        return RecallScope(
+            project_id=resolution.project_id,
+            vault_ids=resolution.vault_ids,
+            reason=reason,
+            warnings=tuple(warnings),
+        )
+
+    @property
+    def _bindings_path(self) -> Path:
+        return self._catalog_service.graph_home_path / "configs" / "project-bindings.json"
+
+    def _bindings(self) -> tuple[ProjectBindingReader, dict[str, Path]]:
+        from vault_graph.operation.integration.project_binding_catalog import ProjectBindingCatalogService
+        from vault_graph.project.code.repository_catalog import CodeRepositoryCatalogService
+
+        repositories = CodeRepositoryCatalogService(catalog_service=self._catalog_service).load()
+        bindings = ProjectBindingCatalogService(
+            catalog_service=self._catalog_service,
+            repository_catalog=repositories,
+            vault_catalog=self._catalog,
+        ).load()
+        return bindings, {entry.repository_id: entry.root_path for entry in repositories.entries()}
+
+
+class _MetadataRecallDocuments:
+    """Read indexed document metadata for recall from the read-only metadata SQLite file."""
+
+    def __init__(self, *, catalog: VaultCatalog, metadata_store: MetadataStore, metadata_path: Path) -> None:
+        self._catalog = catalog
+        self._metadata_store = metadata_store
+        self._metadata_path = metadata_path
+
+    def is_indexed(self, vault_id: str) -> bool:
+        if not self._metadata_path.is_file():
+            return False
+        return any(state.document_id is not None for state in self._metadata_store.list_document_states((vault_id,)))
+
+    def documents(self, vault_id: str) -> tuple[DocumentSnapshot, ...]:
+        return self._metadata_store.list_documents(self._catalog.scope_for_vault_ids((vault_id,)))
+
+    def body_tokens(self, vault_id: str, document_id: str) -> int:
+        chunks = self._metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
+        return sum(chunk.token_count for chunk in chunks)

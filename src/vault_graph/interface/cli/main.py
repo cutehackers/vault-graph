@@ -23,6 +23,7 @@ from vault_graph.indexing.index_service import IndexService, StatusReport
 from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
 from vault_graph.interface.cli.code_commands import code_app
 from vault_graph.interface.cli.harness_commands import harness_app
+from vault_graph.interface.cli.hook_commands import hook_app
 from vault_graph.interface.cli.project_commands import project_app
 from vault_graph.interface.composition.adapters.text_embeddings import (
     FastEmbedTextEmbeddings,
@@ -85,6 +86,7 @@ app.add_typer(mcp_app, name="mcp")
 app.add_typer(code_app, name="code")
 app.add_typer(project_app, name="project")
 app.add_typer(harness_app, name="harness")
+app.add_typer(hook_app, name="hook")
 
 
 def _catalog(state: Path) -> tuple[CatalogService, VaultCatalog]:
