@@ -4,6 +4,7 @@ from pathlib import Path
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from vault_graph.app.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.ingestion.vault_catalog import QueryScope
+from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 
@@ -31,7 +32,8 @@ def test_hygiene_report_proves_single_body_and_zero_dangling_refs(tmp_path: Path
 
     report = ProjectionHygieneService(
         metadata_path=metadata_path,
-        vector_path=tmp_path / "vector",
+        metadata_store=SQLiteMetadataStore(metadata_path, initialize=False),
+        open_vector_store=lambda: ChromaVectorStore(tmp_path / "vector", read_only=True),
         graph_path=tmp_path / "graph.sqlite3",
     ).audit(scope=QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
 

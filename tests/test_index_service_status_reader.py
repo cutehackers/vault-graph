@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,7 +13,7 @@ class RecordingStatusReader:
         self.scopes: list[QueryScope | None] = []
         self.report = object()
 
-    def read(self, *, scope: QueryScope | None = None) -> object:
+    def read(self, *, scope: QueryScope | None = None) -> Any:
         self.scopes.append(scope)
         return self.report
 

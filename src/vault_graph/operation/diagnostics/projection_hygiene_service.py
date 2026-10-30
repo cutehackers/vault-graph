@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import cast
 
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
 from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.storage.interfaces.document_evidence_refs import DocumentEvidenceRefSource
 from vault_graph.storage.interfaces.graph_store import GraphStore
-from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
-from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+from vault_graph.storage.interfaces.metadata_store import MetadataStore
+from vault_graph.storage.interfaces.vector_store import VectorStore
 
 
 @dataclass(frozen=True)
@@ -49,15 +51,29 @@ class ProjectionHygieneReport:
 
 
 class ProjectionHygieneService:
-    """Read-only inventory proving that projections reference canonical metadata."""
+    """Read-only inventory proving that projections reference canonical metadata.
+
+    Composition injects the stores (보완4). ``open_vector_store`` runs inside ``audit`` after the
+    metadata reads, so a missing vector projection fails at the same point as before.
+    ``document_evidence_refs`` is the document graph store when that backend is selected.
+    """
 
     def __init__(
-        self, *, metadata_path: Path, vector_path: Path, graph_path: Path, graph_store: GraphStore | None = None
+        self,
+        *,
+        metadata_path: Path,
+        metadata_store: MetadataStore,
+        open_vector_store: Callable[[], VectorStore],
+        graph_path: Path,
+        graph_store: GraphStore | None = None,
+        document_evidence_refs: DocumentEvidenceRefSource | None = None,
     ) -> None:
         self._metadata_path = metadata_path
-        self._vector_path = vector_path
+        self._metadata_store = metadata_store
+        self._open_vector_store = open_vector_store
         self._graph_path = graph_path
         self._graph_store = graph_store
+        self._document_evidence_refs = document_evidence_refs
 
     def audit(
         self,
@@ -92,22 +108,20 @@ class ProjectionHygieneService:
             chunk_keys = {
                 (str(row[0]), str(row[1])) for row in connection.execute("SELECT vault_id, chunk_id FROM chunks")
             }
-        vector = ChromaVectorStore(self._vector_path, read_only=True)
+        vector = self._open_vector_store()
         vector_rows = vector.export_manifest(scope)
         dangling_vector_refs = sum((row.vault_id, row.chunk_id) not in chunk_keys for row in vector_rows)
         dangling_graph_refs = _dangling_graph_refs(self._graph_path, chunk_keys) if self._graph_store is None else 0
-        metadata_version = _metadata_version(self._metadata_path)
+        metadata_version = _metadata_version(self._metadata_store)
         graph_version = (
             _projection_version(self._graph_path, "graph_metadata") if self._graph_store is None else "pending"
         )
         if self._graph_store is not None:
-            from vault_graph.storage.local.document_graph_store import DocumentGraphStore
-
             actual_scopes = tuple(
                 QueryScope((vault_id,), scope.content_scopes, scope.include_cross_vault) for vault_id in scope.vault_ids
             )
-            if isinstance(self._graph_store, DocumentGraphStore):
-                refs = self._graph_store.current_document_evidence_refs()
+            if self._document_evidence_refs is not None:
+                refs = self._document_evidence_refs.current_document_evidence_refs()
                 dangling_graph_refs = sum((ref.evidence_vault_id, ref.chunk_id) not in chunk_keys for ref in refs)
             else:
                 manifest = self._graph_store.current_manifest(actual_scopes)
@@ -156,8 +170,8 @@ def _connect_readonly(path: Path) -> sqlite3.Connection:
     return connection
 
 
-def _metadata_version(path: Path) -> str:
-    health = SQLiteMetadataStore(path, initialize=False).health()
+def _metadata_version(metadata_store: MetadataStore) -> str:
+    health = metadata_store.health()
     return health.schema_version if health.ok and health.schema_compatible else "incompatible"
 
 

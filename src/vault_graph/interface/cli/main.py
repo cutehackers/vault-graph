@@ -19,7 +19,7 @@ from vault_graph.context.pack import (
     SearchContextPackBuilder,
 )
 from vault_graph.errors import VaultGraphError
-from vault_graph.indexing.index_service import IndexService
+from vault_graph.indexing.index_service import IndexService, IndexStatusReport
 from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
 from vault_graph.interface.cli.code_commands import code_app
 from vault_graph.interface.cli.harness_commands import harness_app
@@ -30,11 +30,12 @@ from vault_graph.interface.composition.adapters.text_embeddings import (
     FastEmbedTextEmbeddingsConfig,
 )
 from vault_graph.interface.composition.graph_store_factory import GraphBackend, open_graph_store, selected_graph_backend
-from vault_graph.interface.composition.local_index_service_factory import LocalIndexServiceFactory
+from vault_graph.interface.composition.local_index_service_factory import (
+    LocalIndexServiceFactory,
+    open_projection_hygiene_service,
+)
 from vault_graph.interface.composition.query_scope_resolution import registered_vault_ids
 from vault_graph.interface.composition.read_only_service_factory import VectorIndexerStaleCounter
-from vault_graph.operation.diagnostics.index_status_reader import StatusReport
-from vault_graph.operation.diagnostics.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, VaultMapOpening, open_vault_map, vault_map_path
 from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.operation.readiness.search_readiness_service import ReadOnlySearchReadiness
@@ -775,16 +776,7 @@ def projection_audit(
     config, catalog = _exit_on_domain_error(lambda: _catalog(state))
     active_layout = _exit_on_domain_error(lambda: ProjectionGenerationManager(config.graph_home_path).active_layout())
     report = _exit_on_domain_error(
-        lambda: ProjectionHygieneService(
-            metadata_path=config.metadata_path,
-            vector_path=config.vector_path,
-            graph_path=config.graph_path,
-            graph_store=open_graph_store(
-                config, metadata_store=SQLiteMetadataStore(config.metadata_path, initialize=False)
-            )
-            if selected_graph_backend(config) == "document"
-            else None,
-        ).audit(
+        lambda: open_projection_hygiene_service(config).audit(
             scope=catalog.scope_for_all_enabled(),
             active_generation_id=active_layout.generation_id if active_layout is not None else None,
         )
@@ -1255,7 +1247,7 @@ def _scope_json(scope: QueryScope) -> dict[str, object]:
 
 
 def _status_report_json(
-    report: StatusReport,
+    report: IndexStatusReport,
     *,
     config: CatalogService,
     selected_scope: QueryScope,
