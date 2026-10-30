@@ -92,6 +92,7 @@ select = ["B", "E", "F", "I", "UP"]
 "src/vault_graph/interface/cli/main.py" = ["B008"]
 "src/vault_graph/interface/cli/code_commands.py" = ["B008"]
 "src/vault_graph/interface/cli/harness_commands.py" = ["B008"]
+"src/vault_graph/interface/cli/hook_commands.py" = ["B008"]
 "src/vault_graph/interface/cli/project_commands.py" = ["B008"]
 
 [tool.mypy]

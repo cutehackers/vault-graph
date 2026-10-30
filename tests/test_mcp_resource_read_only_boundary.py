@@ -44,6 +44,26 @@ def test_successful_document_resource_read_does_not_mutate_vault_bytes(tmp_path:
     assert file_bytes(vault_root) == before
 
 
+def test_successful_page_resource_read_changes_nothing_outside_usage(tmp_path: Path) -> None:
+    # Spec S11: page reads may append to Graph Home usage/ only. Vault bytes and the rest of
+    # the Graph Home stay the same.
+    vault_root = tmp_path / "vault"
+    (vault_root / "wiki").mkdir(parents=True)
+    (vault_root / "wiki" / "page.md").write_text("# Page\nVault body\n", encoding="utf-8")
+    graph_home_path = initialized_state(tmp_path, vault_root)
+    seed_metadata(graph_home_path)
+    vault_before = file_bytes(vault_root)
+    registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
+    home_before = file_bytes(graph_home_path)
+
+    body = registered.resource_registry.read(McpResourceRequest(uri="vault://default/pages/wiki%2Fpage.md"))
+
+    assert body.text == "Indexed body"
+    assert file_bytes(vault_root) == vault_before
+    home_after = file_bytes(graph_home_path)
+    assert {path: data for path, data in home_after.items() if not path.startswith("usage/")} == home_before
+
+
 def test_missing_document_resource_read_does_not_mutate_vault_bytes(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     (vault_root / "wiki").mkdir(parents=True)

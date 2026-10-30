@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, NoReturn, Protocol
 
 from vault_graph.context.memory.memory_models import MemoryWarning, ProjectMemoryProjection
@@ -14,6 +16,7 @@ from vault_graph.interface.mcp.mcp_uri import McpResourceUri, parse_mcp_resource
 from vault_graph.operation.scope.vault_catalog import VaultCatalog
 
 if TYPE_CHECKING:
+    from vault_graph.context.pack.recall import UsageLogPort
     from vault_graph.interface.mcp.graph_resource_reader import GraphResourceReader
     from vault_graph.interface.mcp.metadata_resource_reader import MetadataResourceReader
 
@@ -69,6 +72,27 @@ class GraphResourceReaderFactory(Protocol):
     def get(self) -> GraphResourceReader: ...
 
 
+class PageReadRecorder(Protocol):
+    def record(self, *, vault_id: str, path: str) -> None: ...
+
+
+class UsagePageReadRecorder:
+    """Append a ``fetched`` usage event for a page read. A write failure only warns on stderr."""
+
+    def __init__(self, *, usage_log: UsageLogPort, clock: Callable[[], datetime] | None = None) -> None:
+        self._usage_log = usage_log
+        self._clock = clock or (lambda: datetime.now(UTC))
+
+    def record(self, *, vault_id: str, path: str) -> None:
+        from vault_graph.context.pack.recall import fetched_event
+
+        try:
+            self._usage_log.append_events([fetched_event(vault_id=vault_id, path=path, at=self._clock())])
+        except OSError as exc:
+            message = " ".join(str(exc).split())
+            print(f"vault-graph: warning: usage log was not written: {message}", file=sys.stderr)
+
+
 class McpResourceRegistry:
     def __init__(
         self,
@@ -78,8 +102,10 @@ class McpResourceRegistry:
         graph_reader_factory: GraphResourceReaderFactory,
         context_pack_cache: ContextPackResourceCache,
         current_context_reader: CurrentContextResourceReader,
+        page_read_recorder: PageReadRecorder | None = None,
     ) -> None:
         self._catalog = catalog
+        self._page_read_recorder = page_read_recorder
         self._metadata_reader = metadata_reader
         self._graph_reader_factory = graph_reader_factory
         self._context_pack_cache = context_pack_cache
@@ -88,12 +114,15 @@ class McpResourceRegistry:
     def read(self, request: McpResourceRequest) -> McpResourceBody:
         uri = parse_mcp_resource_uri(request.uri, catalog=self._catalog)
         try:
-            return self._read_parsed(uri)
+            body = self._read_parsed(uri)
         except McpProtocolError:
             raise
         except Exception as exc:
             affected = (uri.vault_id,) if uri.vault_id else ()
             raise map_exception_to_mcp_error(exc, affected_vault_ids=affected) from exc
+        if uri.kind == "page" and self._page_read_recorder is not None:
+            self._page_read_recorder.record(vault_id=_required_value(uri.vault_id), path=_required_value(uri.value))
+        return body
 
     def read_json(self, request: McpResourceRequest) -> str:
         body = self.read(request)
@@ -253,6 +282,7 @@ def register_mcp_resources(
             service_factory=service_factory,
             context_pack_cache=context_pack_cache,
         ),
+        page_read_recorder=UsagePageReadRecorder(usage_log=service_factory.open_usage_log()),
     )
 
     @server.resource("vault://{vault_id}/documents/{path}", mime_type="application/json")

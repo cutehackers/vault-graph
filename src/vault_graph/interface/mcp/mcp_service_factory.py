@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
     from vault_graph.retrieval.search.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.search.retrieval_service import RetrievalService
+    from vault_graph.storage.local.usage_log import JsonlUsageLog
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,14 @@ class McpServiceFactory:
 
     def open_health_explorer_service(self) -> HealthExplorerService:
         return self._read_only_factory.open_health_explorer_service()
+
+    def open_usage_log(self) -> JsonlUsageLog:
+        """Open the Graph Home ``usage/`` log. Nothing is created until an event is appended."""
+
+        from vault_graph.operation.scope.graph_home import GraphHomeResolver
+        from vault_graph.storage.local.usage_log import JsonlUsageLog
+
+        return JsonlUsageLog(GraphHomeResolver().resolve(self._graph_home_path).root_path)
 
     def open_project_context_service(self) -> ProjectContextService:
         """Open code projection services only when project exploration is requested."""
