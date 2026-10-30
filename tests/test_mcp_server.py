@@ -60,6 +60,7 @@ def test_create_mcp_server_registers_resources_tools_prompts_and_explanation_cac
         "get_open_questions",
         "get_recent_changes",
         "explore_project",
+        "remember",
     )
     assert registered.prompt_registry.prompt_names == PHASE_5C_PROMPT_NAMES
 

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from vault_graph.context.pack.context_pack_renderer import ContextPackRenderer
     from vault_graph.indexing.index_service import IndexService
     from vault_graph.operation.diagnostics.health_explorer import HealthExplorerService
+    from vault_graph.operation.integration.remember_service import RememberService
     from vault_graph.project.context.project_context_service import ProjectContextService
     from vault_graph.retrieval.graph.graph_resource_service import GraphResourceService
     from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
@@ -39,8 +40,9 @@ class McpServices:
 
 
 class McpServiceFactory:
-    def __init__(self, *, graph_home_path: Path) -> None:
+    def __init__(self, *, graph_home_path: Path, vault_map_path: Path | None = None) -> None:
         self._graph_home_path = graph_home_path
+        self._vault_map_path = vault_map_path
         self._read_only_factory = ReadOnlyServiceFactory(graph_home_path=graph_home_path)
 
     def open_read_only(self) -> McpServices:
@@ -100,6 +102,20 @@ class McpServiceFactory:
         from vault_graph.storage.local.usage_log import JsonlUsageLog
 
         return JsonlUsageLog(GraphHomeResolver().resolve(self._graph_home_path).root_path)
+
+    def open_remember_service(self) -> RememberService:
+        """Open remember with the read-only ``vault-map.json`` and the publish-draft subprocess adapter."""
+
+        from vault_graph.interface.composition.adapters.vault_publish_cli import VaultPublishCli
+        from vault_graph.operation.integration.remember_service import RememberService
+        from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
+
+        opening = open_vault_map(vault_map_path(self._vault_map_path))
+        return RememberService(
+            vault_map=opening.vault_map,
+            publisher=VaultPublishCli(),
+            vault_map_problem=None if opening.vault_map else opening.warning or f"no vault-map.json at {opening.path}.",
+        )
 
     def open_project_context_service(self) -> ProjectContextService:
         """Open code projection services only when project exploration is requested."""

@@ -2,15 +2,19 @@
 
 Status: Pre-release development
 
-Vault Graph is a read-only, rebuildable knowledge access layer over Vault.
+Vault Graph is a local search and recall layer over Vault. Its indexes are
+rebuildable derived data, not a source of knowledge.
 
 It helps humans and agents search Vault, trace decisions, inspect project
 memory, and build task-specific context packs without turning retrieval output
 into durable knowledge.
 
 Vault remains the source of truth. Vault Graph reads, indexes, retrieves, and
-explains Vault-derived context. It does not publish wiki pages, mutate raw
-sources, edit Vault documents, or replace Vault's validation workflow.
+explains Vault-derived context. It never creates, edits, or deletes Vault files
+itself and never writes to `raw/`. The one write path is the MCP `remember`
+tool: it builds a draft from the agent's fields and runs Vault's own
+`publish-draft`, so every recorded memory passes Vault's validation workflow.
+Search, indexing, and watch never run `publish-draft`.
 
 ## Install
 
