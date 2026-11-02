@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -34,6 +35,14 @@ def test_operations_close_bundle_when_indexing_or_publication_raises(
         monkeypatch.setattr(factory.index_service, "run_apply", fail_index)
     else:
         original_open = factory.open
+        original_run_apply = factory.index_service.run_apply
+
+        def run_apply_with_change(**kwargs: object) -> object:
+            # Watch publishes only when files changed, so the publication path needs a change.
+            report = original_run_apply(**kwargs)
+            return replace(report, metadata=replace(report.metadata, changed_paths=(("main", "wiki/page.md"),)))
+
+        monkeypatch.setattr(factory.index_service, "run_apply", run_apply_with_change)
 
         def open_with_publication_failure(**kwargs: object) -> object:
             bundle = original_open(**kwargs)

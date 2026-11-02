@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from time import sleep as default_sleep
+from typing import Any
 
 from vault_graph.indexing.index_service import IndexRunReport
 from vault_graph.operation.runtime.indexing import OperationsIndexFactory
@@ -76,9 +77,12 @@ class WatchService:
             try:
                 report = bundle.index_service.run_apply(scope=scope, full=full)
                 if report.exit_code == 0:
-                    commit_projection = getattr(bundle, "commit_projection", None)
-                    if commit_projection is not None:
-                        commit_projection(report)
+                    if full or _has_changes(report):
+                        commit_projection = getattr(bundle, "commit_projection", None)
+                        if commit_projection is not None:
+                            commit_projection(report)
+                    else:
+                        _discard_staged_generation(bundle)
             finally:
                 bundle.close()
             iterations.append(_iteration_report(count, report))
@@ -90,6 +94,36 @@ class WatchService:
                 interrupted = True
                 break
         return WatchReport(iterations=tuple(iterations), interrupted=interrupted)
+
+
+def _has_changes(report: IndexRunReport) -> bool:
+    """True when the run changed metadata, vectors or graph rows, so a new generation is worth publishing."""
+    metadata = report.metadata
+    if metadata.changed_paths or metadata.deleted_paths:
+        return True
+    vector = report.vector
+    if vector is not None and (vector.upsert_count or vector.tombstone_count):
+        return True
+    graph = report.graph
+    if graph is None:
+        return False
+    if graph.stale_count:
+        return True
+    plan = graph.reconcile_plan
+    # Evidence refs are re-upserted on every run even when no file changed, so they are not a change signal.
+    return plan is not None and bool(
+        plan.entity_upserts or plan.relationship_upserts or plan.entity_tombstones or plan.relationship_tombstones
+    )
+
+
+def _discard_staged_generation(bundle: Any) -> None:
+    """Remove the unchanged staged copy so ``close`` neither keeps it nor records a failed publication."""
+    staged = getattr(bundle, "staged_generation", None)
+    publisher = getattr(bundle, "bundle_publisher", None) or getattr(bundle, "generation_manager", None)
+    if staged is None or publisher is None:
+        return
+    publisher.discard(staged)
+    bundle.staged_generation = None
 
 
 def _iteration_report(iteration: int, report: IndexRunReport) -> WatchIterationReport:

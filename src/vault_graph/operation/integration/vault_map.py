@@ -22,7 +22,9 @@ from vault_graph.project.context.project_binding_reader import MappedProjectMatc
 
 VAULT_MAP_VERSION = 2
 VAULT_MAP_ENV = "VAULT_GRAPH_VAULT_MAP"
+CLAUDE_CONFIG_ENV = "CLAUDE_CONFIG_DIR"
 DEFAULT_VAULT_MAP_PATH = Path("~/.claude/vault-builder/vault-map.json")
+VAULT_MAP_RELATIVE_PATH = Path("vault-builder/vault-map.json")
 
 STAGE_ROOT = "root"
 STAGE_REMOTE = "remote"
@@ -142,12 +144,20 @@ class VaultMapOpening:
 
 
 def vault_map_path(explicit: Path | None = None, *, environ: Mapping[str, str] | None = None) -> Path:
-    """Return the map path: the explicit option, then ``VAULT_GRAPH_VAULT_MAP``, then the default."""
+    """Return the map path: the explicit option, then ``VAULT_GRAPH_VAULT_MAP``, then the default.
+
+    The default is where vault-builder writes the map: ``$CLAUDE_CONFIG_DIR/vault-builder/vault-map.json``
+    when ``CLAUDE_CONFIG_DIR`` is set and not empty, else ``~/.claude/vault-builder/vault-map.json``.
+    """
     if explicit is not None:
         return explicit.expanduser()
-    value = (os.environ if environ is None else environ).get(VAULT_MAP_ENV)
+    env = os.environ if environ is None else environ
+    value = env.get(VAULT_MAP_ENV)
     if value:
         return Path(value).expanduser()
+    config_dir = env.get(CLAUDE_CONFIG_ENV)
+    if config_dir:
+        return Path(config_dir).expanduser().absolute() / VAULT_MAP_RELATIVE_PATH
     return DEFAULT_VAULT_MAP_PATH.expanduser()
 
 
@@ -312,6 +322,7 @@ def _host_path(host: str, path: str) -> str:
 
 
 __all__ = [
+    "CLAUDE_CONFIG_ENV",
     "DEFAULT_VAULT_MAP_PATH",
     "VAULT_MAP_ENV",
     "VAULT_MAP_VERSION",
