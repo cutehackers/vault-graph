@@ -776,3 +776,13 @@ source of truth.
 - update and retire (dependencies 4 and 5)
 - the team type and the default write Vault field in `vault-map.json` (request 5 extension)
 - capture orchestration (dependency 1)
+
+## 2026-11-02 - Leave Retired Pages Out Of Default Search As An INV-05 Exception
+
+**Question:** Should default search still return pages whose frontmatter status is `retired` (spec `docs/specs/2026-11-02-vault-long-term-memory/spec.md` decision S14, question 3)?
+
+**Decision:** No. Default search drops results from pages with status `retired`. Pages with status `deprecated` stay in results as before. This is an accepted exception to VG-MOD INV-05, which otherwise keeps search scores and order unchanged.
+
+**Reason:** A retired page has no replacement and its content is no longer true. If search returns it, the agent cannot tell that the content is withdrawn. A `deprecated` page points to its replacement through `superseded_by`, so it still helps.
+
+**Implications:** The filter runs in the search step (M05) through the metadata store's document frontmatter, before ranking and before `limit` is applied, so a retired page does not take a result slot. Scores and order of the remaining results do not change. There is no option yet to include retired pages in search.
