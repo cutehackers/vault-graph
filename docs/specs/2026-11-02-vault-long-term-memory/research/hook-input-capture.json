@@ -1,0 +1,24 @@
+{
+  "source": "claude -p --setting-sources project --settings <temp file with PreCompact/SessionEnd hooks> (Claude Code 2.1.316, 2026-11-02). $HOME/.claude/settings.json was not touched.",
+  "events": {
+    "SessionEnd": {
+      "session_id": "35db19a4-f68e-4185-8c7e-b292c9e5e55f",
+      "transcript_path": "$HOME/.claude/projects/-private-tmp-claude-501--<user>-workspace-vault-graph--worktrees-feat-jh-local-graph-0d07dfb4-f64e-4ca8-b43c-c8152b5d7b12-scratchpad-hookcap-proj/35db19a4-f68e-4185-8c7e-b292c9e5e55f.jsonl",
+      "cwd": "/private/tmp/claude-501/-<user>-workspace-vault-graph--worktrees-feat-jh-local-graph/0d07dfb4-f64e-4ca8-b43c-c8152b5d7b12/scratchpad/hookcap/proj",
+      "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-claude-501--<user>-workspace-vault-graph--worktrees-feat-jh-local-graph-0d07dfb4-f64e-4ca8-b43c-c8152b5d7b12-scratchpad-hookcap-proj/35db19a4-f68e-4185-8c7e-b292c9e5e55f/scratchpad",
+      "prompt_id": "f29776b1-2cb2-48ce-8c73-68299527212c",
+      "hook_event_name": "SessionEnd",
+      "reason": "other"
+    },
+    "PreCompact": {
+      "session_id": "35db19a4-f68e-4185-8c7e-b292c9e5e55f",
+      "transcript_path": "$HOME/.claude/projects/-private-tmp-claude-501--<user>-workspace-vault-graph--worktrees-feat-jh-local-graph-0d07dfb4-f64e-4ca8-b43c-c8152b5d7b12-scratchpad-hookcap-proj/35db19a4-f68e-4185-8c7e-b292c9e5e55f.jsonl",
+      "cwd": "/private/tmp/claude-501/-<user>-workspace-vault-graph--worktrees-feat-jh-local-graph/0d07dfb4-f64e-4ca8-b43c-c8152b5d7b12/scratchpad/hookcap/proj",
+      "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-claude-501--<user>-workspace-vault-graph--worktrees-feat-jh-local-graph-0d07dfb4-f64e-4ca8-b43c-c8152b5d7b12-scratchpad-hookcap-proj/35db19a4-f68e-4185-8c7e-b292c9e5e55f/scratchpad",
+      "prompt_id": "f29776b1-2cb2-48ce-8c73-68299527212c",
+      "hook_event_name": "PreCompact",
+      "trigger": "manual",
+      "custom_instructions": null
+    }
+  }
+}
