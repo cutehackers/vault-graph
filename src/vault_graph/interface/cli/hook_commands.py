@@ -18,6 +18,7 @@ captures directly. vg never chooses the Vault, never indexes after capture and w
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -43,6 +44,7 @@ CAPTURE_HANDOFF_EXIT_CODE = 3
 # The hook launcher gives `vg hook capture` 25 seconds (계약6). Stop the launcher before that.
 DEFAULT_CAPTURE_TIMEOUT_S = 20.0
 CATCH_UP_LOG = Path("logs") / "session-start-index.log"
+CATCH_UP_PID = Path("logs") / "session-start-index.pid"
 _CATCH_UP_LOG_MAX_BYTES = 1_000_000
 _CATCH_UP_SCRIPT = "from vault_graph.interface.cli.hook_commands import run_catch_up_index; run_catch_up_index()"
 _VG_SCRIPT = "from vault_graph.interface.cli.main import app; app()"
@@ -117,33 +119,91 @@ def start_catch_up_index(graph_home: Path, vault_ids: tuple[str, ...]) -> None:
     """Start ``vg index --vault-id <id>`` for each Vault, one after another, in a detached process.
 
     The process has its own session, reads nothing and writes to ``<graph home>/logs`` so the hook
-    and its launcher never wait for it.
+    and its launcher never wait for it. Its process ID is kept in ``logs/session-start-index.pid``
+    while it runs. When that process is still alive, no second one is started, so session starts
+    never pile up background index runs. The next session start after it ends tries again.
     """
 
-    log_path = graph_home / CATCH_UP_LOG
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    mode = "wb" if log_path.exists() and log_path.stat().st_size > _CATCH_UP_LOG_MAX_BYTES else "ab"
-    with log_path.open(mode) as log:
-        subprocess.Popen(
-            [sys.executable, "-c", _CATCH_UP_SCRIPT, str(graph_home), *vault_ids],
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-            close_fds=True,
-        )
+    pid_path = graph_home / CATCH_UP_PID
+    pid_path.parent.mkdir(parents=True, exist_ok=True)
+    if not _claim_pid_file(pid_path):
+        return
+    try:
+        log_path = graph_home / CATCH_UP_LOG
+        mode = "wb" if log_path.exists() and log_path.stat().st_size > _CATCH_UP_LOG_MAX_BYTES else "ab"
+        with log_path.open(mode) as log:
+            process = subprocess.Popen(
+                [sys.executable, "-c", _CATCH_UP_SCRIPT, str(graph_home), *vault_ids],
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                close_fds=True,
+            )
+    except BaseException:
+        pid_path.unlink(missing_ok=True)
+        raise
+    pid_path.write_text(f"{process.pid}\n", encoding="utf-8")
 
 
 def run_catch_up_index() -> None:
     """Body of the detached process: ``sys.argv`` is ``-c <graph home> <vault id>...``."""
 
     graph_home, *vault_ids = sys.argv[1:]
-    for vault_id in vault_ids:
-        subprocess.run(
-            [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id],
-            stdin=subprocess.DEVNULL,
-            check=False,
-        )
+    try:
+        for vault_id in vault_ids:
+            subprocess.run(
+                [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id],
+                stdin=subprocess.DEVNULL,
+                check=False,
+            )
+    finally:
+        pid_path = Path(graph_home) / CATCH_UP_PID
+        if _read_pid(pid_path) == os.getpid():
+            pid_path.unlink(missing_ok=True)
+
+
+def _claim_pid_file(pid_path: Path) -> bool:
+    """Create the pid file for a new catch-up, or return False when a live catch-up holds it.
+
+    The file is created with O_EXCL, so two session starts at once never both start a process. A
+    file whose process is gone, or whose content is not a process ID, is removed and claimed again.
+    Until the new process ID is written, the file holds this hook's own process ID.
+    """
+
+    for _ in range(2):
+        try:
+            descriptor = os.open(pid_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        except FileExistsError:
+            pid = _read_pid(pid_path)
+            if pid is not None and _process_alive(pid):
+                return False
+            pid_path.unlink(missing_ok=True)
+            continue
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(f"{os.getpid()}\n")
+        return True
+    return False
+
+
+def _read_pid(pid_path: Path) -> int | None:
+    try:
+        pid = int(pid_path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return pid if pid > 0 else None
+
+
+def _process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
 
 
 def _catch_up(graph_home: Path, vault_ids: tuple[str, ...]) -> None:

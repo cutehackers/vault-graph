@@ -22,6 +22,23 @@ from vector_search.contracts import (
 from vector_search.errors import VectorSearchError
 from vector_search.sqlite_reader import ChromaSQLiteReader, Predicate, TieKey, _validate_collection_metadata
 
+# Chroma rejects one call with more records than its max batch size (5461 for the SQLite backend).
+_FALLBACK_MAX_BATCH_SIZE = 1000
+
+
+def _max_batch_size(client: Any) -> int:
+    """Return the client's reported max records per call, or a safe constant if it reports none."""
+
+    get_max = getattr(client, "get_max_batch_size", None)
+    if callable(get_max):
+        try:
+            size = int(get_max())
+        except Exception:
+            size = 0
+        if size > 0:
+            return size
+    return _FALLBACK_MAX_BATCH_SIZE
+
 
 class ChromaVectorStore:
     def __init__(
@@ -176,11 +193,14 @@ class ChromaVectorStore:
                     configuration={"hnsw": {"space": spec.distance_metric}},
                     embedding_function=None,
                 )
-            collection.upsert(
-                ids=[row.record_id for row in rows],
-                embeddings=[list(row.values) for row in rows],
-                metadatas=[dict(row.metadata) for row in rows],
-            )
+            batch_size = _max_batch_size(client)
+            for start in range(0, len(rows), batch_size):
+                batch = rows[start : start + batch_size]
+                collection.upsert(
+                    ids=[row.record_id for row in batch],
+                    embeddings=[list(row.values) for row in batch],
+                    metadatas=[dict(row.metadata) for row in batch],
+                )
         self._persist_payloads(records, tuple(matched_deletions))
 
     def _persist_payloads(

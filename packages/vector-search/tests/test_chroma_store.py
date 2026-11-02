@@ -217,3 +217,27 @@ def test_legacy_collection_markers_require_explicit_compatibility_settings(tmp_p
     )
     assert compatible.search(spec, (1.0, 0.0), 1)[0].record_id == "item"
     assert _snapshot(path) == before
+
+
+def test_large_apply_upserts_in_batches_within_the_client_max_batch_size(
+    tmp_path: Path, spec: CollectionSpec, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from chromadb.api.models.Collection import Collection
+
+    sizes: list[int] = []
+    real_upsert = Collection.upsert
+
+    def recording_upsert(self: Collection, *args: object, **kwargs: object) -> None:
+        sizes.append(len(kwargs["ids"]))  # type: ignore[arg-type]
+        real_upsert(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Collection, "upsert", recording_upsert)
+    path = tmp_path / "vectors"
+    writer = ChromaVectorStore(path, initialize=True)
+    monkeypatch.setattr(writer._require_client(), "get_max_batch_size", lambda: 3)
+    writer.apply(tuple((spec, StoredVector(f"r{index}", (1.0, float(index)), {"n": index})) for index in range(7)))
+    writer.close()
+
+    assert sizes == [3, 3, 1]
+    manifest = ChromaVectorStore(path, read_only=True).export_manifest()
+    assert sorted(row.record_id for row in manifest) == sorted(f"r{index}" for index in range(7))
