@@ -972,6 +972,8 @@ def status(
     if output_format == "json":
         payload = _status_report_json(report, config=config, selected_scope=scope)
         payload["vault_map"] = _vault_map_status(map_opening, catalog)
+        payload["vault_map_default_write_vaults"] = _vault_map_default_write_vaults(map_opening)
+        payload["vault_map_field_warnings"] = list(map_opening.vault_map.warnings if map_opening.vault_map else ())
         typer.echo(json.dumps(payload, sort_keys=True, indent=2))
         return
     typer.echo(f"graph_home: {config.graph_home_path}")
@@ -1033,6 +1035,17 @@ def status(
         typer.echo(f"vault_map_warning: {map_status['warning']}")
     for unregistered in cast(list[dict[str, str]], map_status["unregistered_vaults"]):
         typer.echo(f"vault_map_unregistered_vault: {unregistered['name']} {unregistered['path']}")
+    for default_row in _vault_map_default_write_vaults(map_opening):
+        typer.echo(f"vault_map_default_write_vault: {default_row['project']} {default_row['vault']}")
+    for warning in map_opening.vault_map.warnings if map_opening.vault_map else ():
+        typer.echo(f"vault_map_field_warning: {warning}")
+
+
+def _vault_map_default_write_vaults(opening: VaultMapOpening) -> list[dict[str, str | None]]:
+    """List each map project with its default write Vault name, or None when it has none."""
+    if opening.vault_map is None:
+        return []
+    return [{"project": pid, "vault": name} for pid, name in opening.vault_map.default_write_vaults.items()]
 
 
 def _vault_map_status(opening: VaultMapOpening, catalog: VaultCatalog) -> dict[str, object]:

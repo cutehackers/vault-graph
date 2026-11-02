@@ -296,3 +296,106 @@ def test_reading_the_map_does_not_change_it(base: Path) -> None:
     load_vault_map(path).vaults_for(repo)
 
     assert json.loads(path.read_text(encoding="utf-8")) == before
+
+
+def _write_map(base: Path, projects: dict[str, object]) -> Path:
+    """Write a version 2 map with the personal and team Vaults and the given projects."""
+    path = base / "map" / "vault-map-default-write.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "version": 2,
+        "vaults": {
+            "personal": {"path": str(base / "vaults" / "personal"), "role": "personal"},
+            "team": {"path": str(base / "vaults" / "team"), "role": "team"},
+        },
+        "projects": projects,
+    }
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_default_write_vault_is_given_with_the_project_match(base: Path) -> None:
+    make_vaults(base)
+    repo = make_repo(base / "repos" / "alpha")
+    path = _write_map(
+        base, {"alpha": {"root": str(repo), "vaults": ["personal", "team"], "default_write_vault": "team"}}
+    )
+
+    vault_map = load_vault_map(path)
+    match = vault_map.find_project(repo)
+
+    assert match.default_write_vault == MappedVault(name="team", path=base / "vaults" / "team", role="team")
+    assert vault_map.default_write_vaults == {"alpha": "team"}
+    assert vault_map.warnings == ()
+
+
+def test_map_without_default_write_vault_gives_none_and_no_warning(mapped: VaultMap, base: Path) -> None:
+    repo = make_repo(base / "repos" / "alpha")
+
+    assert mapped.find_project(repo).default_write_vault is None
+    assert mapped.default_write_vaults == {name: None for name in ("alpha", "beta", "delta", "delta-copy", "gamma")}
+    assert mapped.warnings == ()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (7, "is not a string"),
+        (None, "is not a string"),
+        (["team"], "is not a string"),
+        ("team", "is not in the project vaults"),
+        ("ghost", "is not in the project vaults"),
+    ],
+)
+def test_bad_default_write_vault_is_ignored_with_a_warning(base: Path, value: object, expected: str) -> None:
+    make_vaults(base)
+    repo = make_repo(base / "repos" / "alpha")
+    path = _write_map(base, {"alpha": {"root": str(repo), "vaults": ["personal"], "default_write_vault": value}})
+
+    opened = open_vault_map(path)
+
+    assert opened.state == "loaded"
+    assert opened.warning is None
+    assert opened.vault_map is not None
+    match = opened.vault_map.find_project(repo)
+    assert match.project_id == "alpha"
+    assert [vault.name for vault in match.vaults] == ["personal"]
+    assert match.default_write_vault is None
+    assert opened.vault_map.default_write_vaults == {"alpha": None}
+    (warning,) = opened.vault_map.warnings
+    assert "alpha" in warning and "default_write_vault" in warning and expected in warning
+
+
+def test_default_write_vault_missing_from_map_vaults_is_ignored_with_a_warning(base: Path) -> None:
+    make_vaults(base)
+    repo = make_repo(base / "repos" / "alpha")
+    path = _write_map(
+        base, {"alpha": {"root": str(repo), "vaults": ["personal", "ghost"], "default_write_vault": "ghost"}}
+    )
+
+    vault_map = load_vault_map(path)
+
+    assert vault_map.find_project(repo).default_write_vault is None
+    (warning,) = vault_map.warnings
+    assert "alpha" in warning and "ghost" in warning and "not listed in the map vaults" in warning
+
+
+def test_one_bad_project_field_keeps_other_projects_defaults(base: Path) -> None:
+    make_vaults(base)
+    alpha = make_repo(base / "repos" / "alpha")
+    beta = make_repo(base / "repos" / "beta")
+    path = _write_map(
+        base,
+        {
+            "alpha": {"root": str(alpha), "vaults": ["personal"], "default_write_vault": 1},
+            "beta": {"root": str(beta), "vaults": ["team", "personal"], "default_write_vault": "personal"},
+        },
+    )
+
+    vault_map = load_vault_map(path)
+
+    assert vault_map.find_project(alpha).default_write_vault is None
+    beta_default = vault_map.find_project(beta).default_write_vault
+    assert beta_default is not None and beta_default.name == "personal"
+    assert vault_map.default_write_vaults == {"alpha": None, "beta": "personal"}
+    assert len(vault_map.warnings) == 1

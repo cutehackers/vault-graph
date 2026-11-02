@@ -37,9 +37,11 @@ vault-graph worktree에서 실행한다.
 
 ## done-when
 
-- [ ] `default_write_vault`가 문자열이 아니거나 프로젝트 `vaults` 밖이면 그 필드만 무시하고 경고한다
-- [ ] `MappedProjectMatch.default_write_vault`에 해당 `MappedVault`가 들어간다
-- [ ] `vg status`가 프로젝트별 기본 저장 Vault와 무시한 필드 경고를 보인다
-- [ ] 필드 없는 map에서 기존 테스트가 그대로 통과한다
+- [x] `default_write_vault`가 문자열이 아니거나 프로젝트 `vaults` 밖이면 그 필드만 무시하고 경고한다
+- [x] `MappedProjectMatch.default_write_vault`에 해당 `MappedVault`가 들어간다
+- [x] `vg status`가 프로젝트별 기본 저장 Vault와 무시한 필드 경고를 보인다
+- [x] 필드 없는 map에서 기존 테스트가 그대로 통과한다
 
 멈춤: M12 reader가 M17을 가져와야 하면 보고한다.
+
+기록 (2026-11-02): pytest 1665 passed, 1 skipped. `vg status --json`은 기존 `vault_map` 객체를 그대로 두려고 최상위 키 `vault_map_default_write_vaults`, `vault_map_field_warnings`를 더했다. 프로젝트 `vaults`에는 있지만 map `vaults`에 항목이 없는 이름도 경고와 함께 무시한다.
