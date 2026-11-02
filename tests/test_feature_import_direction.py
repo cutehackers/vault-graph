@@ -1,4 +1,4 @@
-"""Enforce the import direction between functional areas M01-M17.
+"""Enforce the import direction between functional areas M01-M18.
 
 Source: modularization remediation plan, 보완1 (발견10), and VG-MOD-20261015 §4 DEP-01..07.
 The transport and composition ban for feature code stays in test_functional_module_boundaries.py.
@@ -33,24 +33,42 @@ _AREAS: dict[str, str] = {
     "operation/diagnostics/": "M15",  # projection_diagnostics
     "operation/runtime/": "M16",  # runtime_operations
     "operation/integration/": "M17",  # integration_configuration
+    "operation/memory/": "M18",  # memory_write
     "storage/interfaces/": "PORT",  # read/write ports, importable by every area
     "storage/local/": "STORE",  # concrete storage, built only by composition
     "interface/": "COMPOSITION",  # transports and composition, see test_functional_module_boundaries.py
     "errors.py": "SUPPORT",
     # Local-Graph phase 1 modules (spec 2026-10-29 §4.2.2-4.2.4). Listed before they exist.
     "operation/integration/vault_map.py": "M17",
-    "operation/integration/remember_service.py": "M17",
     "interface/composition/adapters/vault_publish_cli.py": "COMPOSITION",
     "context/pack/recall.py": "M08",
     "storage/local/usage_log.py": "STORE",
+    # Vault long-term memory modules (spec 2026-11-02 V1). Listed before they exist.
+    "operation/memory/memory_requests.py": "M18",
+    "operation/memory/memory_target.py": "M18",
+    "operation/memory/memory_drafts.py": "M18",
+    "operation/memory/memory_ports.py": "M18",
+    "operation/memory/memory_write_service.py": "M18",
+    "context/pack/recall_pins.py": "M08",
+    "interface/composition/vault_labels.py": "COMPOSITION",
+    "interface/composition/adapters/vault_page_reader.py": "COMPOSITION",
+    "interface/composition/adapters/vault_capture_cli.py": "COMPOSITION",
 }
 
 _PLANNED_MODULES = (
     "operation/integration/vault_map.py",
-    "operation/integration/remember_service.py",
     "interface/composition/adapters/vault_publish_cli.py",
     "context/pack/recall.py",
     "storage/local/usage_log.py",
+    "operation/memory/memory_requests.py",
+    "operation/memory/memory_target.py",
+    "operation/memory/memory_drafts.py",
+    "operation/memory/memory_ports.py",
+    "operation/memory/memory_write_service.py",
+    "context/pack/recall_pins.py",
+    "interface/composition/vault_labels.py",
+    "interface/composition/adapters/vault_page_reader.py",
+    "interface/composition/adapters/vault_capture_cli.py",
 )
 
 # Areas every feature may import, besides its own area.
@@ -92,6 +110,8 @@ _ALLOWED: dict[str, frozenset[str]] = {
     "M15": frozenset({"M01", "M02", "M03", "M06", "M10", "M14"}),  # DEP-02: M15 reads feature status
     "M16": frozenset({"M01", "M02", "M03", "M04", "M17"}),
     "M17": frozenset({"M01", "M12"}),  # 보완5: M17 implements the M12 binding read Protocol
+    # 결정S1: Vault memory writes read the M12 VaultMapReader and MappedVault. Only composition builds M18.
+    "M18": frozenset({"M01", "M12"}),
 }
 
 # Current violations, fixed per (source file, imported module). Remove an entry when its fix lands.
@@ -256,10 +276,18 @@ _EXPORTS = {"X": ("vault_graph.operation.integration.project_binding_catalog", "
         ("M07", "vault_graph.retrieval.graph.graph_contracts", True),
         ("M07", "vault_graph.retrieval.graph.graph_retrieval_service", False),
         ("M17", "vault_graph.storage.interfaces.metadata_store", True),
+        ("M18", "vault_graph.project.context.project_binding_reader", True),
+        ("M18", "vault_graph.operation.integration.vault_map", False),  # the vault map is injected
+        ("M17", "vault_graph.operation.memory.memory_requests", False),  # only composition builds M18
+        ("M10", "vault_graph.operation.memory.memory_requests", False),
     ],
 )
 def test_direction_rule_examples(source_area: str, target: str, allowed: bool) -> None:
     assert _is_allowed(source_area, target) is allowed
+
+
+def test_no_area_imports_memory_write() -> None:
+    assert sorted(area for area, targets in _ALLOWED.items() if "M18" in targets) == []
 
 
 def test_feature_imports_follow_direction_table() -> None:

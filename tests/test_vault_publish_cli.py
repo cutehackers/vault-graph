@@ -17,7 +17,9 @@ import pytest
 
 from tests.test_read_only_boundary import file_bytes
 from vault_graph.interface.composition.adapters.vault_publish_cli import CLI_RELATIVE_PATH, VaultPublishCli
-from vault_graph.operation.integration.remember_service import RememberRequest, RememberService, build_draft
+from vault_graph.operation.memory.memory_drafts import build_draft
+from vault_graph.operation.memory.memory_requests import RememberRequest
+from vault_graph.operation.memory.memory_write_service import MemoryWriteService
 from vault_graph.project.context.project_binding_reader import MappedProjectMatch, MappedVault
 
 VAULT_TEMPLATE_ENV = "VAULT_GRAPH_TEST_VAULT_TEMPLATE"
@@ -150,7 +152,7 @@ class OneVaultMap:
 
 
 def test_a14_remember_publishes_one_decision_page_in_a_copied_vault(copied_vault: Path, tmp_path: Path) -> None:
-    service = RememberService(
+    service = MemoryWriteService(
         vault_map=OneVaultMap(MappedVault(name="copy", path=copied_vault, role="project")),
         publisher=VaultPublishCli(python_executable=sys.executable),
     )

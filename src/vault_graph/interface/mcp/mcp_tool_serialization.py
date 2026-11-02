@@ -14,7 +14,7 @@ from vault_graph.indexing.index_service import IndexStatusReport
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload
 from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink
 from vault_graph.interface.mcp.mcp_uri import encode_resource_segment
-from vault_graph.operation.integration.remember_service import RememberResult
+from vault_graph.operation.memory.memory_requests import MemoryWriteResult
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.project.context import ProjectContext, compact_project_context_value
 from vault_graph.retrieval.explanation.result_explanation import (
@@ -49,7 +49,7 @@ def query_scope_to_dict(scope: QueryScope) -> dict[str, object]:
     }
 
 
-def remember_result_to_payload(result: RememberResult) -> dict[str, object]:
+def remember_result_to_payload(result: MemoryWriteResult) -> dict[str, object]:
     return {
         "status": result.status,
         "vault": result.vault,

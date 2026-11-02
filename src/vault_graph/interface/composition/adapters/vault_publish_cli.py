@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from vault_graph.operation.integration.remember_service import PublishOutcome
+from vault_graph.operation.memory.memory_ports import PublishOutcome
 
 CLI_RELATIVE_PATH = Path("tools") / "wiki" / "cli.py"
 APPLIED_PREFIX = "Applied draft: "
