@@ -42,7 +42,12 @@ vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
 
 참고한 사례: OpenWiki의 workspace 규칙(위키마다 독립, 사용자 범위 등록부, 후보가 여럿이고 선택이 없으면 `workspace_required`, 결과마다 출처 위키 표시).
 
-현재 구현과의 차이: 수정·폐기(의존4·의존5 필요), 팀 종류와 기본 저장 Vault 필드(`vault-map.json` 확장 필요, 요청5), vault-graph의 수집 실행(의존1 필요)은 아직 없다. 지금 `remember`는 새 페이지 추가만 하며, Vault가 여럿이면 `vault`를 요구한다.
+현재 구현과의 차이(남은 일만 적는다, 2026-11-02 기준):
+
+- 실제 Claude Code 세션 하나로 하는 수동 확인(시나리오 ①~⑥)이 남았다. 실제 Vault로 시나리오 ①~⑥을 도는 자동 E2E(`tests/e2e/test_long_term_memory_scenarios.py`)는 `VAULT_BUILDER_ROOT`를 주고 실행해 6개 모두 통과했다(2026-11-02, [실행 기록](specs/2026-11-02-vault-long-term-memory/research/e2e-run.log)). `VAULT_BUILDER_ROOT`가 없으면 이 테스트는 건너뛴다.
+- 프로젝트 Vault가 Graph Home에 하나도 등록되지 않았을 때 `search`는 빈 결과와 "`vg setup` 필요" 경고를 돌려주지만, `ask`와 `context`는 같은 내용을 오류로 낸다.
+- Vault 이름·종류(`vault_name`, `vault_role`)는 검색 결과에만 붙고, 답변과 context pack 결과에는 없다. HTTP의 선택 필드 `cwd`는 `/search`에만 있다.
+- 폐기(`retired`) 페이지를 포함해 검색하는 옵션은 없다.
 
 ## 1. 제품 정의와 원칙
 
@@ -53,7 +58,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 1. 원칙1 Local: 모든 처리가 이 컴퓨터 안에서 끝난다. 호스팅 서비스, API 키, LLM 호출이 없다(결정7). 질의 답변, 요약, 사실 추출을 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다.
 2. 원칙2 원본은 Vault: 기억의 원본은 Vault의 Markdown 파일이다. vault-graph 색인은 지워도 다시 만들 수 있는 파생 데이터이며 지식 원본이 아니다.
 3. 원칙3 `wiki/`는 검증 경로로만 바뀐다: Vault `wiki/`는 Vault 도구의 검증 경로(publish-draft 등)를 거쳐서만 바뀐다.
-4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 지금 구현된 길은 remember가 publish-draft를 실행하는 것 하나다(결정8). 수정·폐기도 같은 방식으로 더한다(§0 규칙2).
+4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 세 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 `review resolve`로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`다(§4).
 5. 원칙5 `raw/`에 직접 쓰지 않는다: vault-graph는 Vault `raw/`에 직접 쓰지 않는다. 세션 원문은 Vault의 `sessions capture`가 쓰고, vault-graph는 그 실행 시점만 정할 수 있다(§0 규칙3).
 6. 원칙6 연결 정보는 `vault-map.json` 하나: 프로젝트와 Vault의 연결 정보는 사용자 범위의 `vault-map.json`이 원본이고, vault-graph는 이 파일을 읽기만 한다(결정9).
 
@@ -62,10 +67,11 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 | 영역 | Vault (llm-wiki) | 사용자 범위 (vault-builder가 설치) | vault-graph |
 |---|---|---|---|
 | 저장 | 기억 원본 Markdown | 없음 | 없음. 색인은 지워도 다시 만든다 |
-| 쓰기 | `wiki/`는 publish-draft 등 검증 경로로만. `raw/`는 사람이 요청할 때만(Vault `AGENTS.md` 규칙1) | 없음 | remember가 기록을 publish-draft에 맡긴다(결정8). 직접 쓰는 곳은 Graph Home뿐이다 |
-| Vault·프로젝트 연결 | 자기 폴더 하나만 다룬다 | `vault-map.json`, llm-wiki router. vault-builder가 install·link·unlink로 고친다 | `vault-map.json`을 읽기만 한다(결정9) |
-| 검색 | `wiki/`만. 질의마다 파일을 다시 읽고 한국어 조사를 뗀다 | router가 연결된 Vault 전체에 검색을 보낸다 | `raw/`·`wiki/`·`docs/`·`scratch/reports/`를 상시 색인하고 키워드·의미·그래프 후보를 합친다 |
-| 회상 | 없음 | `recall.sh`: 고정 섹션 3개, 1,500토큰 | 세션 시작 회상. vault-graph가 없으면 훅이 `recall.sh`를 쓴다(결정10) |
+| 쓰기 | `wiki/`는 publish-draft 등 검증 경로로만. 추론 사실은 `review propose`로 검토 대기열 `scratch/review/`에 두고, 사람이 `review resolve --status accepted`로 승인하면 발행한다 | 없음 | `remember`·`update_memory`·`retire_memory`가 draft를 만들어 Vault 도구에 맡긴다. `basis: stated`는 publish-draft, `basis: inferred`는 `review propose`를 실행한다. 직접 쓰는 곳은 Graph Home뿐이다 |
+| 세션 수집 | `sessions capture`가 `raw/sessions/`에 새 턴만 덧붙인다 | 훅 실행기 `vault_hooks.py`가 PreCompact·SessionEnd 훅을 받아 vg가 있으면 `vg hook capture`, 없으면 직접 수집을 실행한다. 수집할 Vault를 고른다 | `vg hook capture`가 실행 시점만 정하고 실행기의 `capture --direct`를 부른다. Vault와 내용은 고르지 않고 수집 뒤 색인하지 않는다 |
+| Vault·프로젝트 연결 | 자기 폴더 하나만 다룬다 | `vault-map.json`, llm-wiki router. vault-builder가 install·link·unlink·`set-role`·`set-default-write`로 고친다 | `vault-map.json`을 읽기만 한다(결정9). 프로젝트 연결 Vault, Vault 종류(`role`), 기본 저장 Vault(`default_write_vault`)를 읽는다 |
+| 검색 | `wiki/`만. 질의마다 파일을 다시 읽고 한국어 조사를 뗀다 | router가 연결된 Vault 전체에 검색을 보낸다 | `raw/`·`wiki/`·`docs/`·`scratch/reports/`를 상시 색인하고 키워드·의미·그래프 후보를 합친다. 범위를 주지 않으면 `cwd` 프로젝트에 연결된 Vault 전부를 관련도 순 한 목록으로 찾고, 결과마다 Vault 이름과 종류를 붙인다 |
+| 회상 | 없음 | `recall.sh`: 고정 섹션 3개, 1,500토큰 | 세션 시작 회상. 고정(`pin: true`) 기억을 400토큰 구획에 먼저 넣고, 나머지는 모든 연결 Vault를 합쳐 최신순으로 채운다. vault-graph가 없으면 훅 실행기가 `recall.sh`를 쓴다(결정10) |
 | 코드 | 없음 | 없음 | 심볼, 호출, 영향 범위와 결정 기록을 연결한다 |
 | LLM | 정리 스킬에서 쓴다 | 없음 | 부르지 않는다(결정7) |
 
@@ -76,7 +82,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 | 가치1 | 대량 원문 검색: 세션 원문 수천 개에서 찾기 | `wiki/`만 찾고 매번 전체를 다시 읽는다 | 구현. `raw/` 포함 상시 색인, 증분 색인 | 세션 수집(의존2, 의존3)이 먼저 있어야 성립한다. 규모 측정 |
 | 가치2 | 의미 검색: "인증 실패"로 "로그인 오류" 찾기 | 없음 | 구현. 다국어 MiniLM 임베딩 | 한국어 품질 측정(n차-4). 한국어 키워드는 지금 Vault 검색이 낫다(1차-5에서 보강) |
 | 가치3 | 코드 위키: 코드와 결정·작업 기록을 함께 조회 | 코드를 읽지 않는다 | 일부. Python·Dart 코드 투영, `explore_project`. 검색 색인과 분리 | `explain_symbol`, 질의 하나로 코드와 기억 찾기(n차-3) |
-| 가치4 | 관련 기억만 담은 회상 | `recall.sh`는 고정 섹션만 출력한다 | 구현. context pack(기본 8,000토큰 예산) | 세션 시작 회상(1차-3) |
+| 가치4 | 관련 기억만 담은 회상 | `recall.sh`는 고정 섹션만 출력한다 | 구현. context pack(기본 8,000토큰 예산), 세션 시작 회상(고정 기억 구획 포함) | 질문 기반 회상(n차-8) |
 | 가치5 | 문단 단위 근거: 중복 제거, 인용 검증 | 페이지 단위 결과 | 구현. 문단 조각, provenance 묶음, 인용 검증 | 대체된 claim 제외를 Vault와 맞추기(n차-1) |
 | 가치6 | 관계 추적(보조) | 링크와 지도만 있다 | 구현. `find_related`, `get_decision_trace` | 없음 |
 
@@ -84,7 +90,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 
 - 세션 수집 자체. Vault 도구의 몫이다.
 - `wiki/`만 대상으로 한 "빠른 검색". `wiki/` 126쪽 규모에서는 측정 전이고 근거가 약하다.
-- 쓰기, 검증, 여러 Vault 연결. Vault와 vault-builder의 몫이다.
+- 쓰기 검증과 Vault·프로젝트 연결 설정. 검증은 Vault 도구, `vault-map.json` 수정은 vault-builder의 몫이다. vault-graph는 Vault 도구를 실행해 기억을 쓰고, `vault-map.json`을 읽어 여러 Vault를 함께 검색한다.
 
 가치1과 가치2는 아직 숫자로 확인되지 않았다. 측정1(6절)로 확인한다.
 
@@ -98,13 +104,17 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 
 쓰는 대상:
 
-- Graph Home(`$HOME/.vault-graph` 등) 아래의 파생 데이터와 설정. 명시적 명령(setup, index, watch, MCP 등록 등)에서만 기록한다. 정상 조회는 색인·설정을 기록하지 않는다. 예외는 세션 시작 회상과 MCP 페이지 리소스 읽기가 Graph Home `usage/`에 사용 기록을 덧붙여 쓰는 것 하나다.
-- remember를 통한 Vault 도구 publish-draft 실행. 이것이 Vault에 쓰는 유일한 길이다. 일반 조회·색인·watch와 다른 MCP 도구는 publish-draft를 실행하지 않는다.
+- Graph Home(`$HOME/.vault-graph` 등) 아래의 파생 데이터와 설정. 명시적 명령(setup, index, watch, MCP 등록 등)에서만 기록한다. 정상 조회는 색인·설정을 기록하지 않는다. 예외는 세션 시작 회상과 MCP 페이지 리소스 읽기가 Graph Home `usage/`에 사용 기록을 덧붙여 쓰는 것 하나다. 사용 기록은 순위에 영향을 주지 않는다. 회상의 구획C 알림 중복 방지에만 쓰므로, `usage/`를 지워도 검색 결과와 회상 구획A·B는 같다.
+- Vault에는 Vault 도구를 실행하는 세 경로로만 쓴다.
+  1. publish-draft: `remember`(추가), `update_memory`(수정), `retire_memory`(폐기)에 `basis: stated`를 주면 Vault 검증을 통과하는 순간 확정된다.
+  2. `review propose`: 같은 세 도구에 `basis: inferred`를 주면 검토 항목을 만들고 `proposed`와 `review_path`를 돌려준다. 사람이 `review resolve <review_path> --status accepted`로 승인하면 Vault가 발행한다. 승인 전에는 회상과 검색에 나오지 않는다. 사람이 `--status rejected`로 거부하면 기억 페이지는 만들어지거나 바뀌지 않고, `wiki/log.md`에 "Review rejected" 한 줄만 더해진다(2026-11-02 사용자 결정).
+  3. 수집 실행기: `vg hook capture`가 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 세션 원문을 쓴다. vault-graph는 실행 시점만 정한다.
+- 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 세 경로를 실행하지 않는다.
 
 쓰지 않는 대상:
 
 - Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다.
-- Vault `raw/`에 직접 쓰지 않는다. 세션 원문 저장은 Vault `sessions capture`의 몫이다(§0 규칙3, 아직 vault-graph에서 실행하지 않는다).
+- Vault `raw/`에 직접 쓰지 않는다. 세션 원문 저장은 Vault `sessions capture`의 몫이다(§0 규칙3).
 - 코드 저장소 소스와 `vault-map.json`은 고치지 않는다.
 
 이 경계는 `AGENTS.md` Project Boundary, [ARCHITECTURE.md](ARCHITECTURE.md) §4, [VG-MOD](design/specs/2026-10-15-vault-graph-modular-architecture-ko.md) INV-01·INV-02·INV-04와 같은 원칙이다.
@@ -114,27 +124,36 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 유지한다:
 
 - 기존 CLI 명령(`vg setup`, `vg vault add`, `vg index`, `vg watch`, `vg search`, `vg ask`, `vg context`, `vg status` 등)의 이름·인자·응답 형식.
-- MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 이름과 입력·출력 스키마를 바꾸지 않는다.
-- 호환 규칙: 기존 필드는 바꾸지 않고, 선택 필드와 도구는 더할 수 있다. 기존 호출자는 모르는 필드를 무시하면 그대로 동작한다(2026-11-02, 위험12).
+- 기존 MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 기존 이름과 입력·출력 필드를 바꾸지 않는다. `search_vault`, `ask_vault`, `build_context_pack`은 선택 입력 `cwd`를 더 받고, `search_vault` 결과에는 선택 필드 `vault_name`, `vault_role`이 붙는다.
+- 호환 규칙: 기존 필드는 바꾸지 않는다. 선택 필드와 도구를 더하는 것은 허용한다. 기존 호출자는 모르는 필드를 무시하면 그대로 동작한다(2026-11-02, 위험12).
 - MCP 리소스와 로컬 HTTP(FastAPI) 응답.
 - `project-bindings.json`, `vg setup --vault`, `vg vault add`는 1차에서 지우지 않는다. 제거는 n차-7이다.
 
 추가한다(1차):
 
 - CLI `vg hook session-start [--graph-home PATH] [--vault-map PATH] [--max-tokens N]`. 표준 입력으로 Claude Code SessionStart 훅 JSON을 받아 회상 묶음(Markdown)을 표준 출력에 낸다. 종료 코드 0은 "처리함"(출력이 비어 있을 수 있음), 3은 "회상할 수 없음"이다. 세부는 상세 설계 4.2.3.
-- MCP 도구 `remember`. 에이전트가 넘긴 필드로 draft를 만들어 Vault 도구의 publish-draft를 실행한다. 결과는 `published`, `rejected`, `error` 중 하나다. MCP 도구는 12개가 된다. 세부는 상세 설계 4.2.4.
+- MCP 쓰기 도구 3개. MCP 도구는 모두 14개다. 세부는 [장기 기억 spec](specs/2026-11-02-vault-long-term-memory/spec.md) V3.
+  - `remember(title, kind, body, evidence, basis, cwd=None, vault=None, pin=False, memory_kind=None)`: 새 페이지를 추가한다. 같은 경로가 있으면 `rejected`이고 `update_memory`를 쓰라고 안내한다.
+  - `update_memory(path, body, evidence, basis, vault=None, cwd=None, title=None, pin=None, memory_kind=None)`: 페이지 본문을 통째로 바꾼다. frontmatter는 현재 값을 두고 준 값과 `updated`만 바꾼다. 읽은 뒤 페이지가 바뀌었으면 `rejected`다.
+  - `retire_memory(path, reason, basis, vault=None, cwd=None, replaced_by=None)`: frontmatter만 바꾼다. 대체가 없으면 `status: retired`와 `retired_reason`, `retired_at`, 대체가 있으면 `status: deprecated`와 `superseded_by`다.
+  - `basis`(`stated` 또는 `inferred`)는 세 도구 모두 필수이고 기본값이 없다.
+  - 결과 `status`는 `published`, `proposed`, `rejected`, `vault_required`, `error` 중 하나다. `proposed`면 `review_path`가 붙고, `messages`에 사람이 실행할 승인 명령 `review resolve <review_path> --status accepted --resolution "<reason>"`이 들어간다. `vault_required`면 후보 `{name, role}` 목록이 붙는다.
+  - 새 페이지의 저장 Vault는 결정12대로 고른다. `vault`는 `cwd` 프로젝트의 연결 Vault 안에서만 찾고, 연결되지 않은 이름이면 `rejected`와 연결 Vault 목록을 돌려준다. 수정·폐기는 `path`가 있는 연결 Vault를 찾는다. 하나면 그 Vault, 없으면 `rejected`, 둘 이상이면 `vault_required`다.
+- CLI `vg hook capture [--vault-map PATH] [--timeout S]`. 표준 입력으로 Claude Code PreCompact 또는 SessionEnd 훅 JSON을 받아 `vault-map.json` 폴더의 `vault_hooks.py capture --direct`에 그대로 넘긴다. 결과(`status`, `vault`, `path`)를 표준 오류에 한 줄로 요약한다. 종료 코드 0은 실행기가 정상으로 끝났음(written, no-new-turns, skipped 모두), 3은 실행기를 찾지 못했거나 실패했거나 시간 제한(기본 20초)을 넘었음이다. 3이면 훅 실행기가 직접 수집한다. Graph Home에 쓰지 않고 수집 뒤 색인하지 않는다.
 
 ## 6. 외부 계약
 
 1. `vault-map.json` version 2 읽기
    - 기본 경로 `$HOME/.claude/vault-builder/vault-map.json`. CLI `--vault-map PATH`와 환경 변수 `VAULT_GRAPH_VAULT_MAP`으로 바꿀 수 있다.
-   - 형식: `vaults`는 이름 → `{path, role}`, `projects`는 프로젝트 id → `{root, vaults: [Vault 이름…], remote}`.
+   - 형식: `vaults`는 이름 → `{path, role}`, `projects`는 프로젝트 id → `{root, vaults: [Vault 이름…], remote, default_write_vault}`.
+   - `default_write_vault`는 선택 필드이며 프로젝트의 기본 저장 Vault 이름이다(결정12). 문자열이 아니거나 그 프로젝트 `vaults` 밖이면 그 필드만 무시하고 경고한다. `vg status`가 프로젝트별 기본 저장 Vault와 경고를 보인다. `role`은 표시용 이름표이며 코드는 값으로 분기하지 않는다(결정15).
    - 프로젝트 찾기 규칙은 llm-wiki router(`find_project`)가 소유하고, vault-graph는 같은 규칙을 따른다.
    - `version`이 2가 아니거나 형식이 깨졌으면 쓰지 않고 경고한다. 파일을 고치거나 만들지 않는다.
-2. publish-draft 호출과 draft 형식
-   - Vault 루트를 작업 디렉터리로 하여 `<vault-graph의 Python> -I -B tools/wiki/cli.py publish-draft <draft_path>`를 실행한다. `--report`는 주지 않는다. 시간 제한은 120초다.
-   - draft는 에이전트가 넘긴 필드만으로 결정적으로 만들고 Vault 도구의 draft 형식을 따른다. Vault와 Graph Home 밖의 임시 디렉터리에 만들고 실행 뒤 지운다.
-   - draft 형식의 버전 표시는 아직 없다(의존6).
+2. publish-draft·`review propose` 호출과 draft 형식
+   - Vault 루트를 작업 디렉터리로 하여 `<vault-graph의 Python> -I -B tools/wiki/cli.py publish-draft <draft_path> --json`(계약1) 또는 `... review propose --draft <draft_path> --summary <text> --json`(계약4)을 실행한다. `--report`는 주지 않는다. 시간 제한은 120초다.
+   - 표준 출력의 JSON 객체만 읽고 사람이 읽는 텍스트는 해석하지 않는다. publish-draft는 `format: vault-publish-result/v1`(`status`, `reason`, `written_paths`, `messages`), `review propose`는 `format: vault-review-result/v1`(`status`, `review_path`, `messages`)이다.
+   - 종료 코드 2와 `unrecognized arguments`는 Vault 도구가 계약 4 미만이라는 뜻으로 보고 "계약 4로 마이그레이션하라" `error`를 돌려준다. JSON이 아니면 표준 출력·오류 마지막 20줄을 담은 `error`다. `reason: human-locked`는 Vault 메시지와 함께 `rejected`로 전한다.
+   - draft는 에이전트가 넘긴 필드와 실행 날짜만으로 결정적으로 만든다. 추가·수정은 `upsert-page`, 폐기는 frontmatter만 바꾸는 `patch-page`(계약3)다. Vault와 Graph Home 밖의 임시 디렉터리에 만들고 실행 뒤 지운다.
 3. Vault 검색과의 비교 방법(측정1)
    - 같은 질문 20개를 Vault 검색(`tools/wiki/cli.py search <질문> --limit 5`)과 `vg search`(기본 모드, 상위 5개)에 넣어 실제 대기 시간과 상위 5개 적중률을 비교한다.
    - 조건A는 지금 Vault, 조건B는 세션 원문이 쌓인 Vault다.
@@ -317,7 +336,7 @@ Vault 전용 정책과 기존 저장 형식의 변환은 `vault_graph.indexing.v
 | 1차-1 | 측정1 기준선(변경 전) | 1차-0 |
 | 1차-2 | `vault-map.json` 읽기(결정9) | 보완1, 보완5 |
 | 1차-3 | 세션 시작 회상 `vg hook session-start`(결정10) | 1차-2 |
-| 1차-4 | MCP `remember`(결정8)와 README 수정 | 1차-2 |
+| 1차-4 | MCP `remember`(결정8)와 README 수정. 2026-11-02 [장기 기억 spec](specs/2026-11-02-vault-long-term-memory/spec.md)이 `update_memory`·`retire_memory`와 `basis`별 경로(publish-draft, `review propose`)로 넓혔다 | 1차-2 |
 | 1차-5 | 한국어 조사 처리(색인 때 조사를 뗀 별도 열) | 1차-1 |
 | 1차-6 | 측정1 재측정, 결과 기록 | 1차-5 |
 
@@ -340,19 +359,19 @@ Vault 전용 정책과 기존 저장 형식의 변환은 `vault_graph.indexing.v
 | n차-11 | 첫 사용자 프롬프트로 검색해 본문 상위 몇 개를 넣는 회상(UserPromptSubmit 훅) | 측정1, 의존1 확장 |
 | n차-12 | `raw/sessions/` 대화 기록에서 `m:` ID 언급을 세어 사용 집계를 보강한다 | 의존2 |
 
-### 9.3 Vault·vault-builder 쪽 의존성 (미구현 표시)
+### 9.3 Vault·vault-builder 쪽 의존성
 
 vault-graph는 아래 항목을 만들지 않는다. 소유한 쪽이 구현한다.
 
 | 코드 | 의존 | 소유 | 상태 | vault-graph에 미치는 영향 |
 |---|---|---|---|---|
-| 의존1 | SessionStart 훅 스크립트 분기. vg가 있으면 `vg hook session-start`에 훅 입력을 넘기고, 종료 코드 0이면 표준 출력을 그대로 쓴다. 0이 아니면 `recall.sh`를 쓴다 | vault-builder(사용자 범위 훅) | 미구현 | 1차-3 결과가 실제 세션에 들어가려면 필요하다 |
-| 의존2 | 세션 수집기와 `raw/sessions/`(결정5) | Vault 도구, vault-builder 템플릿 배포 | 미구현 | 측정1 조건B, 가치1, n차-6·9·12 |
-| 의존3 | Vault `AGENTS.md` 규칙1 예외: 수집기가 `raw/sessions/`에 새 파일을 추가하는 것만 허용(결정11) | Vault, vault-builder | 미구현. 요청1로 전달 | 의존2의 전제 |
-| 의존4 | 정리 스킬, 자동 기억 확정 규칙(결정6) | Vault 도구 | 미구현 | n차-1 |
-| 의존5 | 기억 frontmatter 스키마 `vault-memory/v1`. `pin: true`와 `memory_kind: rule\|correction\|decision\|preference`를 포함해 달라고 요청한다. `supersedes`·`superseded_by`는 이미 있다 | vault-builder가 Vault 도구에 담아 배포 | 미구현 | 회상 구획A(필드 전까지 비어 있음), 구획B 유형, n차-1, n차-2 |
-| 의존6 | publish-draft 명령과 draft 형식의 버전 표시 | Vault 도구 | 명령은 있음, 버전 표시는 미구현 | 1차-4 remember |
-| 의존7 | `vault-map.json` version 2 형식 유지 | vault-builder | 구현됨 | 1차-2 |
+| 의존1 | 훅 실행기 `vault_hooks.py`. SessionStart는 vg가 있으면 `vg hook session-start`의 출력을, 0이 아니면 `recall.sh`를 쓴다. PreCompact·SessionEnd는 `vg hook capture`를 부르고, 0이 아니면 직접 수집한다 | vault-builder(사용자 범위 훅, 계약6) | 구현됨. `install --with-hooks`가 `$HOME/.claude/settings.json`에 SessionStart·PreCompact·SessionEnd 항목을 하나씩 더한다. 수집 항목(PreCompact·SessionEnd)의 시간 제한은 60초다. uninstall은 실행기를 부르는 항목만 지운다 | 회상과 수집 시점이 실제 세션에 들어간다. `--with-hooks` 없이 설치하면 훅 항목이 없다 |
+| 의존2 | 세션 수집기 `sessions capture`와 `raw/sessions/`(결정5) | Vault 도구, vault-builder 템플릿 배포 | 구현됨 | 측정1 조건B, 가치1, n차-6·9·12, `vg hook capture` |
+| 의존3 | Vault `AGENTS.md` 규칙1 예외: 수집기가 `raw/sessions/`에 새 파일을 추가하는 것만 허용(결정11) | Vault, vault-builder | 구현됨 | 의존2의 전제 |
+| 의존4 | 정리 스킬, 자동 기억 확정 규칙(결정6) | Vault 도구 | 추론 사실의 검토 경로(`memory-proposal`, `review propose`, 승인 시 발행, 계약4)는 구현됨. 정리 스킬은 미구현 | `basis: inferred` 쓰기, n차-1 |
+| 의존5 | 기억 frontmatter 스키마 `vault-memory/v1`. `pin`, `memory_kind: rule\|correction\|decision\|preference`, status `retired`와 `retired_reason`·`retired_at`(계약2) | vault-builder가 Vault 도구에 담아 배포 | 구현됨 | 회상 구획A·C, 쓰기 draft, 검색의 `retired` 제외, n차-2 |
+| 의존6 | publish-draft `--json` 결과와 draft 형식의 버전 표시(`draft_version`, 계약1), frontmatter만 바꾸는 `patch-page`(계약3) | Vault 도구 | 구현됨. 기존 Vault에는 계약 버전 4 마이그레이션(계약7)으로 전한다. 마이그레이션 전 Vault에서는 세 쓰기 도구가 "계약 4로 마이그레이션하라" `error`를 돌려준다 | 세 쓰기 도구 |
+| 의존7 | `vault-map.json` version 2 형식 유지, 선택 필드 `default_write_vault`, `set-role`·`set-default-write` 명령(계약5) | vault-builder | 구현됨 | 1차-2, 저장 Vault 고르기 |
 
 vault-builder 요청 문서: vault-builder 저장소 `docs/superpowers/specs/2026-10-29-vault-graph-requests-ko.md`(커밋 전). 요청1=의존3, 요청2=의존2, 요청3=의존1, 요청4=의존6, 요청5=의존7, 요청6=의존5, 요청7=의존4.
 

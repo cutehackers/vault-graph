@@ -68,10 +68,11 @@ P01은 벡터 없이 동작한다. P02는 원본 파일 로더가 아니며, `se
 | M15 `projection_diagnostics` | 상태·투영 위생·실행 캐시·확장 준비 상태의 설명. `IndexStatusReader`, `ProjectionHygieneService.audit`, `HealthExplorerService.inspect` | `operation/diagnostics/` | 조회 전제 판정 재구현·자동 수리 |
 | M16 `runtime_operations` | 초기 설정·색인 주기 실행·중단/정리. `SetupService.setup`, `WatchService.run` | `operation/runtime/` | 색인 세부 계산·설정 파일 형식 구현 |
 | M17 `integration_configuration` | 명시적으로 요청한 MCP 등록·저장소 연결 설정·지침 preview/install/remove | `operation/integration/` | 일반 조회에서의 자동 기록·Vault 내용 수정 |
+| M18 `memory_write` | Vault 기억의 추가·수정·폐기·제안. 저장 Vault 고르기(결정12), draft 만들기, Vault 쓰기 포트, Vault별 잠금. `MemoryWriteService.remember/update/retire`. M01·M12만 가져오고 다른 영역은 M18을 가져오지 않는다 (2026-11-02, [장기 기억 spec](../../specs/2026-11-02-vault-long-term-memory/spec.md) 결정S1) | `operation/memory/` | Vault 파일 직접 쓰기·Vault 명령 실행(구성 지점 어댑터 몫)·세션 수집 |
 
-M07만 신규 기능 계약을 포함한다. 나머지는 기존 기능의 경계 정리이다. M10의 여러 기억 조회는 같은 읽기 문맥을 공유하므로 함께 둔다. M11도 쓰기/읽기 진입점을 구분하되 파서·색인·조회마다 새 패키지를 만들지 않는다. M17은 설정 변경의 권한과 파일 보존을 담당하며 각 설정 형식은 기존 구현이 유지한다.
+M07만 신규 기능 계약을 포함한다. 나머지는 기존 기능의 경계 정리이다. M10의 여러 기억 조회는 같은 읽기 문맥을 공유하므로 함께 둔다. M11도 쓰기/읽기 진입점을 구분하되 파서·색인·조회마다 새 패키지를 만들지 않는다. M17은 설정 변경의 권한과 파일 보존을 담당하며 각 설정 형식은 기존 구현이 유지한다. M18은 2026-11-02에 더한 영역이다. Vault 내용 쓰기는 M17의 설정 기록과 바뀌는 이유가 달라 따로 둔다.
 
-17개는 관리할 책임의 목록이며 새 배포 패키지 수를 뜻하지 않는다. 실제 디렉터리는 승인된 그룹과 하위 책임을 따른다. 읽기 전제인 M14와 결과 보고인 M15, 원본 준비인 M02와 색인 반영인 M03처럼 변경 이유가 다른 책임을 구분한다.
+18개는 관리할 책임의 목록이며 새 배포 패키지 수를 뜻하지 않는다. 실제 디렉터리는 승인된 그룹과 하위 책임을 따른다. 읽기 전제인 M14와 결과 보고인 M15, 원본 준비인 M02와 색인 반영인 M03처럼 변경 이유가 다른 책임을 구분한다.
 
 ## 4. 지원 계층과 의존 방향
 
@@ -91,6 +92,7 @@ M07만 신규 기능 계약을 포함한다. 나머지는 기존 기능의 경�
 flowchart TB
     ENTRY["CLI · MCP · HTTP"] --> ROOT["구성 지점 · 자원 수명"]
     ROOT --> OPS["M16 운영 / M17 명시적 설정"]
+    ROOT --> MEM["M18 기억 쓰기 (Vault 도구 실행은 구성 지점 어댑터)"]
     ROOT --> QUERY["M09 답변 / M12 프로젝트 문맥"]
     QUERY --> VIEW["M08 문맥 팩 / M10 기억 조회"]
     VIEW --> RET["M05 검색 / M06 그래프 조회"]
@@ -124,11 +126,11 @@ flowchart TB
 
 | ID | 보존할 규칙 | 필요한 증거 |
 |---|---|---|
-| INV-01 | 코드 저장소 소스는 읽기만 한다. Vault 문서는 vault-graph 프로세스가 직접 만들거나 고치거나 지우지 않고, Vault에 쓰는 일은 Vault 도구의 검증 경로(1차는 remember가 실행하는 publish-draft)를 실행해서만 한다. `raw/`에는 쓰지 않는다. 파생 투영은 재생성 가능해야 한다. (2026-10-30 재정의, [Local-Graph spec](../../specs/2026-10-29-local-graph-memory-layer/spec.md) 4.1절 6번) | 조회·색인·watch 전후 원본 해시가 같다. 쓰기 경로 실행은 remember 같은 명시적 쓰기 도구에서만 일어난다. 기존 read-only 경계 테스트 |
-| INV-02 | 정상 조회는 색인 재생성·모델 다운로드·파일 초기화·설정 기록을 실행하지 않는다. 예외는 사용 기록 하나다. 세션 시작 회상과 MCP 페이지 리소스 읽기는 이미 있는 Graph Home 아래 `usage/`에 JSON Lines를 덧붙여 쓸 수 있다. 덧붙이기만 하고 고치거나 지우지 않는다. 기록이 실패해도 조회는 그대로 성공한다. Graph Home이 없으면 만들지 않고, 색인·설정 파일은 바꾸지 않는다. `usage/`를 지워도 검색 결과는 같고, 회상 묶음 구획B의 순서만 기본(최근성)으로 돌아간다. (2026-10-30 재정의) | 미초기화/손상 상태에서 읽기 실패와 파일 무변경. 조회 전후로 `usage/` 밖의 Graph Home 바이트가 같다 |
+| INV-01 | 코드 저장소 소스는 읽기만 한다. Vault 문서는 vault-graph 프로세스가 직접 만들거나 고치거나 지우지 않고, Vault에 쓰는 일은 Vault 도구의 검증 경로를 실행해서만 한다. 경로는 세 가지다. (1) `remember`·`update_memory`·`retire_memory`에 `basis: stated`를 주면 publish-draft를 실행한다. (2) 같은 도구에 `basis: inferred`를 주면 `review propose`를 실행하고, 사람이 `review resolve`로 승인해야 Vault가 발행한다. (3) `vg hook capture`가 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 세션 원문을 쓴다. vault-graph 프로세스는 `raw/`에 직접 쓰지 않는다. 파생 투영은 재생성 가능해야 한다. (2026-10-30 재정의, [Local-Graph spec](../../specs/2026-10-29-local-graph-memory-layer/spec.md) 4.1절 6번. 2026-11-02 쓰기 경로 추가, [장기 기억 spec](../../specs/2026-11-02-vault-long-term-memory/spec.md) V3·V5) | 조회·색인·watch 전후 원본 해시가 같다. 쓰기 경로 실행은 세 쓰기 도구와 `vg hook capture`에서만 일어난다. 기존 read-only 경계 테스트 |
+| INV-02 | 정상 조회는 색인 재생성·모델 다운로드·파일 초기화·설정 기록을 실행하지 않는다. 예외는 사용 기록 하나다. 세션 시작 회상과 MCP 페이지 리소스 읽기는 이미 있는 Graph Home 아래 `usage/`에 JSON Lines를 덧붙여 쓸 수 있다. 덧붙이기만 하고 고치거나 지우지 않는다. 기록이 실패해도 조회는 그대로 성공한다. Graph Home이 없으면 만들지 않고, 색인·설정 파일은 바꾸지 않는다. `usage/`를 지워도 검색 결과는 같고, 회상 묶음의 구획A·B도 같다. 사용 기록은 순위에 쓰지 않고 구획C 알림 중복 방지에만 쓰므로, 지우면 이미 알린 구획C 알림이 한 번 더 나올 수 있다. (2026-10-30 재정의, 2026-11-02 사용 기록 순위 제거) | 미초기화/손상 상태에서 읽기 실패와 파일 무변경. 조회 전후로 `usage/` 밖의 Graph Home 바이트가 같다 |
 | INV-03 | 색인 계산의 여러 저장소 반영을 하나의 원자적 트랜잭션이라고 부르지 않는다. 비공개 세대의 검증·발행으로 활성 상태를 보호한다. | 중간 실패 시 기존 활성 세대 보존·자원 닫기·재시도 |
 | INV-04 | 설정 기록과 Vault 쓰기는 명시적 명령·도구에서만 허용한다. MCP 설정, Graph Home 연결 설정, 외부 지침 파일·백업은 각각 기존 경로/보존 규칙을 따른다. Vault 쓰기는 INV-01의 검증 경로로만 한다. (2026-10-30 재정의) | dry-run·경로 이탈·심볼릭 링크·사용자 수정 파일·remove 회귀 |
-| INV-05 | 검색 점수·순서·기본 include_graph=False·범위·cross-vault·경고·직렬화는 유지한다. | 공개 CLI/MCP/HTTP와 결과 비교 |
+| INV-05 | 검색 점수·순서·기본 include_graph=False·범위·cross-vault·경고·직렬화는 유지한다. 예외: 기본 검색은 frontmatter status가 `retired`인 페이지를 순위와 `limit` 적용 전에 뺀다. `deprecated`는 그대로 나오고 남은 결과의 점수·순서는 바뀌지 않는다(2026-11-02, [DECISIONS](../../DECISIONS.md) "Leave Retired Pages Out Of Default Search As An INV-05 Exception"). | 공개 CLI/MCP/HTTP와 결과 비교 |
 | INV-06 | M07의 many-to-many·부분 결과·리비전·누락 규칙은 SEL 계약을 그대로 따른다. 두 그래프 백엔드에서 연결한다. | SEL 수용 기준 전체, 실제 factory 경로 |
 | INV-07 | M10은 파생 기억 조회이고 M13은 최대 256건의 프로세스 임시 설명 캐시이다. 캐시 누락/재시작은 영구 근거 소실과 다르다. | 누락·퇴출·재시작 동작 및 설명 결과 회귀 |
 | INV-08 | 반복 색인 중단·예외에서 bundle을 닫고 실패한 세대를 발행하지 않는다. | WatchService 중단·실패·정상 반복, SetupService 실패·dry-run |
@@ -156,7 +158,7 @@ flowchart TB
 
 | ID | 열린 결정 | 선택지·영향 | 권고 |
 |---|---|---|---|
-| Q-01 / Accepted | 나머지 기능의 배포 단위 | 내부 경계 정리는 Vault 정책을 그대로 소유한다. 추가 wheel은 별도 설치·호환성 계약이 필요하다. | 5개 독립 패키지는 유지하고 M01–M17은 내부 경계로 관리 |
+| Q-01 / Accepted | 나머지 기능의 배포 단위 | 내부 경계 정리는 Vault 정책을 그대로 소유한다. 추가 wheel은 별도 설치·호환성 계약이 필요하다. | 5개 독립 패키지는 유지하고 M01–M18은 내부 경계로 관리 |
 | Q-02 / Accepted | 디렉터리 이전 범위 | 최초에는 필요한 파일만 이전했다. 이후 사용자가 그룹 이름과 실제 디렉터리 배치를 승인했다. | 승인된 그룹/하위 경로로 배치하고 기존 공개 경로의 모듈 identity를 보존 |
 
 운영 수치 목표를 이번 문서에서 새로 정하지 않는다. [기존 그래프 성능 계약](2026-10-04-graph-modules-performance-ko.md)이 적용되는 범위는 유지하고, 새 경로의 동일 데이터·모델·범위 전후 측정 결과를 기록한다. 측정되지 않은 수치나 타 제품 성능을 운영 통과 기준으로 간주하지 않는다.

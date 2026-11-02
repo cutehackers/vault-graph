@@ -2,19 +2,25 @@
 
 Status: Pre-release development
 
-Vault Graph is a local search and recall layer over Vault. Its indexes are
-rebuildable derived data, not a source of knowledge.
+Vault Graph is a long-term memory tool for Claude Code built on Vault. Memory
+lives only in Vault. Vault Graph keeps rebuildable derived data (indexes and
+usage logs), not a source of knowledge.
 
-It helps humans and agents search Vault, trace decisions, inspect project
-memory, and build task-specific context packs without turning retrieval output
-into durable knowledge.
+It searches every Vault linked to the current project in one ranked list and
+labels each result with its Vault name and role. At session start it injects a
+short recall within a token budget, pinned memories first. Humans and agents
+can also trace decisions, inspect project memory, and build task-specific
+context packs.
 
-Vault remains the source of truth. Vault Graph reads, indexes, retrieves, and
-explains Vault-derived context. It never creates, edits, or deletes Vault files
-itself and never writes to `raw/`. The one write path is the MCP `remember`
-tool: it builds a draft from the agent's fields and runs Vault's own
-`publish-draft`, so every recorded memory passes Vault's validation workflow.
-Search, indexing, and watch never run `publish-draft`.
+Vault Graph never creates, edits, or deletes Vault files itself and never writes
+to `raw/`. Three MCP tools write memory, always through Vault's own tools:
+`remember` adds a page, `update_memory` replaces a page body, and
+`retire_memory` retires a page. Each requires `basis`. A `stated` fact runs
+Vault's `publish-draft` and is published once it passes Vault validation. An
+`inferred` fact runs Vault's `review propose` and returns `proposed` with a
+`review_path`. It reaches recall and search only after a person accepts it
+with Vault's `review resolve`. Session transcripts are written by Vault's
+`sessions capture`. `vg hook capture` only decides when it runs.
 
 ## Install
 
