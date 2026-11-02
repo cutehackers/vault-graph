@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import sys
+import tempfile
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -10,7 +13,8 @@ from typing import Literal
 
 from vault_graph.errors import McpConfigError
 
-McpAgent = Literal["codex"]
+McpAgent = Literal["codex", "claude"]
+SUPPORTED_MCP_AGENTS: tuple[str, ...] = ("codex", "claude")
 
 
 @dataclass(frozen=True)
@@ -41,9 +45,14 @@ class McpRegistrationReport:
 
 
 class McpConfigRenderer:
+    def __init__(self, *, vg_command: Callable[[], str | None] | None = None) -> None:
+        self._vg_command = vg_command or _installed_vg_command
+
     def render(self, request: McpConfigRequest) -> str:
         _validate_agent(request.agent)
         _validate_server_name(request.server_name)
+        if request.agent == "claude":
+            return self._render_claude(request)
         payload = {
             "mcpServers": {
                 request.server_name: {
@@ -58,6 +67,18 @@ class McpConfigRenderer:
             }
         }
         return json.dumps(payload, sort_keys=True, indent=2) + "\n"
+
+    def _render_claude(self, request: McpConfigRequest) -> str:
+        # Claude Code starts the server from its own working directory and PATH, so use the absolute vg path.
+        command = self._vg_command()
+        if not command:
+            raise McpConfigError("vg_command_not_found: install vault-graph so `vg` is on PATH, then retry")
+        args = ["serve", "--mcp"]
+        graph_home = request.graph_home_path.expanduser().resolve()
+        if graph_home != (Path.home() / ".vault-graph").resolve():
+            args += ["--graph-home", str(graph_home)]
+        payload = {"mcpServers": {request.server_name: {"type": "stdio", "command": command, "args": args}}}
+        return json.dumps(payload, indent=2) + "\n"
 
 
 class McpConfigRegistrar:
@@ -104,12 +125,17 @@ class McpConfigRegistrar:
         backup_path = None
         if config_path.exists():
             backup_path = self._backup_path(config_path)
-            backup_path.write_text(config_path.read_text(encoding="utf-8"), encoding="utf-8")
+            # copy2 keeps the file mode, so a private config stays private in its backup.
+            shutil.copy2(config_path, backup_path)
         next_payload = dict(current_payload)
         next_servers = dict(_mcp_servers(next_payload))
         next_servers[request.server_name] = desired_entry
         next_payload["mcpServers"] = next_servers
-        config_path.write_text(json.dumps(next_payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        if request.agent == "claude":
+            # Claude Code owns this file: keep its key order and replace it in one rename.
+            _replace_file(config_path, json.dumps(next_payload, indent=2) + "\n")
+        else:
+            config_path.write_text(json.dumps(next_payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         return McpRegistrationReport(
             agent=request.agent,
             config_path=config_path,
@@ -122,6 +148,8 @@ class McpConfigRegistrar:
 
     def default_config_path(self, agent: McpAgent) -> Path:
         _validate_agent(agent)
+        if agent == "claude":
+            return Path.home() / ".claude.json"
         codex_home = os.environ.get("CODEX_HOME")
         return Path(codex_home).expanduser() / "config.toml" if codex_home else Path.home() / ".codex" / "config.toml"
 
@@ -179,8 +207,32 @@ class McpConfigRegistrar:
 
 
 def _validate_agent(agent: object) -> None:
-    if agent != "codex":
-        raise McpConfigError("unsupported_mcp_agent: only codex is supported")
+    if agent not in SUPPORTED_MCP_AGENTS:
+        raise McpConfigError(f"unsupported_mcp_agent: supported agents are {', '.join(SUPPORTED_MCP_AGENTS)}")
+
+
+def _installed_vg_command() -> str | None:
+    found = shutil.which("vg")
+    if found:
+        return os.path.abspath(found)
+    beside_python = Path(sys.executable).parent / "vg"
+    return str(beside_python) if beside_python.is_file() else None
+
+
+def _replace_file(path: Path, text: str) -> None:
+    """Write ``text`` to a temp file in the same folder, keep the old file mode, then rename over ``path``."""
+    handle, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if path.exists():
+            shutil.copymode(path, temp_name)
+        os.replace(temp_name, path)
+    except BaseException:
+        Path(temp_name).unlink(missing_ok=True)
+        raise
 
 
 def _validate_server_name(server_name: str) -> None:
