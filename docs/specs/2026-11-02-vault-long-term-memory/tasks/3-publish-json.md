@@ -38,10 +38,12 @@ A-11, A-21
 
 ## done-when
 
-- [ ] `reason` 일곱 가지(null, `lint-dirty-before`, `draft-invalid`, `human-locked`, `page-missing`, `lint-failed-after`, `io-error`)마다 필드와 종료 코드 0 또는 1을 테스트한다
-- [ ] `--json`일 때 표준 출력은 `json.loads`로 읽히는 객체 하나이고, 사람이 읽는 줄은 표준 오류로 간다
-- [ ] `--json` 없는 출력과 종료 코드, 기존 publish-draft 테스트가 그대로다
-- [ ] 실패 시 원래 파일로 되돌리는 동작과 성공 뒤 지도를 다시 만드는 동작이 바뀌지 않았다
-- [ ] `publish.py`는 `draft`, `lint`, `maps`만 가져온다
+- [x] `reason` 일곱 가지(null, `lint-dirty-before`, `draft-invalid`, `human-locked`, `page-missing`, `lint-failed-after`, `io-error`)마다 필드와 종료 코드 0 또는 1을 테스트한다
+- [x] `--json`일 때 표준 출력은 `json.loads`로 읽히는 객체 하나이고, 사람이 읽는 줄은 표준 오류로 간다
+- [x] `--json` 없는 출력과 종료 코드, 기존 publish-draft 테스트가 그대로다
+- [x] 실패 시 원래 파일로 되돌리는 동작과 성공 뒤 지도를 다시 만드는 동작이 바뀌지 않았다
+- [x] `publish.py`는 `draft`, `lint`, `maps`만 가져온다
 
 멈춤: 발행 로직을 추출하려면 `publish.py`가 `review`나 `cli`를 가져와야 하면 보고한다.
+
+기록 (2026-11-02, vault-builder 커밋은 `git log --grep "B1, contract 1"`): `tests.test_publish_json`·`tests.test_wiki_lib_import_direction` 20개 통과, `test_wiki_tools -k publish` 16개 통과, router 테스트 OK. `test_wiki_tools`의 설치 자체 검사 실패(v3 해시)는 작업 10까지 허용. 첫 lint의 ValueError는 `lint-dirty-before`로 매핑한다(spec에 없는 경우, 구현 선택).
