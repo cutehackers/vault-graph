@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
 import shutil
 import tempfile
+import time
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -21,6 +23,13 @@ PROJECTION_COMPONENT_FORMAT = "vault-graph-projection-component-v1"
 PROJECTION_BUNDLE_SCHEMA_VERSION = 1
 PROJECTION_COMPONENTS = ("metadata", "vector", "graph", "code")
 _SAFE_RUN_ID_CHARACTERS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+PUBLISH_LOCK_FILENAME = ".publish.lock"
+STALE_STAGED_GENERATION_SECONDS = 3600.0
+_LOCK_POLL_SECONDS = 0.05
+
+
+class ProjectionPublishBusyError(ProjectionGenerationError):
+    """Another publisher holds the projection publish lock past the caller's timeout."""
 
 
 @dataclass(frozen=True)
@@ -59,29 +68,56 @@ class ProjectionGenerationManager:
         self._generations_root = self._projection_root / "generations"
         self._active_manifest = self._projection_root / "active.json"
         self._previous_manifest = self._projection_root / "previous.json"
+        self._lock_path = self._projection_root / PUBLISH_LOCK_FILENAME
+        self._lock_descriptor: int | None = None
+        self._lock_holders: set[str] = set()
 
-    def stage(self, *, copy_active: bool = False) -> ProjectionLayout:
+    def stage(self, *, copy_active: bool = False, lock_timeout: float | None = None) -> ProjectionLayout:
+        """Stage a new generation and hold the publish lock until activate() or discard().
+
+        lock_timeout=None waits for the lock. A number waits at most that many seconds and then
+        raises ProjectionPublishBusyError, so callers that must not block can skip.
+        """
+
         if self._projection_root.is_symlink() or self._generations_root.is_symlink():
             raise ProjectionGenerationError("projection generation path must not be a symlink")
         generation_id = uuid.uuid4().hex
         root_path = self._generations_root / generation_id
-        active = self.active_layout() if copy_active else None
-        if active is None:
-            root_path.mkdir(parents=True, exist_ok=False)
-        else:
-            root_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(active.root_path, root_path, symlinks=False)
+        self._acquire_lock(generation_id, lock_timeout)
+        try:
+            # Read the active generation only after the lock is held, so a publisher that
+            # waited builds on the generation published while it waited.
+            active = self.active_layout() if copy_active else None
+            self._remove_stale_generations(active)
+            if active is None:
+                root_path.mkdir(parents=True, exist_ok=False)
+            else:
+                root_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(active.root_path, root_path, symlinks=False)
+                # copytree copies the source timestamps; mark the staged folder as new.
+                os.utime(root_path)
+        except BaseException:
+            self._release_lock(generation_id)
+            raise
         return ProjectionLayout(generation_id=generation_id, root_path=root_path)
 
-    def stage_from_active(self, *, full: bool = False) -> ProjectionLayout:
+    def stage_from_active(self, *, full: bool = False, lock_timeout: float | None = None) -> ProjectionLayout:
         """Create copy-on-write staging for full and incremental runs."""
 
-        return self.stage(copy_active=self.active_layout() is not None)
+        return self.stage(copy_active=True, lock_timeout=lock_timeout)
 
     def active_layout(self) -> ProjectionLayout | None:
         return active_projection_layout(self._graph_home_path)
 
     def activate(self, staged: ProjectionLayout) -> None:
+        self._acquire_lock(staged.generation_id, None)
+        try:
+            self._activate_locked(staged)
+            self._remove_unretained_generations()
+        finally:
+            self._release_lock(staged.generation_id)
+
+    def _activate_locked(self, staged: ProjectionLayout) -> None:
         expected = self.validate_layout(staged)
         self._projection_root.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -130,8 +166,11 @@ class ProjectionGenerationManager:
         active = self.active_layout()
         if active is not None and active.root_path == validated:
             raise ProjectionGenerationError("cannot discard the active projection generation")
-        if validated.exists():
-            shutil.rmtree(validated)
+        try:
+            if validated.exists():
+                shutil.rmtree(validated)
+        finally:
+            self._release_lock(staged.generation_id)
 
     def rollback(self) -> ProjectionLayout | None:
         """Restore the generation saved before the last activation."""
@@ -183,6 +222,97 @@ class ProjectionGenerationManager:
     def _validated_generation_path(self, relative_path: str) -> Path:
         return validated_generation_path(self._graph_home_path, relative_path)
 
+    def _acquire_lock(self, holder: str, timeout: float | None) -> None:
+        """Take the cross-process publish lock; nested holders in this manager share it."""
+
+        if self._lock_descriptor is not None:
+            self._lock_holders.add(holder)
+            return
+        if self._projection_root.is_symlink():
+            raise ProjectionGenerationError("projection generation path must not be a symlink")
+        self._projection_root.mkdir(parents=True, exist_ok=True)
+        try:
+            descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        except OSError as exc:
+            raise ProjectionGenerationError("cannot open the projection publish lock") from exc
+        deadline = None if timeout is None else time.monotonic() + max(timeout, 0.0)
+        try:
+            while True:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | (0 if deadline is None else fcntl.LOCK_NB))
+                    break
+                except BlockingIOError:
+                    if deadline is None or time.monotonic() >= deadline:
+                        raise ProjectionPublishBusyError(
+                            "another process is publishing a projection generation"
+                        ) from None
+                    time.sleep(_LOCK_POLL_SECONDS)
+                except InterruptedError:
+                    continue
+        except BaseException:
+            os.close(descriptor)
+            raise
+        self._lock_descriptor = descriptor
+        self._lock_holders = {holder}
+
+    def _release_lock(self, holder: str) -> None:
+        self._lock_holders.discard(holder)
+        if self._lock_holders or self._lock_descriptor is None:
+            return
+        descriptor, self._lock_descriptor = self._lock_descriptor, None
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
+    def _retained_generation_ids(self) -> set[str]:
+        retained: set[str] = set()
+        active = self.active_layout()
+        if active is not None:
+            retained.add(active.generation_id)
+        if self._previous_manifest.exists():
+            try:
+                payload = json.loads(self._previous_manifest.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                payload = None
+            if isinstance(payload, dict) and isinstance(payload.get("generation_id"), str):
+                retained.add(payload["generation_id"])
+        return retained
+
+    def _generation_folders(self) -> list[Path]:
+        if not self._generations_root.is_dir() or self._generations_root.is_symlink():
+            return []
+        return [
+            path
+            for path in self._generations_root.iterdir()
+            if not path.is_symlink() and path.is_dir() and _is_safe_generation_id(path.name)
+        ]
+
+    def _remove_unretained_generations(self) -> None:
+        """After activation, keep only the active and previous generations. Caller holds the lock."""
+
+        retained = self._retained_generation_ids() | self._lock_holders
+        for path in self._generation_folders():
+            if path.name not in retained:
+                shutil.rmtree(path, ignore_errors=True)
+
+    def _remove_stale_generations(self, active: ProjectionLayout | None) -> None:
+        """Remove staged folders left by interrupted runs. Caller holds the lock."""
+
+        retained = self._retained_generation_ids() | self._lock_holders
+        if active is not None:
+            retained.add(active.generation_id)
+        cutoff = time.time() - STALE_STAGED_GENERATION_SECONDS
+        for path in self._generation_folders():
+            if path.name in retained:
+                continue
+            try:
+                modified = path.stat().st_mtime
+            except OSError:
+                continue
+            if modified < cutoff:
+                shutil.rmtree(path, ignore_errors=True)
+
 
 class ProjectionBundlePublisher:
     """Publish a complete, self-describing projection generation."""
@@ -195,8 +325,8 @@ class ProjectionBundlePublisher:
         self.manager = manager or ProjectionGenerationManager(graph_home_path)
         self._graph_home_path = self.manager.graph_home_path
 
-    def stage_from_active(self, *, full: bool = False) -> ProjectionLayout:
-        return self.manager.stage_from_active(full=full)
+    def stage_from_active(self, *, full: bool = False, lock_timeout: float | None = None) -> ProjectionLayout:
+        return self.manager.stage_from_active(full=full, lock_timeout=lock_timeout)
 
     def component_root(self, staged: ProjectionLayout, component: str, *, create: bool = True) -> Path:
         self.manager.validate_layout(staged)
