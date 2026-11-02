@@ -44,10 +44,17 @@ vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
 
 현재 구현과의 차이(남은 일만 적는다, 2026-11-02 기준):
 
-- 실제 Claude Code 세션 하나로 하는 수동 확인(시나리오 ①~⑥)이 남았다. 실제 Vault로 시나리오 ①~⑥을 도는 자동 E2E(`tests/e2e/test_long_term_memory_scenarios.py`)는 `VAULT_BUILDER_ROOT`를 주고 실행해 6개 모두 통과했다(2026-11-02, [실행 기록](specs/2026-11-02-vault-long-term-memory/research/e2e-run.log)). `VAULT_BUILDER_ROOT`가 없으면 이 테스트는 건너뛴다.
-- 프로젝트 Vault가 Graph Home에 하나도 등록되지 않았을 때 `search`는 빈 결과와 "`vg setup` 필요" 경고를 돌려주지만, `ask`와 `context`는 같은 내용을 오류로 낸다.
-- Vault 이름·종류(`vault_name`, `vault_role`)는 검색 결과에만 붙고, 답변과 context pack 결과에는 없다. HTTP의 선택 필드 `cwd`는 `/search`에만 있다.
+- 프로젝트 Vault가 Graph Home에 하나도 등록되지 않았을 때 `search`는 빈 결과와 "`vg setup` 필요" 경고를 돌려주지만, `ask`, `context`와 MCP `find_related` 등 다섯 도구는 같은 내용을 오류로 낸다.
+- Vault 이름·종류(`vault_name`, `vault_role`)는 검색 결과에만 붙고, 답변과 context pack 결과에는 없다(의도 검수 F12). HTTP의 선택 필드 `cwd`는 `/search`에만 있다.
 - 폐기(`retired`) 페이지를 포함해 검색하는 옵션은 없다.
+- 세션 시작 훅의 색인 갱신은 임베딩을 만들지 않는다. 새 조각은 다음 `vg index`까지 의미 검색에 나오지 않는다(§4).
+- 2026-11-02 최초 의도 기준 검수([intent-audit](specs/2026-11-02-vault-long-term-memory/research/intent-audit.md))에서 다음 작업으로 넘긴 것:
+  - F9: personal과 project Vault를 함께 연결한 프로젝트는 기본 저장 Vault가 없어 첫 쓰기가 `vault_required`다(vault-builder).
+  - F10: 고정 기억의 `summary`가 제목과 같아 내용이 회상에 들어가지 않는다.
+  - F11: 대기 중인 추론 제안 수를 어디서도 보여 주지 않는다.
+  - F13: 설치한 훅이 worktree의 `.venv` 안 vg를 가리킨다. 병합 뒤 고정 경로의 vg로 다시 설치한다.
+
+실제 Vault로 시나리오 ①~⑥을 도는 자동 E2E(`tests/e2e/test_long_term_memory_scenarios.py`)는 `VAULT_BUILDER_ROOT`를 주고 실행해 6개 모두 통과했다(2026-11-02, [실행 기록](specs/2026-11-02-vault-long-term-memory/research/e2e-run.log)). `VAULT_BUILDER_ROOT`가 없으면 이 테스트는 건너뛴다. 실제 Claude Code 세션 하나로 하는 수동 확인도 마쳤다(2026-11-02, 장기 기억 spec 작업23).
 
 ## 1. 제품 정의와 원칙
 
@@ -104,13 +111,15 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 
 쓰는 대상:
 
-- Graph Home(`$HOME/.vault-graph` 등) 아래의 파생 데이터와 설정. 명시적 명령(setup, index, watch, MCP 등록 등)에서만 기록한다. 정상 조회는 색인·설정을 기록하지 않는다. 예외는 세션 시작 회상과 MCP 페이지 리소스 읽기가 Graph Home `usage/`에 사용 기록을 덧붙여 쓰는 것 하나다. 사용 기록은 순위에 영향을 주지 않는다. 회상의 구획C 알림 중복 방지에만 쓰므로, `usage/`를 지워도 검색 결과와 회상 구획A·B는 같다.
+- Graph Home(`$HOME/.vault-graph` 등) 아래의 파생 데이터와 설정. 명시적 명령(setup, index, watch, MCP 등록 등)과 바로 아래의 색인 갱신 두 경우에서만 기록한다. 정상 조회는 색인·설정을 기록하지 않는다. 예외는 세션 시작 회상과 MCP 페이지 리소스 읽기가 Graph Home `usage/`에 사용 기록을 덧붙여 쓰는 것 하나다. 사용 기록은 순위에 영향을 주지 않는다. 회상의 구획C 알림 중복 방지에만 쓰므로, `usage/`를 지워도 검색 결과와 회상 구획A·B는 같다.
+- Graph Home 색인은 두 경우에 명시적 `vg index` 없이도 갱신된다(2026-11-02 의도 검수 F1). 저장한 기억이 다음 세션 회상과 검색에 바로 나오게 하기 위해서다. 둘 다 Vault 파일은 읽기만 한다.
+  1. MCP 쓰기 도구가 `published`를 돌려주면, MCP 서버가 그 Vault의 증분 색인(`vg index --vault-id`와 같은 동작)을 백그라운드로 시작하고, 끝나면 검색 서비스를 다시 연다. 도구 결과는 색인을 기다리지 않고, 색인이 실패해도 쓰기 결과는 바뀌지 않는다.
+  2. `vg hook session-start`는 회상 전에, 이미 색인된 연결 Vault에서 바뀐 파일만 메타데이터와 그래프로 다시 색인하고 새 세대를 발행한다. 임베딩은 만들지 않으므로 새 조각의 벡터는 다음 `vg index`가 만든다. 시간 한도는 기본 5초(`--refresh-budget`)이고, 한도를 넘거나 실패하면 아무것도 발행하지 않고 경고 한 줄을 낸 뒤 기존 색인으로 회상한다. 훅은 이 때문에 실패하지 않는다.
 - Vault에는 Vault 도구를 실행하는 세 경로로만 쓴다.
   1. publish-draft: `remember`(추가), `update_memory`(수정), `retire_memory`(폐기)에 `basis: stated`를 주면 Vault 검증을 통과하는 순간 확정된다.
   2. `review propose`: 같은 세 도구에 `basis: inferred`를 주면 검토 항목을 만들고 `proposed`와 `review_path`를 돌려준다. 사람이 `review resolve <review_path> --status accepted`로 승인하면 Vault가 발행한다. 승인 전에는 회상과 검색에 나오지 않는다. 사람이 `--status rejected`로 거부하면 기억 페이지는 만들어지거나 바뀌지 않고, `wiki/log.md`에 "Review rejected" 한 줄만 더해진다(2026-11-02 사용자 결정).
   3. 수집 실행기: `vg hook capture`가 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 세션 원문을 쓴다. vault-graph는 실행 시점만 정한다.
 - 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 세 경로를 실행하지 않는다.
-
 쓰지 않는 대상:
 
 - Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다.
@@ -124,22 +133,26 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 유지한다:
 
 - 기존 CLI 명령(`vg setup`, `vg vault add`, `vg index`, `vg watch`, `vg search`, `vg ask`, `vg context`, `vg status` 등)의 이름·인자·응답 형식.
-- 기존 MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 기존 이름과 입력·출력 필드를 바꾸지 않는다. `search_vault`, `ask_vault`, `build_context_pack`은 선택 입력 `cwd`를 더 받고, `search_vault` 결과에는 선택 필드 `vault_name`, `vault_role`이 붙는다.
+- 기존 MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 기존 이름과 입력·출력 필드를 바꾸지 않는다. `search_vault`, `ask_vault`, `build_context_pack`과 `find_related`, `get_decision_trace`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`는 선택 입력 `cwd`를 더 받는다. `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 쓰고, 그 프로젝트에 연결되고 등록된 Vault 전부를 범위로 쓴다(뒤의 다섯 도구는 2026-11-02 의도 검수 F4). `search_vault` 결과에는 선택 필드 `vault_name`, `vault_role`이 붙는다.
 - 호환 규칙: 기존 필드는 바꾸지 않는다. 선택 필드와 도구를 더하는 것은 허용한다. 기존 호출자는 모르는 필드를 무시하면 그대로 동작한다(2026-11-02, 위험12).
 - MCP 리소스와 로컬 HTTP(FastAPI) 응답.
 - `project-bindings.json`, `vg setup --vault`, `vg vault add`는 1차에서 지우지 않는다. 제거는 n차-7이다.
 
 추가한다(1차):
 
-- CLI `vg hook session-start [--graph-home PATH] [--vault-map PATH] [--max-tokens N]`. 표준 입력으로 Claude Code SessionStart 훅 JSON을 받아 회상 묶음(Markdown)을 표준 출력에 낸다. 종료 코드 0은 "처리함"(출력이 비어 있을 수 있음), 3은 "회상할 수 없음"이다. 세부는 상세 설계 4.2.3.
+- CLI `vg hook session-start [--graph-home PATH] [--vault-map PATH] [--max-tokens N] [--refresh-budget S]`. 표준 입력으로 Claude Code SessionStart 훅 JSON을 받아 회상 묶음(Markdown)을 표준 출력에 낸다. 종료 코드 0은 "처리함"(출력이 비어 있을 수 있음), 3은 "회상할 수 없음"이다. 세부는 상세 설계 4.2.3. 회상 전에 연결 Vault의 바뀐 파일을 임베딩 없이 색인한다(§4). `--refresh-budget`은 그 시간 한도(초, 기본 5)이고 0이면 하지 않는다.
 - MCP 쓰기 도구 3개. MCP 도구는 모두 14개다. 세부는 [장기 기억 spec](specs/2026-11-02-vault-long-term-memory/spec.md) V3.
   - `remember(title, kind, body, evidence, basis, cwd=None, vault=None, pin=False, memory_kind=None)`: 새 페이지를 추가한다. 같은 경로가 있으면 `rejected`이고 `update_memory`를 쓰라고 안내한다.
   - `update_memory(path, body, evidence, basis, vault=None, cwd=None, title=None, pin=None, memory_kind=None)`: 페이지 본문을 통째로 바꾼다. frontmatter는 현재 값을 두고 준 값과 `updated`만 바꾼다. 읽은 뒤 페이지가 바뀌었으면 `rejected`다.
   - `retire_memory(path, reason, basis, vault=None, cwd=None, replaced_by=None)`: frontmatter만 바꾼다. 대체가 없으면 `status: retired`와 `retired_reason`, `retired_at`, 대체가 있으면 `status: deprecated`와 `superseded_by`다.
   - `basis`(`stated` 또는 `inferred`)는 세 도구 모두 필수이고 기본값이 없다.
+  - 도구 스키마는 `basis`, `kind`(`decision`, `system`), `memory_kind`(`rule`, `correction`, `decision`, `preference`)의 허용 값을 enum으로 보인다(2026-11-02 의도 검수 F8).
+  - `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 `cwd`로 쓴다. 그래서 다른 프로젝트 Vault에 쓰지 않는다(2026-11-02 의도 검수 F7).
   - 결과 `status`는 `published`, `proposed`, `rejected`, `vault_required`, `error` 중 하나다. `proposed`면 `review_path`가 붙고, `messages`에 사람이 실행할 승인 명령 `review resolve <review_path> --status accepted --resolution "<reason>"`이 들어간다. `vault_required`면 후보 `{name, role}` 목록이 붙는다.
   - 새 페이지의 저장 Vault는 결정12대로 고른다. `vault`는 `cwd` 프로젝트의 연결 Vault 안에서만 찾고, 연결되지 않은 이름이면 `rejected`와 연결 Vault 목록을 돌려준다. 수정·폐기는 `path`가 있는 연결 Vault를 찾는다. 하나면 그 Vault, 없으면 `rejected`, 둘 이상이면 `vault_required`다.
-- CLI `vg hook capture [--vault-map PATH] [--timeout S]`. 표준 입력으로 Claude Code PreCompact 또는 SessionEnd 훅 JSON을 받아 `vault-map.json` 폴더의 `vault_hooks.py capture --direct`에 그대로 넘긴다. 결과(`status`, `vault`, `path`)를 표준 오류에 한 줄로 요약한다. 종료 코드 0은 실행기가 정상으로 끝났음(written, no-new-turns, skipped 모두), 3은 실행기를 찾지 못했거나 실패했거나 시간 제한(기본 20초)을 넘었음이다. 3이면 훅 실행기가 직접 수집한다. Graph Home에 쓰지 않고 수집 뒤 색인하지 않는다.
+  - `published`면 MCP 서버가 그 Vault를 백그라운드로 색인한다(§4). 색인을 시작하면 `messages`의 "`vg index`를 실행하라" 안내가 "백그라운드로 색인 중" 안내로 바뀐다.
+- CLI `vg hook capture [--vault-map PATH] [--timeout S]`. 표준 입력으로 Claude Code PreCompact 또는 SessionEnd 훅 JSON을 받아 `vault-map.json` 폴더의 `vault_hooks.py capture --direct`에 그대로 넘긴다. 결과(`status`, `vault`, `path`)를 표준 오류에 한 줄로 요약한다. 종료 코드 0은 실행기가 정상으로 끝났음(written, no-new-turns, skipped 모두), 3은 실행기를 찾지 못했거나 실패했거나 시간 제한(기본 20초)을 넘었음이다. 3이면 훅 실행기가 직접 수집한다. Graph Home에 쓰지 않고 수집 뒤 색인하지 않는다. 수집한 원문은 다음 `vg hook session-start`의 색인 갱신이 반영한다.
+- `vg setup --agent claude --mcp`: Claude Code 사용자 설정 `$HOME/.claude.json`의 `mcpServers.vault-graph`에 `vg serve --mcp` 항목을 더한다(2026-11-02 의도 검수 F5). 다른 키와 MCP 서버는 그대로 두고, 바꾸기 전 파일을 `.claude.json.bak`으로 남기며, 파일이 JSON이 아니면 쓰지 않는다. `--mcp-config-path`, `--dry-run`, `--print-mcp-config`는 codex와 같다. `vg mcp config`·`vg mcp register`도 `--agent claude`를 받는다.
 
 ## 6. 외부 계약
 

@@ -87,7 +87,11 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         "they go through publish-draft validation and return published or rejected. Pass basis inferred for facts "
         "you inferred: they are not published, the tool returns proposed with a review_path in the Vault review "
         "queue, and a person accepts it by running the Vault's review resolve on that review_path. A proposed "
-        "fact is not in recall or search until it is accepted."
+        "fact is not in recall or search until it is accepted. After a published write the server indexes that "
+        "Vault in the background, so the page reaches search and recall when that run finishes. The tool result "
+        "does not wait for it. Most tools take an optional cwd: pass the project folder you work in. It picks "
+        "the project's linked Vaults to read and the Vault to write. Without cwd the server's own working "
+        "folder is used."
     )
     server = FastMCP(
         config.server_name,
