@@ -5,7 +5,9 @@ session-start: exit code 0 means handled (stdout may be empty). Exit code 3 mean
 possible and the hook should use ``recall.sh``. Any other code is an unexpected error. Stdout is
 written only after recall finished, so a failure never leaves partial output. Before recall it
 indexes changed files of the linked Vaults, metadata only, within ``--refresh-budget`` seconds
-(``recall_index_refresh``). A failed refresh is a warning, never a hook failure.
+(``recall_index_refresh``). A failed refresh is a warning, never a hook failure. After stdout is
+written, Vaults with changed files get a normal ``vg index`` (with embeddings) in a detached process,
+so their vectors catch up and search by meaning comes back without the hook waiting for it.
 
 capture: runs ``vault_hooks.py capture --direct`` from the ``vault-map.json`` folder with the hook
 JSON unchanged. Exit code 0 means the launcher finished (written, no-new-turns and skipped alike).
@@ -16,6 +18,7 @@ captures directly. vg never chooses the Vault, never indexes after capture and w
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import NoReturn
@@ -39,6 +42,10 @@ CAPTURE_COMMAND = "vg hook capture"
 CAPTURE_HANDOFF_EXIT_CODE = 3
 # The hook launcher gives `vg hook capture` 25 seconds (계약6). Stop the launcher before that.
 DEFAULT_CAPTURE_TIMEOUT_S = 20.0
+CATCH_UP_LOG = Path("logs") / "session-start-index.log"
+_CATCH_UP_LOG_MAX_BYTES = 1_000_000
+_CATCH_UP_SCRIPT = "from vault_graph.interface.cli.hook_commands import run_catch_up_index; run_catch_up_index()"
+_VG_SCRIPT = "from vault_graph.interface.cli.main import app; app()"
 
 hook_app = typer.Typer(no_args_is_help=True)
 
@@ -72,18 +79,21 @@ def session_start(
     existing index.
     """
 
+    catch_up: tuple[str, ...] = ()
     try:
         cwd, source, session_id = _read_hook_input(sys.stdin.read())
         factory = ReadOnlyServiceFactory(graph_home_path=state)
         map_path = vault_map_path(vault_map)
         ports = factory.open_session_recall(vault_map_path=map_path)
         refresh = refresh_linked_vaults(cwd, ports=ports, graph_home_path=state, budget_s=refresh_budget)
+        catch_up = refresh.catch_up_vault_ids
         if refresh.warning:
             typer.echo(f"{COMMAND}: warning: {refresh.warning}", err=True)
         if refresh.status == "refreshed":
             # The ports read the generation that was active when they opened. Read the new one.
             ports = factory.open_session_recall(vault_map_path=map_path)
     except RecallUnavailable as exc:
+        _catch_up(state, catch_up)
         _handoff(str(exc))
     bundle = recall(
         cwd,
@@ -96,9 +106,53 @@ def session_start(
     for warning in bundle.warnings:
         typer.echo(f"{COMMAND}: warning: {warning}", err=True)
     if bundle.handoff:
+        _catch_up(state, catch_up)
         _handoff(bundle.reason or "Recall is not possible.")
     if bundle.text:
         typer.echo(bundle.text, nl=False)
+    _catch_up(state, catch_up)
+
+
+def start_catch_up_index(graph_home: Path, vault_ids: tuple[str, ...]) -> None:
+    """Start ``vg index --vault-id <id>`` for each Vault, one after another, in a detached process.
+
+    The process has its own session, reads nothing and writes to ``<graph home>/logs`` so the hook
+    and its launcher never wait for it.
+    """
+
+    log_path = graph_home / CATCH_UP_LOG
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    mode = "wb" if log_path.exists() and log_path.stat().st_size > _CATCH_UP_LOG_MAX_BYTES else "ab"
+    with log_path.open(mode) as log:
+        subprocess.Popen(
+            [sys.executable, "-c", _CATCH_UP_SCRIPT, str(graph_home), *vault_ids],
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+        )
+
+
+def run_catch_up_index() -> None:
+    """Body of the detached process: ``sys.argv`` is ``-c <graph home> <vault id>...``."""
+
+    graph_home, *vault_ids = sys.argv[1:]
+    for vault_id in vault_ids:
+        subprocess.run(
+            [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id],
+            stdin=subprocess.DEVNULL,
+            check=False,
+        )
+
+
+def _catch_up(graph_home: Path, vault_ids: tuple[str, ...]) -> None:
+    if not vault_ids:
+        return
+    try:
+        start_catch_up_index(graph_home, vault_ids)
+    except OSError as exc:
+        typer.echo(f"{COMMAND}: warning: cannot start the background `vg index`: {exc}.", err=True)
 
 
 @hook_app.command("capture")
@@ -153,4 +207,4 @@ def _handoff(reason: str) -> NoReturn:
     raise typer.Exit(RECALL_HANDOFF_EXIT_CODE)
 
 
-__all__ = ["hook_app"]
+__all__ = ["hook_app", "run_catch_up_index", "start_catch_up_index"]
