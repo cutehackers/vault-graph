@@ -43,6 +43,9 @@ FALLBACK_NOTICE_DAYS = 14
 # Starting values per spec 4.2.3; adjust after measurement.
 CATEGORY_CAPS: Mapping[str, int] = {"question": 8, "decision": 10, "change": 8}
 STATUS_MARKS: Mapping[str, str] = {"inferred": "추정", "contested": "논쟁 중"}
+# Navigation pages that every Vault publish rewrites. They are not memories, so block B leaves
+# them out by page type, whatever the Vault role (결정15). Block A still shows them when pinned.
+NAVIGATION_PAGE_TYPES = frozenset({"index", "log", "map", "overview"})
 UNKNOWN_TYPE = "기타"
 
 BLOCK_B_TITLE = "## 기억 목록"
@@ -477,9 +480,14 @@ def _block_b_items(library: _Library) -> tuple[_Entry, ...]:
     The Vault name is the map name, or the Vault id without one. The id breaks any remaining tie.
 
     Pinned pages belong to block A, including the ones block A had to leave out for its budget.
+    Navigation pages (``NAVIGATION_PAGE_TYPES``) are never listed.
     """
     current = sorted(
-        (entry for entry in library.scoped() if entry.is_current and not entry.pinned),
+        (
+            entry
+            for entry in library.scoped()
+            if entry.is_current and not entry.pinned and entry.type.casefold() not in NAVIGATION_PAGE_TYPES
+        ),
         key=lambda e: (library.label(e.vault_id), e.path, e.vault_id),
     )
     ordered = sorted(current, key=lambda entry: entry.day, reverse=True)
@@ -615,6 +623,7 @@ __all__ = [
     "BLOCK_C_MAX_TOKENS",
     "DEFAULT_RECALL_MAX_CHARS",
     "DEFAULT_RECALL_MAX_TOKENS",
+    "NAVIGATION_PAGE_TYPES",
     "RECALL_HANDOFF_EXIT_CODE",
     "RecallBundle",
     "RecallDocumentReader",

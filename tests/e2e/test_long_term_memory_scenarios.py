@@ -21,6 +21,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import date
 from pathlib import Path
@@ -208,6 +209,48 @@ def test_a2_stated_memory_is_added_updated_and_retired_through_vault_tools(world
     assert refused["status"] == "rejected"
     assert any("human-locked" in message for message in refused["messages"]), refused["messages"]
     assert (world.vault_root("proj") / locked).read_bytes() == locked_before
+
+
+NAVIGATION_TYPES = ("index", "log", "map", "overview")
+
+
+def test_a2_stated_memory_shows_in_the_next_session_without_vg_index(world: MemoryWorld) -> None:
+    """F1 and F3: the next session start indexes the new page itself and lists memories, not navigation pages."""
+    world.install("proj", role="project")
+    world.install("team", role="team")
+    world.builder("set-default-write", "--project", PROJECT_ID, "--vault", "proj")
+    world.vg_setup()
+    world.recall("f1-before")
+
+    added = world.mcp(
+        "remember",
+        title="Tag every release with a signed tag",
+        kind="decision",
+        body="Every release gets a signed narwhalite tag.",
+        evidence=["User statement in the scenario session."],
+        basis="stated",
+        cwd=str(world.project),
+    )
+    assert added["status"] == "published", added["messages"]
+    path = added["written_paths"][0]
+
+    started = time.monotonic()
+    result = world.recall_result("f1-next-session")
+    elapsed = time.monotonic() - started
+
+    assert result.returncode == 0, result.stderr
+    assert "warning" not in result.stderr, result.stderr
+    assert elapsed < 20, elapsed
+    block_b = recall_blocks(result.stdout)[BLOCK_B_TITLE]
+    assert f"proj:{path}" in block_b
+    assert "Tag every release with a signed tag" in block_b
+    listed = [line for line in block_b.splitlines() if line.startswith("- [m:")]
+    assert listed
+    for line in listed:
+        assert line.split("] ", 1)[1].split(" · ", 1)[0] not in NAVIGATION_TYPES, line
+    for navigation in ("wiki/index.md", "wiki/log.md", "wiki/maps/", "wiki/overview.md"):
+        assert navigation not in block_b, block_b
+    assert path in world.search_paths("narwhalite tag", cwd=world.project)
 
 
 # Scenario ③ -----------------------------------------------------------------------------------
@@ -501,8 +544,12 @@ class MemoryWorld:
         self.vg("index", "--graph-home", str(self.graph_home), "--all-vaults")
 
     def recall(self, session_id: str) -> str:
+        return self.recall_result(session_id).stdout
+
+    def recall_result(self, session_id: str) -> subprocess.CompletedProcess[str]:
         hook = {"cwd": str(self.project), "source": "startup", "session_id": session_id}
-        return self.vg("hook", "session-start", "--graph-home", str(self.graph_home), stdin=json.dumps(hook))
+        command = [str(self.vg_bin), "hook", "session-start", "--graph-home", str(self.graph_home)]
+        return _run(command, env=self.env(), cwd=self.tmp_path, stdin=json.dumps(hook))
 
     def search(self, query: str, *, cwd: Path) -> dict[str, Any]:
         output = self.vg("search", query, "--graph-home", str(self.graph_home), "--format", "json", cwd=cwd)
