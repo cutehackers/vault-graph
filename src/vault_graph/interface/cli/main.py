@@ -18,7 +18,7 @@ from vault_graph.context.pack import (
     MetadataContextEvidenceResolver,
     SearchContextPackBuilder,
 )
-from vault_graph.errors import VaultGraphError
+from vault_graph.errors import CatalogError, VaultGraphError
 from vault_graph.indexing.index_service import IndexService, IndexStatusReport
 from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
 from vault_graph.interface.cli.code_commands import code_app
@@ -34,8 +34,17 @@ from vault_graph.interface.composition.local_index_service_factory import (
     LocalIndexServiceFactory,
     open_projection_hygiene_service,
 )
-from vault_graph.interface.composition.query_scope_resolution import registered_vault_ids
+from vault_graph.interface.composition.query_scope_resolution import (
+    PROJECT_SCOPE_WARNING_CODE,
+    ProjectQuerySelection,
+    empty_project_search_json,
+    metadata_index_check,
+    project_query_selection,
+    project_scope_warning_json,
+    registered_vault_ids,
+)
 from vault_graph.interface.composition.read_only_service_factory import VectorIndexerStaleCounter
+from vault_graph.interface.composition.vault_labels import label_fields
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, VaultMapOpening, open_vault_map, vault_map_path
 from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.operation.readiness.search_readiness_service import ReadOnlySearchReadiness
@@ -198,6 +207,31 @@ def _context_builder_service(
     )
 
 
+def _query_selection(
+    catalog: VaultCatalog, *, explicit: bool, is_indexed: Callable[[str], bool] | None = None
+) -> ProjectQuerySelection:
+    """Read vault-map.json for one query (spec V2). Without a Vault option the process folder picks the project."""
+    return project_query_selection(
+        None if explicit else Path.cwd(), catalog=catalog, vault_map_file=vault_map_path(), is_indexed=is_indexed
+    )
+
+
+def _project_or_default_scope(catalog: VaultCatalog) -> QueryScope:
+    """Scope of `vg ask` and `vg context` without a Vault option: the cwd project's Vaults, else the active one.
+
+    Warnings go to stderr so JSON on stdout stays unchanged. A project with no searchable Vault is an
+    error here, because an answer or context pack needs at least one Vault.
+    """
+    selection = _query_selection(catalog, explicit=False)
+    for message in selection.warnings:
+        typer.echo(f"warning: {PROJECT_SCOPE_WARNING_CODE} {message}", err=True)
+    if selection.vault_ids is None:
+        return catalog.default_scope()
+    if not selection.vault_ids:
+        raise CatalogError(" ".join(selection.warnings))
+    return catalog.scope_for_vault_ids(selection.vault_ids)
+
+
 def _context_scope_for_flags(
     catalog: VaultCatalog,
     *,
@@ -210,7 +244,7 @@ def _context_scope_for_flags(
     elif vault_id is not None:
         scope = catalog.scope_for_vault_ids([vault_id])
     else:
-        scope = catalog.default_scope()
+        scope = _project_or_default_scope(catalog)
     if include_cross_vault:
         return QueryScope(
             vault_ids=scope.vault_ids,
@@ -618,7 +652,7 @@ def ask(
         selected_vault_id = vault_id
         scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids([selected_vault_id]))
     else:
-        scope = _exit_on_domain_error(catalog.default_scope)
+        scope = _exit_on_domain_error(lambda: _project_or_default_scope(catalog))
     if include_cross_vault:
         scope = QueryScope(
             vault_ids=scope.vault_ids,
@@ -740,12 +774,25 @@ def search(
     if mode not in {"knowledge", "evidence", "operating", "audit", "all"}:
         typer.echo("unsupported_search_mode")
         raise typer.Exit(1)
-    _, catalog, service = _exit_on_domain_error(lambda: _search_service(state, include_graph=include_graph))
+    config, catalog, service = _exit_on_domain_error(lambda: _search_service(state, include_graph=include_graph))
+    selection = _query_selection(
+        catalog,
+        explicit=all_vaults or vault_id is not None,
+        is_indexed=lambda checked_vault_id: metadata_index_check(
+            SQLiteMetadataStore(config.metadata_path, initialize=False)
+        )(checked_vault_id),
+    )
     if all_vaults:
         scope = _exit_on_domain_error(catalog.scope_for_all_enabled)
     elif vault_id is not None:
         selected_vault_id = vault_id
         scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids([selected_vault_id]))
+    elif selection.vault_ids == ():
+        _render_empty_project_search(query, limit=limit, selection=selection, output_format=output_format)
+        return
+    elif selection.vault_ids is not None:
+        project_vault_ids = selection.vault_ids
+        scope = _exit_on_domain_error(lambda: catalog.scope_for_vault_ids(project_vault_ids))
     else:
         scope = _exit_on_domain_error(catalog.default_scope)
     response = _exit_on_domain_error(
@@ -760,9 +807,9 @@ def search(
         )
     )
     if output_format == "json":
-        typer.echo(json.dumps(_search_response_json(response), sort_keys=True, indent=2))
+        typer.echo(json.dumps(_search_response_json(response, selection=selection), sort_keys=True, indent=2))
     else:
-        _render_search_response(response)
+        _render_search_response(response, selection=selection)
 
 
 @app.command("projection-audit")
@@ -1090,7 +1137,26 @@ def serve(
     _exit_on_domain_error_stderr(lambda: run_mcp_server(registered, config=mcp_config))
 
 
-def _render_search_response(response: SearchResponse) -> None:
+def _render_empty_project_search(
+    query: str, *, limit: int, selection: ProjectQuerySelection, output_format: str
+) -> None:
+    """The cwd project has no searchable Vault: print no results and the warnings, never the active Vault."""
+    if output_format == "json":
+        payload = empty_project_search_json(query_text=query, limit=limit, warnings=selection.warnings)
+        typer.echo(json.dumps(payload, sort_keys=True, indent=2))
+        return
+    for message in selection.warnings:
+        typer.echo(f"warning: {PROJECT_SCOPE_WARNING_CODE} [] {message}")
+    typer.echo(f"query: {query}")
+    typer.echo("vault_ids: ")
+    typer.echo("actual_scopes: ")
+    typer.echo("results: 0")
+
+
+def _render_search_response(response: SearchResponse, *, selection: ProjectQuerySelection | None = None) -> None:
+    labels = selection.labels if selection is not None else {}
+    for message in selection.warnings if selection is not None else ():
+        typer.echo(f"warning: {PROJECT_SCOPE_WARNING_CODE} [] {message}")
     if response.warnings:
         for warning in response.warnings:
             scope = ",".join(warning.affected_vault_ids)
@@ -1102,7 +1168,9 @@ def _render_search_response(response: SearchResponse) -> None:
     typer.echo(f"results: {response.result_count}")
     for result in response.results:
         evidence = result.evidence[0]
-        typer.echo(f"{result.rank}. [{result.vault_id}] {result.title}")
+        label = labels.get(result.vault_id)
+        prefix = f"[{label.name}·{label.role}] " if label is not None else ""
+        typer.echo(f"{prefix}{result.rank}. [{result.vault_id}] {result.title}")
         typer.echo(f"   path: {evidence.path}")
         if evidence.section:
             typer.echo(f"   section: {evidence.section}")
@@ -1233,7 +1301,11 @@ def _decision_trace_response_json(response: DecisionTraceResponse) -> dict[str, 
     }
 
 
-def _search_response_json(response: SearchResponse) -> dict[str, object]:
+def _search_response_json(
+    response: SearchResponse, *, selection: ProjectQuerySelection | None = None
+) -> dict[str, object]:
+    labels = selection.labels if selection is not None else {}
+    scope_warnings = [project_scope_warning_json(message) for message in selection.warnings] if selection else []
     return {
         "query_text": response.query_text,
         "requested_scope": _scope_json(response.requested_scope),
@@ -1242,8 +1314,8 @@ def _search_response_json(response: SearchResponse) -> dict[str, object]:
         "result_count": response.result_count,
         "candidate_count": response.candidate_count,
         "dropped_candidate_count": response.dropped_candidate_count,
-        "results": [_result_json(result) for result in response.results],
-        "warnings": [_warning_json(warning) for warning in response.warnings],
+        "results": [{**_result_json(result), **label_fields(labels, result.vault_id)} for result in response.results],
+        "warnings": [*scope_warnings, *(_warning_json(warning) for warning in response.warnings)],
         "degraded": response.degraded,
         "store_revisions": [_store_revision_json(revision) for revision in response.store_revisions],
         "generated_at": response.generated_at,

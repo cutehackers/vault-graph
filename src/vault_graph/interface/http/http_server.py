@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from vault_graph import __version__
 from vault_graph.context.answer.answer_plan import AnswerRequest
 from vault_graph.context.pack.context_pack import ContextPackBudget, ContextPackRequest
+from vault_graph.interface.composition.query_scope_resolution import (
+    empty_project_search_json,
+    metadata_index_check,
+    project_query_selection,
+)
 from vault_graph.interface.http.http_errors import HttpRequestError, HttpServerConfig, map_exception_to_http_error
 from vault_graph.interface.http.http_explanation_serialization import (
     explanation_records_for_answer,
@@ -13,8 +19,9 @@ from vault_graph.interface.http.http_explanation_serialization import (
     explanation_records_for_related,
     explanation_records_for_search,
 )
-from vault_graph.interface.http.http_serialization import domain_to_json_dict
+from vault_graph.interface.http.http_serialization import domain_to_json_dict, search_response_json
 from vault_graph.interface.http.http_service_factory import HttpServiceFactory
+from vault_graph.operation.integration.vault_map import vault_map_path
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.explanation.result_explanation import ExplainResultService, explanation_record_to_dict
 from vault_graph.retrieval.explanation.result_explanation_cache import ResultExplanationCache
@@ -58,23 +65,35 @@ def create_http_app(
         query = _required_string(payload.get("query"), "query")
         include_graph = _bool(payload.get("include_graph"), default=False)
         include_cross_vault = _bool(payload.get("include_cross_vault"), default=False)
+        cwd = _optional_cwd(payload.get("cwd"))
+        limit = _limit(payload.get("limit"), default=10)
         services = services_factory.open_read_only()
+        # Spec V2: a scope naming Vaults wins, then the `cwd` project's Vaults, then the active Vault.
+        selection = project_query_selection(
+            None if cwd is None or _names_vaults(payload.get("scope")) else Path(cwd),
+            catalog=services.catalog,
+            vault_map_file=vault_map_path(),
+            is_indexed=metadata_index_check(services.metadata_store),
+        )
+        if selection.vault_ids == ():
+            return empty_project_search_json(query_text=query, limit=limit, warnings=selection.warnings)
         scope = _scope_from_payload(
             payload.get("scope"),
             catalog=services.catalog,
             include_cross_vault=include_cross_vault,
             allow_cross_vault=include_graph,
+            default_vault_ids=selection.vault_ids,
         )
         response = services_factory.open_retrieval_service(include_graph=include_graph).search(
             query_text=query,
             requested_scope=scope,
-            limit=_limit(payload.get("limit"), default=10),
+            limit=limit,
             output_format="json",
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
         )
         explanation_cache.put_many(explanation_records_for_search(response))
-        return domain_to_json_dict(response)
+        return search_response_json(response, labels=selection.labels, warnings=selection.warnings)
 
     @app.post("/context")
     def context(payload: dict[str, object]) -> dict[str, object]:
@@ -217,11 +236,14 @@ def _scope_from_payload(
     catalog: VaultCatalog,
     include_cross_vault: bool,
     allow_cross_vault: bool,
+    default_vault_ids: tuple[str, ...] | None = None,
 ) -> QueryScope:
+    """``default_vault_ids`` replaces the active Vault when the scope names no Vault."""
     if include_cross_vault and not allow_cross_vault:
         raise HttpRequestError(code="invalid_scope", message="include_cross_vault requires graph-enabled route")
+    default_scope = catalog.scope_for_vault_ids(default_vault_ids) if default_vault_ids else catalog.default_scope()
     if value is None:
-        base = catalog.default_scope()
+        base = default_scope
     elif not isinstance(value, dict):
         raise HttpRequestError(code="invalid_scope", message="scope must be an object")
     else:
@@ -234,7 +256,7 @@ def _scope_from_payload(
         elif vault_ids:
             base = catalog.scope_for_vault_ids(vault_ids)
         else:
-            base = catalog.default_scope()
+            base = default_scope
     if include_cross_vault:
         return QueryScope(
             vault_ids=base.vault_ids,
@@ -242,6 +264,18 @@ def _scope_from_payload(
             include_cross_vault=True,
         )
     return base
+
+
+def _names_vaults(scope: object) -> bool:
+    return isinstance(scope, dict) and bool(scope.get("vault_ids") or scope.get("all_vaults"))
+
+
+def _optional_cwd(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise HttpRequestError(code="invalid_request", message="cwd must be a non-empty string")
+    return value
 
 
 def _required_string(value: object, field_name: str) -> str:

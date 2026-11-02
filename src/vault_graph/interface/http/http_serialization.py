@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import dataclasses
 import math
+from collections.abc import Mapping
 from pathlib import Path
 
 from vault_graph.errors import VaultGraphError
+from vault_graph.interface.composition.query_scope_resolution import project_scope_warning_json
+from vault_graph.interface.composition.vault_labels import VaultLabel, label_fields
 from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.search.search_response import SearchResponse
 
 
 def domain_to_json_dict(value: object) -> dict[str, object]:
@@ -13,6 +17,29 @@ def domain_to_json_dict(value: object) -> dict[str, object]:
     if not isinstance(converted, dict):
         raise VaultGraphError("http serialization produced a non-object")
     return converted
+
+
+def search_response_json(
+    response: SearchResponse, *, labels: Mapping[str, VaultLabel], warnings: tuple[str, ...] = ()
+) -> dict[str, object]:
+    """Search JSON with ``vault_name`` and ``vault_role`` on each result and project scope warnings first."""
+    payload = domain_to_json_dict(response)
+    payload["results"] = [
+        {**item, **label_fields(labels, result.vault_id)}
+        for item, result in zip(_dict_list(payload["results"]), response.results, strict=True)
+    ]
+    if warnings:
+        payload["warnings"] = [
+            *(project_scope_warning_json(message) for message in warnings),
+            *_dict_list(payload["warnings"]),
+        ]
+    return payload
+
+
+def _dict_list(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise VaultGraphError("http serialization expected a list of objects")
+    return value
 
 
 def domain_to_json_value(value: object) -> object:
