@@ -44,4 +44,4 @@ A-16 (실행기 항목: vg 없음, 실패, 시간 초과에서 종료 코드 0)
 
 멈춤: 실제 훅 입력에 `transcript_path`나 `cwd`가 없으면 보고한다.
 
-기록 (2026-11-02, vault-builder `git log --grep "B5a"`): 실행기 테스트 22개와 router 테스트 70개 통과. done-when 1(위험1)은 Claude Code 훅 문서를 인용한 `tests/test_wiki_tools.py:7043-7044` 주석과 `session_capture.read_capture_request`가 읽는 네 필드로 확인했다. 실제 PreCompact·SessionEnd 입력을 파일로 뜨려면 `$HOME/.claude/settings.json`에 훅을 넣어야 하므로 이번 goal 범위 밖이다. 실제 입력 확인은 작업 23(G9)에서 한다. 작업 9가 챙길 것: 설치 때 `llm_wiki_router.py`를 실행기와 같은 폴더에 복사한다.
+기록 (2026-11-02, vault-builder `git log --grep "B5a"`): 실행기 테스트 22개와 router 테스트 70개 통과. done-when 1(위험1): 실제 Claude Code 2.1.316의 SessionEnd·PreCompact 훅 입력을 파일로 떴다. `$HOME/.claude/settings.json`은 건드리지 않고, 임시 설정 파일을 `claude -p --setting-sources project --settings <임시 파일>`로 넘겨 받았다(PreCompact는 같은 세션을 `--resume`한 뒤 `/compact`). 두 입력 모두 `session_id`, `transcript_path`, `cwd`, `hook_event_name`이 있고 `transcript_path` 파일이 실제로 있었다. PreCompact는 `trigger`, `custom_instructions`, SessionEnd는 `reason`이 더 있다. 기록: `research/hook-input-capture.json`. 작업 9가 챙길 것: 설치 때 `llm_wiki_router.py`를 실행기와 같은 폴더에 복사한다(작업 9에서 반영됨).
