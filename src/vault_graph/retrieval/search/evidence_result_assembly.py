@@ -9,6 +9,8 @@ from vault_graph.retrieval.search.retrieval_result import RetrievalResult, Store
 from vault_graph.retrieval.search.search_response import SearchMode, SearchWarning
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
 
+RETIRED_STATUS = "retired"
+
 
 class EvidenceResultAssembly:
     def __init__(self, metadata_store: MetadataStore) -> None:
@@ -25,7 +27,10 @@ class EvidenceResultAssembly:
         dropped = 0
         warnings: list[SearchWarning] = []
         resolved: list[tuple[FusedCandidate, EvidenceReference, str]] = []
+        retired_by_document: dict[str, bool] = {}
         for candidate in candidates:
+            if self._is_retired(candidate.document_id, retired_by_document):
+                continue
             evidence = self._evidence_linker.resolve_evidence(
                 ((candidate.vault_id, candidate.document_id, candidate.chunk_id),)
             )[0].evidence
@@ -53,6 +58,14 @@ class EvidenceResultAssembly:
             for rank, (candidate, evidence, summary) in enumerate(ranked, start=1)
         )
         return results, dropped, tuple(warnings)
+
+    def _is_retired(self, document_id: str, cache: dict[str, bool]) -> bool:
+        # 결정S14: status `retired` pages are left out of default search (INV-05 exception, docs/DECISIONS.md).
+        # `deprecated` pages stay. A missing document falls through to the missing-evidence path.
+        if document_id not in cache:
+            document = self._metadata_store.resolve_document(document_id)
+            cache[document_id] = document is not None and document.frontmatter.get("status") == RETIRED_STATUS
+        return cache[document_id]
 
     def _result_for_candidate(
         self, *, candidate: FusedCandidate, evidence: EvidenceReference, summary: str, rank: int

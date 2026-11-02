@@ -35,9 +35,11 @@ vault-graph worktree에서 실행한다.
 
 ## done-when
 
-- [ ] 시작할 때 M05 검색 단계에서 메타데이터 읽기 포트로 문서 frontmatter에 닿는지 확인했다(위험5)
-- [ ] 결합 뒤 status `retired` 결과가 기본 검색 결과에서 빠진다
-- [ ] 같은 질의에서 `deprecated` 페이지는 지금처럼 나온다
-- [ ] `docs/DECISIONS.md`에 INV-05 예외 항목이 있다
+- [x] 시작할 때 M05 검색 단계에서 메타데이터 읽기 포트로 문서 frontmatter에 닿는지 확인했다(위험5)
+- [x] 결합 뒤 status `retired` 결과가 기본 검색 결과에서 빠진다
+- [x] 같은 질의에서 `deprecated` 페이지는 지금처럼 나온다
+- [x] `docs/DECISIONS.md`에 INV-05 예외 항목이 있다
 
 멈춤: 위험5가 틀리면(M05에서 frontmatter에 닿지 않으면) 멈추고 보고한다. 필터를 구성 지점으로 옮기는 일은 이 작업에서 하지 않는다. 옮기면 작업 15·17의 파일과 겹친다. 그 경우의 후속 작업은 보고 뒤에 더한다(2026-11-02 분해 승인 답).
+
+기록 (2026-11-02): 위험5 성립(M05가 `MetadataStore.resolve_document`로 frontmatter를 읽음). 필터 위치 `retrieval/search/evidence_result_assembly.py`, 순위·limit 전. pytest 1654 passed, 1 skipped. 폐기 페이지를 포함하는 검색 옵션은 아직 없다.
