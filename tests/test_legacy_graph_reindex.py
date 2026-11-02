@@ -39,7 +39,7 @@ def test_cli_reindexes_changed_evidence_without_dangling_refs(
         (vault / "wiki/source.md").unlink()
     source_before = fingerprints(vault)
     args = ["index", "--graph-home", str(home)] + (["--full"] if full else [])
-    for _ in range(2):
+    for run in range(2):
         indexed = CliRunner().invoke(app, args)
         assert indexed.exit_code == 0, f"{indexed.output}\n{indexed.exception!r}"
         current = CatalogService(graph_home_path=home)
@@ -49,7 +49,12 @@ def test_cli_reindexes_changed_evidence_without_dangling_refs(
             refs = graph.execute("SELECT evidence_vault_id, chunk_id FROM graph_evidence_refs").fetchall()
         assert all(key in keys for key in refs)
         assert fingerprints(vault) == source_before
-        assert fingerprints(old_generation) == old_files
+        if run == 0:
+            # Kept unchanged as the previous generation for rollback.
+            assert fingerprints(old_generation) == old_files
+        else:
+            # Publication keeps only the active and previous generations.
+            assert not old_generation.exists()
 
 
 def test_scoped_reconcile_preserves_other_scope_and_vault_evidence(tmp_path: Path) -> None:
