@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -39,6 +40,8 @@ class McpServices:
     retrieval_service: RetrievalService
     context_pack_builder: ContextPackBuilder
     context_pack_renderer: ContextPackRenderer
+    generation_id: str | None = None
+    """The active projection generation when these services were opened. None before the first index."""
 
 
 IndexRunner = Callable[[Path, str], bool]
@@ -61,8 +64,28 @@ class McpServiceFactory:
         self._vault_map_path = vault_map_path
         self._index_runner = index_runner or index_one_vault
         self._read_only_factory = ReadOnlyServiceFactory(graph_home_path=graph_home_path)
+        self._active_manifest = graph_home_path.expanduser().resolve() / "projections" / "active.json"
+
+    def active_generation_id(self) -> str | None:
+        """Read the active generation id from ``projections/active.json``. None when nothing was published.
+
+        One small file read, cheap enough to run before every read tool call. Raises OSError or
+        ValueError when the file cannot be read or parsed.
+        """
+
+        try:
+            text = self._active_manifest.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return None
+        generation_id = json.loads(text).get("generation_id")
+        return generation_id if isinstance(generation_id, str) and generation_id else None
 
     def open_read_only(self) -> McpServices:
+        # Read the id before opening: if a publish lands in between, the next call sees a newer id and reopens.
+        try:
+            generation_id = self.active_generation_id()
+        except (OSError, ValueError):
+            generation_id = None
         services = self._read_only_factory.open_read_only()
         return McpServices(
             catalog_service=services.catalog_service,
@@ -71,6 +94,7 @@ class McpServiceFactory:
             retrieval_service=services.retrieval_service,
             context_pack_builder=services.context_pack_builder,
             context_pack_renderer=services.context_pack_renderer,
+            generation_id=generation_id,
         )
 
     def open_retrieval_service(self, *, include_graph: bool = False) -> RetrievalService:

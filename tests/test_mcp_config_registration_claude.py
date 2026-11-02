@@ -36,6 +36,7 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     return fake_home
 
 
@@ -63,6 +64,70 @@ def test_claude_render_fails_when_vg_cannot_be_found(home: Path) -> None:
 
 def test_claude_default_config_path_is_home_claude_json(home: Path) -> None:
     assert McpConfigRegistrar().default_config_path("claude") == home / ".claude.json"
+
+
+@pytest.mark.parametrize("value", [None, ""])
+def test_claude_default_config_path_ignores_unset_or_empty_config_dir(
+    home: Path, monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    if value is not None:
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", value)
+
+    assert McpConfigRegistrar().default_config_path("claude") == home / ".claude.json"
+
+
+def test_claude_default_config_path_follows_claude_config_dir(
+    home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Claude Code reads join(CLAUDE_CONFIG_DIR || homedir(), ".claude.json") (finding 발견6).
+    config_dir = tmp_path / "claude-config"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config_dir))
+
+    assert McpConfigRegistrar().default_config_path("claude") == config_dir / ".claude.json"
+
+
+def test_cli_setup_claude_mcp_dry_run_targets_claude_config_dir(
+    home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = tmp_path / "claude-config"
+    config_dir.mkdir()
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config_dir))
+    vault = tmp_path / "vault"
+    vault.mkdir()
+
+    result = runner.invoke(
+        app,
+        [
+            "setup",
+            "--vault",
+            str(vault),
+            "--graph-home",
+            str(tmp_path / "state"),
+            "--agent",
+            "claude",
+            "--mcp",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"mcp_config_path: {config_dir / '.claude.json'}" in result.stdout
+    assert not (home / ".claude.json").exists()
+
+
+def test_claude_register_keeps_non_ascii_text_unescaped(home: Path) -> None:
+    config_path = home / ".claude.json"
+    original = {"projects": {"/저장소/프로젝트": {"note": "한글 메모 – café"}}}
+    config_path.write_text(json.dumps(original, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    _registrar().register(
+        McpRegistrationRequest(agent="claude", graph_home_path=home / ".vault-graph", config_path=config_path)
+    )
+
+    text = config_path.read_text(encoding="utf-8")
+    assert "/저장소/프로젝트" in text and "한글 메모 – café" in text
+    assert "\\u" not in text
+    assert json.loads(text)["projects"] == original["projects"]
 
 
 def test_claude_register_preserves_other_keys_servers_order_and_mode(home: Path) -> None:
