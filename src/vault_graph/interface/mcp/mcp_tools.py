@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
 
@@ -67,6 +67,11 @@ McpToolName = Literal[
 ]
 MAX_MCP_TOOL_LIMIT = 50
 MAX_MCP_PROJECT_TASK_CHARS = 4096
+# Allowed values of the write tool inputs. They show as `enum` in the MCP schema and must equal
+# BASES, REMEMBER_KINDS and MEMORY_KINDS in operation/memory/memory_requests.py.
+MemoryBasis = Literal["stated", "inferred"]
+PageKind = Literal["decision", "system"]
+MemoryKind = Literal["rule", "correction", "decision", "preference"]
 
 
 class McpToolServer(Protocol):
@@ -153,6 +158,7 @@ class FindRelatedInput:
     kinds: tuple[str, ...] = ()
     limit: int = DEFAULT_GRAPH_RESULT_LIMIT
     include_cross_vault: bool = False
+    cwd: str | None = None
 
 
 @dataclass(frozen=True)
@@ -161,6 +167,7 @@ class DecisionTraceInput:
     scope: McpScopeInput | None = None
     limit: int = DEFAULT_GRAPH_RESULT_LIMIT
     include_cross_vault: bool = False
+    cwd: str | None = None
 
 
 @dataclass(frozen=True)
@@ -177,12 +184,14 @@ class ExplainResultInput:
 class SummarizeProjectMemoryInput:
     scope: McpScopeInput | None = None
     limit: int = 10
+    cwd: str | None = None
 
 
 @dataclass(frozen=True)
 class GetOpenQuestionsInput:
     scope: McpScopeInput | None = None
     limit: int = 20
+    cwd: str | None = None
 
 
 @dataclass(frozen=True)
@@ -190,6 +199,7 @@ class GetRecentChangesInput:
     since: str | None = None
     scope: McpScopeInput | None = None
     limit: int = 20
+    cwd: str | None = None
 
 
 @dataclass(frozen=True)
@@ -470,14 +480,21 @@ class McpToolRegistry:
         )
         return scope, selection
 
+    def _project_scope(
+        self,
+        scope_input: McpScopeInput | None,
+        cwd: str | None,
+        *,
+        allow_graph_cross_vault: bool = False,
+    ) -> tuple[QueryScope, ProjectQuerySelection]:
+        """``_query_scope`` for tools that need at least one Vault: a project with none is an error."""
+        selected_scope, selection = self._query_scope(scope_input, cwd, allow_graph_cross_vault=allow_graph_cross_vault)
+        return _require_project_scope(selected_scope, selection), selection
+
     def find_related(self, request: FindRelatedInput) -> McpToolBody:
         try:
             _validate_find_related_request(request)
-            selected_scope = _scope_for_tool(
-                request.scope,
-                catalog=self._services.catalog,
-                allow_graph_cross_vault=True,
-            )
+            selected_scope, selection = self._project_scope(request.scope, request.cwd, allow_graph_cross_vault=True)
             _validate_graph_cross_vault_request(selected_scope, include_cross_vault=request.include_cross_vault)
             response = self._service_factory.open_graph_retrieval_service().related(
                 target=request.target,
@@ -500,7 +517,10 @@ class McpToolRegistry:
                 tool_name="find_related",
                 payload=related_response_to_payload(response),
                 resource_links=resource_links_for_related(response),
-                warnings=tuple(mcp_warning_from_graph(warning) for warning in response.warnings),
+                warnings=(
+                    *_scope_warnings(selection),
+                    *(mcp_warning_from_graph(warning) for warning in response.warnings),
+                ),
             )
             self._result_explanation_cache.put_many(records)
             return body
@@ -510,11 +530,7 @@ class McpToolRegistry:
     def get_decision_trace(self, request: DecisionTraceInput) -> McpToolBody:
         try:
             _validate_decision_trace_request(request)
-            selected_scope = _scope_for_tool(
-                request.scope,
-                catalog=self._services.catalog,
-                allow_graph_cross_vault=True,
-            )
+            selected_scope, selection = self._project_scope(request.scope, request.cwd, allow_graph_cross_vault=True)
             _validate_graph_cross_vault_request(selected_scope, include_cross_vault=request.include_cross_vault)
             response = self._service_factory.open_graph_retrieval_service().decision_trace(
                 topic=request.decision_or_topic,
@@ -535,7 +551,10 @@ class McpToolRegistry:
                 tool_name="get_decision_trace",
                 payload=decision_trace_response_to_payload(response),
                 resource_links=resource_links_for_decision_trace(response),
-                warnings=tuple(mcp_warning_from_graph(warning) for warning in response.warnings),
+                warnings=(
+                    *_scope_warnings(selection),
+                    *(mcp_warning_from_graph(warning) for warning in response.warnings),
+                ),
             )
             self._result_explanation_cache.put_many(records)
             return body
@@ -605,7 +624,7 @@ class McpToolRegistry:
     def summarize_project_memory(self, request: SummarizeProjectMemoryInput) -> McpToolBody:
         try:
             _validate_summarize_project_memory_request(request)
-            selected_scope = _scope_for_tool(request.scope, catalog=self._services.catalog)
+            selected_scope, selection = self._project_scope(request.scope, request.cwd)
             projection = self._service_factory.open_project_memory_service().summarize(
                 requested_scope=selected_scope,
                 limit=request.limit,
@@ -616,7 +635,10 @@ class McpToolRegistry:
                 resource_links_for_memory_projection,
             )
 
-            warnings = tuple(memory_warning_to_mcp_error(warning) for warning in _project_memory_warnings(projection))
+            warnings = (
+                *_scope_warnings(selection),
+                *(memory_warning_to_mcp_error(warning) for warning in _project_memory_warnings(projection)),
+            )
             return _tool_body(
                 tool_name="summarize_project_memory",
                 payload=project_memory_projection_to_payload(projection),
@@ -629,7 +651,7 @@ class McpToolRegistry:
     def get_open_questions(self, request: GetOpenQuestionsInput) -> McpToolBody:
         try:
             _validate_get_open_questions_request(request)
-            selected_scope = _scope_for_tool(request.scope, catalog=self._services.catalog)
+            selected_scope, selection = self._project_scope(request.scope, request.cwd)
             projection = self._service_factory.open_issue_memory_service().open_questions(
                 requested_scope=selected_scope,
                 limit=request.limit,
@@ -640,7 +662,10 @@ class McpToolRegistry:
                 resource_links_for_memory_projection,
             )
 
-            warnings = tuple(memory_warning_to_mcp_error(warning) for warning in _open_questions_warnings(projection))
+            warnings = (
+                *_scope_warnings(selection),
+                *(memory_warning_to_mcp_error(warning) for warning in _open_questions_warnings(projection)),
+            )
             return _tool_body(
                 tool_name="get_open_questions",
                 payload=open_questions_projection_to_payload(projection),
@@ -653,7 +678,7 @@ class McpToolRegistry:
     def get_recent_changes(self, request: GetRecentChangesInput) -> McpToolBody:
         try:
             _validate_get_recent_changes_request(request)
-            selected_scope = _scope_for_tool(request.scope, catalog=self._services.catalog)
+            selected_scope, selection = self._project_scope(request.scope, request.cwd)
             try:
                 projection = self._service_factory.open_timeline_memory_service().recent_changes(
                     requested_scope=selected_scope,
@@ -673,7 +698,10 @@ class McpToolRegistry:
                 tool_name="get_recent_changes",
                 payload=recent_changes_projection_to_payload(projection),
                 resource_links=resource_links_for_recent_changes(projection),
-                warnings=tuple(memory_warning_to_mcp_error(warning) for warning in timeline_warnings(projection)),
+                warnings=(
+                    *_scope_warnings(selection),
+                    *(memory_warning_to_mcp_error(warning) for warning in timeline_warnings(projection)),
+                ),
             )
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
@@ -720,7 +748,7 @@ class McpToolRegistry:
                     body=request.body,
                     evidence=request.evidence,
                     basis=cast(Any, request.basis),
-                    cwd=request.cwd,
+                    cwd=_write_cwd(request.cwd),
                     vault=request.vault,
                     pin=request.pin,
                     memory_kind=request.memory_kind,
@@ -742,7 +770,7 @@ class McpToolRegistry:
                     evidence=request.evidence,
                     basis=cast(Any, request.basis),
                     vault=request.vault,
-                    cwd=request.cwd,
+                    cwd=_write_cwd(request.cwd),
                     title=request.title,
                     pin=request.pin,
                     memory_kind=request.memory_kind,
@@ -763,7 +791,7 @@ class McpToolRegistry:
                     reason=request.reason,
                     basis=cast(Any, request.basis),
                     vault=request.vault,
-                    cwd=request.cwd,
+                    cwd=_write_cwd(request.cwd),
                     replaced_by=request.replaced_by,
                 )
             ),
@@ -775,7 +803,7 @@ class McpToolRegistry:
         try:
             from vault_graph.interface.mcp.mcp_tool_serialization import memory_write_result_to_payload
 
-            result = run(self._service_factory.open_memory_write_service())
+            result = self._index_after_publish(run(self._service_factory.open_memory_write_service()))
             return _tool_body(
                 tool_name=tool_name,
                 payload=memory_write_result_to_payload(result),
@@ -784,6 +812,55 @@ class McpToolRegistry:
             )
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
+    def _index_after_publish(self, result: Any) -> Any:
+        """Start a background index of the Vault a ``published`` write changed (spec V3, finding F1).
+
+        The tool result never waits for the index run and never fails because of it. When the index
+        cannot start, the result keeps the message that asks for ``vg index``.
+        """
+        from vault_graph.operation.memory.memory_write_service import NEXT_INDEX_MESSAGE
+
+        if result.status != "published" or result.vault is None:
+            return result
+        try:
+            start = self._service_factory.start_background_index
+            vault_id = start(result.vault, on_finished=self._refresh_services_after_index)
+        except Exception:  # noqa: BLE001 - indexing is optional; the Vault write already succeeded.
+            return result
+        if vault_id is None:
+            return result
+        messages = tuple(
+            background_index_message(result.vault) if message == NEXT_INDEX_MESSAGE else message
+            for message in result.messages
+        )
+        return replace(result, messages=messages)
+
+    def _refresh_services_after_index(self, succeeded: bool) -> None:
+        """Reopen the startup read services so search reads the index generation just published."""
+        if not succeeded:
+            return
+        try:
+            self._services = self._service_factory.open_read_only()
+        except Exception:  # noqa: BLE001 - keep serving from the previous services.
+            return
+
+
+def background_index_message(vault_name: str) -> str:
+    return (
+        f"vault-graph started indexing Vault {vault_name} in the background. The page becomes searchable "
+        "and recallable when that run finishes. If it is still missing later, run vg index."
+    )
+
+
+def _write_cwd(cwd: str | None) -> str | None:
+    """The folder whose project picks the target Vault: ``cwd``, else the server working folder (결정12)."""
+    if cwd is not None:
+        return cwd
+    try:
+        return str(Path.cwd())
+    except OSError:
+        return None
 
 
 def register_mcp_tools(
@@ -874,7 +951,14 @@ def register_mcp_tools(
         kinds: list[str] | None = None,
         limit: int = DEFAULT_GRAPH_RESULT_LIMIT,
         include_cross_vault: bool = False,
+        cwd: str | None = None,
     ) -> dict[str, object]:
+        """Find graph entities related to ``target``, with evidence.
+
+        ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
+        project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
+        active Vault is used. ``scope`` with ``vault_ids`` or ``all_vaults`` overrides the project choice.
+        """
         request = parse_find_related_input(
             target=target,
             scope=scope,
@@ -882,6 +966,7 @@ def register_mcp_tools(
             kinds=kinds,
             limit=limit,
             include_cross_vault=include_cross_vault,
+            cwd=cwd,
         )
         return registry.find_related(request).to_json_dict()
 
@@ -891,12 +976,20 @@ def register_mcp_tools(
         scope: dict[str, object] | None = None,
         limit: int = DEFAULT_GRAPH_RESULT_LIMIT,
         include_cross_vault: bool = False,
+        cwd: str | None = None,
     ) -> dict[str, object]:
+        """Trace a decision or topic through the graph: what led to it and what it replaced.
+
+        ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
+        project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
+        active Vault is used. ``scope`` with ``vault_ids`` or ``all_vaults`` overrides the project choice.
+        """
         request = parse_decision_trace_input(
             decision_or_topic=decision_or_topic,
             scope=scope,
             limit=limit,
             include_cross_vault=include_cross_vault,
+            cwd=cwd,
         )
         return registry.get_decision_trace(request).to_json_dict()
 
@@ -914,16 +1007,30 @@ def register_mcp_tools(
     def summarize_project_memory(
         scope: dict[str, object] | None = None,
         limit: int = 10,
+        cwd: str | None = None,
     ) -> dict[str, object]:
-        request = parse_summarize_project_memory_input(scope=scope, limit=limit)
+        """Summarize current state, decisions, open questions, constraints and next priorities.
+
+        ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
+        project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
+        active Vault is used. ``scope`` with ``vault_ids`` or ``all_vaults`` overrides the project choice.
+        """
+        request = parse_summarize_project_memory_input(scope=scope, limit=limit, cwd=cwd)
         return registry.summarize_project_memory(request).to_json_dict()
 
     @server.tool("get_open_questions", structured_output=True)
     def get_open_questions(
         scope: dict[str, object] | None = None,
         limit: int = 20,
+        cwd: str | None = None,
     ) -> dict[str, object]:
-        request = parse_get_open_questions_input(scope=scope, limit=limit)
+        """List open questions recorded in Vault pages.
+
+        ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
+        project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
+        active Vault is used. ``scope`` with ``vault_ids`` or ``all_vaults`` overrides the project choice.
+        """
+        request = parse_get_open_questions_input(scope=scope, limit=limit, cwd=cwd)
         return registry.get_open_questions(request).to_json_dict()
 
     @server.tool("get_recent_changes", structured_output=True)
@@ -931,8 +1038,15 @@ def register_mcp_tools(
         since: str | None = None,
         scope: dict[str, object] | None = None,
         limit: int = 20,
+        cwd: str | None = None,
     ) -> dict[str, object]:
-        request = parse_get_recent_changes_input(since=since, scope=scope, limit=limit)
+        """List Vault pages changed since ``since`` (ISO date or datetime).
+
+        ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
+        project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
+        active Vault is used. ``scope`` with ``vault_ids`` or ``all_vaults`` overrides the project choice.
+        """
+        request = parse_get_recent_changes_input(since=since, scope=scope, limit=limit, cwd=cwd)
         return registry.get_recent_changes(request).to_json_dict()
 
     @server.tool("explore_project", structured_output=True)
@@ -957,15 +1071,32 @@ def register_mcp_tools(
     @server.tool("remember", structured_output=True)
     def remember(
         title: str,
-        kind: str,
+        kind: PageKind,
         body: str,
         evidence: list[str],
-        basis: str,
+        basis: MemoryBasis,
         cwd: str | None = None,
         vault: str | None = None,
         pin: bool = False,
-        memory_kind: str | None = None,
+        memory_kind: MemoryKind | None = None,
     ) -> dict[str, object]:
+        """Add one new memory page to a Vault. To change an existing page use update_memory.
+
+        ``kind`` is the page type and folder: ``decision`` (wiki/decisions/) or ``system`` (wiki/systems/).
+        ``memory_kind`` is optional and says what sort of memory it is: ``rule``, ``correction``, ``decision``
+        or ``preference``. It does not choose the Vault or the folder. ``evidence`` lists at least one source
+        such as a file path, URL or quote. ``pin`` puts the page first in session-start recall.
+
+        ``basis`` (required): ``stated`` when the user said the fact; the page is published and the tool
+        returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
+        the tool returns ``proposed`` with a ``review_path`` in the Vault review queue, and the fact is not in
+        recall or search until a person accepts it.
+
+        ``cwd`` is the project folder; without it the server working folder is used. The target Vault must be
+        linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
+        ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
+        ``candidates``.
+        """
         request = parse_remember_input(
             title=title,
             kind=kind,
@@ -984,13 +1115,30 @@ def register_mcp_tools(
         path: str,
         body: str,
         evidence: list[str],
-        basis: str,
+        basis: MemoryBasis,
         vault: str | None = None,
         cwd: str | None = None,
         title: str | None = None,
         pin: bool | None = None,
-        memory_kind: str | None = None,
+        memory_kind: MemoryKind | None = None,
     ) -> dict[str, object]:
+        """Replace the body of one existing memory page.
+
+        ``path`` is the Vault-relative page path, such as ``wiki/decisions/use-sqlite.md``, as returned in
+        ``written_paths`` or by search. ``title``, ``pin`` and ``memory_kind`` (``rule``, ``correction``,
+        ``decision`` or ``preference``) are optional; leaving them out keeps the page's current value.
+        Without ``vault``, the tool looks for ``path`` in the project's Vaults.
+
+        ``basis`` (required): ``stated`` when the user said the fact; the page is published and the tool
+        returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
+        the tool returns ``proposed`` with a ``review_path`` in the Vault review queue, and the fact is not in
+        recall or search until a person accepts it.
+
+        ``cwd`` is the project folder; without it the server working folder is used. The target Vault must be
+        linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
+        ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
+        ``candidates``.
+        """
         request = parse_update_memory_input(
             path=path,
             body=body,
@@ -1008,11 +1156,27 @@ def register_mcp_tools(
     def retire_memory(
         path: str,
         reason: str,
-        basis: str,
+        basis: MemoryBasis,
         vault: str | None = None,
         cwd: str | None = None,
         replaced_by: str | None = None,
     ) -> dict[str, object]:
+        """Mark one existing memory page as retired. The file stays in the Vault.
+
+        ``path`` is the Vault-relative page path, such as ``wiki/decisions/use-sqlite.md``. ``reason`` is one
+        line. ``replaced_by`` is an optional ``wiki/...md`` path of the page that replaces it, in the same Vault.
+        Without ``vault``, the tool looks for ``path`` in the project's Vaults.
+
+        ``basis`` (required): ``stated`` when the user said the fact; the page is published and the tool
+        returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
+        the tool returns ``proposed`` with a ``review_path`` in the Vault review queue, and the fact is not in
+        recall or search until a person accepts it.
+
+        ``cwd`` is the project folder; without it the server working folder is used. The target Vault must be
+        linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
+        ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
+        ``candidates``.
+        """
         request = parse_retire_memory_input(
             path=path, reason=reason, basis=basis, vault=vault, cwd=cwd, replaced_by=replaced_by
         )
@@ -1228,6 +1392,7 @@ def parse_find_related_input(
     kinds: list[str] | None = None,
     limit: int = DEFAULT_GRAPH_RESULT_LIMIT,
     include_cross_vault: bool = False,
+    cwd: str | None = None,
 ) -> FindRelatedInput:
     request = FindRelatedInput(
         target=_required_string(target, "target"),
@@ -1236,6 +1401,7 @@ def parse_find_related_input(
         kinds=_string_tuple(kinds or (), "kinds"),
         limit=_limit(limit),
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
+        cwd=_optional_cwd(cwd),
     )
     _validate_find_related_request(request)
     return request
@@ -1247,12 +1413,14 @@ def parse_decision_trace_input(
     scope: dict[str, object] | None = None,
     limit: int = DEFAULT_GRAPH_RESULT_LIMIT,
     include_cross_vault: bool = False,
+    cwd: str | None = None,
 ) -> DecisionTraceInput:
     request = DecisionTraceInput(
         decision_or_topic=_required_string(decision_or_topic, "decision_or_topic"),
         scope=mcp_scope_input_from_raw(scope, include_cross_vault=include_cross_vault),
         limit=_limit(limit),
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
+        cwd=_optional_cwd(cwd),
     )
     _validate_decision_trace_request(request)
     return request
@@ -1272,8 +1440,11 @@ def parse_summarize_project_memory_input(
     *,
     scope: dict[str, object] | None = None,
     limit: int = 10,
+    cwd: str | None = None,
 ) -> SummarizeProjectMemoryInput:
-    request = SummarizeProjectMemoryInput(scope=mcp_scope_input_from_raw(scope), limit=_limit(limit))
+    request = SummarizeProjectMemoryInput(
+        scope=mcp_scope_input_from_raw(scope), limit=_limit(limit), cwd=_optional_cwd(cwd)
+    )
     _validate_summarize_project_memory_request(request)
     return request
 
@@ -1282,8 +1453,9 @@ def parse_get_open_questions_input(
     *,
     scope: dict[str, object] | None = None,
     limit: int = 20,
+    cwd: str | None = None,
 ) -> GetOpenQuestionsInput:
-    request = GetOpenQuestionsInput(scope=mcp_scope_input_from_raw(scope), limit=_limit(limit))
+    request = GetOpenQuestionsInput(scope=mcp_scope_input_from_raw(scope), limit=_limit(limit), cwd=_optional_cwd(cwd))
     _validate_get_open_questions_request(request)
     return request
 
@@ -1293,6 +1465,7 @@ def parse_get_recent_changes_input(
     since: str | None = None,
     scope: dict[str, object] | None = None,
     limit: int = 20,
+    cwd: str | None = None,
 ) -> GetRecentChangesInput:
     from vault_graph.context.memory.timeline_memory import parse_timeline_since
 
@@ -1304,6 +1477,7 @@ def parse_get_recent_changes_input(
         since=parsed_since,
         scope=mcp_scope_input_from_raw(scope),
         limit=_limit(limit),
+        cwd=_optional_cwd(cwd),
     )
     _validate_get_recent_changes_request(request)
     return request

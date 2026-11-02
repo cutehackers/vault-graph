@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -39,10 +41,25 @@ class McpServices:
     context_pack_renderer: ContextPackRenderer
 
 
+IndexRunner = Callable[[Path, str], bool]
+"""Index one Vault id in a Graph Home and publish the result. Returns True when the run succeeded."""
+
+# One background index run at a time per process. Index runs stage and publish a whole projection
+# generation of the Graph Home, so two runs must not overlap.
+_BACKGROUND_INDEX_LOCK = threading.Lock()
+
+
 class McpServiceFactory:
-    def __init__(self, *, graph_home_path: Path, vault_map_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        graph_home_path: Path,
+        vault_map_path: Path | None = None,
+        index_runner: IndexRunner | None = None,
+    ) -> None:
         self._graph_home_path = graph_home_path
         self._vault_map_path = vault_map_path
+        self._index_runner = index_runner or index_one_vault
         self._read_only_factory = ReadOnlyServiceFactory(graph_home_path=graph_home_path)
 
     def open_read_only(self) -> McpServices:
@@ -119,9 +136,71 @@ class McpServiceFactory:
             vault_map_problem=None if opening.vault_map else opening.warning or f"no vault-map.json at {opening.path}.",
         )
 
+    def start_background_index(self, vault_name: str, *, on_finished: Callable[[bool], None]) -> str | None:
+        """Start an incremental index of one ``vault-map.json`` Vault in a daemon thread (finding F1).
+
+        Returns the Graph Home Vault id being indexed, or None when the name is not in the map or its
+        folder is not a registered, enabled Vault. Nothing is written to the Vault. ``on_finished``
+        receives True after the run published a new index, False after any failure.
+        """
+
+        from vault_graph.interface.composition.query_scope_resolution import registered_vault_ids
+        from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
+
+        vault_map = open_vault_map(vault_map_path(self._vault_map_path)).vault_map
+        if vault_map is None:
+            return None
+        mapped = next((vault for vault in vault_map.vaults if vault.name == vault_name), None)
+        if mapped is None:
+            return None
+        catalog = CatalogService(graph_home_path=self._graph_home_path).load_catalog()
+        vault_ids, _ = registered_vault_ids((mapped,), catalog)
+        if not vault_ids or not catalog.resolve(vault_ids[0]).enabled:
+            return None
+        vault_id = vault_ids[0]
+        runner = self._index_runner
+        graph_home_path = self._graph_home_path
+
+        def run() -> None:
+            try:
+                with _BACKGROUND_INDEX_LOCK:
+                    succeeded = runner(graph_home_path, vault_id)
+            except Exception:  # noqa: BLE001 - a failed background run only means the page waits for vg index.
+                succeeded = False
+            try:
+                on_finished(succeeded)
+            except Exception:  # noqa: BLE001 - the callback must not end the server thread with a traceback.
+                pass
+
+        threading.Thread(target=run, name=f"vault-graph-index-{vault_id}", daemon=True).start()
+        return vault_id
+
     def open_project_context_service(self) -> ProjectContextService:
         """Open code projection services only when project exploration is requested."""
 
         from vault_graph.interface.composition.code_index_factory import CodeIndexFactory
 
         return CodeIndexFactory(graph_home_path=self._graph_home_path).open_project_context_service()
+
+
+def index_one_vault(graph_home_path: Path, vault_id: str) -> bool:
+    """Run what ``vg index --vault-id <vault_id>`` runs: an incremental index, published only on success."""
+
+    from vault_graph.interface.composition.local_index_service_factory import LocalIndexServiceFactory
+
+    scope = CatalogService(graph_home_path=graph_home_path).load_catalog().scope_for_vault_ids([vault_id])
+    bundle = LocalIndexServiceFactory().open(
+        graph_home_path=graph_home_path,
+        initialize_store=True,
+        transactional=True,
+        full=False,
+        requested_scope=scope,
+    )
+    try:
+        report = bundle.index_service.run_apply(scope=scope, full=False)
+        if report.exit_code != 0:
+            return False
+        bundle.commit_projection(report)
+        return True
+    finally:
+        bundle.close()

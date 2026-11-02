@@ -24,6 +24,7 @@ from vault_graph.interface.mcp.mcp_tools import (
     DecisionTraceInput,
     FindRelatedInput,
     GetOpenQuestionsInput,
+    McpToolName,
     McpToolRegistry,
     RememberInput,
     SearchVaultInput,
@@ -282,14 +283,14 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
     tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
     read_tools = sorted(name for name in registry.tool_names if name not in WRITE_TOOLS)
     schemas = {name: {"input": tools[name].inputSchema, "output": tools[name].outputSchema} for name in read_tools}
-    # V2 adds one optional input `cwd` to three query tools (docs/SPEC.md §5 allows optional fields).
+    # V2 adds one optional input `cwd` to eight query tools (docs/SPEC.md §5 allows optional fields).
     # Remove it before hashing so the hash still proves every existing field is unchanged.
-    for name in ("ask_vault", "search_vault", "build_context_pack"):
-        input_schema = copy.deepcopy(tools[name].inputSchema)
+    for cwd_tool in CWD_READ_TOOLS:
+        input_schema = copy.deepcopy(tools[cwd_tool].inputSchema)
         cwd_schema = input_schema["properties"].pop("cwd")
         assert cwd_schema["default"] is None
         assert "cwd" not in input_schema.get("required", [])
-        schemas[name]["input"] = input_schema
+        schemas[cwd_tool]["input"] = input_schema
 
     assert len(read_tools) == 11
     digest = hashlib.sha256(json.dumps(schemas, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -302,6 +303,16 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
 
 
 WRITE_TOOLS = ("remember", "update_memory", "retire_memory")
+CWD_READ_TOOLS: tuple[McpToolName, ...] = (
+    "ask_vault",
+    "search_vault",
+    "build_context_pack",
+    "find_related",
+    "get_decision_trace",
+    "summarize_project_memory",
+    "get_open_questions",
+    "get_recent_changes",
+)
 WRITE_TOOL_INPUTS = (
     ("remember", ("title", "kind", "body", "evidence", "basis"), ("cwd", "vault", "pin", "memory_kind")),
     ("update_memory", ("path", "body", "evidence", "basis"), ("vault", "cwd", "title", "pin", "memory_kind")),
@@ -397,8 +408,17 @@ def test_update_memory_tool_passes_fields_to_the_memory_write_service(tmp_path: 
         path="wiki/decisions/a.md", body="New", evidence=["E"], basis="stated", title="T", pin=False
     )
 
+    # Without cwd the server working folder picks the project (결정12).
     assert factory.memory_write_service.requests == [
-        UpdateRequest(path="wiki/decisions/a.md", body="New", evidence=("E",), basis="stated", title="T", pin=False)
+        UpdateRequest(
+            path="wiki/decisions/a.md",
+            body="New",
+            evidence=("E",),
+            basis="stated",
+            cwd=str(Path.cwd()),
+            title="T",
+            pin=False,
+        )
     ]
     assert cast(dict[str, Any], body)["tool_name"] == "update_memory"
     assert cast(dict[str, Any], body)["payload"]["status"] == "published"
@@ -413,7 +433,12 @@ def test_retire_memory_tool_passes_fields_to_the_memory_write_service(tmp_path: 
 
     assert factory.memory_write_service.requests == [
         RetireRequest(
-            path="wiki/decisions/a.md", reason="Old", basis="stated", vault="main", replaced_by="wiki/decisions/b.md"
+            path="wiki/decisions/a.md",
+            reason="Old",
+            basis="stated",
+            vault="main",
+            cwd=str(Path.cwd()),
+            replaced_by="wiki/decisions/b.md",
         )
     ]
     assert cast(dict[str, Any], body)["tool_name"] == "retire_memory"
