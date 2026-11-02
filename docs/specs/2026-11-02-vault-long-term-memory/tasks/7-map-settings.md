@@ -40,11 +40,13 @@ A-15, A-21, A-22 (router 부분)
 
 ## done-when
 
-- [ ] `set-role`과 `set-default-write`가 다른 필드를 보존하고, 임시 파일을 쓴 뒤 이름을 바꾸는 방식으로 쓴다
-- [ ] install·link 뒤 `default_write_vault`가 남는다
-- [ ] 기본 저장 Vault를 unlink하면 `default_write_vault`가 지워진다
-- [ ] router 테스트가 새 필드가 있는 map으로 통과한다
-- [ ] `docs/contracts/vault-map-v2.md`에 필드, 선택 필드, 프로젝트 찾기 규칙의 소유자(router `find_project`), "형식을 깨면 version을 올린다" 규칙이 있다
-- [ ] `map_settings.py`는 `hooks.py`를 가져오지 않는다
+- [x] `set-role`과 `set-default-write`가 다른 필드를 보존하고, 임시 파일을 쓴 뒤 이름을 바꾸는 방식으로 쓴다
+- [x] install·link 뒤 `default_write_vault`가 남는다
+- [x] 기본 저장 Vault를 unlink하면 `default_write_vault`가 지워진다
+- [x] router 테스트가 새 필드가 있는 map으로 통과한다
+- [x] `docs/contracts/vault-map-v2.md`에 필드, 선택 필드, 프로젝트 찾기 규칙의 소유자(router `find_project`), "형식을 깨면 version을 올린다" 규칙이 있다
+- [x] `map_settings.py`는 `hooks.py`를 가져오지 않는다
 
 멈춤: router 형식 검사가 새 필드를 거부하면 spec V6의 전제와 어긋나므로 router 계약을 바꾸지 않고 보고한다.
+
+기록 (2026-11-02, vault-builder `git log --grep "B4"`): `test_map_settings` 20개 중 19개, router·방향 78개 통과. install 뒤 필드 유지는 `installing._precheck` 테스트로 확인했고, CLI 끝까지 가는 install 테스트 1개는 v3 해시 검사 때문에 실패한다. 작업 10 뒤 다시 확인한다.
