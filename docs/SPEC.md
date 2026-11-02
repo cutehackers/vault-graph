@@ -7,6 +7,7 @@
 
 ## 목차
 
+0. 의도
 1. 제품 정의와 원칙
 2. 역할 분담
 3. 가치
@@ -18,17 +19,42 @@
 9. 단계
 10. 보관 문서
 
+## 0. 의도
+
+이 절은 자주 바뀌지 않는다. 아래 절의 세부 계약은 모두 이 절의 규칙 중 하나를 따라야 한다(2026-11-02 사용자 확정).
+
+vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
+
+1. 기억이 사는 곳: 기억은 Vault에만 저장한다. vault-graph는 여러 Vault를 함께 다루며, Vault마다 종류가 있다. 기본 종류는 개인(personal)과 프로젝트(project)이고, 소유자가 팀(team) Vault를 더할 수 있으며, 다른 종류가 더 생길 수 있다. 프로젝트가 쓰는 Vault와 각 Vault의 종류는 `vault-map.json`이 정한다.
+2. vault-graph가 쓰는 것: Vault의 기억 페이지를 추가, 수정, 폐기한다. 사용자가 직접 말한 사실은 Vault 검증을 통과하면 확정한다. 에이전트가 추론한 사실은 승인될 때까지 Vault 검토 대기열에 둔다.
+3. 쓰는 방법: 모든 쓰기는 Vault 자체 도구를 거친다. vault-graph는 Vault 파일을 직접 고치지 않는다. 세션 원문 저장도 같다. 저장은 Vault의 `sessions capture`가 하고, vault-graph가 없으면 사용자가 직접 실행하며, vault-graph가 있으면 vault-graph가 실행 시점을 정한다.
+4. 에이전트에 기억을 주는 방법: 세션 시작 때 정해진 토큰 예산 안에서 짧은 회상을 넣는다. 작업 중에는 의미, 코드, 페이지 간 연결로 검색하고, 모든 결과에 출처를 붙인다.
+5. vault-graph 쪽에 남기는 것: 다시 만들거나 버려도 되는 데이터(검색 색인, 사용 기록)만 둔다. 사용 기록이 순위나 정리에 영향을 주기 시작하면 그 값은 Vault로 옮긴다. vault-graph 저장소를 지워도 기억은 사라지지 않는다.
+
+이유: Claude Code 기본 기억은 매 세션 통째로 읽는 평평한 파일 몇 개이고, 대화 기록은 기본 30일 뒤 지워진다. vault-graph는 기억을 Vault에 영구히 두고, 지금 작업에 필요한 부분을 찾아 정해진 예산 안에 넣는다.
+
+여러 Vault 규칙(결정12~15):
+
+- 결정12 새 기억의 저장 Vault: (1) 에이전트가 `vault`를 지정하면 그 Vault. (2) 없으면 프로젝트의 기본 저장 Vault(`vault-map.json`에 둔다, 보통 project Vault). (3) 그것도 없고 후보가 여럿이면 저장하지 않고 `vault_required`로 묻는다. 기억 유형으로 Vault를 자동 선택하지 않는다.
+- 결정13 검색 결합: 프로젝트에 연결된 모든 Vault를 검색해 관련도 순 한 목록으로 돌려준다. 결과마다 Vault 이름과 종류를 붙인다. 종류 간 고정 우선순위는 없다.
+- 결정14 세션 시작 회상 예산: 고정(pin) 기억을 Vault와 상관없이 먼저 넣고, 나머지는 모든 Vault를 합친 순위로 한도까지 채운다. Vault별 고정 비율은 두지 않고, 측정에서 한 Vault가 예산을 독차지할 때 다시 정한다.
+- 결정15 Vault 종류: 종류는 `vault-map.json`의 이름표다. 코드는 특정 종류 이름으로 분기하지 않으므로, 새 종류는 설정만 더하면 된다.
+
+참고한 사례: OpenWiki의 workspace 규칙(위키마다 독립, 사용자 범위 등록부, 후보가 여럿이고 선택이 없으면 `workspace_required`, 결과마다 출처 위키 표시).
+
+현재 구현과의 차이: 수정·폐기(의존4·의존5 필요), 팀 종류와 기본 저장 Vault 필드(`vault-map.json` 확장 필요, 요청5), vault-graph의 수집 실행(의존1 필요)은 아직 없다. 지금 `remember`는 새 페이지 추가만 하며, Vault가 여럿이면 `vault`를 요구한다.
+
 ## 1. 제품 정의와 원칙
 
-vault-graph는 Vault 위에서 도는 로컬 검색·회상 계층이다. Vault 원문, wiki, 코드를 읽어 색인하고, 에이전트가 필요한 기억을 출처와 함께 토큰 예산 안에 돌려준다. Vault는 vault-graph 없이도 동작한다.
+vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault 원문, wiki, 코드를 읽어 색인하고, 에이전트가 필요한 기억을 출처와 함께 토큰 예산 안에 돌려주며, 기억 기록은 Vault 도구에 맡긴다. Vault는 vault-graph 없이도 동작한다.
 
 방향 이름은 Local-Graph다. 핵심은 Local이고, Graph(관계 추적)는 보조 가치다.
 
 1. 원칙1 Local: 모든 처리가 이 컴퓨터 안에서 끝난다. 호스팅 서비스, API 키, LLM 호출이 없다(결정7). 질의 답변, 요약, 사실 추출을 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다.
 2. 원칙2 원본은 Vault: 기억의 원본은 Vault의 Markdown 파일이다. vault-graph 색인은 지워도 다시 만들 수 있는 파생 데이터이며 지식 원본이 아니다.
 3. 원칙3 `wiki/`는 검증 경로로만 바뀐다: Vault `wiki/`는 Vault 도구의 검증 경로(publish-draft 등)를 거쳐서만 바뀐다.
-4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓰는 길은 하나이며, remember가 Vault 도구의 publish-draft를 실행해 그 검증을 거치게 하는 것이다(결정8).
-5. 원칙5 `raw/`에 쓰지 않는다: vault-graph는 어떤 경로로도 Vault `raw/`에 쓰지 않는다.
+4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 지금 구현된 길은 remember가 publish-draft를 실행하는 것 하나다(결정8). 수정·폐기도 같은 방식으로 더한다(§0 규칙2).
+5. 원칙5 `raw/`에 직접 쓰지 않는다: vault-graph는 Vault `raw/`에 직접 쓰지 않는다. 세션 원문은 Vault의 `sessions capture`가 쓰고, vault-graph는 그 실행 시점만 정할 수 있다(§0 규칙3).
 6. 원칙6 연결 정보는 `vault-map.json` 하나: 프로젝트와 Vault의 연결 정보는 사용자 범위의 `vault-map.json`이 원본이고, vault-graph는 이 파일을 읽기만 한다(결정9).
 
 ## 2. 역할 분담
@@ -78,7 +104,7 @@ vault-graph는 Vault 위에서 도는 로컬 검색·회상 계층이다. Vault 
 쓰지 않는 대상:
 
 - Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다.
-- Vault `raw/`에는 어떤 경로로도 쓰지 않는다.
+- Vault `raw/`에 직접 쓰지 않는다. 세션 원문 저장은 Vault `sessions capture`의 몫이다(§0 규칙3, 아직 vault-graph에서 실행하지 않는다).
 - 코드 저장소 소스와 `vault-map.json`은 고치지 않는다.
 
 이 경계는 `AGENTS.md` Project Boundary, [ARCHITECTURE.md](ARCHITECTURE.md) §4, [VG-MOD](design/specs/2026-10-15-vault-graph-modular-architecture-ko.md) INV-01·INV-02·INV-04와 같은 원칙이다.
@@ -89,6 +115,7 @@ vault-graph는 Vault 위에서 도는 로컬 검색·회상 계층이다. Vault 
 
 - 기존 CLI 명령(`vg setup`, `vg vault add`, `vg index`, `vg watch`, `vg search`, `vg ask`, `vg context`, `vg status` 등)의 이름·인자·응답 형식.
 - MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 이름과 입력·출력 스키마를 바꾸지 않는다.
+- 호환 규칙: 기존 필드는 바꾸지 않고, 선택 필드와 도구는 더할 수 있다. 기존 호출자는 모르는 필드를 무시하면 그대로 동작한다(2026-11-02, 위험12).
 - MCP 리소스와 로컬 HTTP(FastAPI) 응답.
 - `project-bindings.json`, `vg setup --vault`, `vg vault add`는 1차에서 지우지 않는다. 제거는 n차-7이다.
 
