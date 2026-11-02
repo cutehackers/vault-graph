@@ -35,9 +35,11 @@ A-21, A-24
 
 ## done-when
 
-- [ ] 규칙 표에 spec §4.4의 모든 모듈과 금지 방향이 있다(`review.py`가 `memory_proposal`을, `publish.py`가 `review`와 `memory_proposal`을, `hooks.py`와 `map_settings.py`가 서로를 가져오지 않음 포함)
-- [ ] 아직 없는 파일의 규칙은 건너뛰고, 건너뛴 규칙 이름을 출력한다
-- [ ] gate가 `tests/test_*.py` 전부와 `builder_tests/test_map_settings.py`, `builder_tests/test_hooks_install.py`, `builder_tests/test_vault_hooks_launcher.py`를 파일이 있으면 실행한다
-- [ ] `release_gate.sh`는 `tools/vault_migration/contracts/v3.json`이 관리하는 Vault 파일이므로, 이 변경을 작업 10의 v4 계약에 넣을 항목으로 커밋 메시지에 적었다
+- [x] 규칙 표에 spec §4.4의 모든 모듈과 금지 방향이 있다(`review.py`가 `memory_proposal`을, `publish.py`가 `review`와 `memory_proposal`을, `hooks.py`와 `map_settings.py`가 서로를 가져오지 않음 포함)
+- [x] 아직 없는 파일의 규칙은 건너뛰고, 건너뛴 규칙 이름을 출력한다
+- [x] gate가 `tests/test_*.py` 전부와 `builder_tests/test_map_settings.py`, `builder_tests/test_hooks_install.py`, `builder_tests/test_vault_hooks_launcher.py`를 파일이 있으면 실행한다
+- [x] `release_gate.sh`는 `tools/vault_migration/contracts/v3.json`이 관리하는 Vault 파일이므로, 이 변경을 작업 10의 v4 계약에 넣을 항목으로 커밋 메시지에 적었다
 
 멈춤: gate 구조상 `tests/`와 `builder_tests/`를 함께 실행할 수 없으면 보고한다.
+
+기록 (2026-11-02, vault-builder 9a14eb5): 방향 테스트 8개 통과, router 테스트 70개 통과. 전체 gate는 `tests/test_wiki_tools.py`의 설치 자체 검사가 `contracts/v3.json` 해시와 다른 관리 파일을 보고해 실패한다. 관리 파일을 바꾸는 작업 2~6 동안은 이 해시 검사 실패만 허용하고, 작업 10(v4 계약)이 전체 gate 통과를 맡는다.
