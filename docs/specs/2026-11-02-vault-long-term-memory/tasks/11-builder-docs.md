@@ -37,10 +37,12 @@ A-26, A-21 (건너뛴 방향 규칙 0건), A-24
 
 ## done-when
 
-- [ ] `project-memory-structure.html`의 SessionStart 훅 "새로" 표시가 `--with-hooks` 선택 항목 설명으로 바뀌고, PreCompact·SessionEnd 수집 흐름과 추론 제안 → 승인 흐름이 있다
-- [ ] `vault-roadmap.html`에서 요청3~6과 계약3·계약4가 구현됨이고, `retired` 상태가 있고, 결정2("vault-graph는 vault-map을 읽기만 한다")가 유지된다고 적혀 있다
-- [ ] `vault-structure-map.html`에 `default_write_vault`, role 값(personal, project, team, 그 밖), `set-role`, `set-default-write`가 있다
-- [ ] 요청 문서의 각 요청 상태 열이 갱신되어 있다
-- [ ] 방향 검사가 건너뛰는 규칙이 없다
+- [x] `project-memory-structure.html`의 SessionStart 훅 "새로" 표시가 `--with-hooks` 선택 항목 설명으로 바뀌고, PreCompact·SessionEnd 수집 흐름과 추론 제안 → 승인 흐름이 있다
+- [x] `vault-roadmap.html`에서 요청3~6과 계약3·계약4가 구현됨이고, `retired` 상태가 있고, 결정2("vault-graph는 vault-map을 읽기만 한다")가 유지된다고 적혀 있다
+- [x] `vault-structure-map.html`에 `default_write_vault`, role 값(personal, project, team, 그 밖), `set-role`, `set-default-write`가 있다
+- [x] 요청 문서의 각 요청 상태 열이 갱신되어 있다
+- [x] 방향 검사가 건너뛰는 규칙이 없다
 
 멈춤: 문서에 적을 동작이 구현과 다르면 문서를 구현에 맞추지 말고 보고한다.
+
+기록 (2026-11-02, vault-builder `git log --grep "B7"`): 방향 테스트 8개 통과, 건너뛴 규칙 0건. router 70개 OK, 전체 gate 종료 코드 0. 문서와 다른 점은 코드 기준으로 적었다: `memory_kind`는 rule/correction/decision/preference, 요청7은 일부만 구현(정리 스킬의 stated/inferred 규칙은 그대로).
