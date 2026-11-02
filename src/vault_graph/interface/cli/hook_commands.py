@@ -1,8 +1,14 @@
-"""Claude Code hook entry points: ``vg hook session-start`` (spec 4.2.3, S4, S13).
+"""Claude Code hook entry points: ``vg hook session-start`` (spec 4.2.3, S4, S13) and
+``vg hook capture`` (spec 2026-11-02 V5).
 
-Exit code 0 means handled (stdout may be empty). Exit code 3 means recall is not possible and
-the hook should use ``recall.sh``. Any other code is an unexpected error. Stdout is written
-only after recall finished, so a failure never leaves partial output.
+session-start: exit code 0 means handled (stdout may be empty). Exit code 3 means recall is not
+possible and the hook should use ``recall.sh``. Any other code is an unexpected error. Stdout is
+written only after recall finished, so a failure never leaves partial output.
+
+capture: runs ``vault_hooks.py capture --direct`` from the ``vault-map.json`` folder with the hook
+JSON unchanged. Exit code 0 means the launcher finished (written, no-new-turns and skipped alike).
+Exit code 3 means the launcher was missing, failed or ran out of time, so the hook launcher
+captures directly. vg never chooses the Vault, never indexes after capture and writes nothing.
 """
 
 from __future__ import annotations
@@ -21,10 +27,15 @@ from vault_graph.context.pack.recall import (
     RecallUnavailable,
     recall,
 )
+from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME, run_capture
 from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, vault_map_path
 
 COMMAND = "vg hook session-start"
+CAPTURE_COMMAND = "vg hook capture"
+CAPTURE_HANDOFF_EXIT_CODE = 3
+# The hook launcher gives `vg hook capture` 25 seconds (계약6). Stop the launcher before that.
+DEFAULT_CAPTURE_TIMEOUT_S = 20.0
 
 hook_app = typer.Typer(no_args_is_help=True)
 
@@ -68,6 +79,36 @@ def session_start(
         _handoff(bundle.reason or "Recall is not possible.")
     if bundle.text:
         typer.echo(bundle.text, nl=False)
+
+
+@hook_app.command("capture")
+def capture(
+    vault_map: Path | None = typer.Option(
+        None,
+        "--vault-map",
+        help=(
+            f"vault-map.json path. {LAUNCHER_NAME} is run from its folder. "
+            f"Defaults to ${VAULT_MAP_ENV}, then $HOME/.claude/vault-builder/vault-map.json."
+        ),
+    ),
+    timeout: float = typer.Option(
+        DEFAULT_CAPTURE_TIMEOUT_S, "--timeout", min=0.1, help="Seconds before the launcher is stopped."
+    ),
+) -> None:
+    """Hand the PreCompact or SessionEnd hook JSON on stdin to the Vault hook launcher."""
+
+    hook_json = sys.stdin.buffer.read()
+    launcher = vault_map_path(vault_map).parent / LAUNCHER_NAME
+    outcome = run_capture(hook_json, launcher=launcher, timeout_s=timeout)
+    if outcome.stderr:
+        typer.echo(outcome.stderr, err=True, nl=not outcome.stderr.endswith("\n"))
+    if not outcome.finished:
+        typer.echo(f"{CAPTURE_COMMAND}: {outcome.problem}", err=True)
+        raise typer.Exit(CAPTURE_HANDOFF_EXIT_CODE)
+    typer.echo(
+        f"{CAPTURE_COMMAND}: status={outcome.status} vault={outcome.vault or '-'} path={outcome.path or '-'}",
+        err=True,
+    )
 
 
 def _read_hook_input(raw: str) -> tuple[Path, str, str]:

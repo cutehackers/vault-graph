@@ -35,10 +35,12 @@ vault-graph worktree에서 실행한다.
 
 ## done-when
 
-- [ ] `vg hook capture [--vault-map PATH] [--timeout S]`가 표준 입력의 훅 JSON을 `vault-map.json` 폴더의 `vault_hooks.py capture --direct`에 그대로 넘긴다
-- [ ] 결과(`status`, `vault`, `path`)를 표준 오류에 한 줄로 요약한다
-- [ ] 종료 코드는 실행기가 끝나면 0(written, no-new-turns, skipped 모두), 실행기를 못 찾거나 시간이 넘으면 3이다
-- [ ] Graph Home에 아무것도 쓰지 않고, 수집 뒤 색인하지 않고, role로 분기하지 않는다
-- [ ] 가짜 실행기로 실행해도 Vault 폴더의 파일 sha256이 바뀌지 않는다
+- [x] `vg hook capture [--vault-map PATH] [--timeout S]`가 표준 입력의 훅 JSON을 `vault-map.json` 폴더의 `vault_hooks.py capture --direct`에 그대로 넘긴다
+- [x] 결과(`status`, `vault`, `path`)를 표준 오류에 한 줄로 요약한다
+- [x] 종료 코드는 실행기가 끝나면 0(written, no-new-turns, skipped 모두), 실행기를 못 찾거나 시간이 넘으면 3이다
+- [x] Graph Home에 아무것도 쓰지 않고, 수집 뒤 색인하지 않고, role로 분기하지 않는다
+- [x] 가짜 실행기로 실행해도 Vault 폴더의 파일 sha256이 바뀌지 않는다
 
 멈춤: 수집에 Vault 선택 같은 정책 판단이 필요해지면 결정S4에 어긋나므로 보고한다.
+
+기록 (2026-11-02): 전체 pytest 1841 passed, 1 skipped(작업 19 진행 중 시점). 실행기가 0이 아닌 코드로 끝나도 3을 돌려 실행기가 `capture --direct`로 넘어가게 한다(수집 두 번은 안전). 기본 시간 제한 20초(실행기는 vg에 25초를 준다). 실행기는 map을 `CLAUDE_CONFIG_DIR`(기본 `$HOME/.claude`)에서 읽으며, vg는 환경을 바꾸지 않는다.
