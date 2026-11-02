@@ -766,3 +766,41 @@ def test_block_b_breaks_date_ties_by_vault_name_when_names_differ_from_ids() -> 
 
     titles = [line.split(" · ")[3].split(" (")[0] for line in lines]
     assert titles == ["Zeta A", "Alpha A", "Alpha B"]
+
+
+STRUCTURAL_DOCS = (
+    doc("wiki/index.md", title="Wiki Index", type="index", updated=day(0)),
+    doc("wiki/log.md", title="Wiki Log", type="log", updated=day(0)),
+    doc("wiki/maps/decision-map.md", title="Decision Map", type="map", updated=day(0)),
+    doc("wiki/overview.md", title="Overview", type="Overview", updated=day(0)),
+)
+
+
+def test_block_b_leaves_out_navigation_pages_by_type() -> None:
+    """F3: every publish rewrites the index, log, maps and overview, so they would fill the list."""
+    bundle = run(ports((*BASE_DOCS, *STRUCTURAL_DOCS)))
+
+    joined = "\n".join(_block_b(bundle))
+    for title in ("Wiki Index", "Wiki Log", "Decision Map", "Overview"):
+        assert title not in joined
+    assert _block_b(bundle) == _block_b(run(ports(BASE_DOCS)))
+
+
+def test_navigation_page_types_are_left_out_in_every_vault_role() -> None:
+    """결정15: the filter reads the page type only, never the Vault it came from."""
+    team_index = doc("wiki/index.md", vault_id="team", title="Team Index", type="index", updated=day(0))
+    team_note = doc("wiki/notes/index-like.md", vault_id="team", title="Team note", type="note", updated=day(0))
+
+    lines = _block_b(run(ports((*BASE_DOCS, team_index, team_note), vault_ids=("main", "team"))))
+
+    assert not any("Team Index" in line for line in lines)
+    assert any("Team note" in line for line in lines)
+
+
+def test_only_navigation_pages_hand_off_and_a_pinned_navigation_page_stays_in_block_a() -> None:
+    assert run(ports(STRUCTURAL_DOCS)).handoff
+
+    page = pinned("wiki/index.md", title="Pinned index", type="index")
+    bundle = run(ports((*BASE_DOCS, page)))
+
+    assert "Pinned index" in "\n".join(section(bundle.text, "## 고정 기억"))

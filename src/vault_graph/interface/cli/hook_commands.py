@@ -3,7 +3,9 @@
 
 session-start: exit code 0 means handled (stdout may be empty). Exit code 3 means recall is not
 possible and the hook should use ``recall.sh``. Any other code is an unexpected error. Stdout is
-written only after recall finished, so a failure never leaves partial output.
+written only after recall finished, so a failure never leaves partial output. Before recall it
+indexes changed files of the linked Vaults, metadata only, within ``--refresh-budget`` seconds
+(``recall_index_refresh``). A failed refresh is a warning, never a hook failure.
 
 capture: runs ``vault_hooks.py capture --direct`` from the ``vault-map.json`` folder with the hook
 JSON unchanged. Exit code 0 means the launcher finished (written, no-new-turns and skipped alike).
@@ -29,6 +31,7 @@ from vault_graph.context.pack.recall import (
 )
 from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME, run_capture
 from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+from vault_graph.interface.composition.recall_index_refresh import DEFAULT_REFRESH_BUDGET_S, refresh_linked_vaults
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, vault_map_path
 
 COMMAND = "vg hook session-start"
@@ -55,14 +58,31 @@ def session_start(
     max_tokens: int = typer.Option(
         DEFAULT_RECALL_MAX_TOKENS, "--max-tokens", min=100, help="Token limit. The 9,000 character limit stays."
     ),
+    refresh_budget: float = typer.Option(
+        DEFAULT_REFRESH_BUDGET_S,
+        "--refresh-budget",
+        min=0.0,
+        help="Seconds to bring the linked Vaults' metadata index up to date before recall. 0 skips it.",
+    ),
 ) -> None:
-    """Print the session start memory bundle for the SessionStart hook JSON on stdin."""
+    """Print the session start memory bundle for the SessionStart hook JSON on stdin.
+
+    Before recall, changed files of the linked, indexed Vaults are indexed (metadata only, no
+    embeddings). A refresh that fails or runs out of time prints one warning and recall reads the
+    existing index.
+    """
 
     try:
         cwd, source, session_id = _read_hook_input(sys.stdin.read())
-        ports = ReadOnlyServiceFactory(graph_home_path=state).open_session_recall(
-            vault_map_path=vault_map_path(vault_map)
-        )
+        factory = ReadOnlyServiceFactory(graph_home_path=state)
+        map_path = vault_map_path(vault_map)
+        ports = factory.open_session_recall(vault_map_path=map_path)
+        refresh = refresh_linked_vaults(cwd, ports=ports, graph_home_path=state, budget_s=refresh_budget)
+        if refresh.warning:
+            typer.echo(f"{COMMAND}: warning: {refresh.warning}", err=True)
+        if refresh.status == "refreshed":
+            # The ports read the generation that was active when they opened. Read the new one.
+            ports = factory.open_session_recall(vault_map_path=map_path)
     except RecallUnavailable as exc:
         _handoff(str(exc))
     bundle = recall(

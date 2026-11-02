@@ -472,3 +472,144 @@ def test_several_vaults_use_map_names_in_locations(base: Path, graph_home: Path)
     assert "(team-wiki:wiki/rules/team-rule.md)" in section(result.stdout, "## 고정 기억")[0]
     assert "(team-wiki:wiki/decisions/other-decision.md, ~" in result.stdout
     assert "(personal-notes:wiki/decisions/use-sqlite.md, ~" in result.stdout
+
+
+# Index refresh before recall (F1) -------------------------------------------------------------
+
+
+def active_generation(home: Path) -> str:
+    return str(json.loads((home / "projections" / "active.json").read_text(encoding="utf-8"))["generation_id"])
+
+
+def generations(home: Path) -> set[str]:
+    return {path.name for path in (home / "projections" / "generations").iterdir()}
+
+
+def test_page_written_after_the_last_index_is_recalled_without_vg_index(base: Path, graph_home: Path) -> None:
+    write_page(
+        base / "vaults" / "main",
+        "wiki/decisions/use-uv.md",
+        f'type: decision\nstatus: active\nupdated: "{day(0)}"\n',
+        "Use uv run",
+    )
+    vaults_before = tree(base / "vaults")
+    before = active_generation(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert section(result.stdout, "## 기억 목록")[0].startswith(
+        f"- [{memory_item_id('main', 'wiki/decisions/use-uv.md')}] decision · {day(0)} · active · Use uv run"
+    )
+    assert active_generation(graph_home) != before
+    assert tree(base / "vaults") == vaults_before
+
+
+def test_refresh_reads_metadata_only_and_never_embeds(
+    base: Path, graph_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise AssertionError("the session start refresh must not embed")
+
+    monkeypatch.setattr(
+        "vault_graph.interface.composition.adapters.text_embeddings.FastEmbedTextEmbeddings.__init__", fail
+    )
+    monkeypatch.setattr("vault_graph.indexing.vector_index_adapter.VectorIndexer._embed_chunks", fail)
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", fail)
+    write_page(
+        base / "vaults" / "main", "wiki/notes/fresh.md", f'type: note\nstatus: active\nupdated: "{day(0)}"\n', "Fresh"
+    )
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
+    assert result.stderr == ""
+
+
+def test_deleted_page_leaves_recall_and_a_later_vg_index_still_works(base: Path, graph_home: Path) -> None:
+    (base / "vaults" / "main" / "wiki" / "decisions" / "use-sqlite.md").unlink()
+
+    result = hook(graph_home, base)
+    reindex(graph_home)
+    after_index = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Use SQLite" not in result.stdout
+    assert result.stderr == ""
+    assert section(after_index.stdout, "## 기억 목록") == section(result.stdout, "## 기억 목록")
+
+
+def test_only_vaults_linked_to_the_folder_are_refreshed(base: Path, graph_home: Path) -> None:
+    write_page(
+        base / "vaults" / "other",
+        "wiki/decisions/team-choice.md",
+        f'type: decision\nstatus: active\nupdated: "{day(0)}"\n',
+        "Team choice",
+    )
+    before = active_generation(graph_home)
+
+    alpha = hook(graph_home, base)
+    unchanged = active_generation(graph_home)
+    both = hook(graph_home, base, repo="both")
+
+    assert unchanged == before
+    assert "Team choice" not in alpha.stdout
+    assert "Team choice" in both.stdout
+
+
+def test_failed_refresh_warns_and_recalls_from_the_existing_index(
+    base: Path, graph_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def explode(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr("vault_graph.indexing.metadata_indexer.MetadataIndexer.apply", explode)
+    write_page(
+        base / "vaults" / "main", "wiki/notes/fresh.md", f'type: note\nstatus: active\nupdated: "{day(0)}"\n', "Fresh"
+    )
+    before = active_generation(graph_home)
+    staged_before = generations(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Use SQLite" in result.stdout
+    assert "Fresh" not in result.stdout
+    assert "disk full" in result.stderr
+    assert len(result.stderr.splitlines()) == 1
+    assert active_generation(graph_home) == before
+    assert generations(graph_home) == staged_before
+
+
+def test_zero_refresh_budget_skips_the_refresh(base: Path, graph_home: Path) -> None:
+    write_page(
+        base / "vaults" / "main", "wiki/notes/fresh.md", f'type: note\nstatus: active\nupdated: "{day(0)}"\n', "Fresh"
+    )
+    before = active_generation(graph_home)
+
+    result = hook(graph_home, base, extra=("--refresh-budget", "0"))
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" not in result.stdout
+    assert active_generation(graph_home) == before
+
+
+def test_refresh_past_its_time_limit_publishes_nothing(
+    base: Path, graph_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ticks = iter(range(0, 1000, 10))
+    monkeypatch.setattr("vault_graph.interface.composition.recall_index_refresh.monotonic", lambda: float(next(ticks)))
+    write_page(
+        base / "vaults" / "main", "wiki/notes/fresh.md", f'type: note\nstatus: active\nupdated: "{day(0)}"\n', "Fresh"
+    )
+    before = active_generation(graph_home)
+    staged_before = generations(graph_home)
+
+    result = hook(graph_home, base, extra=("--refresh-budget", "15"))
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" not in result.stdout
+    assert "time limit" in result.stderr
+    assert active_generation(graph_home) == before
+    assert generations(graph_home) == staged_before
