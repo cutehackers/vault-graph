@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Protocol, runtime_checkable
 
-from vault_graph.indexing.ingestion.document_models import ExtractedDocument, SourceDocument
+from vault_graph.indexing.ingestion.document_models import ExtractedDocument, ExtractionWarning, SourceDocument
 from vault_graph.indexing.ingestion.markdown_parser import PARSER_VERSION, parse_markdown_blocks_with_warnings
 from vault_graph.indexing.ingestion.vault_frontmatter_reader import read_frontmatter
 
@@ -153,6 +153,14 @@ class MarkdownDocumentReader:
             line_number_offset=text[:body_start].count("\n"),
             character_offset=body_start,
         )
+        if frontmatter.yaml_error is not None:
+            warnings = (
+                ExtractionWarning(
+                    code="frontmatter_invalid_yaml",
+                    message=f"frontmatter is not valid YAML, read with Vault line rules ({frontmatter.yaml_error})",
+                ),
+                *warnings,
+            )
         return ExtractedDocument(
             source=source,
             format="markdown",
