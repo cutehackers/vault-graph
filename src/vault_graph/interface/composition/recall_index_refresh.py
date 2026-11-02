@@ -20,15 +20,24 @@ changed. The run uses the same metadata indexer, graph indexer and generation pu
   limit publishes nothing and recall reads the current index. When another run holds the projection
   lock for more than ``MAX_LOCK_WAIT_S`` seconds, the refresh is skipped the same way. One step after the scan is never
   interrupted, so the scan also stops when more than ``MAX_QUICK_REFRESH_FILES`` files changed.
+- A cost check before staging. The graph rebuild and the publication read the whole Vault, so their
+  time grows with the indexed document count, not with the changed files. The refresh is skipped
+  when the linked Vaults hold more than ``MAX_QUICK_REFRESH_DOCUMENTS`` indexed documents, or when
+  the last quick refresh of the same Vaults, scaled to today's document count, took longer than the
+  time left. Each quick refresh that staged a generation writes its duration to
+  ``logs/quick-refresh-times.json`` in the Graph Home. A record older than
+  ``QUICK_REFRESH_RECORD_MAX_AGE`` is ignored, so one slow run does not turn the refresh off for good.
 - Nothing changed means nothing is written. Vault files are never written.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from time import monotonic
 from typing import Literal
@@ -62,6 +71,13 @@ MAX_QUICK_REFRESH_FILES = 200
 # Longest wait for the projection lock. A `vg index` holding it may run for minutes, and the
 # background `vg index` started after the scan brings the changes in anyway.
 MAX_LOCK_WAIT_S = 1.0
+# More indexed documents than this are left to the background `vg index`. A refresh of one new file
+# costs about 1.7 ms per indexed document (graph rebuild, publication and scan read the whole Vault).
+# p30 measured 1,475 documents: refresh 2.5 s, whole hook through the launcher 3.1 s, inside the 5 s
+# target. At 3,000 documents the graph rebuild alone took 4.3 s.
+MAX_QUICK_REFRESH_DOCUMENTS = 1500
+QUICK_REFRESH_TIMES = Path("logs") / "quick-refresh-times.json"
+QUICK_REFRESH_RECORD_MAX_AGE = timedelta(days=1)
 
 RefreshStatus = Literal["unchanged", "refreshed", "skipped", "failed"]
 # Called once after the change scan with (Vaults to index, Vaults to check for stale vectors).
@@ -115,7 +131,8 @@ def refresh_recall_index(
     budget_s: float,
     on_scanned: ScanCallback | None = None,
 ) -> RecallIndexRefresh:
-    deadline = monotonic() + budget_s
+    started = monotonic()
+    deadline = started + budget_s
     catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog = catalog_service.load_catalog()
     scope = catalog.scope_for_vault_ids(vault_ids)
@@ -123,14 +140,15 @@ def refresh_recall_index(
         return RecallIndexRefresh(
             status="skipped", vault_ids=vault_ids, reason="the index was not published by `vg index`."
         )
-    changes = _scan_changes(catalog, catalog_service.metadata_path, vault_ids, deadline=deadline)
-    if changes is None:
+    scan = _scan_changes(catalog, catalog_service.metadata_path, vault_ids, deadline=deadline)
+    if scan is None:
         # The scan did not finish, so any linked Vault may have changed.
         if on_scanned is not None:
             on_scanned(vault_ids, ())
         return RecallIndexRefresh(
             status="skipped", vault_ids=vault_ids, reason=_time_limit(budget_s), catch_up_vault_ids=vault_ids
         )
+    changes, documents = scan
     changed = sum(len(paths) for paths, _ in changes.values())
     deleted = sum(len(paths) for _, paths in changes.values())
     changed_vault_ids = tuple(vault_id for vault_id in vault_ids if any(changes[vault_id]))
@@ -157,6 +175,23 @@ def refresh_recall_index(
         )
     if monotonic() > deadline:
         return outcome("skipped", _time_limit(budget_s))
+    if documents > MAX_QUICK_REFRESH_DOCUMENTS:
+        return outcome(
+            "skipped",
+            f"{documents} indexed documents are more than the {MAX_QUICK_REFRESH_DOCUMENTS} a session start "
+            "refreshes. `vg index` runs in the background.",
+        )
+    times_path = catalog_service.graph_home_path / QUICK_REFRESH_TIMES
+    last = _last_quick_refresh(times_path, vault_ids)
+    if last is not None:
+        last_seconds, last_documents = last
+        estimate = last_seconds * max(documents, 1) / max(last_documents, 1)
+        if estimate > deadline - monotonic():
+            return outcome(
+                "skipped",
+                f"the last quick refresh took {last_seconds:.1f} s, more than the time left. "
+                "`vg index` runs in the background.",
+            )
 
     try:
         bundle = _open_metadata_bundle(
@@ -178,17 +213,20 @@ def refresh_recall_index(
         removed = chunks_before - _chunk_keys(staged_metadata, changed_paths + deleted_paths)
         _drop_vectors_of_removed_chunks(catalog_service, scope, removed)
         if monotonic() > deadline:
+            _record_quick_refresh(times_path, vault_ids, seconds=monotonic() - started, documents=documents)
             return outcome("skipped", _time_limit(budget_s))
         bundle.commit_projection(report)
     finally:
         bundle.close()
+    _record_quick_refresh(times_path, vault_ids, seconds=monotonic() - started, documents=documents)
     return outcome("refreshed")
 
 
 def _scan_changes(
     catalog: VaultCatalog, metadata_path: Path, vault_ids: tuple[str, ...], *, deadline: float
-) -> dict[str, tuple[set[str], set[str]]] | None:
-    """Changed and deleted paths per Vault, by SHA-256 of the file bytes. None when time ran out.
+) -> tuple[dict[str, tuple[set[str], set[str]]], int] | None:
+    """Changed and deleted paths per Vault, by SHA-256 of the file bytes, and the indexed document
+    count. None when time ran out.
 
     Reads the same ``*.md`` files as ``VaultLoader`` but does not parse or chunk them, so the time
     limit can be checked after every file. A change ``vg index`` alone sees (a new parser version)
@@ -196,6 +234,7 @@ def _scan_changes(
     """
     states = SQLiteMetadataStore(metadata_path, initialize=False).list_document_states(vault_ids)
     changes: dict[str, tuple[set[str], set[str]]] = {}
+    documents = 0
     for vault_id in vault_ids:
         entry = catalog.resolve(vault_id)
         known = {
@@ -224,7 +263,53 @@ def _scan_changes(
                     changed.add(relative)
         deleted = {path for path, state in known.items() if path not in seen and not state.is_tombstoned}
         changes[vault_id] = (changed, deleted)
-    return changes
+        documents += sum(1 for state in known.values() if not state.is_tombstoned)
+    return changes, documents
+
+
+def _quick_refresh_key(vault_ids: tuple[str, ...]) -> str:
+    return ",".join(sorted(vault_ids))
+
+
+def _read_quick_refresh_times(path: Path) -> dict[str, object]:
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _last_quick_refresh(path: Path, vault_ids: tuple[str, ...]) -> tuple[float, int] | None:
+    """(seconds, documents) of the last quick refresh of these Vaults, if recorded recently."""
+    record = _read_quick_refresh_times(path).get(_quick_refresh_key(vault_ids))
+    if not isinstance(record, dict):
+        return None
+    try:
+        seconds = float(record["seconds"])
+        documents = int(record["documents"])
+        recorded_at = datetime.fromisoformat(str(record["recorded_at"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    if recorded_at.tzinfo is None or datetime.now(UTC) - recorded_at > QUICK_REFRESH_RECORD_MAX_AGE:
+        return None
+    return seconds, documents
+
+
+def _record_quick_refresh(path: Path, vault_ids: tuple[str, ...], *, seconds: float, documents: int) -> None:
+    """Write the duration of a quick refresh. A write that fails only loses the estimate."""
+    times = _read_quick_refresh_times(path)
+    times[_quick_refresh_key(vault_ids)] = {
+        "seconds": round(seconds, 3),
+        "documents": documents,
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }
+    temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(json.dumps(times, sort_keys=True), encoding="utf-8")
+        os.replace(temporary, path)
+    except OSError:
+        temporary.unlink(missing_ok=True)
 
 
 def _in_scopes(path: str, content_scopes: tuple[str, ...]) -> bool:
@@ -392,6 +477,7 @@ def _time_limit(budget_s: float) -> str:
 
 __all__ = [
     "DEFAULT_REFRESH_BUDGET_S",
+    "MAX_QUICK_REFRESH_DOCUMENTS",
     "MAX_QUICK_REFRESH_FILES",
     "RecallIndexRefresh",
     "ScanCallback",

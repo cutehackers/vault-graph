@@ -71,6 +71,11 @@ CREATE TABLE IF NOT EXISTS chunks (
   PRIMARY KEY (vault_id, chunk_id)
 );
 
+-- The orphan blob cleanup in apply_metadata_revision looks chunks up by blob_hash. Without this
+-- index it scans all chunks per blob (33 s on a 10,000-file Vault). A writable open adds it to
+-- older databases, and health does not require it, so they stay readable.
+CREATE INDEX IF NOT EXISTS chunks_blob_hash ON chunks(blob_hash);
+
 CREATE TABLE IF NOT EXISTS index_revisions (
   index_revision TEXT PRIMARY KEY,
   created_at TEXT NOT NULL

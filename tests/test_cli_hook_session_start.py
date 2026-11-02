@@ -1046,3 +1046,98 @@ def test_vectors_need_a_catch_up_when_the_vector_store_is_missing(graph_home: Pa
 
 def test_vector_check_on_an_unknown_vault_says_no(graph_home: Path, deterministic_check: None) -> None:
     assert vectors_need_catch_up(graph_home, "missing") is False
+
+
+# Quick refresh cost bound (re-audit 발견8) ----------------------------------------------------
+
+QUICK_REFRESH_TIMES = Path("logs") / "quick-refresh-times.json"
+
+
+def test_large_indexed_vault_skips_the_quick_refresh_before_staging(
+    base: Path, graph_home: Path, catch_up: CatchUps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("vault_graph.interface.composition.recall_index_refresh.MAX_QUICK_REFRESH_DOCUMENTS", 2)
+    fresh_note(base)
+    before = active_generation(graph_home)
+    staged_before = generations(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Use SQLite" in result.stdout
+    assert "Fresh" not in result.stdout
+    assert len(result.stderr.splitlines()) == 1
+    assert "Index refresh skipped" in result.stderr
+    assert "indexed documents" in result.stderr
+    assert active_generation(graph_home) == before
+    assert generations(graph_home) == staged_before
+    assert catch_up == [(graph_home, ("main",), ())]
+
+
+def test_quick_refresh_records_its_duration_per_vault_set(base: Path, graph_home: Path) -> None:
+    fresh_note(base)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    times = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))
+    record = times["main"]
+    assert 0 < record["seconds"] < 60
+    assert record["documents"] > 0
+    assert "recorded_at" in record
+
+
+def _record_quick_refresh(graph_home: Path, key: str, *, seconds: float, documents: int, age: timedelta) -> None:
+    from datetime import UTC, datetime
+
+    path = graph_home / QUICK_REFRESH_TIMES
+    path.parent.mkdir(parents=True, exist_ok=True)
+    recorded_at = (datetime.now(UTC) - age).isoformat()
+    path.write_text(
+        json.dumps({key: {"seconds": seconds, "documents": documents, "recorded_at": recorded_at}}), encoding="utf-8"
+    )
+
+
+def test_a_slow_last_quick_refresh_skips_the_next_one_before_staging(
+    base: Path, graph_home: Path, catch_up: CatchUps
+) -> None:
+    _record_quick_refresh(graph_home, "main", seconds=30.0, documents=5, age=timedelta(minutes=5))
+    fresh_note(base)
+    before = active_generation(graph_home)
+    staged_before = generations(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" not in result.stdout
+    assert len(result.stderr.splitlines()) == 1
+    assert "last quick refresh" in result.stderr
+    assert active_generation(graph_home) == before
+    assert generations(graph_home) == staged_before
+    assert catch_up == [(graph_home, ("main",), ())]
+
+
+def test_an_old_slow_record_is_ignored_so_the_quick_refresh_is_tried_again(base: Path, graph_home: Path) -> None:
+    _record_quick_refresh(graph_home, "main", seconds=30.0, documents=5, age=timedelta(days=2))
+    fresh_note(base)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
+    assert result.stderr == ""
+    record = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))["main"]
+    assert record["seconds"] < 30.0
+
+
+def test_an_unreadable_duration_record_does_not_block_the_quick_refresh(base: Path, graph_home: Path) -> None:
+    path = graph_home / QUICK_REFRESH_TIMES
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not json", encoding="utf-8")
+    fresh_note(base)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
+    assert result.stderr == ""
