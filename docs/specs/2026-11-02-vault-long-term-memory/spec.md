@@ -156,7 +156,7 @@ vault-builder가 계약을 소유하고, vault-graph는 그 계약을 부르거�
   2. 붙은 draft를 계약1의 `publish_draft`로 발행한다.
   3. 발행되면 항목을 `accepted`로 바꾸고, resolution에 쓴 경로를 적는다.
   4. 발행이 거부되면 항목을 `pending`으로 두고 종료 코드 1로 끝난다.
-- `--status rejected`는 지금처럼 상태만 바꾼다. draft 사본은 남긴다(감사 기록).
+- `--status rejected`는 지금처럼 상태만 바꾸고 `wiki/log.md`에 기록 한 줄을 남긴다. 기억 페이지는 바뀌지 않는다. draft 사본은 남긴다(감사 기록).
 - 다른 검토 유형의 `resolve` 동작은 바꾸지 않는다.
 - lint(`validate_review_queue`, `review.py:106-184`): `memory-proposal` 항목은 `draft` 파일이 `scratch/review/` 아래에 있어야 한다.
 - 모듈: 새 모듈 `tools/wiki/lib/memory_proposal.py`에 공개 함수 두 개를 둔다.
@@ -512,7 +512,7 @@ A-1~A-6은 vault-graph `tests/e2e/test_long_term_memory_scenarios.py` 하나에 
   - 제안: `remember(basis="inferred")`가 `proposed`와 `scratch/review/` 아래 `review_path`를 돌려준다. `wiki/` 아래 파일 바이트가 호출 전과 같다.
   - 승인 전: `vg index` 뒤 `vg search`와 회상 어디에도 제안 내용이 없다.
   - 승인: 사람 명령 `review resolve <review_path> --status accepted --resolution ...`이 종료 코드 0으로 끝나고 페이지가 `wiki/`에 생긴다. `vg index` 뒤 검색에 나온다.
-  - 거부: 다른 제안을 `--status rejected`로 끝내면 `wiki/`가 바뀌지 않는다.
+  - 거부: 다른 제안을 `--status rejected`로 끝내면 기억 페이지가 만들어지거나 바뀌지 않는다. `wiki/log.md`에는 기존 resolve처럼 "Review rejected" 기록 한 줄이 더해진다(2026-11-02 사용자 결정).
 - A-4 (시나리오④ 세션 종료 때 원문 저장)
   - 준비: 대화 JSONL 고정 파일과 SessionEnd 훅 JSON을 만든다.
   - vg 경로: `vault_hooks.py capture`가 `vg hook capture`를 거쳐 project Vault `raw/sessions/` 아래에 새 파일을 만든다.
@@ -522,7 +522,7 @@ A-1~A-6은 vault-graph `tests/e2e/test_long_term_memory_scenarios.py` 하나에 
   - 종료 코드: 실행기는 모든 경우에 0으로 끝난다.
 - A-5 (시나리오⑤ 검색 결과에 Vault 이름·종류)
   - 준비: 프로젝트에 Vault 셋(role `personal`, `project`, `team`)을 연결하고 모두 등록·색인한다.
-  - CLI: 프로젝트 폴더에서 범위 없이 `vg search --json`을 하면 결과가 둘 이상의 Vault에서 한 목록으로 나온다. 결과마다 `vault_name`, `vault_role`이 `vault-map.json` 값과 같다.
+  - CLI: 프로젝트 폴더에서 범위 없이 `vg search --format json`을 하면 결과가 둘 이상의 Vault에서 한 목록으로 나온다. 결과마다 `vault_name`, `vault_role`이 `vault-map.json` 값과 같다.
   - MCP: `search_vault(cwd=<프로젝트 폴더>)`도 같다.
   - 프로젝트 밖: 프로젝트 밖 폴더에서 범위 없이 검색하면 활성 Vault 결과만 나온다.
 - A-6 (시나리오⑥ Graph Home을 지워도 손실 없음)
@@ -568,7 +568,7 @@ A-1~A-6은 vault-graph `tests/e2e/test_long_term_memory_scenarios.py` 하나에 
   - `edits`와 `frontmatter`가 모두 비면 거부된다.
 - A-14 계약4(vault-builder)
   - 요약만 다른 한국어 제안 두 개가 서로 다른 `review_id`를 받는다.
-  - 다음 경우를 각각 테스트한다: `propose` 검증 실패 시 파일 0개, 승인 성공, 대상 해시가 달라 승인 거부, 발행 거부 시 `pending` 유지, `rejected` 시 wiki 무변경.
+  - 다음 경우를 각각 테스트한다: `propose` 검증 실패 시 파일 0개, 승인 성공, 대상 해시가 달라 승인 거부, 발행 거부 시 `pending` 유지, `rejected` 시 기억 페이지 무변경(`wiki/log.md` 기록 한 줄만 더해짐).
   - 다른 검토 유형의 기존 테스트가 그대로 통과한다.
 - A-15 계약5(vault-builder)
   - `set-role`과 `set-default-write`가 다른 필드를 보존한다.
