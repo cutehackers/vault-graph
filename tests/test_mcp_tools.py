@@ -32,7 +32,13 @@ from vault_graph.interface.mcp.mcp_tools import (
 )
 from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
 from vault_graph.operation.diagnostics.index_status_reader import StatusReport
-from vault_graph.operation.memory.memory_requests import MemoryWriteResult, RememberRequest
+from vault_graph.operation.memory.memory_requests import (
+    MemoryWriteResult,
+    RememberRequest,
+    RetireRequest,
+    UpdateRequest,
+    VaultCandidate,
+)
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.retrieval.graph.graph_readiness import GraphReadiness
 from vault_graph.retrieval.graph.graph_retrieval import (
@@ -169,7 +175,7 @@ class RecordingFactory:
         self.issue_memory_service = RecordingIssueMemoryService()
         self.health_explorer_service = RecordingHealthExplorerService()
         self.answer_service: object | None = None
-        self.remember_service: Any = None
+        self.memory_write_service: Any = None
         self.status_calls = 0
         self.graph_calls = 0
         self.retrieval_calls = 0
@@ -209,9 +215,9 @@ class RecordingFactory:
         self.health_calls += 1
         return self.health_explorer_service
 
-    def open_remember_service(self) -> Any:
-        assert self.remember_service is not None
-        return self.remember_service
+    def open_memory_write_service(self) -> Any:
+        assert self.memory_write_service is not None
+        return self.memory_write_service
 
     def open_answer_service(self, *, include_graph: bool = False) -> object:
         del include_graph
@@ -244,7 +250,10 @@ def test_register_mcp_tools_registers_exact_phase_6c_tools(tmp_path: Path) -> No
         "get_recent_changes",
         "explore_project",
         "remember",
+        "update_memory",
+        "retire_memory",
     )
+    assert len(registry.tool_names) == 14
     assert tuple(server.tools) == registry.tool_names
     assert all(server.structured_output[name] is True for name in registry.tool_names)
 
@@ -271,7 +280,7 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
         result_explanation_cache=ResultExplanationCache(),
     )
     tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
-    read_tools = sorted(name for name in registry.tool_names if name != "remember")
+    read_tools = sorted(name for name in registry.tool_names if name not in WRITE_TOOLS)
     schemas = {name: {"input": tools[name].inputSchema, "output": tools[name].outputSchema} for name in read_tools}
     # V2 adds one optional input `cwd` to three query tools (docs/SPEC.md §5 allows optional fields).
     # Remove it before hashing so the hash still proves every existing field is unchanged.
@@ -285,25 +294,42 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
     assert len(read_tools) == 11
     digest = hashlib.sha256(json.dumps(schemas, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     assert digest == SCHEMAS_AT_28F1C96
-    assert set(tools["remember"].inputSchema["properties"]) == {"title", "kind", "body", "evidence", "cwd", "vault"}
-    assert tools["remember"].inputSchema["required"] == ["title", "kind", "body", "evidence"]
+    for name, required, optional in WRITE_TOOL_INPUTS:
+        schema = tools[name].inputSchema
+        assert set(schema["properties"]) == set(required) | set(optional)
+        assert schema["required"] == list(required)
+        assert "default" not in schema["properties"]["basis"]
 
 
-class RecordingRememberService:
+WRITE_TOOLS = ("remember", "update_memory", "retire_memory")
+WRITE_TOOL_INPUTS = (
+    ("remember", ("title", "kind", "body", "evidence", "basis"), ("cwd", "vault", "pin", "memory_kind")),
+    ("update_memory", ("path", "body", "evidence", "basis"), ("vault", "cwd", "title", "pin", "memory_kind")),
+    ("retire_memory", ("path", "reason", "basis"), ("vault", "cwd", "replaced_by")),
+)
+
+
+class RecordingMemoryWriteService:
     def __init__(self, result: MemoryWriteResult) -> None:
         self.result = result
-        self.requests: list[RememberRequest] = []
+        self.requests: list[object] = []
 
     def remember(self, request: RememberRequest) -> MemoryWriteResult:
         self.requests.append(request)
         return self.result
 
+    def update(self, request: UpdateRequest) -> MemoryWriteResult:
+        self.requests.append(request)
+        return self.result
 
-def test_remember_tool_passes_fields_to_the_remember_service(tmp_path: Path) -> None:
+    def retire(self, request: RetireRequest) -> MemoryWriteResult:
+        self.requests.append(request)
+        return self.result
+
+
+def register_with(tmp_path: Path, result: MemoryWriteResult) -> tuple[RecordingToolServer, RecordingFactory]:
     factory = fake_factory()
-    factory.remember_service = RecordingRememberService(
-        MemoryWriteResult("published", "main", ("wiki/decisions/a.md",), ("Applied draft: wiki/decisions/a.md",))
-    )
+    factory.memory_write_service = RecordingMemoryWriteService(result)
     server = RecordingToolServer()
     register_mcp_tools(
         server,
@@ -312,20 +338,50 @@ def test_remember_tool_passes_fields_to_the_remember_service(tmp_path: Path) -> 
         context_pack_cache=ContextPackResourceCache(),
         result_explanation_cache=ResultExplanationCache(),
     )
+    return server, factory
+
+
+PUBLISHED = MemoryWriteResult(
+    "published", "main", ("wiki/decisions/a.md",), ("Applied draft: wiki/decisions/a.md",), vault_role="project"
+)
+
+
+def test_remember_tool_passes_fields_to_the_memory_write_service(tmp_path: Path) -> None:
+    server, factory = register_with(tmp_path, PUBLISHED)
 
     body = server.tools["remember"](
-        title="A", kind="decision", body="B", evidence=["E1", "E2"], cwd="/repo", vault="main"
+        title="A",
+        kind="decision",
+        body="B",
+        evidence=["E1", "E2"],
+        basis="stated",
+        cwd="/repo",
+        vault="main",
+        pin=True,
+        memory_kind="rule",
     )
 
-    assert factory.remember_service.requests == [
-        RememberRequest(title="A", kind="decision", body="B", evidence=("E1", "E2"), cwd="/repo", vault="main")
+    assert factory.memory_write_service.requests == [
+        RememberRequest(
+            title="A",
+            kind="decision",
+            body="B",
+            evidence=("E1", "E2"),
+            basis="stated",
+            cwd="/repo",
+            vault="main",
+            pin=True,
+            memory_kind="rule",
+        )
     ]
     assert body == {
         "tool_name": "remember",
         "payload": {
             "status": "published",
             "vault": "main",
+            "vault_role": "project",
             "written_paths": ["wiki/decisions/a.md"],
+            "candidates": [],
             "messages": ["Applied draft: wiki/decisions/a.md"],
         },
         "resource_links": [],
@@ -334,9 +390,91 @@ def test_remember_tool_passes_fields_to_the_remember_service(tmp_path: Path) -> 
     }
 
 
+def test_update_memory_tool_passes_fields_to_the_memory_write_service(tmp_path: Path) -> None:
+    server, factory = register_with(tmp_path, PUBLISHED)
+
+    body = server.tools["update_memory"](
+        path="wiki/decisions/a.md", body="New", evidence=["E"], basis="stated", title="T", pin=False
+    )
+
+    assert factory.memory_write_service.requests == [
+        UpdateRequest(path="wiki/decisions/a.md", body="New", evidence=("E",), basis="stated", title="T", pin=False)
+    ]
+    assert cast(dict[str, Any], body)["tool_name"] == "update_memory"
+    assert cast(dict[str, Any], body)["payload"]["status"] == "published"
+
+
+def test_retire_memory_tool_passes_fields_to_the_memory_write_service(tmp_path: Path) -> None:
+    server, factory = register_with(tmp_path, PUBLISHED)
+
+    body = server.tools["retire_memory"](
+        path="wiki/decisions/a.md", reason="Old", basis="stated", vault="main", replaced_by="wiki/decisions/b.md"
+    )
+
+    assert factory.memory_write_service.requests == [
+        RetireRequest(
+            path="wiki/decisions/a.md", reason="Old", basis="stated", vault="main", replaced_by="wiki/decisions/b.md"
+        )
+    ]
+    assert cast(dict[str, Any], body)["tool_name"] == "retire_memory"
+
+
+def test_vault_required_payload_lists_candidates(tmp_path: Path) -> None:
+    result = MemoryWriteResult(
+        "vault_required",
+        None,
+        (),
+        ("Pass vault.",),
+        candidates=(VaultCandidate("main", "project"), VaultCandidate("team", "team")),
+    )
+    server, _ = register_with(tmp_path, result)
+
+    body = server.tools["remember"](title="A", kind="decision", body="B", evidence=["E"], basis="stated")
+
+    payload = cast(dict[str, Any], body)["payload"]
+    assert payload["status"] == "vault_required"
+    assert payload["candidates"] == [{"name": "main", "role": "project"}, {"name": "team", "role": "team"}]
+    assert "review_path" not in payload
+
+
+@pytest.mark.parametrize("tool_name", WRITE_TOOLS)
+def test_write_tools_need_basis(tmp_path: Path, tool_name: str) -> None:
+    server, _ = register_with(tmp_path, PUBLISHED)
+    kwargs = {
+        "remember": {"title": "A", "kind": "decision", "body": "B", "evidence": ["E"]},
+        "update_memory": {"path": "wiki/a.md", "body": "B", "evidence": ["E"]},
+        "retire_memory": {"path": "wiki/a.md", "reason": "R"},
+    }[tool_name]
+
+    with pytest.raises(TypeError, match="basis"):
+        server.tools[tool_name](**kwargs)
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "kwargs"),
+    [
+        ("remember", {"title": "A", "kind": "decision", "body": "B", "evidence": ["E"], "basis": 1}),
+        ("remember", {"title": "A", "kind": "decision", "body": "B", "evidence": ["E"], "basis": "stated", "pin": "y"}),
+        ("update_memory", {"path": 3, "body": "B", "evidence": ["E"], "basis": "stated"}),
+        ("update_memory", {"path": "wiki/a.md", "body": "B", "evidence": "E", "basis": "stated"}),
+        ("retire_memory", {"path": "wiki/a.md", "reason": None, "basis": "stated"}),
+        ("retire_memory", {"path": "wiki/a.md", "reason": "R", "basis": "stated", "replaced_by": 5}),
+    ],
+)
+def test_write_tool_type_errors_are_structured(tmp_path: Path, tool_name: str, kwargs: dict[str, object]) -> None:
+    server, _ = register_with(tmp_path, PUBLISHED)
+
+    with pytest.raises(McpProtocolError) as exc_info:
+        server.tools[tool_name](**kwargs)
+
+    assert exc_info.value.payload.code == "invalid_tool_arguments"
+
+
 def test_remember_tool_returns_rejected_as_payload_not_protocol_error(tmp_path: Path) -> None:
     factory = fake_factory()
-    factory.remember_service = RecordingRememberService(MemoryWriteResult("rejected", None, (), ("title is empty",)))
+    factory.memory_write_service = RecordingMemoryWriteService(
+        MemoryWriteResult("rejected", None, (), ("title is empty",))
+    )
     registry = McpToolRegistry(
         services=fake_services(tmp_path),
         service_factory=cast(Any, factory),
@@ -344,7 +482,7 @@ def test_remember_tool_returns_rejected_as_payload_not_protocol_error(tmp_path: 
         result_explanation_cache=ResultExplanationCache(),
     )
 
-    body = registry.remember(RememberInput(title="", kind="decision", body="B", evidence=("E",)))
+    body = registry.remember(RememberInput(title="", kind="decision", body="B", evidence=("E",), basis="stated"))
 
     assert body.payload["status"] == "rejected"
     assert body.payload["written_paths"] == []

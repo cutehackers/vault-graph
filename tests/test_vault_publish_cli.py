@@ -1,7 +1,7 @@
-"""The publish-draft subprocess adapter (spec 4.2.4) and the optional A-14 run on a copied Vault.
+"""The publish-draft subprocess adapter reads only the 계약1 JSON (spec 2026-11-02 V3 어댑터, 6절).
 
-A-14 runs only when Vault tools are available. It copies them into a temporary directory and
-never touches the user's real Vault.
+The optional A-14 run on a copied Vault runs only when Vault tools are available. It copies them into
+a temporary directory and never touches the user's real Vault.
 """
 
 from __future__ import annotations
@@ -16,8 +16,13 @@ from pathlib import Path
 import pytest
 
 from tests.test_read_only_boundary import file_bytes
-from vault_graph.interface.composition.adapters.vault_publish_cli import CLI_RELATIVE_PATH, VaultPublishCli
-from vault_graph.operation.memory.memory_drafts import build_draft
+from vault_graph.interface.composition.adapters.vault_page_reader import VaultPageFileReader
+from vault_graph.interface.composition.adapters.vault_publish_cli import (
+    CLI_RELATIVE_PATH,
+    MAX_MESSAGE_LINES,
+    VaultPublishCli,
+)
+from vault_graph.operation.memory.memory_drafts import build_remember_draft
 from vault_graph.operation.memory.memory_requests import RememberRequest
 from vault_graph.operation.memory.memory_write_service import MemoryWriteService
 from vault_graph.project.context.project_binding_reader import MappedProjectMatch, MappedVault
@@ -40,56 +45,127 @@ def draft_file(tmp_path: Path) -> Path:
     return draft
 
 
-ECHO_ARGS = """
-import os, sys
-print("argv=" + "|".join(sys.argv[1:]))
-print("cwd=" + os.getcwd())
-print("flags=" + str(sys.flags.isolated) + str(sys.flags.dont_write_bytecode))
-"""
+def json_script(result: dict[str, object], *, exit_code: int, stderr: str = "") -> str:
+    return (
+        "import json, os, sys\n"
+        f"sys.stderr.write({stderr!r})\n"
+        f"result = json.loads({json.dumps(result)!r})\n"
+        'result["messages"] = result["messages"] + ["argv=" + "|".join(sys.argv[1:]), "cwd=" + os.getcwd(),'
+        ' "flags=" + str(sys.flags.isolated) + str(sys.flags.dont_write_bytecode)]\n'
+        "print(json.dumps(result))\n"
+        f"sys.exit({exit_code})\n"
+    )
 
 
-def test_runs_publish_draft_with_the_draft_path_only_from_the_vault_root(tmp_path: Path) -> None:
-    script = ECHO_ARGS + 'print("Validated draft: wiki/decisions/a.md")\nprint("Applied draft: wiki/decisions/a.md")\n'
+def contract_result(status: str, reason: str | None, written: list[str], messages: list[str]) -> dict[str, object]:
+    return {
+        "format": "vault-publish-result/v1",
+        "draft_version": 1,
+        "status": status,
+        "reason": reason,
+        "written_paths": written,
+        "messages": messages,
+    }
+
+
+def test_runs_publish_draft_json_from_the_vault_root_and_reads_written_paths(tmp_path: Path) -> None:
+    script = json_script(
+        contract_result("published", None, ["wiki/decisions/a.md", "wiki/index.md"], []),
+        exit_code=0,
+        stderr="Applied draft: wiki/decisions/a.md\n",
+    )
     vault_root = fake_vault(tmp_path, script)
     draft = draft_file(tmp_path)
 
-    outcome = VaultPublishCli().publish_draft(vault_root, draft, timeout_s=30)
+    outcome = VaultPublishCli().publish(vault_root, draft, timeout_s=30)
 
     assert outcome.status == "published"
-    assert outcome.written_paths == ("wiki/decisions/a.md",)
-    assert f"argv=publish-draft|{draft}" in outcome.messages
+    assert outcome.reason is None
+    assert outcome.written_paths == ("wiki/decisions/a.md", "wiki/index.md")
+    assert f"argv=publish-draft|{draft}|--json" in outcome.messages
     assert f"cwd={vault_root.resolve()}" in outcome.messages
     assert "flags=11" in outcome.messages
-    assert not any("--report" in message for message in outcome.messages)
+    assert not any("Applied draft" in message for message in outcome.messages)
 
 
-def test_non_zero_exit_is_rejected_with_the_output(tmp_path: Path) -> None:
-    script = 'import sys\nprint("Draft failed validation:\\n[error] missing-field", file=sys.stderr)\nsys.exit(1)\n'
+def test_human_locked_is_rejected_with_the_vault_message(tmp_path: Path) -> None:
+    lock_message = "Target page is human-locked: wiki/decisions/a.md"
+    script = json_script(contract_result("rejected", "human-locked", [], [lock_message]), exit_code=1)
     vault_root = fake_vault(tmp_path, script)
 
-    outcome = VaultPublishCli().publish_draft(vault_root, draft_file(tmp_path), timeout_s=30)
+    outcome = VaultPublishCli().publish(vault_root, draft_file(tmp_path), timeout_s=30)
 
     assert outcome.status == "rejected"
+    assert outcome.reason == "human-locked"
     assert outcome.written_paths == ()
-    assert "[error] missing-field" in outcome.messages
+    assert lock_message in outcome.messages
+    assert any("human-locked" in message for message in outcome.messages)
 
 
-def test_lint_failure_before_the_write_is_explained(tmp_path: Path) -> None:
-    script = 'import sys\nprint("Publish aborted: wiki lint must be clean before applying a draft.")\nsys.exit(1)\n'
+def test_lint_dirty_before_asks_to_fix_the_vault_lint_first(tmp_path: Path) -> None:
+    script = json_script(
+        contract_result("rejected", "lint-dirty-before", [], ["[error] broken-link wiki/a.md:3 - x"]), exit_code=1
+    )
     vault_root = fake_vault(tmp_path, script)
 
-    outcome = VaultPublishCli().publish_draft(vault_root, draft_file(tmp_path), timeout_s=30)
+    outcome = VaultPublishCli().publish(vault_root, draft_file(tmp_path), timeout_s=30)
 
     assert outcome.status == "rejected"
-    assert any("Vault lint was already failing" in message for message in outcome.messages)
+    assert "[error] broken-link wiki/a.md:3 - x" in outcome.messages
+    assert any("Fix the Vault lint first" in message for message in outcome.messages)
+
+
+def test_vault_tools_without_json_flag_ask_for_contract_4_migration(tmp_path: Path) -> None:
+    script = (
+        "import sys\n"
+        'sys.stderr.write("usage: cli.py [-h]\\ncli.py: error: unrecognized arguments: --json\\n")\n'
+        "sys.exit(2)\n"
+    )
+    vault_root = fake_vault(tmp_path, script)
+
+    outcome = VaultPublishCli().publish(vault_root, draft_file(tmp_path), timeout_s=30)
+
+    assert outcome.status == "error"
+    assert any("contract 4" in message and "Migrate" in message for message in outcome.messages)
+
+
+def test_output_that_is_not_json_is_an_error_with_the_last_lines(tmp_path: Path) -> None:
+    script = 'for i in range(100):\n    print(f"line {i}")\n'
+    vault_root = fake_vault(tmp_path, script)
+
+    outcome = VaultPublishCli().publish(vault_root, draft_file(tmp_path), timeout_s=30)
+
+    assert outcome.status == "error"
+    assert outcome.written_paths == ()
+    assert "line 99" in outcome.messages
+    assert "line 70" not in outcome.messages
+    assert len([message for message in outcome.messages if message.startswith("line ")]) == MAX_MESSAGE_LINES == 20
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {**contract_result("published", None, [], []), "format": "vault-publish-result/v2"},
+        {**contract_result("published", None, [], []), "status": "maybe"},
+        ["not", "an", "object"],
+    ],
+    ids=["format", "status", "shape"],
+)
+def test_json_outside_contract_1_is_an_error(tmp_path: Path, result: object) -> None:
+    vault_root = fake_vault(tmp_path, f"import json\nprint(json.dumps({result!r}))\n")
+
+    outcome = VaultPublishCli().publish(vault_root, draft_file(tmp_path), timeout_s=30)
+
+    assert outcome.status == "error"
 
 
 def test_timeout_stops_the_process_and_is_an_error(tmp_path: Path) -> None:
     vault_root = fake_vault(tmp_path, "import time\ntime.sleep(30)\n")
 
-    outcome = VaultPublishCli().publish_draft(vault_root, draft_file(tmp_path), timeout_s=0.5)
+    outcome = VaultPublishCli().publish(vault_root, draft_file(tmp_path), timeout_s=0.5)
 
     assert outcome.status == "error"
+    assert any("did not finish in 0.5 seconds" in message for message in outcome.messages)
     assert any("Vault git status" in message for message in outcome.messages)
 
 
@@ -97,21 +173,10 @@ def test_vault_without_tools_is_an_error(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
 
-    outcome = VaultPublishCli().publish_draft(vault_root, draft_file(tmp_path), timeout_s=30)
+    outcome = VaultPublishCli().publish(vault_root, draft_file(tmp_path), timeout_s=30)
 
     assert outcome.status == "error"
     assert any("no publish-draft" in message for message in outcome.messages)
-
-
-def test_long_output_is_cut_to_the_last_lines(tmp_path: Path) -> None:
-    script = 'for i in range(100):\n    print(f"line {i}")\nprint("Applied draft: wiki/systems/b.md")\n'
-    vault_root = fake_vault(tmp_path, script)
-
-    outcome = VaultPublishCli().publish_draft(vault_root, draft_file(tmp_path), timeout_s=30)
-
-    assert outcome.written_paths == ("wiki/systems/b.md",)
-    assert len(outcome.messages) <= 20
-    assert outcome.messages[-1] == "Applied draft: wiki/systems/b.md"
 
 
 def _vault_template() -> Path | None:
@@ -154,7 +219,8 @@ class OneVaultMap:
 def test_a14_remember_publishes_one_decision_page_in_a_copied_vault(copied_vault: Path, tmp_path: Path) -> None:
     service = MemoryWriteService(
         vault_map=OneVaultMap(MappedVault(name="copy", path=copied_vault, role="project")),
-        publisher=VaultPublishCli(python_executable=sys.executable),
+        writer=VaultPublishCli(python_executable=sys.executable),
+        page_reader=VaultPageFileReader(),
     )
 
     result = service.remember(
@@ -163,20 +229,23 @@ def test_a14_remember_publishes_one_decision_page_in_a_copied_vault(copied_vault
             kind="decision",
             body="The local index stays in SQLite files under Graph Home.",
             evidence=("User statement in the 2026-10-30 session.",),
+            basis="stated",
             vault="copy",
         )
     )
 
     assert result.status == "published", result.messages
-    assert result.written_paths == ("wiki/decisions/keep-the-vault-graph-index-in-sqlite.md",)
+    assert result.written_paths[0] == "wiki/decisions/keep-the-vault-graph-index-in-sqlite.md"
     assert (copied_vault / result.written_paths[0]).is_file()
 
 
 def test_a14_draft_without_a_required_field_is_rejected_and_leaves_the_copy_unchanged(
     copied_vault: Path, tmp_path: Path
 ) -> None:
-    draft = build_draft(
-        RememberRequest(title="Missing owner", kind="decision", body="Body.", evidence=("User statement.",)),
+    draft = build_remember_draft(
+        RememberRequest(
+            title="Missing owner", kind="decision", body="Body.", evidence=("User statement.",), basis="stated"
+        ),
         today=date.today(),
     )
     frontmatter = draft["frontmatter"]
@@ -186,7 +255,8 @@ def test_a14_draft_without_a_required_field_is_rejected_and_leaves_the_copy_unch
     draft_path.write_text(json.dumps(draft), encoding="utf-8")
     before = file_bytes(copied_vault)
 
-    outcome = VaultPublishCli().publish_draft(copied_vault, draft_path, timeout_s=120)
+    outcome = VaultPublishCli().publish(copied_vault, draft_path, timeout_s=120)
 
     assert outcome.status == "rejected", outcome.messages
+    assert outcome.reason is not None
     assert file_bytes(copied_vault) == before

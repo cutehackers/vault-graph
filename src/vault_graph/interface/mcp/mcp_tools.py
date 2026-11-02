@@ -62,6 +62,8 @@ McpToolName = Literal[
     "get_recent_changes",
     "explore_project",
     "remember",
+    "update_memory",
+    "retire_memory",
 ]
 MAX_MCP_TOOL_LIMIT = 50
 MAX_MCP_PROJECT_TASK_CHARS = 4096
@@ -216,8 +218,34 @@ class RememberInput:
     kind: str
     body: str
     evidence: tuple[str, ...]
+    basis: str
     cwd: str | None = None
     vault: str | None = None
+    pin: bool = False
+    memory_kind: str | None = None
+
+
+@dataclass(frozen=True)
+class UpdateMemoryInput:
+    path: str
+    body: str
+    evidence: tuple[str, ...]
+    basis: str
+    vault: str | None = None
+    cwd: str | None = None
+    title: str | None = None
+    pin: bool | None = None
+    memory_kind: str | None = None
+
+
+@dataclass(frozen=True)
+class RetireMemoryInput:
+    path: str
+    reason: str
+    basis: str
+    vault: str | None = None
+    cwd: str | None = None
+    replaced_by: str | None = None
 
 
 class McpToolRegistry:
@@ -249,6 +277,8 @@ class McpToolRegistry:
             "get_recent_changes",
             "explore_project",
             "remember",
+            "update_memory",
+            "retire_memory",
         )
 
     def ask_vault(self, request: AskVaultInput) -> McpToolBody:
@@ -677,25 +707,78 @@ class McpToolRegistry:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
     def remember(self, request: RememberInput) -> McpToolBody:
-        """Hand one stated memory to the Vault publish-draft. The only tool that writes to a Vault."""
+        """Add one new memory page through the Vault publish-draft (spec 2026-11-02 V3)."""
 
-        try:
-            from vault_graph.interface.mcp.mcp_tool_serialization import remember_result_to_payload
-            from vault_graph.operation.memory.memory_requests import RememberRequest
+        from vault_graph.operation.memory.memory_requests import RememberRequest
 
-            result = self._service_factory.open_remember_service().remember(
+        return self._memory_write(
+            "remember",
+            lambda service: service.remember(
                 RememberRequest(
                     title=request.title,
                     kind=request.kind,
                     body=request.body,
                     evidence=request.evidence,
+                    basis=cast(Any, request.basis),
                     cwd=request.cwd,
                     vault=request.vault,
+                    pin=request.pin,
+                    memory_kind=request.memory_kind,
                 )
-            )
+            ),
+        )
+
+    def update_memory(self, request: UpdateMemoryInput) -> McpToolBody:
+        """Replace the body of one existing memory page through the Vault publish-draft."""
+
+        from vault_graph.operation.memory.memory_requests import UpdateRequest
+
+        return self._memory_write(
+            "update_memory",
+            lambda service: service.update(
+                UpdateRequest(
+                    path=request.path,
+                    body=request.body,
+                    evidence=request.evidence,
+                    basis=cast(Any, request.basis),
+                    vault=request.vault,
+                    cwd=request.cwd,
+                    title=request.title,
+                    pin=request.pin,
+                    memory_kind=request.memory_kind,
+                )
+            ),
+        )
+
+    def retire_memory(self, request: RetireMemoryInput) -> McpToolBody:
+        """Retire one existing memory page through the Vault publish-draft. The file stays in the Vault."""
+
+        from vault_graph.operation.memory.memory_requests import RetireRequest
+
+        return self._memory_write(
+            "retire_memory",
+            lambda service: service.retire(
+                RetireRequest(
+                    path=request.path,
+                    reason=request.reason,
+                    basis=cast(Any, request.basis),
+                    vault=request.vault,
+                    cwd=request.cwd,
+                    replaced_by=request.replaced_by,
+                )
+            ),
+        )
+
+    def _memory_write(self, tool_name: McpToolName, run: Callable[[Any], Any]) -> McpToolBody:
+        """Run one Vault memory write. Every outcome, including rejected, is a payload, not a protocol error."""
+
+        try:
+            from vault_graph.interface.mcp.mcp_tool_serialization import memory_write_result_to_payload
+
+            result = run(self._service_factory.open_memory_write_service())
             return _tool_body(
-                tool_name="remember",
-                payload=remember_result_to_payload(result),
+                tool_name=tool_name,
+                payload=memory_write_result_to_payload(result),
                 resource_links=(),
                 warnings=(),
             )
@@ -877,11 +960,63 @@ def register_mcp_tools(
         kind: str,
         body: str,
         evidence: list[str],
+        basis: str,
         cwd: str | None = None,
         vault: str | None = None,
+        pin: bool = False,
+        memory_kind: str | None = None,
     ) -> dict[str, object]:
-        request = parse_remember_input(title=title, kind=kind, body=body, evidence=evidence, cwd=cwd, vault=vault)
+        request = parse_remember_input(
+            title=title,
+            kind=kind,
+            body=body,
+            evidence=evidence,
+            basis=basis,
+            cwd=cwd,
+            vault=vault,
+            pin=pin,
+            memory_kind=memory_kind,
+        )
         return registry.remember(request).to_json_dict()
+
+    @server.tool("update_memory", structured_output=True)
+    def update_memory(
+        path: str,
+        body: str,
+        evidence: list[str],
+        basis: str,
+        vault: str | None = None,
+        cwd: str | None = None,
+        title: str | None = None,
+        pin: bool | None = None,
+        memory_kind: str | None = None,
+    ) -> dict[str, object]:
+        request = parse_update_memory_input(
+            path=path,
+            body=body,
+            evidence=evidence,
+            basis=basis,
+            vault=vault,
+            cwd=cwd,
+            title=title,
+            pin=pin,
+            memory_kind=memory_kind,
+        )
+        return registry.update_memory(request).to_json_dict()
+
+    @server.tool("retire_memory", structured_output=True)
+    def retire_memory(
+        path: str,
+        reason: str,
+        basis: str,
+        vault: str | None = None,
+        cwd: str | None = None,
+        replaced_by: str | None = None,
+    ) -> dict[str, object]:
+        request = parse_retire_memory_input(
+            path=path, reason=reason, basis=basis, vault=vault, cwd=cwd, replaced_by=replaced_by
+        )
+        return registry.retire_memory(request).to_json_dict()
 
     return registry
 
@@ -924,20 +1059,94 @@ def parse_remember_input(
     kind: str,
     body: str,
     evidence: list[str],
+    basis: str,
     cwd: str | None = None,
     vault: str | None = None,
+    pin: bool = False,
+    memory_kind: str | None = None,
 ) -> RememberInput:
-    """Check only types here. Empty fields and unknown kinds come back as a ``rejected`` result."""
+    """Check only types here. Empty fields, unknown kinds and bases come back as a ``rejected`` result."""
 
-    for value, field_name in ((title, "title"), (kind, "kind"), (body, "body")):
+    _require_strings(title=title, kind=kind, body=body, basis=basis)
+    _require_optional_strings(cwd=cwd, vault=vault, memory_kind=memory_kind)
+    if not isinstance(pin, bool):
+        raise _invalid_arguments("pin must be a boolean")
+    return RememberInput(
+        title=title,
+        kind=kind,
+        body=body,
+        evidence=_evidence_tuple(evidence),
+        basis=basis,
+        cwd=cwd,
+        vault=vault,
+        pin=pin,
+        memory_kind=memory_kind,
+    )
+
+
+def parse_update_memory_input(
+    *,
+    path: str,
+    body: str,
+    evidence: list[str],
+    basis: str,
+    vault: str | None = None,
+    cwd: str | None = None,
+    title: str | None = None,
+    pin: bool | None = None,
+    memory_kind: str | None = None,
+) -> UpdateMemoryInput:
+    """Check only types here. Bad paths and empty fields come back as a ``rejected`` result."""
+
+    _require_strings(path=path, body=body, basis=basis)
+    _require_optional_strings(vault=vault, cwd=cwd, title=title, memory_kind=memory_kind)
+    if pin is not None and not isinstance(pin, bool):
+        raise _invalid_arguments("pin must be a boolean")
+    return UpdateMemoryInput(
+        path=path,
+        body=body,
+        evidence=_evidence_tuple(evidence),
+        basis=basis,
+        vault=vault,
+        cwd=cwd,
+        title=title,
+        pin=pin,
+        memory_kind=memory_kind,
+    )
+
+
+def parse_retire_memory_input(
+    *,
+    path: str,
+    reason: str,
+    basis: str,
+    vault: str | None = None,
+    cwd: str | None = None,
+    replaced_by: str | None = None,
+) -> RetireMemoryInput:
+    """Check only types here. Bad paths and empty reasons come back as a ``rejected`` result."""
+
+    _require_strings(path=path, reason=reason, basis=basis)
+    _require_optional_strings(vault=vault, cwd=cwd, replaced_by=replaced_by)
+    return RetireMemoryInput(path=path, reason=reason, basis=basis, vault=vault, cwd=cwd, replaced_by=replaced_by)
+
+
+def _require_strings(**values: object) -> None:
+    for field_name, value in values.items():
         if not isinstance(value, str):
             raise _invalid_arguments(f"{field_name} must be a string")
+
+
+def _require_optional_strings(**values: object) -> None:
+    for field_name, value in values.items():
+        if value is not None and not isinstance(value, str):
+            raise _invalid_arguments(f"{field_name} must be a string")
+
+
+def _evidence_tuple(evidence: object) -> tuple[str, ...]:
     if not isinstance(evidence, list | tuple) or not all(isinstance(item, str) for item in evidence):
         raise _invalid_arguments("evidence must be a list of strings")
-    for optional, field_name in ((cwd, "cwd"), (vault, "vault")):
-        if optional is not None and not isinstance(optional, str):
-            raise _invalid_arguments(f"{field_name} must be a string")
-    return RememberInput(title=title, kind=kind, body=body, evidence=tuple(evidence), cwd=cwd, vault=vault)
+    return tuple(evidence)
 
 
 def parse_ask_vault_input(

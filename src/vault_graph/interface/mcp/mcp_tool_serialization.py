@@ -51,13 +51,22 @@ def query_scope_to_dict(scope: QueryScope) -> dict[str, object]:
     }
 
 
-def remember_result_to_payload(result: MemoryWriteResult) -> dict[str, object]:
-    return {
+def memory_write_result_to_payload(result: MemoryWriteResult) -> dict[str, object]:
+    """Serialize a ``remember``, ``update_memory`` or ``retire_memory`` result (spec 2026-11-02 V3).
+
+    ``candidates`` is filled for ``vault_required``. ``review_path`` appears only when it is set.
+    """
+    payload: dict[str, object] = {
         "status": result.status,
         "vault": result.vault,
+        "vault_role": result.vault_role,
         "written_paths": list(result.written_paths),
+        "candidates": [{"name": candidate.name, "role": candidate.role} for candidate in result.candidates],
         "messages": list(result.messages),
     }
+    if result.review_path is not None:
+        payload["review_path"] = result.review_path
+    return payload
 
 
 def search_response_to_payload(
