@@ -14,13 +14,10 @@ from pathlib import Path
 import pytest
 
 from tests.test_read_only_boundary import file_bytes
-from vault_graph.operation.integration.remember_service import (
-    PUBLISH_TIMEOUT_SECONDS,
-    PublishOutcome,
-    RememberRequest,
-    RememberService,
-    build_draft,
-)
+from vault_graph.operation.memory.memory_drafts import build_draft
+from vault_graph.operation.memory.memory_ports import PublishOutcome
+from vault_graph.operation.memory.memory_requests import RememberRequest
+from vault_graph.operation.memory.memory_write_service import PUBLISH_TIMEOUT_SECONDS, MemoryWriteService
 from vault_graph.project.context.project_binding_reader import MappedProjectMatch, MappedVault
 
 TODAY = date(2026, 10, 30)
@@ -112,11 +109,11 @@ def make_service(
     *,
     vaults: tuple[MappedVault, ...] | None = None,
     linked: dict[str, tuple[MappedVault, ...]] | None = None,
-) -> RememberService:
+) -> MemoryWriteService:
     selected = vaults if vaults is not None else (make_vault(tmp_path, "main"),)
     temp_root = tmp_path / "os-temp"
     temp_root.mkdir(exist_ok=True)
-    return RememberService(
+    return MemoryWriteService(
         vault_map=FakeVaultMap(selected, linked or {}),
         publisher=publisher,
         today=lambda: TODAY,
@@ -203,7 +200,7 @@ def test_no_single_vault_is_an_error_and_nothing_runs(tmp_path: Path, cwd: str |
 
 def test_missing_vault_map_is_an_error(tmp_path: Path) -> None:
     publisher = RecordingPublisher()
-    service = RememberService(vault_map=None, publisher=publisher, today=lambda: TODAY, temp_root=tmp_path)
+    service = MemoryWriteService(vault_map=None, publisher=publisher, today=lambda: TODAY, temp_root=tmp_path)
 
     result = service.remember(make_request())
 

@@ -32,7 +32,7 @@ from vault_graph.interface.mcp.mcp_tools import (
 )
 from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
 from vault_graph.operation.diagnostics.index_status_reader import StatusReport
-from vault_graph.operation.integration.remember_service import RememberRequest, RememberResult
+from vault_graph.operation.memory.memory_requests import MemoryWriteResult, RememberRequest
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.retrieval.graph.graph_readiness import GraphReadiness
 from vault_graph.retrieval.graph.graph_retrieval import (
@@ -281,11 +281,11 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
 
 
 class RecordingRememberService:
-    def __init__(self, result: RememberResult) -> None:
+    def __init__(self, result: MemoryWriteResult) -> None:
         self.result = result
         self.requests: list[RememberRequest] = []
 
-    def remember(self, request: RememberRequest) -> RememberResult:
+    def remember(self, request: RememberRequest) -> MemoryWriteResult:
         self.requests.append(request)
         return self.result
 
@@ -293,7 +293,7 @@ class RecordingRememberService:
 def test_remember_tool_passes_fields_to_the_remember_service(tmp_path: Path) -> None:
     factory = fake_factory()
     factory.remember_service = RecordingRememberService(
-        RememberResult("published", "main", ("wiki/decisions/a.md",), ("Applied draft: wiki/decisions/a.md",))
+        MemoryWriteResult("published", "main", ("wiki/decisions/a.md",), ("Applied draft: wiki/decisions/a.md",))
     )
     server = RecordingToolServer()
     register_mcp_tools(
@@ -327,7 +327,7 @@ def test_remember_tool_passes_fields_to_the_remember_service(tmp_path: Path) -> 
 
 def test_remember_tool_returns_rejected_as_payload_not_protocol_error(tmp_path: Path) -> None:
     factory = fake_factory()
-    factory.remember_service = RecordingRememberService(RememberResult("rejected", None, (), ("title is empty",)))
+    factory.remember_service = RecordingRememberService(MemoryWriteResult("rejected", None, (), ("title is empty",)))
     registry = McpToolRegistry(
         services=fake_services(tmp_path),
         service_factory=cast(Any, factory),

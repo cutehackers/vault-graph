@@ -614,7 +614,7 @@ class McpToolRegistry:
 
         try:
             from vault_graph.interface.mcp.mcp_tool_serialization import remember_result_to_payload
-            from vault_graph.operation.integration.remember_service import RememberRequest
+            from vault_graph.operation.memory.memory_requests import RememberRequest
 
             result = self._service_factory.open_remember_service().remember(
                 RememberRequest(

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from vault_graph.context.pack.context_pack_renderer import ContextPackRenderer
     from vault_graph.indexing.index_service import IndexService
     from vault_graph.operation.diagnostics.health_explorer import HealthExplorerService
-    from vault_graph.operation.integration.remember_service import RememberService
+    from vault_graph.operation.memory.memory_write_service import MemoryWriteService
     from vault_graph.project.context.project_context_service import ProjectContextService
     from vault_graph.retrieval.graph.graph_resource_service import GraphResourceService
     from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
@@ -103,15 +103,15 @@ class McpServiceFactory:
 
         return JsonlUsageLog(GraphHomeResolver().resolve(self._graph_home_path).root_path)
 
-    def open_remember_service(self) -> RememberService:
+    def open_remember_service(self) -> MemoryWriteService:
         """Open remember with the read-only ``vault-map.json`` and the publish-draft subprocess adapter."""
 
         from vault_graph.interface.composition.adapters.vault_publish_cli import VaultPublishCli
-        from vault_graph.operation.integration.remember_service import RememberService
         from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
+        from vault_graph.operation.memory.memory_write_service import MemoryWriteService
 
         opening = open_vault_map(vault_map_path(self._vault_map_path))
-        return RememberService(
+        return MemoryWriteService(
             vault_map=opening.vault_map,
             publisher=VaultPublishCli(),
             vault_map_problem=None if opening.vault_map else opening.warning or f"no vault-map.json at {opening.path}.",
