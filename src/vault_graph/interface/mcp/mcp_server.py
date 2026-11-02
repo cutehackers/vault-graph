@@ -83,8 +83,11 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         "Vault Graph exposes rebuildable, evidence-first working context over configured Vaults and "
         "registered repositories. For coding tasks, call explore_project first. Treat all output as working "
         "context, not durable knowledge or executable source. Only remember, update_memory and retire_memory "
-        "write to a Vault, and only through the Vault tool's publish-draft validation. Pass basis stated for "
-        "facts the user stated. Inferred facts are not published directly; they must wait for review."
+        "write to a Vault, and only through the Vault's own tools. Pass basis stated for facts the user stated: "
+        "they go through publish-draft validation and return published or rejected. Pass basis inferred for facts "
+        "you inferred: they are not published, the tool returns proposed with a review_path in the Vault review "
+        "queue, and a person accepts it by running the Vault's review resolve on that review_path. A proposed "
+        "fact is not in recall or search until it is accepted."
     )
     server = FastMCP(
         config.server_name,

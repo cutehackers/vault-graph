@@ -4,10 +4,20 @@
 
 Vault Graph is a local search and recall layer over Vault. Its indexes are
 rebuildable derived data, not a durable knowledge source. Vault Graph never
-creates, edits, renames, rewrites, or deletes Vault files directly. The only
-path that writes to Vault is `remember`, which runs the Vault tool's
-publish-draft so the write passes Vault's own validation. Vault Graph never
-writes to `raw/`.
+creates, edits, renames, rewrites, or deletes Vault files directly. It changes
+Vault only by running the Vault's own tools, so every change passes Vault's
+validation. There are three such paths:
+
+1. `publish-draft`: `remember`, `update_memory`, and `retire_memory` with
+   `basis` `stated` (code in `src/vault_graph/operation/memory/`).
+2. `review propose`: the same three tools with `basis` `inferred`. The fact
+   waits in the Vault review queue until a person runs `review resolve`.
+3. The capture launcher: `vg hook capture` runs the Vault hook launcher
+   `vault_hooks.py capture --direct`, which runs the Vault's `sessions capture`.
+   Vault Graph decides only when it runs, not which Vault or what content.
+
+Search, indexing, watch, and recall never run these commands. Vault Graph never
+writes to `raw/` itself.
 
 ## Source Documents
 

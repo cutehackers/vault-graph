@@ -35,6 +35,7 @@ src/vault_graph/
 │   ├── readiness/           # 조회 전제 판정
 │   ├── diagnostics/         # 상태·위생·진단 설명
 │   ├── runtime/             # setup·watch·자원 종료
+│   ├── memory/              # Vault 기억 쓰기(추가·수정·폐기·제안)
 │   └── integration/         # 명시적 연동 설정·지침 관리
 │       ├── mcp/             # MCP 설정 파일 생성·등록
 │       ├── harness/         # 지침 설치·제거
@@ -70,6 +71,7 @@ src/vault_graph/
 | M15 진단 | `operation/diagnostics/` | 상태·투영 위생·확장 준비 설명. 자동 수리하지 않음 |
 | M16 실행 운영 | `operation/runtime/` | 초기 설정·주기 색인·중단·자원 정리 |
 | M17 연동 설정 | `operation/integration/` | MCP 등록·저장소 연결 catalog·지침의 명시적 변경 |
+| M18 기억 쓰기 | `operation/memory/` | 저장 Vault 고르기·draft 만들기·Vault 쓰기 포트·Vault별 잠금. Vault 명령 실행은 `interface/composition/adapters/`가 한다(§4) |
 
 `interface`는 입력 검증·전송·직렬화와 구성을 담당한다. `storage`는 포트의 구체 저장 방식과 저장 모델을 담당한다. `errors.py` 등 지원 파일과 하위 모듈은 생략했으므로 위 트리는 전체 파일 목록이 아니다.
 
@@ -122,6 +124,7 @@ flowchart TB
         DIAG["M15 operation.diagnostics<br/>상태·투영 위생·진단"]
         OPS["M16 operation.runtime<br/>초기 설정·주기 실행·중단"]
         CONFIG["M17 operation.integration<br/>명시적 등록·연결 설정·지침 관리"]
+        MEMWRITE["M18 operation.memory<br/>Vault 기억 추가·수정·폐기·제안"]
     end
 
     subgraph STORAGE["storage · 파생 저장소"]
@@ -150,6 +153,7 @@ flowchart TB
     READY -.-> GRAPH
     ROOT --> OPS
     ROOT --> CONFIG
+    ROOT --> MEMWRITE
     ROOT --> DIAG
     ROOT --> EXPLAIN
     OPS --> INDEX
@@ -209,6 +213,7 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 | M15 | `operation/diagnostics/` | M01, M02, M03, M06, M10, M14 | DEP-02: 진단이 각 기능의 상태를 읽음 |
 | M16 | `operation/runtime/` | M01, M02, M03, M04, M17 | |
 | M17 | `operation/integration/` | M01, M12 | M12의 binding 읽기 Protocol을 구현(보완5) |
+| M18 | `operation/memory/` | M01, M12 | M12의 `VaultMapReader`·`MappedVault`로 저장 Vault를 고른다. 어떤 영역도 M18을 가져오지 않는다 |
 
 표 외에 모든 기능 영역이 가져올 수 있는 대상은 다음과 같다.
 
@@ -220,11 +225,21 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 
 ## 4. 원본·투영·쓰기 경계
 
-등록 저장소의 소스는 읽기만 한다. Vault 문서는 vault-graph 프로세스가 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않고, Vault `raw/`에는 어떤 경로로도 쓰지 않는다. Vault에 쓰는 유일한 길은 remember다. remember는 Vault 도구의 publish-draft 하위 프로세스를 실행하는 명시적 쓰기 경로이며, 기록은 publish-draft의 검증을 거친다. 일반 조회·색인·watch와 다른 MCP 도구는 이 경로를 쓰지 않는다. 사용자 범위의 `vault-map.json`은 읽기만 한다. 메타데이터·벡터·그래프·코드 투영은 원본으로부터 다시 만들 수 있는 파생 데이터이며 지식의 공식 원본이 아니다. 임시 결과 설명 캐시도 영구 기억 저장소가 아니다.
+등록 저장소의 소스는 읽기만 한다. Vault 문서는 vault-graph 프로세스가 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않고, vault-graph 프로세스는 Vault `raw/`에 직접 쓰지 않는다. Vault가 바뀌는 길은 vault-graph가 Vault 자체 도구를 하위 프로세스로 실행하는 아래 세 가지뿐이며, 바뀐 내용은 그 도구의 검증을 거친다.
+
+| 쓰기 경로 | 실행하는 Vault 명령 | vault-graph 쪽 위치 |
+|---|---|---|
+| 확정 쓰기 | MCP `remember`·`update_memory`·`retire_memory`에 `basis: stated`를 주면 `tools/wiki/cli.py publish-draft <draft> --json`을 실행한다. 결과는 `published` 또는 `rejected`다 | M18 `operation/memory/`(요청·저장 Vault 고르기·draft·포트·흐름), 어댑터 `interface/composition/adapters/vault_publish_cli.py`, 수정 전 현재 페이지 읽기 `interface/composition/adapters/vault_page_reader.py` |
+| 제안 | 같은 세 도구에 `basis: inferred`를 주면 `tools/wiki/cli.py review propose --draft <draft> --summary <text> --json`을 실행한다. 결과는 `proposed`와 `review_path`이고, 사람이 `review resolve <review_path> --status accepted`로 승인해야 Vault가 발행한다 | 위와 같은 M18 모듈과 `vault_publish_cli.py` |
+| 세션 수집 | `vg hook capture`가 `vault-map.json` 폴더의 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 `raw/sessions/`에 쓴다. vault-graph는 실행 시점만 정하고 Vault와 내용은 고르지 않으며, 수집 뒤 색인하지 않는다 | `interface/cli/hook_commands.py`, 어댑터 `interface/composition/adapters/vault_capture_cli.py`. 기능 영역은 따로 두지 않는다 |
+
+M18 `operation/memory/`는 M01과 M12만 가져오고, 어떤 기능 영역도 M18을 가져오지 않는다. M18을 가져오는 곳은 `interface/` 계층(MCP 도구·직렬화·서비스 구성, 두 어댑터)뿐이다. 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 세 경로를 쓰지 않는다. 사용자 범위의 `vault-map.json`은 읽기만 한다.
+
+기억을 읽는 쪽에 새로 생긴 파일은 다음과 같다. 세션 시작 회상의 고정 기억 구획은 `context/pack/recall_pins.py`(M08), 검색 결과의 Vault 이름·종류 표시는 `interface/composition/vault_labels.py`, `cwd` 프로젝트의 연결 Vault 전부를 기본 검색 범위로 정하는 일은 `interface/composition/query_scope_resolution.py`가 한다. 기본 검색에서 status `retired` 페이지를 빼는 필터는 `retrieval/search/evidence_result_assembly.py`(M05)에 있다. 메타데이터·벡터·그래프·코드 투영은 원본으로부터 다시 만들 수 있는 파생 데이터이며 지식의 공식 원본이 아니다. 임시 결과 설명 캐시도 영구 기억 저장소가 아니다.
 
 일반 조회는 모델 다운로드·색인 생성·투영 기록·파일 초기화·설정 변경을 실행하지 않는다. 예외는 세션 시작 회상과 MCP 페이지 리소스 읽기가 이미 있는 Graph Home 아래 `usage/`에 사용 기록을 덧붙여 쓰는 것 하나다([VG-MOD](design/specs/2026-10-15-vault-graph-modular-architecture-ko.md) INV-02). 준비되지 않았거나 손상된 경우 기존 오류·경고·복구 안내를 반환한다. 여러 저장소의 색인 반영을 하나의 원자적 트랜잭션이라고 주장하지 않는다. Vault 투영은 비공개 세대를 검증한 뒤 발행하고 코드 투영은 전용 세대 수명을 유지한다.
 
-명시적으로 요청한 setup·index·watch는 해당 파생 데이터를 기록할 수 있다. MCP 등록·저장소 연결 설정·지침 설치/제거는 기존 경로·dry-run·사용자 수정 보존 규칙 아래에서만 설정 파일을 변경한다. 이 예외는 Vault 문서 편집 권한을 주지 않는다. Vault 쓰기는 위의 remember 경로에서만 일어난다.
+명시적으로 요청한 setup·index·watch는 해당 파생 데이터를 기록할 수 있다. MCP 등록·저장소 연결 설정·지침 설치/제거는 기존 경로·dry-run·사용자 수정 보존 규칙 아래에서만 설정 파일을 변경한다. 이 예외는 Vault 문서 편집 권한을 주지 않는다. Vault 쓰기는 위의 세 경로에서만 일어난다.
 
 ## 5. 가져오기 경로와 변경 방법
 

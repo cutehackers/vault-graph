@@ -222,16 +222,17 @@ td code { font-size: 12.5px; }
 <header class="head">
   <div class="eyebrow">vault-graph 재설계 제안 · 2026-10-29 · 최종 점검본</div>
   <h1>Vault 장기기억 설계</h1>
-  <p class="lead">기억은 Vault 안의 Markdown 파일로 남깁니다. Vault는 파일과 함께 그 파일을 쓰는 도구(llm-wiki의 <code>tools/wiki</code>, MCP 서버, 스킬)를 품고 있습니다. 여러 Vault를 프로젝트에 연결하고 요청을 나눠 보내는 일은 vault-builder가 사용자 범위(<code>$HOME/.claude/vault-builder/</code>)에 설치한 llm-wiki router와 <code>vault-map.json</code>이 맡습니다. vault-graph는 그 위의 로컬 검색·회상 계층입니다. Vault와 코드 저장소를 읽어 색인하고, 에이전트가 필요한 기억을 뜻과 관계로 찾아 출처와 함께 토큰 예산 안에 돌려줍니다.</p>
-  <div class="status"><b>상태</b> 제안 단계 · 결정8–10 채택 · 결정4–7 · 결정11 대기 · 중립 검토 2건 모두 ISSUES(차단 없음) · 코드 변경 없음</div>
+  <p class="lead">기억은 Vault 안의 Markdown 파일로 남깁니다. Vault는 파일과 함께 그 파일을 쓰는 도구(llm-wiki의 <code>tools/wiki</code>, MCP 서버, 스킬)를 품고 있습니다. 프로젝트와 Vault의 연결은 vault-builder가 사용자 범위(<code>$HOME/.claude/vault-builder/</code>)에 두는 <code>vault-map.json</code>에 적혀 있습니다. vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구입니다. 이 파일을 읽어 프로젝트에 연결된 여러 Vault를 함께 검색하고, 세션 시작 때 고정 기억부터 회상을 넣고, Vault 자체 도구를 실행해 기억을 추가·수정·폐기·제안하며, 세션 원문 수집의 실행 시점을 정합니다.</p>
+  <div class="status"><b>상태</b> 2026-10-29 제안 · 2026-11-02 구현 반영(<a href="#memory-now">장기 기억 흐름</a>, 상세는 <code>docs/specs/2026-11-02-vault-long-term-memory/spec.md</code>) · 중립 검토 2건 모두 ISSUES(차단 없음)</div>
   <ul class="principles">
     <li><b>원본은 Vault 하나</b><span>기억은 사람이 Obsidian에서 읽고 고칠 수 있는 파일입니다. vault-graph 색인은 지워도 다시 만들 수 있습니다.</span></li>
-    <li><b>wiki/는 검증을 거쳐서만 바뀜</b><span>정리와 remember는 Vault 도구의 검증(publish-draft)을 거쳐 <code>wiki/</code>에 기록됩니다. 세션 수집기는 <code>raw/sessions/</code>에 새 파일만 추가합니다(결정11). vault-graph는 Vault 파일을 직접 쓰지 않습니다.</span></li>
+    <li><b>wiki/는 검증을 거쳐서만 바뀜</b><span>정리와 vault-graph 쓰기 도구는 Vault 도구의 검증(publish-draft)을 거쳐 <code>wiki/</code>에 기록됩니다. 추론한 사실은 사람이 승인해야 기록됩니다. 세션 수집기는 <code>raw/sessions/</code>에 새 턴만 덧붙입니다(결정11). vault-graph는 Vault 파일을 직접 쓰지 않습니다.</span></li>
     <li><b>vault-graph는 LLM을 부르지 않음</b><span>근거와 출처만 돌려주고, 추론은 호출한 에이전트가 합니다. 로컬에서만 돌고 비용이 없습니다.</span></li>
   </ul>
   <nav class="toc" aria-label="목차">
     <a href="#value">역할과 가치</a>
     <a href="#state">현재 구현 상태</a>
+    <a href="#memory-now">장기 기억 흐름</a>
     <a href="#direction">방향</a>
     <a href="#master">전체 구조도</a>
     <a href="#features">기능 목록</a>
@@ -255,10 +256,11 @@ td code { font-size: 12.5px; }
       <thead><tr><th>영역</th><th>Vault (llm-wiki)</th><th>사용자 범위 (vault-builder가 설치)</th><th>vault-graph</th></tr></thead>
       <tbody>
         <tr><td>저장</td><td>기억 원본 Markdown</td><td>없음</td><td>없음. 색인은 지워도 다시 만듭니다.</td></tr>
-        <tr><td>쓰기</td><td><code>wiki/</code>는 publish-draft 등 검증 경로로만. <code>raw/</code>는 사람이 요청할 때만 (AGENTS 규칙1)</td><td>없음</td><td>remember가 기록을 publish-draft에 맡깁니다 (결정8).</td></tr>
-        <tr><td>Vault·프로젝트 연결</td><td>자기 폴더 하나만 다룹니다.</td><td><code>vault-map.json</code>, llm-wiki router</td><td><code>vault-map.json</code>을 읽기만 합니다 (결정9).</td></tr>
-        <tr><td>검색</td><td><code>wiki/</code>만. 질의마다 파일 전체를 다시 읽고 부분 문자열로 점수를 매깁니다. 한국어 조사를 뗍니다.</td><td>router가 연결된 Vault 전체에 검색을 보냅니다.</td><td><code>raw/</code> · <code>wiki/</code> · <code>docs/</code>를 상시 색인합니다. 키워드, 의미, 그래프 후보를 합칩니다.</td></tr>
-        <tr><td>회상</td><td>없음</td><td><code>recall.sh</code>: 고정 섹션 3개, 1,500토큰</td><td>질문과 관련된 근거를 토큰 예산 안에 담습니다. 없으면 <code>recall.sh</code>를 씁니다 (결정10).</td></tr>
+        <tr><td>쓰기</td><td><code>wiki/</code>는 publish-draft 등 검증 경로로만. 추론 사실은 검토 대기열 <code>scratch/review/</code>에서 사람이 승인합니다. <code>raw/</code>는 사람이 요청할 때와 세션 수집기만 (AGENTS 규칙1, 결정11)</td><td>없음</td><td><code>remember</code> · <code>update_memory</code> · <code>retire_memory</code>가 draft를 만들어 Vault 도구에 맡깁니다. 사용자가 말한 사실은 publish-draft, 추론한 사실은 <code>review propose</code>로 갑니다.</td></tr>
+        <tr><td>세션 수집</td><td><code>sessions capture</code>가 <code>raw/sessions/</code>에 새 턴만 덧붙입니다.</td><td>훅 실행기 <code>vault_hooks.py</code>가 PreCompact · SessionEnd에 수집할 Vault를 고르고 실행합니다.</td><td><code>vg hook capture</code>가 실행 시점만 정합니다. Vault와 내용은 고르지 않습니다.</td></tr>
+        <tr><td>Vault·프로젝트 연결</td><td>자기 폴더 하나만 다룹니다.</td><td><code>vault-map.json</code>, llm-wiki router. vault-builder 명령으로 고칩니다.</td><td><code>vault-map.json</code>을 읽기만 합니다 (결정9). 연결 Vault, 종류(<code>role</code>), 기본 저장 Vault(<code>default_write_vault</code>)를 읽습니다.</td></tr>
+        <tr><td>검색</td><td><code>wiki/</code>만. 질의마다 파일 전체를 다시 읽고 부분 문자열로 점수를 매깁니다. 한국어 조사를 뗍니다.</td><td>router가 연결된 Vault 전체에 검색을 보냅니다.</td><td><code>raw/</code> · <code>wiki/</code> · <code>docs/</code>를 상시 색인합니다. 키워드, 의미, 그래프 후보를 합칩니다. 프로젝트에 연결된 Vault 전부를 한 목록으로 찾고 결과마다 Vault 이름과 종류를 붙입니다.</td></tr>
+        <tr><td>회상</td><td>없음</td><td><code>recall.sh</code>: 고정 섹션 3개, 1,500토큰</td><td>세션 시작 때 고정 기억을 먼저, 나머지를 최신순으로 토큰 예산 안에 담습니다. 없으면 <code>recall.sh</code>를 씁니다 (결정10).</td></tr>
         <tr><td>코드</td><td>없음</td><td>없음</td><td>심볼, 호출, 영향 범위와 결정 기록을 연결합니다.</td></tr>
         <tr><td>LLM</td><td>정리 스킬에서 씁니다.</td><td>없음</td><td>부르지 않습니다 (결정7).</td></tr>
       </tbody>
@@ -273,14 +275,14 @@ td code { font-size: 12.5px; }
         <tr><td>가치1</td><td><b>대량 원문 검색</b><br>세션 원문 수천 개에서 찾기</td><td><code>wiki/</code>만 찾고 매번 전체를 다시 읽습니다. wiki 126쪽, Claude Code 대화 1.1GB.</td><td><span class="st new">구현</span> <code>raw/</code> 포함 상시 색인, 증분 색인</td><td>세션 수집(결정5 · 결정11)이 먼저 있어야 성립합니다. 규모 측정.</td></tr>
         <tr><td>가치2</td><td><b>의미 검색</b><br>"인증 실패"로 "로그인 오류" 찾기</td><td>없음</td><td><span class="st new">구현</span> 다국어 MiniLM 임베딩</td><td>한국어 품질 측정(변경7). 한국어 키워드는 지금 Vault가 낫습니다(발견24).</td></tr>
         <tr><td>가치3</td><td><b>코드 위키</b><br>코드와 결정·작업 기록을 함께 조회</td><td>코드를 읽지 않습니다.</td><td><span class="st chg">일부</span> Python · Dart 코드 투영, <code>explore_project</code>. 검색 색인과는 분리</td><td><code>explain_symbol</code>, 질의 하나로 코드와 기억 찾기(변경4)</td></tr>
-        <tr><td>가치4</td><td><b>관련 기억만 담은 회상</b></td><td><code>recall.sh</code>는 고정 섹션만 출력합니다.</td><td><span class="st new">구현</span> context pack (기본 8,000토큰 예산)</td><td>session-start 훅 연결(결정10)</td></tr>
+        <tr><td>가치4</td><td><b>관련 기억만 담은 회상</b></td><td><code>recall.sh</code>는 고정 섹션만 출력합니다.</td><td><span class="st new">구현</span> context pack (기본 8,000토큰 예산), 세션 시작 회상(고정 기억 구획 포함)</td><td>질문 기반 회상</td></tr>
         <tr><td>가치5</td><td><b>문단 단위 근거</b><br>중복 제거, 인용 검증</td><td>페이지 단위 결과</td><td><span class="st new">구현</span> 문단 조각, provenance 묶음, 인용 검증</td><td>대체된 claim 제외를 Vault와 맞추기(발견18)</td></tr>
         <tr><td>가치6</td><td><b>관계 추적</b> (보조)</td><td>링크와 지도만 있습니다.</td><td><span class="st new">구현</span> <code>find_related</code>, <code>get_decision_trace</code></td><td>없음</td></tr>
       </tbody>
     </table>
   </div>
   <div class="prose">
-    <p><b>vault-graph의 가치가 아닌 것</b>: 세션 수집 자체(Vault 도구 몫), <code>wiki/</code>만 대상으로 한 "빠른 검색"(126쪽 규모에서는 측정 전이고 근거가 약함), 쓰기 · 검증 · 여러 Vault 연결(Vault와 vault-builder 몫).</p>
+    <p><b>vault-graph의 가치가 아닌 것</b>: 세션 수집 대상과 내용 결정(Vault 도구가 정함), <code>wiki/</code>만 대상으로 한 "빠른 검색"(126쪽 규모에서는 측정 전이고 근거가 약함), 쓰기 검증(Vault 도구가 함), <code>vault-map.json</code> 수정(vault-builder가 함).</p>
   </div>
 </section>
 
@@ -303,9 +305,28 @@ td code { font-size: 12.5px; }
         <tr><td>watch</td><td><span class="st chg">일부</span></td><td>5초 간격 폴링. <code>watchfiles</code>는 의존성에만 있습니다.</td></tr>
         <tr><td>프로젝트 연결</td><td><span class="st chg">중복</span></td><td>자체 <code>project-bindings.json</code>과 자체 Vault 등록. <code>vault-map.json</code>은 읽지 않습니다.</td></tr>
         <tr><td>모듈 경계</td><td><span class="st chg">보완 필요</span></td><td>배치와 전송 계층 경계는 테스트로 지켜집니다. 기능 사이 방향 위반은 보완1~9 계획 초안에 있습니다.</td></tr>
-        <tr><td>이 설계의 새 요소</td><td><span class="st old">없음</span></td><td>remember, session-start 회상, <code>explain_symbol</code>, 세션 수집, <code>vault-map.json</code> 읽기, 한국어 조사 처리</td></tr>
+        <tr><td>이 설계의 새 요소</td><td><span class="st chg">2026-11-02 일부 구현</span></td><td>구현: <code>vault-map.json</code> 읽기, 여러 Vault 검색과 Vault 이름 · 종류 표시, 기억 추가 · 수정 · 폐기 · 제안, 세션 시작 회상과 고정 기억 구획, 수집 실행 시점(<code>vg hook capture</code>). 아직 없음: <code>explain_symbol</code>, 한국어 조사 처리. 아래 <a href="#memory-now">장기 기억 흐름</a>을 봅니다.</td></tr>
         <tr><td>불변성 엔진 VS-1~6</td><td><span class="st old">없음</span></td><td>활성 SPEC v5.0의 작업 전부</td></tr>
         <tr><td>이 컴퓨터에서 운영</td><td><span class="st old">미사용</span></td><td>Graph Home(<code>$HOME/.vault-graph</code>)과 Vault 등록이 없습니다. 지금 실제로 쓰이는 것은 llm-wiki MCP와 <code>recall.sh</code>입니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ MEMORY NOW ============ -->
+<section id="memory-now">
+  <h2><span class="n">02+</span>장기 기억 흐름 (2026-11-02 구현)</h2>
+  <div class="prose">
+    <p>아래 네 흐름은 브랜치 <code>feat/jh/local-graph</code>에 구현된 동작입니다. 기존 Vault는 vault-builder의 계약 버전 4 마이그레이션을 적용해야 쓰기가 되고, vault-builder <code>install --with-hooks</code>로 훅을 설치해야 회상과 수집 시점이 실제 세션에 들어갑니다.</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>흐름</th><th>누가 무엇을 하나</th><th>결과</th></tr></thead>
+      <tbody>
+        <tr><td>여러 Vault 검색 · 표시</td><td>범위를 주지 않으면 <code>cwd</code>의 프로젝트에 연결되고 Graph Home에 등록된 Vault 전부를 찾습니다. 프로젝트가 없으면 활성 Vault 하나를 찾습니다. MCP <code>search_vault</code> · <code>ask_vault</code> · <code>build_context_pack</code>은 선택 입력 <code>cwd</code>를 받고, 없으면 MCP 서버의 작업 디렉터리를 씁니다. 종류 사이 고정 우선순위는 없습니다.</td><td>관련도 순 한 목록. 검색 결과마다 <code>vault_name</code> · <code>vault_role</code>이 붙고, CLI는 줄 앞에 <code>[이름·종류]</code>를 붙입니다. 프로젝트 Vault가 하나도 등록되지 않았으면 다른 Vault로 넘어가지 않고 "<code>vg setup</code> 필요" 경고를 냅니다. 폐기(<code>retired</code>) 페이지는 기본 검색에서 빠집니다.</td></tr>
+        <tr><td>추가 · 수정 · 폐기 · 제안</td><td>에이전트가 MCP <code>remember</code>(추가), <code>update_memory</code>(본문 교체), <code>retire_memory</code>(폐기)를 부르고 <code>basis</code>를 반드시 줍니다. 새 페이지의 저장 Vault는 <code>vault</code>, 프로젝트의 <code>default_write_vault</code>, 연결 Vault가 하나뿐인 경우 순으로 정하고, 후보가 여럿이면 쓰지 않습니다. 수정 · 폐기는 그 경로가 있는 연결 Vault를 찾습니다. vault-graph는 draft만 만들고 Vault 도구를 실행합니다.</td><td><code>stated</code>: publish-draft 검증을 통과하면 <code>published</code>, 아니면 <code>rejected</code>. <code>inferred</code>: <code>review propose</code>가 검토 항목을 만들고 <code>proposed</code>와 <code>review_path</code>를 돌려줍니다. 사람이 <code>review resolve &lt;review_path&gt; --status accepted</code>로 승인해야 발행되고, 그 전에는 회상과 검색에 나오지 않습니다. <code>--status rejected</code>로 거부하면 기억 페이지는 바뀌지 않고 <code>wiki/log.md</code>에 "Review rejected" 한 줄만 남습니다. 후보가 여럿이면 <code>vault_required</code>와 후보 목록.</td></tr>
+        <tr><td>수집 시점</td><td>PreCompact · SessionEnd 훅이 Vault 훅 실행기를 부르고, vg가 있으면 실행기가 <code>vg hook capture</code>를 부릅니다. vg는 훅 JSON을 그대로 실행기의 <code>capture --direct</code>에 넘깁니다. 수집할 Vault와 내용은 실행기와 Vault <code>sessions capture</code>가 정합니다.</td><td>세션 원문이 <code>raw/sessions/</code>에 새 턴만 덧붙여집니다. vg는 결과를 표준 오류에 한 줄로 적고, 실패하거나 20초를 넘기면 종료 코드 3을 내 실행기가 직접 수집하게 합니다. 수집 뒤 색인하지 않고 Graph Home에 쓰지 않습니다.</td></tr>
+        <tr><td>고정 회상</td><td>SessionStart 훅이 <code>vg hook session-start</code>를 부릅니다. frontmatter <code>pin: true</code>(불리언)이고 현재 상태인 <code>wiki/</code> 페이지를 Vault와 상관없이 맨 앞 구획 <code>## 고정 기억</code>에 넣습니다.</td><td>고정 기억은 400토큰 예산 안에서 최신순으로 두 줄씩 들어가고, 넘치면 "N개 생략"을 둡니다. 나머지 기억은 모든 연결 Vault를 합쳐 최신순으로 채웁니다. 사용 기록은 순서를 바꾸지 않고 바뀐 · 폐기된 항목 알림의 중복 방지에만 씁니다. 폐기한 페이지는 알림 한 줄로만 나옵니다.</td></tr>
       </tbody>
     </table>
   </div>
@@ -316,15 +337,15 @@ td code { font-size: 12.5px; }
   <h2><span class="n">03</span>방향: Local-Graph</h2>
   <div class="prose">
     <p>이름은 Local-Graph로 맞습니다. 다만 무게는 Local에 둡니다. 모든 처리가 이 컴퓨터 안에서 끝나고 호스팅 서비스, API 키, LLM 호출이 없다는 점이 Honcho와 다릅니다. Graph(관계 추적)는 보조 가치이고, 핵심은 검색과 회상입니다.</p>
-    <p><b>제품 정의</b>: vault-graph는 Vault 위에서 도는 로컬 검색·회상 계층입니다. 에이전트가 필요한 기억을 Vault 원문, wiki, 코드에서 찾아 출처와 함께 토큰 예산 안에 돌려줍니다. Vault는 vault-graph 없이도 동작합니다.</p>
+    <p><b>제품 정의</b>: vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구입니다. 기억은 Vault에만 저장하고, 에이전트가 필요한 기억을 Vault 원문, wiki, 코드에서 찾아 출처와 함께 토큰 예산 안에 돌려줍니다. 기억 쓰기는 Vault 자체 도구를 실행해서만 합니다. Vault는 vault-graph 없이도 동작합니다.</p>
   </div>
   <div class="tbl">
     <table>
       <thead><tr><th>코드</th><th>방향</th><th>이유</th><th>연결</th></tr></thead>
       <tbody>
-        <tr><td>방향1</td><td>활성 SPEC을 "Vault 위의 로컬 검색·회상 계층"으로 다시 씁니다. 불변성 엔진 v5.0은 보관하거나 별도 SPEC으로 분리합니다.</td><td>SPEC 목표4("문서와 코드 사이 접점 제거")가 가치3과 정면으로 충돌합니다. README 정의는 이미 새 방향과 맞습니다.</td><td>결정4 · 발견22</td></tr>
+        <tr><td>방향1</td><td>활성 SPEC을 "Vault 기반 장기 기억 도구"로 다시 씁니다. 불변성 엔진 v5.0은 보관하거나 별도 SPEC으로 분리합니다.</td><td>SPEC 목표4("문서와 코드 사이 접점 제거")가 가치3과 정면으로 충돌합니다. README 정의는 이미 새 방향과 맞습니다.</td><td>결정4 · 발견22</td></tr>
         <tr><td>방향2</td><td>측정을 먼저 합니다. 같은 질문 20개를 Vault 검색과 <code>vg search</code>에 넣어 시간과 상위 5개 적중을 비교하고, <code>raw/sessions/</code>가 있는 경우도 잽니다.</td><td>가치1과 가치2는 아직 숫자로 확인되지 않았습니다.</td><td>측정1</td></tr>
-        <tr><td>방향3</td><td>Vault는 원본으로 두고 vault-graph는 쓰지 않습니다. 연결 정보는 <code>vault-map.json</code>만 씁니다.</td><td>연결 정보와 쓰기 경로를 두 벌로 관리하지 않기 위해서입니다.</td><td>결정8 · 결정9</td></tr>
+        <tr><td>방향3</td><td>Vault는 원본으로 두고 vault-graph는 Vault 파일을 직접 쓰지 않습니다. 쓰기는 Vault 도구를 실행해서만 합니다. 연결 정보는 <code>vault-map.json</code>만 씁니다.</td><td>연결 정보와 쓰기 경로를 두 벌로 관리하지 않기 위해서입니다.</td><td>결정8 · 결정9</td></tr>
         <tr><td>방향4</td><td>회상을 기본 경로로 만듭니다. SessionStart 훅이 context pack을 받고, vault-graph가 없으면 <code>recall.sh</code>로 돌아갑니다.</td><td>에이전트가 기억을 체감하는 첫 지점입니다.</td><td>결정10</td></tr>
         <tr><td>방향5</td><td>한국어 검색을 보강합니다. FTS5에 조사 처리나 trigram 토크나이저를 넣고, 임베딩 모델을 측정 결과로 정합니다.</td><td>지금은 "결정을"로 찾으면 "결정"이 맞지 않습니다.</td><td>변경7 · 변경9</td></tr>
         <tr><td>방향6</td><td>코드와 기억을 질의 하나로 찾게 합니다.</td><td>가치3을 완성하는 일이고 Vault에는 없는 기능입니다.</td><td>변경4</td></tr>
@@ -670,10 +691,11 @@ td code { font-size: 12.5px; }
 
   <div class="feats">
     <article class="feat" id="f1">
-      <header><span class="code">기능1</span><h3>수집</h3><span class="st new">신규</span><span class="own b">Vault 도구</span></header>
+      <header><span class="code">기능1</span><h3>수집</h3><span class="st new">신규</span><span class="own b">Vault 도구</span><span class="own g">vault-graph (시점)</span></header>
       <p class="why">에이전트 대화를 지워지기 전에 Vault 원자료로 옮깁니다. Claude Code는 대화 파일을 기본 30일 뒤 지웁니다. Vault에는 이미 Claude Code 메모 파일을 raw로 옮기는 <code>memory-cleanup</code> 스킬이 있어서, 같은 방식을 대화 기록으로 넓히는 일입니다.</p>
       <ol class="steps">
         <li><span class="who">Claude Code 훅</span><span>PreCompact 또는 SessionEnd가 발생합니다.</span><span class="io">→ transcript_path</span></li>
+        <li><span class="who">훅 실행기 · vg</span><span>vg가 있으면 <code>vg hook capture</code>가 훅 JSON을 실행기의 <code>capture --direct</code>에 넘깁니다. vg는 실행 시점만 정하고, 실패하면 종료 코드 3을 내 실행기가 직접 수집합니다.</span><span class="io">→ 수집할 Vault는 실행기가 고름</span></li>
         <li><span class="who">수집 도구</span><span>JSONL을 턴 단위로 읽고 발화와 도구 이름만 남깁니다.</span><span class="io">→ 비밀값 가림</span></li>
         <li><span class="who">수집 도구</span><span>Markdown과 frontmatter로 기록합니다.</span><span class="io">→ raw/sessions/claude-code/2026-10-29-&lt;id&gt;.md</span></li>
         <li><span class="who">Codex · ChatGPT</span><span>Codex는 주기 스캔, ChatGPT는 export ZIP을 수동으로 가져옵니다.</span><span class="io">→ 같은 형식으로 기록</span></li>
@@ -695,13 +717,13 @@ td code { font-size: 12.5px; }
     </article>
 
     <article class="feat" id="f3">
-      <header><span class="code">기능3</span><h3>직접 기록 (remember)</h3><span class="st chg">결정8 · 변경8</span><span class="own a">에이전트</span><span class="own g">vault-graph</span><span class="own b">Vault 도구</span></header>
-      <p class="why">세션 중에 "이건 기억해"라고 하면 에이전트가 vault-graph MCP의 <code>remember</code>로 바로 남깁니다. vault-graph는 파일을 쓰지 않고 Vault 도구의 <code>publish-draft</code>를 호출하므로, 에이전트는 MCP 하나만 알면 되고 기록은 같은 검증을 거칩니다. Vault의 llm-wiki MCP를 직접 쓰는 길도 남아 있습니다.</p>
+      <header><span class="code">기능3</span><h3>기억 쓰기 (추가 · 수정 · 폐기 · 제안)</h3><span class="st chg">결정8 · 변경8</span><span class="own a">에이전트</span><span class="own g">vault-graph</span><span class="own b">Vault 도구</span></header>
+      <p class="why">세션 중에 "이건 기억해", "그건 이제 틀렸어"라고 하면 에이전트가 vault-graph MCP의 <code>remember</code>, <code>update_memory</code>, <code>retire_memory</code>로 바로 반영합니다. vault-graph는 파일을 쓰지 않고 Vault 도구를 실행하므로, 에이전트는 MCP 하나만 알면 되고 기록은 같은 검증을 거칩니다. Vault의 llm-wiki MCP를 직접 쓰는 길도 남아 있습니다.</p>
       <ol class="steps">
-        <li><span class="who">에이전트</span><span>vault-graph MCP remember에 기억할 내용과 근거를 넘깁니다.</span><span class="io">→ 내용 · 근거 경로</span></li>
-        <li><span class="who">vault-graph 진입점</span><span>wiki 변경 요청을 만들어 Vault의 tools/wiki/cli.py publish-draft를 실행합니다.</span><span class="io">→ draft JSON · 파일은 직접 쓰지 않음</span></li>
-        <li><span class="who">검증 · 발행</span><span>publish-draft가 형식과 출처를 확인하고 기록합니다.</span><span class="io">→ wiki/decisions · systems</span></li>
-        <li><span class="who">검토 대기열</span><span>검증을 통과하지 못하거나 추론한 사실이면 대기열로 갑니다.</span><span class="io">→ scratch/review/</span></li>
+        <li><span class="who">에이전트</span><span>세 도구 중 하나에 내용, 근거, <code>basis</code>(<code>stated</code> 또는 <code>inferred</code>, 필수)를 넘깁니다.</span><span class="io">→ 내용 · 근거 경로 · basis</span></li>
+        <li><span class="who">M18 기억 쓰기</span><span>새 페이지는 <code>vault</code> → <code>default_write_vault</code> → 유일한 연결 Vault 순으로 저장 Vault를 고르고, 후보가 여럿이면 멈춥니다. 수정 · 폐기는 그 경로가 있는 연결 Vault를 찾습니다. 추가 · 수정은 <code>upsert-page</code>, 폐기는 frontmatter만 바꾸는 <code>patch-page</code> draft를 만듭니다.</span><span class="io">→ draft JSON · 또는 vault_required</span></li>
+        <li><span class="who">검증 · 발행</span><span><code>stated</code>면 publish-draft가 검증하고 기록합니다.</span><span class="io">→ published 또는 rejected</span></li>
+        <li><span class="who">검토 대기열</span><span><code>inferred</code>면 <code>review propose</code>가 검토 항목을 만듭니다. 사람이 <code>review resolve --status accepted</code>로 승인하면 Vault가 발행합니다.</span><span class="io">→ proposed · review_path · scratch/review/</span></li>
       </ol>
       <footer><span>관련 위험 <a href="#r3">위험3</a></span><span>Honcho: conclusions 추가</span><button type="button" data-show="3">구조도에서 강조</button></footer>
     </article>
@@ -725,9 +747,8 @@ td code { font-size: 12.5px; }
       <ol class="steps">
         <li><span class="who">Claude Code 훅</span><span>SessionStart가 vault-graph를 부릅니다.</span><span class="io">→ cwd · session_id</span></li>
         <li><span class="who">M17 · M01</span><span>cwd에서 저장소를 찾고 연결된 Vault 범위를 정합니다.</span><span class="io">→ 조회 범위</span></li>
-        <li><span class="who">M10 기억 조회</span><span>프로필, 최근 에피소드, 결정, 열린 질문을 가져옵니다.</span><span class="io">→ 기억 항목</span></li>
-        <li><span class="who">M05 검색</span><span>최근 기억에 가중치를 주고 superseded claim은 뺍니다.</span><span class="io">→ 순위 후보</span></li>
-        <li><span class="who">M08 recall</span><span>토큰 예산 안에서 묶고 항목마다 날짜와 근거 경로를 붙입니다.</span><span class="io">→ recall 묶음 (Markdown)</span></li>
+        <li><span class="who">M08 고정 기억</span><span><code>pin: true</code>이고 현재 상태인 페이지를 Vault와 상관없이 맨 앞 <code>## 고정 기억</code> 구획에 400토큰 안에서 넣습니다.</span><span class="io">→ 구획A</span></li>
+        <li><span class="who">M08 recall</span><span>나머지 페이지를 모든 연결 Vault를 합쳐 최신순으로 예산 안에 묶고, 바뀌거나 폐기된 항목은 알림 한 줄로 보입니다. 사용 기록은 순서에 쓰지 않습니다.</span><span class="io">→ recall 묶음 (Markdown)</span></li>
         <li><span class="who">Claude Code 훅</span><span>결과를 에이전트 문맥에 넣습니다.</span><span class="io">→ additionalContext</span></li>
       </ol>
       <footer><span>관련 위험 <a href="#r2">위험2</a></span><span>Honcho: 세션 문맥 · peer card 주입</span><button type="button" data-show="5">구조도에서 강조</button></footer>
@@ -737,9 +758,9 @@ td code { font-size: 12.5px; }
       <header><span class="code">기능6</span><h3>질의</h3><span class="st chg">기존 + 변경2</span><span class="own g">vault-graph</span><span class="own a">에이전트</span></header>
       <p class="why">세션 중 "지난번에 이거 어떻게 했지?"에 근거로 답합니다. 근거는 vault-graph가 찾고, 추론은 에이전트가 합니다.</p>
       <ol class="steps">
-        <li><span class="who">에이전트</span><span>MCP ask_vault 또는 search_vault를 부릅니다.</span><span class="io">→ 질문</span></li>
+        <li><span class="who">에이전트</span><span>MCP ask_vault 또는 search_vault를 부릅니다. 범위를 주지 않으면 <code>cwd</code> 프로젝트에 연결된 Vault 전부가 대상입니다.</span><span class="io">→ 질문 · cwd</span></li>
         <li><span class="who">M14 준비 상태</span><span>색인과 리비전이 준비됐는지 확인합니다.</span><span class="io">→ 준비 또는 경고</span></li>
-        <li><span class="who">M05 · M06 · M07</span><span>wiki(knowledge 모드)에서 먼저 찾고, 원문 대화가 필요하면 evidence 모드로 raw/sessions까지 찾습니다.</span><span class="io">→ 근거 청크</span></li>
+        <li><span class="who">M05 · M06 · M07</span><span>wiki(knowledge 모드)에서 먼저 찾고, 원문 대화가 필요하면 evidence 모드로 raw/sessions까지 찾습니다. 여러 Vault 결과를 관련도 순 한 목록으로 합치고 폐기 페이지를 뺍니다.</span><span class="io">→ 근거 청크 · Vault 이름과 종류</span></li>
         <li><span class="who">M09 발췌 답변</span><span>인용이 근거와 맞는지 검증합니다.</span><span class="io">→ 인용 포함 발췌</span></li>
         <li><span class="who">에이전트</span><span>근거를 읽고 직접 추론해 답합니다.</span><span class="io">→ 답변</span></li>
       </ol>
@@ -1078,7 +1099,7 @@ memory:                    <span class="k"># 제안 · vault-memory/v1</span>
         <text class="el" x="1043" y="550">범위</text>
       </svg>
     </div>
-    <figcaption>왼쪽에서 오른쪽으로 원본 → 색인 → 저장 → 검색 → 조합 → 진입점 순서입니다. 굵은 이름의 MCP 도구(recall, remember, explain_symbol, get_profile)는 새로 추가합니다. remember는 Vault 파일을 직접 쓰지 않고 Vault 도구의 publish-draft를 호출합니다 (변경8). 각 모듈은 다른 모듈의 내부가 아니라 읽기 포트로만 저장소에 접근합니다.</figcaption>
+    <figcaption>왼쪽에서 오른쪽으로 원본 → 색인 → 저장 → 검색 → 조합 → 진입점 순서입니다. 굵은 이름의 MCP 도구(recall, remember, explain_symbol, get_profile)는 새로 추가합니다. 쓰기 도구는 Vault 파일을 직접 쓰지 않고 Vault 도구의 publish-draft 또는 <code>review propose</code>를 실행합니다 (변경8). 각 모듈은 다른 모듈의 내부가 아니라 읽기 포트로만 저장소에 접근합니다.</figcaption>
   </figure>
 
   <div class="tbl">
@@ -1092,7 +1113,7 @@ memory:                    <span class="k"># 제안 · vault-memory/v1</span>
         <tr><td>변경5</td><td><code>operation/runtime</code> M16</td><td>폴링을 파일 변경 이벤트 기반 색인으로 교체 (<code>watchfiles</code>)</td><td>기능4</td></tr>
         <tr><td>변경6</td><td>M17 + 훅</td><td><code>vg hook session-start</code>: SessionStart 훅이 recall 결과를 문맥에 넣음</td><td>기능5</td></tr>
         <tr><td>변경7</td><td>임베딩</td><td>한국어 대화 회상을 위해 <code>paraphrase-multilingual-MiniLM-L12-v2</code> 교체를 측정 후 결정</td><td>기능4 · 5 · 6</td></tr>
-        <tr><td>변경8</td><td><code>interface/mcp</code> + M17</td><td><code>remember(content, evidence)</code>: wiki 변경 요청을 만들어 Vault의 <code>tools/wiki/cli.py publish-draft</code>를 실행. Vault 파일은 직접 쓰지 않음 (결정8)</td><td>기능3</td></tr>
+        <tr><td>변경8</td><td><code>interface/mcp</code> + M18 <code>operation/memory</code></td><td><code>remember</code> · <code>update_memory</code> · <code>retire_memory</code>: draft를 만들어 <code>basis: stated</code>면 Vault의 <code>tools/wiki/cli.py publish-draft --json</code>, <code>inferred</code>면 <code>review propose --json</code>을 실행. Vault 파일은 직접 쓰지 않음 (결정8)</td><td>기능3</td></tr>
       </tbody>
     </table>
   </div>
@@ -1186,7 +1207,7 @@ memory:                    <span class="k"># 제안 · vault-memory/v1</span>
         <text class="ml" x="660" y="775" text-anchor="middle">다음 세션 recall에 반영</text>
       </svg>
     </div>
-    <figcaption>에이전트가 기억을 받는 경로(세션 시작, 작업 중 질의)는 vault-graph만 거치고, 기억을 남기는 경로 중 remember와 정리는 Vault 도구의 검증을 거쳐 <code>wiki/</code>에 기록되고, 세션 종료 수집은 <code>raw/sessions/</code>에 새 파일만 추가합니다. 에이전트는 vault-graph MCP 하나만 알면 됩니다. 두 경로는 Vault 파일에서만 만납니다. vault-builder 명령은 세션 중에 실행되지 않습니다.</figcaption>
+    <figcaption>에이전트가 기억을 받는 경로(세션 시작, 작업 중 질의)는 vault-graph만 거치고, 기억을 남기는 경로 중 쓰기 도구와 정리는 Vault 도구의 검증을 거쳐 <code>wiki/</code>에 기록되고(추론한 사실은 사람 승인 뒤), 세션 압축 · 종료 수집은 <code>raw/sessions/</code>에 새 턴만 덧붙입니다. 에이전트는 vault-graph MCP 하나만 알면 됩니다. 두 경로는 Vault 파일에서만 만납니다. vault-builder 명령은 세션 중에 실행되지 않습니다.</figcaption>
   </figure>
 </section>
 
@@ -1294,9 +1315,9 @@ memory:                    <span class="k"># 제안 · vault-memory/v1</span>
     all: '전체 흐름을 보고 있습니다.',
     '1': '기능1 수집: 훅이 transcript_path를 넘기면 Vault의 수집 도구가 비밀값을 가린 뒤 raw/sessions에 Markdown으로 기록합니다. Codex와 ChatGPT도 같은 형식으로 들어옵니다.',
     '2': '기능2 정리: Vault의 정리 작업(스킬)이 raw를 읽어 wiki 변경 요청을 만들고, 검증을 통과하면 wiki에, LLM이 추론한 사실이면 검토 대기열에 기록합니다. 결과는 스키마 계약을 따릅니다.',
-    '3': '기능3 직접 기록: 에이전트가 vault-graph MCP의 remember를 부르면 vault-graph가 Vault 도구의 publish-draft를 호출하고, 같은 검증을 거쳐 wiki에 들어갑니다. llm-wiki MCP를 직접 쓰는 길도 남아 있습니다.',
+    '3': '기능3 기억 쓰기: 에이전트가 vault-graph MCP의 remember · update_memory · retire_memory를 부르면 vault-graph가 Vault 도구를 실행합니다. 사용자가 말한 사실은 publish-draft 검증을 거쳐 wiki에 들어가고, 추론한 사실은 검토 대기열에서 사람 승인을 기다립니다. llm-wiki MCP를 직접 쓰는 길도 남아 있습니다.',
     '4': '기능4 색인: vault-graph가 Vault의 raw/ · wiki/ · docs/ · scratch/reports/ 아래 Markdown과 코드 저장소를 읽기만 하고, 결과는 자기 저장소(Graph Home)에 기록합니다. 검토 대기열은 읽지 않습니다.',
-    '5': '기능5 회상: SessionStart 훅이 cwd를 넘기면 진입점에서 범위를 정하고, 회상 모듈이 저장소에서 기억을 꺼내 recall 묶음으로 돌려줍니다.',
+    '5': '기능5 회상: SessionStart 훅이 cwd를 넘기면 진입점에서 범위를 정하고, 회상 모듈이 고정 기억을 먼저, 나머지를 최신순으로 recall 묶음에 담아 돌려줍니다.',
     '6': '기능6 질의: 에이전트가 MCP로 묻고, 검색·근거 연결·발췌 답변을 거친 근거가 돌아옵니다. 추론은 에이전트가 합니다.',
     '7': '기능7 코드 위키: explain_symbol이 코드 투영의 사실에 decisions·systems의 기억을 붙여 돌려줍니다.'
   };
