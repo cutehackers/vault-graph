@@ -356,7 +356,7 @@ def vault_list(
 @mcp_app.command("config")
 def mcp_config(
     state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
-    agent: str = typer.Option("codex", "--agent", help="Agent config format."),
+    agent: str = typer.Option("codex", "--agent", help="Agent config format: codex or claude."),
     print_config: bool = typer.Option(False, "--print", help="Print config JSON to stdout."),
 ) -> None:
     if not print_config:
@@ -379,7 +379,7 @@ def mcp_config(
 @mcp_app.command("register")
 def mcp_register(
     state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
-    agent: str = typer.Option("codex", "--agent", help="Agent config format."),
+    agent: str = typer.Option("codex", "--agent", help="Agent config format: codex or claude."),
     config_path: Path = typer.Option(..., "--config-path", help="Explicit agent MCP config file path."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Report changes without writing config."),
 ) -> None:
@@ -415,7 +415,7 @@ def setup(
     ),
     state: Path = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path."),
     vault_id: str = typer.Option("default", "--vault-id", help="Registered Vault ID."),
-    agent: str | None = typer.Option("codex", "--agent", help="Agent config format."),
+    agent: str | None = typer.Option("codex", "--agent", help="Agent config format: codex or claude."),
     mcp: bool = typer.Option(False, "--mcp", help="Register the MCP server in the selected agent config."),
     mcp_config_path: Path | None = typer.Option(None, "--mcp-config-path", help="Explicit agent MCP config path."),
     print_mcp_config: bool = typer.Option(False, "--print-mcp-config", help="Print MCP config JSON."),
@@ -429,10 +429,9 @@ def setup(
         index_factory=LocalIndexServiceFactory(text_embeddings_factory=_text_embeddings),
     )
     targets = ((vault, vault_id),) if vault is not None else _vault_map_setup_targets(state, vault_map, dry_run=dry_run)
+    failures: list[str] = []
     for position, (target_path, target_id) in enumerate(targets):
         last = position == len(targets) - 1
-        if vault is None and not dry_run:
-            _register_map_vault(state, vault_path=target_path, vault_id=target_id)
         request = SetupRequest(
             vault_path=target_path,
             graph_home_path=state,
@@ -444,7 +443,25 @@ def setup(
             print_mcp_config=print_mcp_config and last,
             dry_run=dry_run,
         )
-        _echo_setup_report(_exit_on_domain_error(partial(setup_service.setup, request)))
+        if vault is not None:
+            _echo_setup_report(_exit_on_domain_error(partial(setup_service.setup, request)))
+            continue
+        # With a vault map, one failing Vault must not stop setup of the Vaults after it.
+        try:
+            if not dry_run:
+                _register_map_vault(state, vault_path=target_path, vault_id=target_id)
+            _echo_setup_report(_exit_on_domain_error(partial(setup_service.setup, request)))
+        except typer.Exit as exc:
+            if not exc.exit_code:
+                raise
+            failures.append(f"setup_failed: vault_id={target_id} vault_path={target_path} exit_code={exc.exit_code}")
+        except Exception as exc:  # noqa: BLE001 - reported per Vault, then setup exits non-zero.
+            reason = " ".join(f"{type(exc).__name__}: {exc}".split())
+            failures.append(f"setup_failed: vault_id={target_id} vault_path={target_path} error={reason}")
+    for line in failures:
+        typer.echo(line)
+    if failures:
+        raise typer.Exit(1)
 
 
 def _vault_map_setup_targets(state: Path, explicit: Path | None, *, dry_run: bool) -> tuple[tuple[Path, str], ...]:
@@ -504,6 +521,9 @@ def _echo_setup_report(report: SetupReport) -> None:
         typer.echo(f"mcp_changed: {report.mcp_registration.changed}")
         if report.mcp_registration.backup_path is not None:
             typer.echo(f"mcp_backup_path: {report.mcp_registration.backup_path}")
+    if report.index_report is not None:
+        for warning in report.index_report.metadata.warnings:
+            typer.echo(f"warning: {warning}")
     for warning in report.warnings:
         typer.echo(f"warning: {warning}")
     if report.recovery_hint is not None:
