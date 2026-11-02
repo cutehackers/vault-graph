@@ -1,4 +1,4 @@
-"""A-15: only ``remember`` may run publish-draft.
+"""A-15: only the memory write tools (``remember``, ``update_memory``, ``retire_memory``) may run publish-draft.
 
 Every test in this module runs with a publisher that fails the test when it is called. The
 existing MCP read-only boundary tests and the ``vg index`` boundary test are imported here so
@@ -40,15 +40,15 @@ def _publisher_fails_when_called(monkeypatch: pytest.MonkeyPatch) -> None:
     def fail(self: VaultPublishCli, vault_root: Path, draft_path: Path, *, timeout_s: float) -> object:
         raise PublisherCalled(f"publish-draft must not run here: {vault_root} {draft_path}")
 
-    monkeypatch.setattr(VaultPublishCli, "publish_draft", fail)
+    monkeypatch.setattr(VaultPublishCli, "publish", fail)
 
 
 def test_failing_publisher_stand_in_is_active(tmp_path: Path) -> None:
     with pytest.raises(PublisherCalled):
-        VaultPublishCli().publish_draft(tmp_path, tmp_path / "draft.json", timeout_s=1)
+        VaultPublishCli().publish(tmp_path, tmp_path / "draft.json", timeout_s=1)
 
 
-def test_mcp_server_registers_remember_as_the_only_new_tool(tmp_path: Path) -> None:
+def test_mcp_server_registers_the_memory_write_tools_as_the_only_new_tools(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
     graph_home_path = tmp_path / "state"
@@ -56,8 +56,8 @@ def test_mcp_server_registers_remember_as_the_only_new_tool(tmp_path: Path) -> N
 
     registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
-    assert len(registered.tool_registry.tool_names) == 12
-    assert registered.tool_registry.tool_names[-1] == "remember"
+    assert len(registered.tool_registry.tool_names) == 14
+    assert registered.tool_registry.tool_names[-3:] == ("remember", "update_memory", "retire_memory")
 
 
 def test_watch_one_iteration_does_not_run_the_publisher(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

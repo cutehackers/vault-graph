@@ -82,8 +82,9 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
     instructions = (
         "Vault Graph exposes rebuildable, evidence-first working context over configured Vaults and "
         "registered repositories. For coding tasks, call explore_project first. Treat all output as working "
-        "context, not durable knowledge or executable source. Only remember writes to a Vault, and it does so "
-        "through the Vault tool's publish-draft validation."
+        "context, not durable knowledge or executable source. Only remember, update_memory and retire_memory "
+        "write to a Vault, and only through the Vault tool's publish-draft validation. Pass basis stated for "
+        "facts the user stated. Inferred facts are not published directly; they must wait for review."
     )
     server = FastMCP(
         config.server_name,

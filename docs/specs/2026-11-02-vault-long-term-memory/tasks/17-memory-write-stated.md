@@ -43,16 +43,18 @@ vault-graph worktree에서 실행한다.
 
 ## done-when
 
-- [ ] A-8 표의 네 경우가 통과하고, `memory_kind`를 바꿔도 고른 Vault가 같다
-- [ ] 명시한 `vault`는 `cwd` 프로젝트의 연결 Vault 안에서만 찾고, 연결되지 않은 이름이면 `rejected`와 연결 Vault 목록을 돌려준다
-- [ ] 수정·폐기 대상 Vault 찾기가 0개(`rejected`), 1개(그 Vault), 2개 이상(`vault_required`)에서 맞게 동작한다
-- [ ] draft 네 가지(추가, 수정, 대체 없는 폐기, 대체 있는 폐기)가 입력과 날짜만으로 결정되는 순수 함수다
-- [ ] 수정은 잠금 안에서 읽은 sha256을 publish 직전에 다시 확인하고, 다르면 `rejected`다
-- [ ] 같은 경로가 있으면 추가는 publish 전에 `rejected`이고 `update_memory`를 쓰라고 안내한다
-- [ ] 어댑터는 계약1 JSON만 읽는다. 종료 코드 2와 `unrecognized arguments`는 "계약 4로 마이그레이션하라" `error`, JSON이 아니면 마지막 20줄을 담은 `error`, 120초 초과는 지금과 같은 `error`다
-- [ ] `reason: human-locked`가 Vault 메시지와 함께 `rejected`로 전달된다
-- [ ] MCP 도구가 14개이고, 세 쓰기 도구의 `basis`는 필수이며 기본값이 없다. 기존 11개 도구의 입출력은 그대로다
-- [ ] 가짜 `VaultWriter`로 세 도구를 실행해도 Vault 폴더의 파일 sha256이 바뀌지 않는다
-- [ ] 이 작업에서 `basis="inferred"`는 Vault 명령을 부르지 않고 `rejected`를 돌려준다. 작업 19가 이 동작을 `proposed` 경로로 바꾼다. 이 중간 동작은 2026-11-02 분해 승인 때 허용되었고, 커밋 메시지에 적는다
+- [x] A-8 표의 네 경우가 통과하고, `memory_kind`를 바꿔도 고른 Vault가 같다
+- [x] 명시한 `vault`는 `cwd` 프로젝트의 연결 Vault 안에서만 찾고, 연결되지 않은 이름이면 `rejected`와 연결 Vault 목록을 돌려준다
+- [x] 수정·폐기 대상 Vault 찾기가 0개(`rejected`), 1개(그 Vault), 2개 이상(`vault_required`)에서 맞게 동작한다
+- [x] draft 네 가지(추가, 수정, 대체 없는 폐기, 대체 있는 폐기)가 입력과 날짜만으로 결정되는 순수 함수다
+- [x] 수정은 잠금 안에서 읽은 sha256을 publish 직전에 다시 확인하고, 다르면 `rejected`다
+- [x] 같은 경로가 있으면 추가는 publish 전에 `rejected`이고 `update_memory`를 쓰라고 안내한다
+- [x] 어댑터는 계약1 JSON만 읽는다. 종료 코드 2와 `unrecognized arguments`는 "계약 4로 마이그레이션하라" `error`, JSON이 아니면 마지막 20줄을 담은 `error`, 120초 초과는 지금과 같은 `error`다
+- [x] `reason: human-locked`가 Vault 메시지와 함께 `rejected`로 전달된다
+- [x] MCP 도구가 14개이고, 세 쓰기 도구의 `basis`는 필수이며 기본값이 없다. 기존 11개 도구의 입출력은 그대로다
+- [x] 가짜 `VaultWriter`로 세 도구를 실행해도 Vault 폴더의 파일 sha256이 바뀌지 않는다
+- [x] 이 작업에서 `basis="inferred"`는 Vault 명령을 부르지 않고 `rejected`를 돌려준다. 작업 19가 이 동작을 `proposed` 경로로 바꾼다. 이 중간 동작은 2026-11-02 분해 승인 때 허용되었고, 커밋 메시지에 적는다
 
 멈춤: 작업 3의 `--json` 출력 형식이 spec 4.2 계약1과 다르면 텍스트 해석으로 돌아가지 않고 보고한다.
+
+기록 (2026-11-02): 전체 pytest 1841 passed, 1 skipped. MCP 도구 14개, 기존 11개 스키마 해시(28f1c96) 그대로. 포트 이름을 V1대로 `VaultWriter`/`WriteOutcome`으로 바꿨다. 프로젝트도 `vault`도 없으면 map의 모든 Vault를 후보로 `vault_required`를 돌려준다. 폐기 페이지로 가는 링크는 lint 규칙에 걸리지 않으므로 발행을 막지 않고 vault-builder metrics의 `deprecated_linked_pages`에만 나타난다. 범위 조정: 옛 12개 도구를 기대하던 `tests/test_mcp_server.py`, `tests/test_remember_write_boundary.py`, `mcp_server.py` 안내문을 고쳤다.

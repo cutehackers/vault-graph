@@ -79,6 +79,7 @@ def assert_policy_imports(root: Path, *, forbidden: tuple[str, ...] = ()) -> Non
         "operation/diagnostics",
         "operation/runtime",
         "operation/integration",
+        "operation/memory",
         "retrieval/evidence",
     ],
 )
