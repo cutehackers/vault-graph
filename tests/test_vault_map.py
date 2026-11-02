@@ -138,6 +138,35 @@ def test_path_prefers_option_then_environment_then_default(base: Path) -> None:
     assert DEFAULT_VAULT_MAP_PATH.parts[-3:] == (".claude", "vault-builder", "vault-map.json")
 
 
+def test_default_path_follows_claude_config_dir_like_vault_builder(base: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # vault-builder writes the map under $CLAUDE_CONFIG_DIR/vault-builder when the variable is non-empty
+    # (vault-builder tools/vault_migration/installing.py resolve_user_paths).
+    home = base / "home"
+    config = home / "cfg"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv(VAULT_MAP_ENV, raising=False)
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
+    expected = config / "vault-builder" / "vault-map.json"
+
+    assert vault_map_path(None, environ={"CLAUDE_CONFIG_DIR": str(config)}) == expected
+    assert vault_map_path(None) == expected
+    assert vault_map_path(None, environ={"CLAUDE_CONFIG_DIR": "~/cfg"}) == expected
+    assert vault_map_path(None, environ={"CLAUDE_CONFIG_DIR": ""}) == home / ".claude" / "vault-builder" / (
+        "vault-map.json"
+    )
+    assert vault_map_path(None, environ={}) == home / ".claude" / "vault-builder" / "vault-map.json"
+    environment = base / "environment.json"
+    both = {VAULT_MAP_ENV: str(environment), "CLAUDE_CONFIG_DIR": str(config)}
+    assert vault_map_path(None, environ=both) == environment
+
+
+def test_cli_vault_map_help_names_the_claude_config_dir_default() -> None:
+    from vault_graph.interface.cli.main import VAULT_MAP_OPTION_HELP
+
+    assert "$CLAUDE_CONFIG_DIR/vault-builder/vault-map.json" in VAULT_MAP_OPTION_HELP
+    assert "$HOME/.claude/vault-builder/vault-map.json" in VAULT_MAP_OPTION_HELP
+
+
 def test_root_stage_finds_project_from_root_and_subfolder(mapped: VaultMap, base: Path) -> None:
     repo = make_repo(base / "repos" / "alpha")
     (repo / "src" / "deep").mkdir(parents=True)

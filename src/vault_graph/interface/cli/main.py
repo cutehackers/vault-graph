@@ -89,7 +89,8 @@ if TYPE_CHECKING:
     from vault_graph.operation.runtime.setup_service import SetupReport
 
 VAULT_MAP_OPTION_HELP = (
-    f"vault-map.json path. Defaults to ${VAULT_MAP_ENV}, then $HOME/.claude/vault-builder/vault-map.json."
+    f"vault-map.json path. Defaults to ${VAULT_MAP_ENV}, then $CLAUDE_CONFIG_DIR/vault-builder/vault-map.json "
+    "when CLAUDE_CONFIG_DIR is set, then $HOME/.claude/vault-builder/vault-map.json."
 )
 
 app = typer.Typer(no_args_is_help=True)
