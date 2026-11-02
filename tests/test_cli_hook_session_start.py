@@ -11,6 +11,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
@@ -20,10 +21,12 @@ from typer.testing import CliRunner, Result
 
 from tests.test_cli_setup import _deterministic_text_embeddings
 from vault_graph.context.pack.recall import estimate_recall_tokens, memory_item_id
+from vault_graph.interface.cli import hook_commands
 from vault_graph.interface.cli.main import app
 
 FIXTURES = Path(__file__).parent / "fixtures" / "session_recall"
 runner = CliRunner()
+REAL_START_CATCH_UP_INDEX = hook_commands.start_catch_up_index
 
 
 def day(offset: int) -> str:
@@ -52,6 +55,19 @@ def tree(root: Path, *, skip: str | None = None) -> dict[str, bytes]:
 @pytest.fixture(autouse=True)
 def fake_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+
+
+@pytest.fixture(autouse=True)
+def catch_up(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Path, tuple[str, ...]]]:
+    """Record the detached catch-up `vg index` instead of starting a real process."""
+    started: list[tuple[Path, tuple[str, ...]]] = []
+
+    def record(graph_home: Path, vault_ids: tuple[str, ...]) -> None:
+        started.append((graph_home, vault_ids))
+        sys.stdout.write("<catch-up started>")
+
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.start_catch_up_index", record)
+    return started
 
 
 @pytest.fixture(autouse=True)
@@ -613,3 +629,178 @@ def test_refresh_past_its_time_limit_publishes_nothing(
     assert "time limit" in result.stderr
     assert active_generation(graph_home) == before
     assert generations(graph_home) == staged_before
+
+
+# Vector catch-up after session start and bounded refresh (re-audit 발견1, 발견3) ----------------
+
+
+def fresh_note(base: Path, name: str = "fresh", vault: str = "main") -> None:
+    write_page(
+        base / "vaults" / vault,
+        f"wiki/notes/{name}.md",
+        f'type: note\nstatus: active\nupdated: "{day(0)}"\n',
+        name.title(),
+    )
+
+
+def test_changed_vault_gets_a_catch_up_index_after_recall_is_printed(
+    base: Path, graph_home: Path, catch_up: list[tuple[Path, tuple[str, ...]]]
+) -> None:
+    fresh_note(base)
+    fresh_note(base, "team-fresh", vault="other")
+
+    result = hook(graph_home, base, repo="both")
+
+    assert result.exit_code == 0, result.output
+    assert catch_up == [(graph_home, ("main", "other"))]
+    assert result.stdout.endswith("<catch-up started>")
+    assert "Fresh" in result.stdout
+
+
+def test_only_changed_linked_vaults_get_a_catch_up_index(
+    base: Path, graph_home: Path, catch_up: list[tuple[Path, tuple[str, ...]]]
+) -> None:
+    fresh_note(base, "team-fresh", vault="other")
+
+    hook(graph_home, base, repo="both")
+
+    assert catch_up == [(graph_home, ("other",))]
+
+
+def test_no_change_starts_no_catch_up_index(
+    base: Path, graph_home: Path, catch_up: list[tuple[Path, tuple[str, ...]]]
+) -> None:
+    result = hook(graph_home, base, repo="both")
+
+    assert result.exit_code == 0, result.output
+    assert catch_up == []
+
+
+def test_too_many_changed_files_skip_the_quick_refresh_and_leave_no_staged_folder(
+    base: Path,
+    graph_home: Path,
+    catch_up: list[tuple[Path, tuple[str, ...]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("vault_graph.interface.composition.recall_index_refresh.MAX_QUICK_REFRESH_FILES", 2)
+    for name in ("one", "two", "three"):
+        fresh_note(base, name)
+    before = active_generation(graph_home)
+    staged_before = generations(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Three" not in result.stdout
+    assert len(result.stderr.splitlines()) == 1
+    assert "3 changed files" in result.stderr
+    assert active_generation(graph_home) == before
+    assert generations(graph_home) == staged_before
+    assert catch_up == [(graph_home, ("main",))]
+
+
+def test_time_limit_inside_the_change_scan_stops_before_staging(
+    base: Path,
+    graph_home: Path,
+    catch_up: list[tuple[Path, tuple[str, ...]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def no_staging(*args: object, **kwargs: object) -> None:
+        raise AssertionError("a refresh past its time limit must not stage a generation")
+
+    clock = iter(range(0, 100000))
+    monkeypatch.setattr("vault_graph.interface.composition.recall_index_refresh.monotonic", lambda: float(next(clock)))
+    monkeypatch.setattr(
+        "vault_graph.indexing.publication.projection_generation.ProjectionBundlePublisher.stage_from_active",
+        no_staging,
+    )
+    fresh_note(base)
+    before = active_generation(graph_home)
+    staged_before = generations(graph_home)
+
+    result = hook(graph_home, base, repo="both", extra=("--refresh-budget", "3"))
+
+    assert result.exit_code == 0, result.output
+    assert "time limit" in result.stderr
+    assert active_generation(graph_home) == before
+    assert generations(graph_home) == staged_before
+    # The scan did not finish, so every linked Vault gets the catch-up index.
+    assert catch_up == [(graph_home, ("main", "other"))]
+
+
+def test_zero_refresh_budget_starts_no_catch_up_index(
+    base: Path, graph_home: Path, catch_up: list[tuple[Path, tuple[str, ...]]]
+) -> None:
+    fresh_note(base)
+
+    hook(graph_home, base, extra=("--refresh-budget", "0"))
+
+    assert catch_up == []
+
+
+def test_catch_up_index_runs_detached_with_the_same_graph_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    started: list[tuple[list[str], dict[str, object]]] = []
+
+    class FakePopen:
+        def __init__(self, command: list[str], **kwargs: object) -> None:
+            started.append((command, kwargs))
+
+    monkeypatch.setattr(hook_commands.subprocess, "Popen", FakePopen)
+    home = tmp_path / "graph-home"
+    home.mkdir()
+
+    REAL_START_CATCH_UP_INDEX(home, ("main", "other"))
+
+    assert len(started) == 1
+    command, kwargs = started[0]
+    assert command[0] == sys.executable
+    assert command[-3:] == [str(home), "main", "other"]
+    assert kwargs["start_new_session"] is True
+    assert kwargs["stdin"] is subprocess.DEVNULL
+    assert kwargs["close_fds"] is True
+    assert (home / "logs" / "session-start-index.log").exists()
+
+
+def test_catch_up_script_indexes_each_vault_in_turn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ran: list[list[str]] = []
+    monkeypatch.setattr(hook_commands.subprocess, "run", lambda command, **kwargs: ran.append(command))
+    monkeypatch.setattr(sys, "argv", ["-c", str(tmp_path), "main", "other"])
+
+    hook_commands.run_catch_up_index()
+
+    assert [command[-5:] for command in ran] == [
+        ["index", "--graph-home", str(tmp_path), "--vault-id", "main"],
+        ["index", "--graph-home", str(tmp_path), "--vault-id", "other"],
+    ]
+
+
+def test_busy_projection_lock_skips_the_quick_refresh_after_a_short_wait(
+    base: Path,
+    graph_home: Path,
+    catch_up: list[tuple[Path, tuple[str, ...]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from vault_graph.indexing.publication.projection_generation import ProjectionPublishBusyError
+
+    waits: list[float | None] = []
+
+    def busy(self: object, *, full: bool = False, lock_timeout: float | None = None) -> None:
+        waits.append(lock_timeout)
+        raise ProjectionPublishBusyError("another vg index is publishing")
+
+    monkeypatch.setattr(
+        "vault_graph.indexing.publication.projection_generation.ProjectionBundlePublisher.stage_from_active", busy
+    )
+    fresh_note(base)
+    before = active_generation(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Use SQLite" in result.stdout
+    assert len(result.stderr.splitlines()) == 1
+    assert "Index refresh skipped" in result.stderr
+    assert "another vg index" in result.stderr
+    assert waits and waits[0] is not None and 0 < waits[0] <= 1.0
+    assert active_generation(graph_home) == before
+    assert catch_up == [(graph_home, ("main",))]
