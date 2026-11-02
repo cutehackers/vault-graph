@@ -166,3 +166,70 @@ def test_status_reports_missing_and_invalid_map(base: Path) -> None:
     assert "vault_map_state: invalid" in invalid.stdout
     assert f"vault_map_warning: Vault map {broken} is damaged" in invalid.stdout
     assert not (base / "none.json").exists()
+
+
+def _map_with_defaults(base: Path) -> Path:
+    make_vaults(base)
+    path = base / "map" / "vault-map-default-write.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "version": 2,
+        "vaults": {
+            "personal": {"path": str(base / "vaults" / "personal"), "role": "personal"},
+            "team": {"path": str(base / "vaults" / "team"), "role": "team"},
+        },
+        "projects": {
+            "alpha": {
+                "root": str(base / "repos" / "alpha"),
+                "vaults": ["personal", "team"],
+                "default_write_vault": "team",
+            },
+            "beta": {"root": str(base / "repos" / "beta"), "vaults": ["personal"], "default_write_vault": "team"},
+            "gamma": {"root": str(base / "repos" / "gamma"), "vaults": ["personal"]},
+        },
+    }
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_status_shows_default_write_vault_per_project_and_field_warnings(base: Path) -> None:
+    vault_map = _map_with_defaults(base)
+    graph_home = _initialized_home(base)
+
+    text = runner.invoke(app, ["status", "--graph-home", str(graph_home), "--vault-map", str(vault_map)])
+    as_json = runner.invoke(
+        app, ["status", "--graph-home", str(graph_home), "--vault-map", str(vault_map), "--format", "json"]
+    )
+
+    assert text.exit_code == 0, text.output
+    assert "vault_map_state: loaded" in text.stdout
+    assert "vault_map_default_write_vault: alpha team" in text.stdout
+    assert "vault_map_default_write_vault: beta None" in text.stdout
+    assert "vault_map_default_write_vault: gamma None" in text.stdout
+    warning_lines = [line for line in text.stdout.splitlines() if line.startswith("vault_map_field_warning: ")]
+    assert len(warning_lines) == 1
+    assert "beta" in warning_lines[0] and "default_write_vault" in warning_lines[0]
+    assert as_json.exit_code == 0, as_json.output
+    payload = json.loads(as_json.stdout)
+    assert payload["vault_map"]["state"] == "loaded"
+    assert payload["vault_map_default_write_vaults"] == [
+        {"project": "alpha", "vault": "team"},
+        {"project": "beta", "vault": None},
+        {"project": "gamma", "vault": None},
+    ]
+    assert len(payload["vault_map_field_warnings"]) == 1
+    assert "beta" in payload["vault_map_field_warnings"][0]
+
+
+def test_status_without_loaded_map_shows_no_default_write_vaults(base: Path) -> None:
+    make_vaults(base)
+    graph_home = _initialized_home(base)
+
+    as_json = runner.invoke(
+        app, ["status", "--graph-home", str(graph_home), "--vault-map", str(base / "none.json"), "--format", "json"]
+    )
+
+    assert as_json.exit_code == 0, as_json.output
+    payload = json.loads(as_json.stdout)
+    assert payload["vault_map_default_write_vaults"] == []
+    assert payload["vault_map_field_warnings"] == []

@@ -41,10 +41,14 @@ class MappedProject:
     root: str
     vault_names: tuple[str, ...]
     remote: str | None
+    default_write_vault: str | None = None
 
 
 class VaultMap(VaultMapReader):
-    """Read-only view of one ``vault-map.json`` version 2 file."""
+    """Read-only view of one ``vault-map.json`` version 2 file.
+
+    ``warnings`` lists optional fields that were ignored because their value was unusable.
+    """
 
     def __init__(
         self,
@@ -53,15 +57,22 @@ class VaultMap(VaultMapReader):
         version: int,
         vaults: tuple[MappedVault, ...],
         projects: tuple[MappedProject, ...],
+        warnings: tuple[str, ...] = (),
     ) -> None:
         self.path = path
         self.version = version
         self._vaults = vaults
         self._projects = {project.project_id: project for project in projects}
+        self.warnings = warnings
 
     @property
     def vaults(self) -> tuple[MappedVault, ...]:
         return self._vaults
+
+    @property
+    def default_write_vaults(self) -> dict[str, str | None]:
+        """Each project id with its usable default write Vault name, sorted by project id."""
+        return {pid: self._projects[pid].default_write_vault for pid in sorted(self._projects)}
 
     def find_project(self, cwd: Path) -> MappedProjectMatch:
         root = main_worktree_root(Path(cwd))
@@ -112,6 +123,7 @@ class VaultMap(VaultMapReader):
             stage,
             # Like the router: unknown names are skipped and repeated names kept once.
             tuple(by_name[name] for name in dict.fromkeys(project.vault_names) if name in by_name),
+            default_write_vault=by_name.get(project.default_write_vault) if project.default_write_vault else None,
         )
 
 
@@ -154,16 +166,43 @@ def load_vault_map(path: Path) -> VaultMap:
         MappedVault(name=name, path=_resolve(Path(entry["path"])), role=entry["role"])
         for name, entry in sorted(data["vaults"].items())
     )
-    projects = tuple(
-        MappedProject(
-            project_id=project_id,
-            root=entry["root"],
-            vault_names=tuple(entry["vaults"]),
-            remote=entry.get("remote"),
+    vault_names = {vault.name for vault in vaults}
+    warnings: list[str] = []
+    projects = []
+    for project_id, entry in data["projects"].items():
+        default_write_vault, warning = _default_write_vault(project_id, entry, vault_names)
+        if warning is not None:
+            warnings.append(f"Vault map {path}: {warning}")
+        projects.append(
+            MappedProject(
+                project_id=project_id,
+                root=entry["root"],
+                vault_names=tuple(entry["vaults"]),
+                remote=entry.get("remote"),
+                default_write_vault=default_write_vault,
+            )
         )
-        for project_id, entry in data["projects"].items()
+    return VaultMap(
+        path=path, version=data["version"], vaults=vaults, projects=tuple(projects), warnings=tuple(warnings)
     )
-    return VaultMap(path=path, version=data["version"], vaults=vaults, projects=projects)
+
+
+def _default_write_vault(project_id: str, entry: dict[str, Any], map_vaults: set[str]) -> tuple[str | None, str | None]:
+    """Return the usable ``default_write_vault`` name and a warning when the field is ignored.
+
+    A bad value drops only this field, never the whole map (vault-map-v2 contract).
+    """
+    if "default_write_vault" not in entry:
+        return None, None
+    value = entry["default_write_vault"]
+    prefix = f"project {project_id} default_write_vault"
+    if not isinstance(value, str):
+        return None, f"{prefix} is not a string. The field is ignored."
+    if value not in entry["vaults"]:
+        return None, f"{prefix} {value!r} is not in the project vaults. The field is ignored."
+    if value not in map_vaults:
+        return None, f"{prefix} {value!r} is not listed in the map vaults. The field is ignored."
+    return value, None
 
 
 def open_vault_map(path: Path) -> VaultMapOpening:

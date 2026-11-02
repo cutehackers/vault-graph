@@ -38,6 +38,8 @@ class MappedProjectMatch:
 
     ``project_id`` is None when no project is chosen. ``candidates`` then lists the ids
     that matched in the same stage, so callers can tell "several match" from "none".
+    ``default_write_vault`` is the project's default write Vault, or None when the map has
+    no usable ``default_write_vault`` for it.
     """
 
     project_id: str | None
@@ -45,6 +47,7 @@ class MappedProjectMatch:
     vaults: tuple[MappedVault, ...]
     candidates: tuple[str, ...] = ()
     reason: str | None = None
+    default_write_vault: MappedVault | None = None
 
 
 @runtime_checkable
