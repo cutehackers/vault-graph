@@ -246,6 +246,7 @@ vault-builder가 계약을 소유하고, vault-graph는 그 계약을 부르거�
   3. 프로젝트를 찾지 못하면 지금처럼 활성 Vault 하나를 쓴다.
 - `cwd`를 정하는 방법
   - MCP 세 도구는 선택 입력 `cwd: str | None`을 받는다. 없으면 MCP 서버 프로세스의 작업 디렉터리를 쓴다(9절 질문2).
+  - 2026-11-02 의도 검수 반영(F4): `find_related`, `get_decision_trace`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`도 같은 선택 입력 `cwd`와 위 1~3단계 범위 규칙을 쓴다. 전에는 활성 Vault 하나만 읽어서, 이 컴퓨터에서 다른 프로젝트 Vault를 읽었다. 이 다섯 도구는 `ask_vault`처럼 프로젝트에 검색할 Vault가 하나도 없으면 빈 결과 대신 오류를 낸다.
   - CLI는 프로세스 작업 디렉터리를 쓴다.
   - HTTP는 선택 필드 `cwd`를 받는다. 없으면 3단계(활성 Vault)로 간다.
 - 결합은 기존 `fuse_candidates`(`src/vault_graph/retrieval/search/candidate_ranking.py:26-51`)가 만든 관련도 순 한 목록을 그대로 쓴다. 종류 간 고정 우선순위는 두지 않는다(결정13).
@@ -266,6 +267,9 @@ MCP 도구:
 - `update_memory(path, body, evidence, basis, vault=None, cwd=None, title=None, pin=None, memory_kind=None)`. 새 도구다.
 - `retire_memory(path, reason, basis, vault=None, cwd=None, replaced_by=None)`. 새 도구다.
 - MCP 도구는 12개에서 14개가 된다(9절 질문1).
+- 2026-11-02 의도 검수 반영(F7, F8):
+  - 세 도구는 `cwd`가 없으면 검색 도구처럼 MCP 서버 프로세스의 작업 디렉터리를 `cwd`로 쓴다. 전에는 `cwd`가 없으면 프로젝트를 정하지 않고 map 전체에서 Vault를 찾아, 다른 프로젝트 Vault에 쓸 수 있었다.
+  - 도구 스키마는 `basis`(`stated`, `inferred`), `kind`(`decision`, `system`), `memory_kind`(`rule`, `correction`, `decision`, `preference`)의 허용 값을 enum으로 보인다.
 
 응답 `MemoryWriteResult`의 필드:
 
@@ -325,6 +329,7 @@ draft(모두 vault-graph가 에이전트 입력과 실행 날짜만으로 결정
   - 구획A에 넣은 페이지는 구획B에 다시 넣지 않는다.
   - 제목은 `## 고정 기억`이다.
 - 구획B 순서: 모든 연결 Vault 페이지를 합쳐 `updated` 내림차순, 같으면 (Vault 이름, 경로)순으로 정렬한다. 사용 기록으로 순서를 바꾸는 두 동작을 지운다(`recall.py:410-417`의 "바뀐 항목 올리기"와 "열리지 않은 항목 내리기", `DEMOTE_AFTER_INJECTIONS`).
+- 구획B 제외(2026-11-02 의도 검수 반영, F3): frontmatter `type`이 `index`, `log`, `map`, `overview`인 페이지는 구획B에 넣지 않는다(`NAVIGATION_PAGE_TYPES`). Vault가 발행할 때마다 다시 쓰는 탐색 페이지라서 기억이 아니다. Vault 종류(role)가 아니라 페이지 `type`으로 거른다(결정15). 고정(`pin: true`)한 탐색 페이지는 구획A에 그대로 나온다.
 - 구획C: `retired`를 `NOTICE_STATUSES`에 더한다. 알림 줄은 "옛 제목 → 폐기됨: <retired_reason> (날짜)"다.
 - 사용 기록 남김: `injected`, `fetched` 기록은 계속 쓴다. 읽는 곳은 구획C 알림 중복 방지(`_History.noticed`와 기준 실행 찾기) 하나다. 측정용으로 남긴다(brief 3번).
 - 결과: Graph Home을 지우고 다시 만들어도 구획A·B는 바이트 단위로 같다. 구획C는 중복 방지 기록이 사라져 이미 알린 항목이 한 번 더 나올 수 있다. brief 3번의 "사용 기록은 알림 중복 방지에만 쓴다"와 맞는다.
@@ -335,8 +340,12 @@ draft(모두 vault-graph가 에이전트 입력과 실행 날짜만으로 결정
 - CLI `vg hook capture [--vault-map PATH] [--timeout S]`. 표준 입력으로 Claude Code PreCompact 또는 SessionEnd 훅 JSON을 받는다.
 - 동작: `vault-map.json`이 있는 폴더의 `vault_hooks.py`(계약6)를 `capture --direct`로 실행하고, 훅 JSON을 그대로 넘긴다. 결과 JSON(`sessions capture --json`의 `status`, `vault`, `path`)을 표준 오류에 한 줄로 요약한다.
 - 종료 코드: 0은 실행기가 끝났음(written, no-new-turns, skipped 모두)이다. 3은 실행기를 찾지 못했거나 시간이 넘었음이다. 훅 실행기는 0이 아니면 직접 수집한다(계약6).
-- vault-graph는 수집 대상 Vault를 고르지 않는다. role로 분기하지도 않는다. 수집 직후 색인은 하지 않는다. 새 세션 파일은 `vg watch`나 다음 `vg index`가 색인한다(9절 질문4).
+- vault-graph는 수집 대상 Vault를 고르지 않는다. role로 분기하지도 않는다. 수집 직후 색인은 하지 않는다(9절 질문4).
 - Graph Home에는 아무것도 쓰지 않는다.
+- 2026-11-02 의도 검수 반영(F1): 새 세션 파일과 새 기억 페이지는 `vg index`를 기다리지 않는다.
+  - `vg hook session-start`가 회상 전에, 이미 색인된 연결 Vault에서 바뀐 파일만 메타데이터와 그래프로 다시 색인하고 새 세대를 발행한다(`interface/composition/recall_index_refresh.py`). 임베딩은 만들지 않는다. 새 조각의 벡터는 다음 `vg index`가 만든다. 그 전까지 의미 검색은 그 조각을 찾지 못하고, 색인 상태는 벡터가 오래됐다고 보고한다.
+  - 시간 한도는 기본 5초이고 `--refresh-budget S`로 바꾼다. 0이면 하지 않는다. 한도를 넘거나 실패하면 아무것도 발행하지 않고 표준 오류에 경고 한 줄을 낸 뒤 기존 색인으로 회상한다. 훅은 이 때문에 실패하지 않는다. `vg index`로 한 번도 발행하지 않은 Graph Home에서는 하지 않는다.
+  - MCP 쓰기 도구가 `published`를 돌려주면, 서버가 그 Vault의 증분 색인(`vg index --vault-id`와 같은 동작)을 백그라운드 스레드로 시작하고, 끝나면 검색 서비스를 다시 연다(`McpServiceFactory.start_background_index`). 도구 결과는 색인을 기다리지 않는다. 색인을 시작하면 결과 `messages`의 "`vg index`를 실행하라" 안내가 "백그라운드로 색인 중" 안내로 바뀐다. 색인 실행은 한 프로세스에서 한 번에 하나다.
 
 #### V6 `vault-map.json` 읽기 확장
 
@@ -417,8 +426,8 @@ vault-builder 계약 단계(B1~B6)는 그 계약을 쓰는 vault-graph 단계보
 22. 결정S6 [가정] 폐기는 frontmatter만 바꾸는 `patch-page`(계약3)로 한다. 이유: 적용 시점의 현재 파일을 쓰므로 본문을 다시 보내지 않고 경쟁이 줄어든다. 대안은 9절 질문5.
 23. 결정S7 [가정] `memory-proposal`의 `review_id`는 draft 해시로 만들고, 승인 때 `target_hash`가 다르면 거부한다. 이유: 한국어 요약 slug가 모두 `review`가 되는 문제(`review.py:345-347`)와, 제안 뒤 사람이 고친 내용을 덮어쓰는 문제를 막는다.
 24. 결정S8 [가정] 수정은 본문을 통째로 바꾸고, publish 직전에 페이지 해시를 다시 확인한다. vault-graph는 본문을 합치지 않는다(결정7).
-25. 결정S9 [가정] MCP 검색 도구에 `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 쓴다. 대안은 9절 질문2.
-26. 결정S10 [가정] `vg hook capture`는 수집 직후 색인하지 않는다. 이유: 수집 훅은 60초 안에 끝나야 하고, 색인은 임베딩 모델을 연다. 대안은 9절 질문4.
+25. 결정S9 [가정] MCP 검색 도구에 `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 쓴다. 대안은 9절 질문2. 2026-11-02 의도 검수 반영(F4, F7): 같은 규칙을 쓰기 도구 세 개와 `find_related`, `get_decision_trace`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`에도 쓴다(V2, V3).
+26. 결정S10 [가정] `vg hook capture`는 수집 직후 색인하지 않는다. 이유: 수집 훅은 60초 안에 끝나야 하고, 색인은 임베딩 모델을 연다. 대안은 9절 질문4. 2026-11-02 의도 검수 반영(F1): 수집 훅은 그대로 색인하지 않는다. 다만 "새 파일은 `vg watch`나 다음 `vg index`가 색인한다"는 부분은 바꾼다. 저장한 기억이 `vg index` 전까지 회상·검색에 없어 §0 규칙4에 어긋났기 때문이다. 이제 `vg hook session-start`가 회상 전에 연결 Vault의 바뀐 파일을 임베딩 없이 메타데이터·그래프로 색인하고(기본 5초), MCP 쓰기 도구는 `published` 뒤 그 Vault를 백그라운드로 증분 색인한다(V5).
 27. 결정S11 [가정] 구획A 항목은 제목 줄과 `summary` 줄 두 줄이고, 예산은 400토큰이다(이전 spec 4.2.3의 목표값 유지).
 28. 결정S12 [가정] vault-builder에 `set-role`, `set-default-write` 명령을 더한다. 이유: 소유자가 팀 Vault를 더하는 길이 지금 손 편집뿐이다(발견12). 대안은 9절 질문8.
 29. 결정S13 [가정] 훅 실행기는 `VAULT_GRAPH_BIN`, install 때 기록한 경로, `PATH` 순으로 vg를 찾는다. 이유: 훅은 사용자 셸의 가상환경 `PATH`를 물려받지 않을 수 있다. 대안은 9절 질문9.
@@ -694,6 +703,7 @@ spec gate에서 답할 질문이다. 각 질문은 이 spec을 읽지 않아도 
   - 옵션3: 훅 안에서 색인까지 끝낸다.
 - 권장: 옵션1. 훅이 짧고 실패 지점이 적다. 옵션2는 세션이 끝난 뒤 남는 프로세스를 관리해야 한다.
 - 답이 바꾸는 것: 옵션2나 옵션3이면 V5에 색인 단계가 생긴다. Graph Home 쓰기가 생기므로 INV-02 문구와 A-4 기대 결과도 바뀐다.
+- 2026-11-02 의도 검수 반영(F1): 옵션1은 유지한다. 수집 훅은 색인하지 않으므로 A-4는 그대로다. 대신 세션 시작 훅과 MCP 발행 뒤 색인이 Graph Home에 새 세대를 쓴다. 그래서 VG-MOD INV-02에 "`vg hook session-start`의 회상 전 색인 갱신" 예외를 더했다(결정S10, V5).
 
 ### 질문5 폐기를 어떤 Vault draft로 보낼 것인가
 

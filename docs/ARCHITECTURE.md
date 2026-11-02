@@ -239,7 +239,7 @@ M18 `operation/memory/`는 M01과 M12만 가져오고, 어떤 기능 영역도 M
 
 일반 조회는 모델 다운로드·색인 생성·투영 기록·파일 초기화·설정 변경을 실행하지 않는다. 예외는 세션 시작 회상과 MCP 페이지 리소스 읽기가 이미 있는 Graph Home 아래 `usage/`에 사용 기록을 덧붙여 쓰는 것 하나다([VG-MOD](design/specs/2026-10-15-vault-graph-modular-architecture-ko.md) INV-02). 준비되지 않았거나 손상된 경우 기존 오류·경고·복구 안내를 반환한다. 여러 저장소의 색인 반영을 하나의 원자적 트랜잭션이라고 주장하지 않는다. Vault 투영은 비공개 세대를 검증한 뒤 발행하고 코드 투영은 전용 세대 수명을 유지한다.
 
-명시적으로 요청한 setup·index·watch는 해당 파생 데이터를 기록할 수 있다. MCP 등록·저장소 연결 설정·지침 설치/제거는 기존 경로·dry-run·사용자 수정 보존 규칙 아래에서만 설정 파일을 변경한다. 이 예외는 Vault 문서 편집 권한을 주지 않는다. Vault 쓰기는 위의 세 경로에서만 일어난다.
+명시적으로 요청한 setup·index·watch는 해당 파생 데이터를 기록할 수 있다. 색인은 두 경우에도 갱신된다(2026-11-02 의도 검수 F1). `vg hook session-start`는 회상 전에 이미 색인된 연결 Vault의 바뀐 파일만 임베딩 없이 메타데이터·그래프로 색인해 발행한다(`interface/composition/recall_index_refresh.py`, 기본 5초, `--refresh-budget`). MCP 쓰기 도구가 `published`를 돌려주면 서버가 그 Vault를 백그라운드로 증분 색인한다(`interface/mcp/mcp_service_factory.py`의 `start_background_index`). 둘 다 Vault 파일은 읽기만 한다. MCP 등록·저장소 연결 설정·지침 설치/제거는 기존 경로·dry-run·사용자 수정 보존 규칙 아래에서만 설정 파일을 변경한다. 이 예외는 Vault 문서 편집 권한을 주지 않는다. Vault 쓰기는 위의 세 경로에서만 일어난다.
 
 ## 5. 가져오기 경로와 변경 방법
 
