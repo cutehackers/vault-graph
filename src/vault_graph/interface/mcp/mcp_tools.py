@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -270,6 +271,7 @@ class McpToolRegistry:
         result_explanation_cache: ResultExplanationCache,
     ) -> None:
         self._services = services
+        self._services_lock = threading.Lock()
         self._service_factory = service_factory
         self._context_pack_cache = context_pack_cache
         self._result_explanation_cache = result_explanation_cache
@@ -293,9 +295,10 @@ class McpToolRegistry:
 
     def ask_vault(self, request: AskVaultInput) -> McpToolBody:
         try:
+            services = self._current_services()
             _validate_ask_vault_request(request)
             selected_scope, selection = self._query_scope(
-                request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
+                services, request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
             )
             selected_scope = _require_project_scope(selected_scope, selection)
             _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
@@ -337,9 +340,10 @@ class McpToolRegistry:
 
     def search_vault(self, request: SearchVaultInput) -> McpToolBody:
         try:
+            services = self._current_services()
             _validate_search_vault_request(request)
             selected_scope, selection = self._query_scope(
-                request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
+                services, request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
             )
             _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
             from vault_graph.interface.mcp.mcp_tool_serialization import (
@@ -361,7 +365,7 @@ class McpToolRegistry:
             retrieval_service = (
                 self._service_factory.open_retrieval_service(include_graph=True)
                 if request.include_graph
-                else self._services.retrieval_service
+                else services.retrieval_service
             )
             response = retrieval_service.search(
                 query_text=request.query,
@@ -395,9 +399,10 @@ class McpToolRegistry:
 
     def build_context_pack(self, request: BuildContextPackInput) -> McpToolBody:
         try:
+            services = self._current_services()
             _validate_build_context_pack_request(request)
             selected_scope, selection = self._query_scope(
-                request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
+                services, request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
             )
             selected_scope = _require_project_scope(selected_scope, selection)
             _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
@@ -412,10 +417,10 @@ class McpToolRegistry:
             builder = (
                 self._service_factory.open_context_pack_builder(include_graph=True)
                 if request.include_graph
-                else self._services.context_pack_builder
+                else services.context_pack_builder
             )
             pack = builder.build(pack_request)
-            rendered_json = self._services.context_pack_renderer.render_json(pack)
+            rendered_json = services.context_pack_renderer.render_json(pack)
             self._context_pack_cache.put(pack, rendered_json=rendered_json)
             from vault_graph.interface.mcp.mcp_tool_serialization import (
                 context_pack_to_payload,
@@ -448,6 +453,7 @@ class McpToolRegistry:
 
     def _query_scope(
         self,
+        services: McpServices,
         scope_input: McpScopeInput | None,
         cwd: str | None,
         *,
@@ -463,9 +469,9 @@ class McpToolRegistry:
         explicit = scope_input is not None and bool(scope_input.vault_ids or scope_input.all_vaults)
         selection = project_query_selection(
             None if explicit else Path(cwd) if cwd is not None else Path.cwd(),
-            catalog=self._services.catalog,
+            catalog=services.catalog,
             vault_map_file=vault_map_path(),
-            is_indexed=metadata_index_check(self._services.metadata_store),
+            is_indexed=metadata_index_check(services.metadata_store),
         )
         if selection.vault_ids == ():
             return None, selection
@@ -475,26 +481,30 @@ class McpToolRegistry:
                 content_scopes=scope_input.content_scopes if scope_input is not None else None,
                 include_cross_vault=scope_input.include_cross_vault if scope_input is not None else False,
             )
-        scope = _scope_for_tool(
-            scope_input, catalog=self._services.catalog, allow_graph_cross_vault=allow_graph_cross_vault
-        )
+        scope = _scope_for_tool(scope_input, catalog=services.catalog, allow_graph_cross_vault=allow_graph_cross_vault)
         return scope, selection
 
     def _project_scope(
         self,
+        services: McpServices,
         scope_input: McpScopeInput | None,
         cwd: str | None,
         *,
         allow_graph_cross_vault: bool = False,
     ) -> tuple[QueryScope, ProjectQuerySelection]:
         """``_query_scope`` for tools that need at least one Vault: a project with none is an error."""
-        selected_scope, selection = self._query_scope(scope_input, cwd, allow_graph_cross_vault=allow_graph_cross_vault)
+        selected_scope, selection = self._query_scope(
+            services, scope_input, cwd, allow_graph_cross_vault=allow_graph_cross_vault
+        )
         return _require_project_scope(selected_scope, selection), selection
 
     def find_related(self, request: FindRelatedInput) -> McpToolBody:
         try:
+            services = self._current_services()
             _validate_find_related_request(request)
-            selected_scope, selection = self._project_scope(request.scope, request.cwd, allow_graph_cross_vault=True)
+            selected_scope, selection = self._project_scope(
+                services, request.scope, request.cwd, allow_graph_cross_vault=True
+            )
             _validate_graph_cross_vault_request(selected_scope, include_cross_vault=request.include_cross_vault)
             response = self._service_factory.open_graph_retrieval_service().related(
                 target=request.target,
@@ -529,8 +539,11 @@ class McpToolRegistry:
 
     def get_decision_trace(self, request: DecisionTraceInput) -> McpToolBody:
         try:
+            services = self._current_services()
             _validate_decision_trace_request(request)
-            selected_scope, selection = self._project_scope(request.scope, request.cwd, allow_graph_cross_vault=True)
+            selected_scope, selection = self._project_scope(
+                services, request.scope, request.cwd, allow_graph_cross_vault=True
+            )
             _validate_graph_cross_vault_request(selected_scope, include_cross_vault=request.include_cross_vault)
             response = self._service_factory.open_graph_retrieval_service().decision_trace(
                 topic=request.decision_or_topic,
@@ -563,7 +576,8 @@ class McpToolRegistry:
 
     def check_index_status(self, request: CheckIndexStatusInput) -> McpToolBody:
         try:
-            selected_scope = _scope_for_tool(request.scope, catalog=self._services.catalog)
+            services = self._current_services()
+            selected_scope = _scope_for_tool(request.scope, catalog=services.catalog)
             report = self._service_factory.open_status_service().status(scope=selected_scope)
             from vault_graph.interface.mcp.mcp_memory_serialization import (
                 health_explorer_report_to_payload,
@@ -597,6 +611,7 @@ class McpToolRegistry:
 
     def explain_result(self, request: ExplainResultInput) -> McpToolBody:
         try:
+            self._current_services()
             _validate_explain_result_request(request)
             record = self._explain_result_service.explain(result_id=request.result_id)
             from vault_graph.interface.mcp.mcp_tool_serialization import explanation_payload_to_resource_links
@@ -623,8 +638,9 @@ class McpToolRegistry:
 
     def summarize_project_memory(self, request: SummarizeProjectMemoryInput) -> McpToolBody:
         try:
+            services = self._current_services()
             _validate_summarize_project_memory_request(request)
-            selected_scope, selection = self._project_scope(request.scope, request.cwd)
+            selected_scope, selection = self._project_scope(services, request.scope, request.cwd)
             projection = self._service_factory.open_project_memory_service().summarize(
                 requested_scope=selected_scope,
                 limit=request.limit,
@@ -650,8 +666,9 @@ class McpToolRegistry:
 
     def get_open_questions(self, request: GetOpenQuestionsInput) -> McpToolBody:
         try:
+            services = self._current_services()
             _validate_get_open_questions_request(request)
-            selected_scope, selection = self._project_scope(request.scope, request.cwd)
+            selected_scope, selection = self._project_scope(services, request.scope, request.cwd)
             projection = self._service_factory.open_issue_memory_service().open_questions(
                 requested_scope=selected_scope,
                 limit=request.limit,
@@ -677,8 +694,9 @@ class McpToolRegistry:
 
     def get_recent_changes(self, request: GetRecentChangesInput) -> McpToolBody:
         try:
+            services = self._current_services()
             _validate_get_recent_changes_request(request)
-            selected_scope, selection = self._project_scope(request.scope, request.cwd)
+            selected_scope, selection = self._project_scope(services, request.scope, request.cwd)
             try:
                 projection = self._service_factory.open_timeline_memory_service().recent_changes(
                     requested_scope=selected_scope,
@@ -710,6 +728,7 @@ class McpToolRegistry:
         """Expose only the project-context application boundary to MCP."""
 
         try:
+            self._current_services()
             _validate_explore_project_request(request)
             context = self._service_factory.open_project_context_service().build(request.to_project_context_request())
             from vault_graph.interface.mcp.mcp_tool_serialization import (
@@ -836,14 +855,34 @@ class McpToolRegistry:
         )
         return replace(result, messages=messages)
 
+    def _current_services(self) -> McpServices:
+        """Return read services on the active index generation, reopening them when it changed (finding 발견2).
+
+        A hook or ``vg index`` in another process can publish a new generation while the server runs.
+        The check is one small file read. When the id cannot be read or the services cannot be
+        reopened, the tool keeps the services it has.
+        """
+        with self._services_lock:
+            try:
+                generation_id = self._service_factory.active_generation_id()
+            except Exception:  # noqa: BLE001 - an unreadable manifest must not fail a read tool.
+                return self._services
+            if generation_id != self._services.generation_id:
+                try:
+                    self._services = self._service_factory.open_read_only()
+                except Exception:  # noqa: BLE001 - keep serving from the previous services.
+                    pass
+            return self._services
+
     def _refresh_services_after_index(self, succeeded: bool) -> None:
         """Reopen the startup read services so search reads the index generation just published."""
         if not succeeded:
             return
-        try:
-            self._services = self._service_factory.open_read_only()
-        except Exception:  # noqa: BLE001 - keep serving from the previous services.
-            return
+        with self._services_lock:
+            try:
+                self._services = self._service_factory.open_read_only()
+            except Exception:  # noqa: BLE001 - keep serving from the previous services.
+                return
 
 
 def background_index_message(vault_name: str) -> str:

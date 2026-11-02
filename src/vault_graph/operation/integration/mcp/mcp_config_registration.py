@@ -132,8 +132,8 @@ class McpConfigRegistrar:
         next_servers[request.server_name] = desired_entry
         next_payload["mcpServers"] = next_servers
         if request.agent == "claude":
-            # Claude Code owns this file: keep its key order and replace it in one rename.
-            _replace_file(config_path, json.dumps(next_payload, indent=2) + "\n")
+            # Claude Code owns this file: keep its key order and text as written, and replace it in one rename.
+            _replace_file(config_path, json.dumps(next_payload, indent=2, ensure_ascii=False) + "\n")
         else:
             config_path.write_text(json.dumps(next_payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         return McpRegistrationReport(
@@ -149,7 +149,9 @@ class McpConfigRegistrar:
     def default_config_path(self, agent: McpAgent) -> Path:
         _validate_agent(agent)
         if agent == "claude":
-            return Path.home() / ".claude.json"
+            # Claude Code reads join(CLAUDE_CONFIG_DIR || homedir(), ".claude.json"); an empty value means unset.
+            config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+            return (Path(config_dir).expanduser() if config_dir else Path.home()) / ".claude.json"
         codex_home = os.environ.get("CODEX_HOME")
         return Path(codex_home).expanduser() / "config.toml" if codex_home else Path.home() / ".codex" / "config.toml"
 
