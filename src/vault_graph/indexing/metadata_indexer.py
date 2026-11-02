@@ -81,6 +81,65 @@ class MetadataIndexer:
         )
         return plan
 
+    def apply_paths(
+        self,
+        *,
+        scope: QueryScope,
+        changed_paths: tuple[tuple[str, str], ...],
+        deleted_paths: tuple[tuple[str, str], ...],
+    ) -> MetadataRevisionPlan:
+        """Index only the listed ``(vault_id, path)`` files, so the cost follows the list, not the Vault.
+
+        A listed changed file that is gone is deleted. Paths outside ``scope`` are ignored. Provenance
+        families are computed from the listed files only, so a family that depends on an unlisted
+        file is corrected by the next whole-Vault ``apply``.
+        """
+        index_revision = f"metadata-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+        loaded = []
+        gone: list[tuple[str, str]] = []
+        for vault_id, path in sorted(set(changed_paths)):
+            if not _key_in_scope(vault_id=vault_id, path=path, scope=scope):
+                continue
+            document = self._loader.load_path(entry=self._catalog.resolve(vault_id), path=path)
+            if document is None:
+                gone.append((vault_id, path))
+            else:
+                loaded.append(document)
+        normalized = assign_provenance_families(tuple(self._normalizer.normalize(item) for item in loaded))
+        changed: list[tuple[str, str]] = []
+        unchanged: list[tuple[str, str]] = []
+        for item in normalized:
+            key = (item.document.vault_id, item.document.path)
+            current = self._metadata_store.document_state(*key)
+            if current.document_id is None or _document_changed(current=current, item=item):
+                changed.append(key)
+            else:
+                unchanged.append(key)
+        deleted = sorted(
+            key
+            for key in set(deleted_paths) | set(gone)
+            if _key_in_scope(vault_id=key[0], path=key[1], scope=scope)
+            and (state := self._metadata_store.document_state(*key)).document_id is not None
+            and not state.is_tombstoned
+        )
+        changed_keys = set(changed)
+        changed_items = [item for item in normalized if (item.document.vault_id, item.document.path) in changed_keys]
+        self._metadata_store.apply_metadata_revision(
+            index_revision=index_revision,
+            documents=[item.document for item in changed_items],
+            chunks=[chunk for item in changed_items for chunk in item.chunks],
+            tombstones=deleted,
+        )
+        return MetadataRevisionPlan(
+            index_revision=index_revision,
+            mode="paths",
+            vault_ids=scope.vault_ids,
+            changed_paths=tuple(sorted(changed)),
+            unchanged_paths=tuple(sorted(unchanged)),
+            deleted_paths=tuple(deleted),
+            warnings=tuple(f"{item.document.path}: {warning}" for item in normalized for warning in item.warnings),
+        )
+
     def _build_plan(
         self,
         *,
@@ -151,6 +210,12 @@ def _chunk_sort_key(chunk: ChunkSnapshot) -> tuple[str, str, str]:
 
 def _document_sort_key(document: DocumentSnapshot) -> tuple[str, str, str]:
     return (document.vault_id, document.path, document.document_id)
+
+
+def _key_in_scope(*, vault_id: str, path: str, scope: QueryScope) -> bool:
+    return vault_id in scope.vault_ids and any(
+        path == content_scope or path.startswith(f"{content_scope}/") for content_scope in scope.content_scopes
+    )
 
 
 def _state_in_scope(*, state: DocumentState, scope: QueryScope) -> bool:

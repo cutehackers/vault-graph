@@ -5,9 +5,15 @@ session-start: exit code 0 means handled (stdout may be empty). Exit code 3 mean
 possible and the hook should use ``recall.sh``. Any other code is an unexpected error. Stdout is
 written only after recall finished, so a failure never leaves partial output. Before recall it
 indexes changed files of the linked Vaults, metadata only, within ``--refresh-budget`` seconds
-(``recall_index_refresh``). A failed refresh is a warning, never a hook failure. After stdout is
-written, Vaults with changed files get a normal ``vg index`` (with embeddings) in a detached process,
-so their vectors catch up and search by meaning comes back without the hook waiting for it.
+(``recall_index_refresh``). A failed refresh is a warning, never a hook failure.
+
+Right after the change scan, before the refresh writes anything, the hook starts one detached
+catch-up process, so a hook killed later by its launcher still leaves it running. The process waits
+until the hook's refresh is done (or the hook is gone), then runs a normal ``vg index`` (with
+embeddings) for Vaults with changed files, and for the other linked Vaults only when their vectors
+are stale or missing. A catch-up that was killed is therefore run again at the next session start.
+The process holds an flock on ``logs/session-start-index.lock`` while it lives. A hook that finds
+the lock taken starts nothing, so session starts never pile up background runs.
 
 capture: runs ``vault_hooks.py capture --direct`` from the ``vault-map.json`` folder with the hook
 JSON unchanged. Exit code 0 means the launcher finished (written, no-new-turns and skipped alike).
@@ -17,11 +23,14 @@ captures directly. vg never chooses the Vault, never indexes after capture and w
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+import select
 import subprocess
 import sys
 from pathlib import Path
+from time import monotonic
 from typing import NoReturn
 
 import typer
@@ -35,7 +44,11 @@ from vault_graph.context.pack.recall import (
 )
 from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME, run_capture
 from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
-from vault_graph.interface.composition.recall_index_refresh import DEFAULT_REFRESH_BUDGET_S, refresh_linked_vaults
+from vault_graph.interface.composition.recall_index_refresh import (
+    DEFAULT_REFRESH_BUDGET_S,
+    refresh_linked_vaults,
+    vectors_need_catch_up,
+)
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, vault_map_path
 
 COMMAND = "vg hook session-start"
@@ -45,9 +58,18 @@ CAPTURE_HANDOFF_EXIT_CODE = 3
 DEFAULT_CAPTURE_TIMEOUT_S = 20.0
 CATCH_UP_LOG = Path("logs") / "session-start-index.log"
 CATCH_UP_PID = Path("logs") / "session-start-index.pid"
+CATCH_UP_LOCK = Path("logs") / "session-start-index.lock"
+# Longest wait of the catch-up for the hook's refresh. The hook launcher stops the hook at 20 s.
+_GATE_TIMEOUT_S = 60.0
 _CATCH_UP_LOG_MAX_BYTES = 1_000_000
 _CATCH_UP_SCRIPT = "from vault_graph.interface.cli.hook_commands import run_catch_up_index; run_catch_up_index()"
 _VG_SCRIPT = "from vault_graph.interface.cli.main import app; app()"
+
+# Same wording as VAULT_MAP_OPTION_HELP in main.py, which imports this module.
+_VAULT_MAP_HELP = (
+    f"vault-map.json path. Defaults to ${VAULT_MAP_ENV}, then $CLAUDE_CONFIG_DIR/vault-builder/vault-map.json "
+    "when CLAUDE_CONFIG_DIR is set, then $HOME/.claude/vault-builder/vault-map.json."
+)
 
 hook_app = typer.Typer(no_args_is_help=True)
 
@@ -62,7 +84,7 @@ def session_start(
     vault_map: Path | None = typer.Option(
         None,
         "--vault-map",
-        help=f"vault-map.json path. Defaults to ${VAULT_MAP_ENV}, then $HOME/.claude/vault-builder/vault-map.json.",
+        help=_VAULT_MAP_HELP,
     ),
     max_tokens: int = typer.Option(
         DEFAULT_RECALL_MAX_TOKENS, "--max-tokens", min=100, help="Token limit. The 9,000 character limit stays."
@@ -81,21 +103,32 @@ def session_start(
     existing index.
     """
 
-    catch_up: tuple[str, ...] = ()
+    catch_ups: list[CatchUp] = []
+
+    def start_catch_up(index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...]) -> None:
+        handle = _catch_up(state, index_vault_ids, check_vault_ids)
+        if handle is not None:
+            catch_ups.append(handle)
+
     try:
         cwd, source, session_id = _read_hook_input(sys.stdin.read())
         factory = ReadOnlyServiceFactory(graph_home_path=state)
         map_path = vault_map_path(vault_map)
         ports = factory.open_session_recall(vault_map_path=map_path)
-        refresh = refresh_linked_vaults(cwd, ports=ports, graph_home_path=state, budget_s=refresh_budget)
-        catch_up = refresh.catch_up_vault_ids
+        try:
+            refresh = refresh_linked_vaults(
+                cwd, ports=ports, graph_home_path=state, budget_s=refresh_budget, on_scanned=start_catch_up
+            )
+        finally:
+            # The refresh is done, so the catch-up may take the projection lock now.
+            for handle in catch_ups:
+                handle.release()
         if refresh.warning:
             typer.echo(f"{COMMAND}: warning: {refresh.warning}", err=True)
         if refresh.status == "refreshed":
             # The ports read the generation that was active when they opened. Read the new one.
             ports = factory.open_session_recall(vault_map_path=map_path)
     except RecallUnavailable as exc:
-        _catch_up(state, catch_up)
         _handoff(str(exc))
     bundle = recall(
         cwd,
@@ -108,82 +141,116 @@ def session_start(
     for warning in bundle.warnings:
         typer.echo(f"{COMMAND}: warning: {warning}", err=True)
     if bundle.handoff:
-        _catch_up(state, catch_up)
         _handoff(bundle.reason or "Recall is not possible.")
     if bundle.text:
         typer.echo(bundle.text, nl=False)
-    _catch_up(state, catch_up)
 
 
-def start_catch_up_index(graph_home: Path, vault_ids: tuple[str, ...]) -> None:
-    """Start ``vg index --vault-id <id>`` for each Vault, one after another, in a detached process.
+class CatchUp:
+    """A started catch-up process. ``release`` lets it start indexing. Hook exit does the same."""
 
-    The process has its own session, reads nothing and writes to ``<graph home>/logs`` so the hook
-    and its launcher never wait for it. Its process ID is kept in ``logs/session-start-index.pid``
-    while it runs. When that process is still alive, no second one is started, so session starts
-    never pile up background index runs. The next session start after it ends tries again.
+    def __init__(self, gate_descriptor: int) -> None:
+        self._gate_descriptor: int | None = gate_descriptor
+
+    def release(self) -> None:
+        if self._gate_descriptor is not None:
+            os.close(self._gate_descriptor)
+            self._gate_descriptor = None
+
+
+def start_catch_up_index(
+    graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()
+) -> CatchUp | None:
+    """Start the catch-up in a detached process, or return None when one runs or nothing is asked.
+
+    ``vg index --vault-id <id>`` runs for each of ``index_vault_ids``, then for each of
+    ``check_vault_ids`` whose vectors are stale or missing, one after another. The process has its
+    own session, reads nothing and writes to ``<graph home>/logs``, so the hook and its launcher
+    never wait for it. It inherits this hook's flock on ``logs/session-start-index.lock`` and holds
+    it until it ends, killed or not. A process ID left in ``logs/session-start-index.pid`` is only
+    information: the lock alone decides whether a catch-up runs.
+
+    The process waits to start indexing until the returned ``CatchUp`` is released or this process
+    ends, so its ``vg index`` never takes the projection lock before the hook's own refresh.
     """
 
-    pid_path = graph_home / CATCH_UP_PID
-    pid_path.parent.mkdir(parents=True, exist_ok=True)
-    if not _claim_pid_file(pid_path):
-        return
+    if not index_vault_ids and not check_vault_ids:
+        return None
+    logs = graph_home / CATCH_UP_LOCK.parent
+    logs.mkdir(parents=True, exist_ok=True)
+    lock_descriptor = os.open(graph_home / CATCH_UP_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
     try:
-        log_path = graph_home / CATCH_UP_LOG
-        mode = "wb" if log_path.exists() and log_path.stat().st_size > _CATCH_UP_LOG_MAX_BYTES else "ab"
-        with log_path.open(mode) as log:
-            process = subprocess.Popen(
-                [sys.executable, "-c", _CATCH_UP_SCRIPT, str(graph_home), *vault_ids],
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                close_fds=True,
-            )
-    except BaseException:
-        pid_path.unlink(missing_ok=True)
-        raise
-    pid_path.write_text(f"{process.pid}\n", encoding="utf-8")
+        try:
+            fcntl.flock(lock_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return None
+        gate_read, gate_write = os.pipe()
+        try:
+            plan = json.dumps({"index": list(index_vault_ids), "check": list(check_vault_ids)})
+            log_path = graph_home / CATCH_UP_LOG
+            mode = "wb" if log_path.exists() and log_path.stat().st_size > _CATCH_UP_LOG_MAX_BYTES else "ab"
+            with log_path.open(mode) as log:
+                process = subprocess.Popen(
+                    [sys.executable, "-c", _CATCH_UP_SCRIPT, str(graph_home), str(gate_read), plan],
+                    stdin=subprocess.DEVNULL,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    close_fds=True,
+                    pass_fds=(lock_descriptor, gate_read),
+                )
+        except BaseException:
+            os.close(gate_write)
+            raise
+        finally:
+            os.close(gate_read)
+    finally:
+        # The child holds the same open lock, so closing this copy keeps it locked while the child lives.
+        os.close(lock_descriptor)
+    (graph_home / CATCH_UP_PID).write_text(f"{process.pid}\n", encoding="utf-8")
+    return CatchUp(gate_write)
 
 
 def run_catch_up_index() -> None:
-    """Body of the detached process: ``sys.argv`` is ``-c <graph home> <vault id>...``."""
+    """Body of the detached process: ``sys.argv`` is ``-c <graph home> <gate fd> <plan json>``."""
 
-    graph_home, *vault_ids = sys.argv[1:]
+    graph_home, gate, plan_json = sys.argv[1:4]
     try:
-        for vault_id in vault_ids:
-            subprocess.run(
-                [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id],
-                stdin=subprocess.DEVNULL,
-                check=False,
-            )
+        _wait_for_gate(int(gate), timeout_s=_GATE_TIMEOUT_S)
+        plan = json.loads(plan_json)
+        for vault_id in plan["index"]:
+            _run_vg_index(graph_home, vault_id)
+        for vault_id in plan["check"]:
+            if vectors_need_catch_up(Path(graph_home), vault_id):
+                _run_vg_index(graph_home, vault_id)
     finally:
         pid_path = Path(graph_home) / CATCH_UP_PID
         if _read_pid(pid_path) == os.getpid():
             pid_path.unlink(missing_ok=True)
 
 
-def _claim_pid_file(pid_path: Path) -> bool:
-    """Create the pid file for a new catch-up, or return False when a live catch-up holds it.
+def _run_vg_index(graph_home: str, vault_id: str) -> None:
+    subprocess.run(
+        [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id],
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
 
-    The file is created with O_EXCL, so two session starts at once never both start a process. A
-    file whose process is gone, or whose content is not a process ID, is removed and claimed again.
-    Until the new process ID is written, the file holds this hook's own process ID.
-    """
 
-    for _ in range(2):
-        try:
-            descriptor = os.open(pid_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-        except FileExistsError:
-            pid = _read_pid(pid_path)
-            if pid is not None and _process_alive(pid):
+def _wait_for_gate(descriptor: int, *, timeout_s: float) -> bool:
+    """Wait until the hook closes its end of the pipe. False when ``timeout_s`` passed first."""
+
+    deadline = monotonic() + timeout_s
+    try:
+        while True:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
                 return False
-            pid_path.unlink(missing_ok=True)
-            continue
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(f"{os.getpid()}\n")
-        return True
-    return False
+            readable, _, _ = select.select([descriptor], [], [], remaining)
+            if readable and not os.read(descriptor, 4096):
+                return True
+    finally:
+        os.close(descriptor)
 
 
 def _read_pid(pid_path: Path) -> int | None:
@@ -194,25 +261,12 @@ def _read_pid(pid_path: Path) -> int | None:
     return pid if pid > 0 else None
 
 
-def _process_alive(pid: int) -> bool:
+def _catch_up(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...]) -> CatchUp | None:
     try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return True
-
-
-def _catch_up(graph_home: Path, vault_ids: tuple[str, ...]) -> None:
-    if not vault_ids:
-        return
-    try:
-        start_catch_up_index(graph_home, vault_ids)
+        return start_catch_up_index(graph_home, index_vault_ids, check_vault_ids)
     except OSError as exc:
         typer.echo(f"{COMMAND}: warning: cannot start the background `vg index`: {exc}.", err=True)
+        return None
 
 
 @hook_app.command("capture")
@@ -220,10 +274,7 @@ def capture(
     vault_map: Path | None = typer.Option(
         None,
         "--vault-map",
-        help=(
-            f"vault-map.json path. {LAUNCHER_NAME} is run from its folder. "
-            f"Defaults to ${VAULT_MAP_ENV}, then $HOME/.claude/vault-builder/vault-map.json."
-        ),
+        help=f"{_VAULT_MAP_HELP} {LAUNCHER_NAME} is run from its folder.",
     ),
     timeout: float = typer.Option(
         DEFAULT_CAPTURE_TIMEOUT_S, "--timeout", min=0.1, help="Seconds before the launcher is stopped."
@@ -267,4 +318,4 @@ def _handoff(reason: str) -> NoReturn:
     raise typer.Exit(RECALL_HANDOFF_EXIT_CODE)
 
 
-__all__ = ["hook_app", "run_catch_up_index", "start_catch_up_index"]
+__all__ = ["CatchUp", "hook_app", "run_catch_up_index", "start_catch_up_index"]
