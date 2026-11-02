@@ -147,3 +147,42 @@ def test_malformed_locator_json_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(MetadataStoreError, match="source_locators_json"):
         store.list_chunks(QueryScope(vault_ids=(document.vault_id,), content_scopes=("wiki",)))
+
+
+def _orphan_blob_cleanup_plan(connection: sqlite3.Connection) -> str:
+    rows = connection.execute(
+        "EXPLAIN QUERY PLAN DELETE FROM content_blobs "
+        "WHERE NOT EXISTS (SELECT 1 FROM chunks WHERE chunks.blob_hash = content_blobs.blob_hash)"
+    ).fetchall()
+    return " | ".join(str(row[-1]) for row in rows)
+
+
+def test_new_database_cleans_orphan_blobs_through_a_blob_hash_index(tmp_path: Path) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+
+    with store.connect_for_tests() as connection:
+        plan = _orphan_blob_cleanup_plan(connection)
+
+    assert "chunks_blob_hash" in plan
+
+
+def test_existing_v3_database_gets_the_blob_hash_index_and_stays_compatible(tmp_path: Path) -> None:
+    database_path = tmp_path / "metadata.sqlite3"
+    store = SQLiteMetadataStore(database_path, initialize=True)
+    document = _document()
+    store.apply_metadata_revision(
+        index_revision="metadata-1", documents=[document], chunks=[_chunk(document)], tombstones=[]
+    )
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("DROP INDEX IF EXISTS chunks_blob_hash")
+
+    # A Graph Home written before the index existed is still readable without `vg index`.
+    assert SQLiteMetadataStore(database_path, initialize=False).health().schema_compatible is True
+
+    upgraded = SQLiteMetadataStore(database_path, initialize=True)
+
+    assert upgraded.health().schema_compatible is True
+    with upgraded.connect_for_tests() as connection:
+        assert "chunks_blob_hash" in _orphan_blob_cleanup_plan(connection)
+    restored = upgraded.resolve_chunk(vault_id=document.vault_id, chunk_id="chunk-1")
+    assert restored is not None and restored.text == "Body"
