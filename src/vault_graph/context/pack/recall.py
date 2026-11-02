@@ -1,9 +1,10 @@
 """Session start recall: a four-block Markdown memory bundle (spec 4.2.3, S3, S4, S11, S13).
 
 ``recall`` reads only document metadata through injected ports. It never searches and never
-opens embeddings or a vector store. Blocks print in order A (pinned core), B (memory list),
-C (change notices), D (how to open a page). Block A stays empty until Vault pages carry
-``pin``/``memory_kind`` (spec 의존5), so its heading is never printed today.
+opens embeddings or a vector store. Blocks print in order A (pinned memory, ``recall_pins``),
+B (memory list), C (change notices), D (how to open a page). Block A takes current in-scope pages
+with ``pin: true`` from every linked Vault, has its own 400-token budget, and its pages are not
+repeated in block B (spec 2026-11-02 V4, 결정14).
 
 The usage log port stores plain JSON objects. ``injected`` events from one run share the same
 ``at`` value, which is how a run is told apart from the next one. Usage events never change the
@@ -22,6 +23,14 @@ from typing import Literal, Protocol
 from vault_graph.context.memory.issue_memory import EXCLUDED_STATUSES as CLOSED_ISSUE_STATUSES
 from vault_graph.context.memory.issue_memory import ISSUE_TYPES
 from vault_graph.context.memory.project_memory import STALE_STATUSES
+from vault_graph.context.pack.recall_pins import (
+    PIN_BLOCK_MAX_TOKENS,
+    PinBlock,
+    PinEntry,
+    is_pinned,
+    pin_block,
+    unknown_memory_schema,
+)
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 
 DEFAULT_RECALL_MAX_TOKENS = 1500
@@ -49,12 +58,17 @@ class RecallUnavailable(Exception):
 
 @dataclass(frozen=True)
 class RecallScope:
-    """Registered Graph Home Vault ids linked to the working folder."""
+    """Registered Graph Home Vault ids linked to the working folder.
+
+    ``vault_names`` maps a Vault id to its ``vault-map.json`` name. With two or more Vaults the
+    name replaces the id in page locations. Ids without a name keep the id.
+    """
 
     project_id: str | None
     vault_ids: tuple[str, ...]
     reason: str | None = None
     warnings: tuple[str, ...] = ()
+    vault_names: Mapping[str, str] = field(default_factory=dict)
 
 
 class RecallScopeResolver(Protocol):
@@ -142,7 +156,14 @@ def recall(
         f"Vault {vault_id} has no index. Run `vg index`." for vault_id in scope.vault_ids if vault_id not in indexed
     )
 
-    library = _Library.load(ports.documents, indexed, project_id=scope.project_id, many_vaults=len(indexed) > 1)
+    library = _Library.load(
+        ports.documents,
+        indexed,
+        project_id=scope.project_id,
+        many_vaults=len(indexed) > 1,
+        vault_names=scope.vault_names,
+    )
+    warnings.extend(_schema_warnings(library))
     history: _History | None
     try:
         history = _History.from_events(ports.usage.read_events(), project_id=scope.project_id)
@@ -154,12 +175,17 @@ def recall(
     if source in NOTICE_ONLY_SOURCES:
         if not notices:
             return RecallBundle(text="", warnings=tuple(warnings))
-        layout = _layout(library, notices=notices, items=(), full=False, max_tokens=max_tokens, max_chars=max_chars)
+        layout = _layout(
+            library, pins=None, notices=notices, items=(), full=False, max_tokens=max_tokens, max_chars=max_chars
+        )
     else:
+        pins = _block_a(library, max_tokens=min(PIN_BLOCK_MAX_TOKENS, max_tokens))
         items = _block_b_items(library)
-        if not items and not notices:
+        if not items and not notices and not pins.text:
             return _handoff("No memory to recall for this project.", warnings)
-        layout = _layout(library, notices=notices, items=items, full=True, max_tokens=max_tokens, max_chars=max_chars)
+        layout = _layout(
+            library, pins=pins, notices=notices, items=items, full=True, max_tokens=max_tokens, max_chars=max_chars
+        )
 
     events = [
         _injected_event(entry, block=block, session_id=session_id, project_id=scope.project_id, at=moment)
@@ -192,10 +218,18 @@ class _Entry:
     category: Category
     retired_reason: str | None = None
     retired_day: str | None = None
+    pinned: bool = False
+    memory_kind: str | None = None
+    summary: str | None = None
+    unknown_schema: str | None = None
 
     @property
     def is_current(self) -> bool:
         return self.status not in STALE_STATUSES
+
+    @property
+    def is_pinned_current(self) -> bool:
+        return self.pinned and self.is_current
 
     @property
     def notice_day(self) -> str:
@@ -209,6 +243,7 @@ class _Library:
     vault_ids: tuple[str, ...]
     many_vaults: bool
     token_reader: Callable[[str, str], int]
+    vault_names: Mapping[str, str] = field(default_factory=dict)
     _by_path: dict[tuple[str, str], _Entry] = field(default_factory=dict)
     _by_id: dict[str, _Entry] = field(default_factory=dict)
 
@@ -224,6 +259,7 @@ class _Library:
         *,
         project_id: str | None,
         many_vaults: bool,
+        vault_names: Mapping[str, str],
     ) -> _Library:
         entries = tuple(
             _entry(document, project_id=project_id)
@@ -231,7 +267,13 @@ class _Library:
             for document in reader.documents(vault_id)
             if document.path.startswith("wiki/")
         )
-        return cls(entries=entries, vault_ids=vault_ids, many_vaults=many_vaults, token_reader=reader.body_tokens)
+        return cls(
+            entries=entries,
+            vault_ids=vault_ids,
+            many_vaults=many_vaults,
+            token_reader=reader.body_tokens,
+            vault_names=vault_names,
+        )
 
     def scoped(self) -> Iterable[_Entry]:
         return (entry for entry in self.entries if entry.in_scope)
@@ -243,7 +285,11 @@ class _Library:
         return self._by_path.get((vault_id, _target_path(target)))
 
     def location(self, entry: _Entry) -> str:
-        return f"{entry.vault_id}:{entry.path}" if self.many_vaults else entry.path
+        return f"{self.label(entry.vault_id)}:{entry.path}" if self.many_vaults else entry.path
+
+    def label(self, vault_id: str) -> str:
+        """The map name of a Vault, or its id when the map has no name for it."""
+        return self.vault_names.get(vault_id) or vault_id
 
 
 def _entry(document: DocumentSnapshot, *, project_id: str | None) -> _Entry:
@@ -266,6 +312,10 @@ def _entry(document: DocumentSnapshot, *, project_id: str | None) -> _Entry:
         category=_category(document.path, doc_type.casefold(), status),
         retired_reason=_one_line(_text(frontmatter.get("retired_reason"))) or None,
         retired_day=_day(frontmatter.get("retired_at")),
+        pinned=is_pinned(frontmatter),
+        memory_kind=_text(frontmatter.get("memory_kind")) or None,
+        summary=_one_line(_text(frontmatter.get("summary"))) or None,
+        unknown_schema=unknown_memory_schema(frontmatter),
     )
 
 
@@ -318,10 +368,12 @@ def _target_path(target: str) -> str:
 
 # Usage history -------------------------------------------------------------------------------
 
+_LISTED_BLOCKS = frozenset({"A", "B"})
+
 
 @dataclass(frozen=True)
 class _History:
-    base_items: Mapping[str, str]  # item id -> content hash in the last run that printed block B
+    base_items: Mapping[str, str]  # item id -> content hash in the last run that printed block A or B
     has_base: bool
     noticed: frozenset[str]  # block C items already reported after that run
 
@@ -331,12 +383,12 @@ class _History:
         for event in events:
             if event.get("event") == "injected" and event.get("project") == project_id:
                 runs.setdefault(str(event.get("at", "")), []).append(event)
-        b_runs = sorted(at for at, run in runs.items() if any(event.get("block") == "B" for event in run))
+        b_runs = sorted(at for at, run in runs.items() if any(event.get("block") in _LISTED_BLOCKS for event in run))
         base_at = b_runs[-1] if b_runs else ""
         base_items = {
             str(event.get("item_id")): str(event.get("content_hash", ""))
             for event in runs.get(base_at, ())
-            if event.get("block") == "B"
+            if event.get("block") in _LISTED_BLOCKS
         }
         noticed = frozenset(
             str(event.get("item_id"))
@@ -393,9 +445,43 @@ def _replacement(library: _Library, entry: _Entry) -> str | None:
     return None
 
 
+def _schema_warnings(library: _Library) -> list[str]:
+    """One line for every in-scope page whose ``memory_schema`` is unknown. Those pages stay regular."""
+    unknown = sorted((entry for entry in library.scoped() if entry.unknown_schema), key=lambda e: (e.vault_id, e.path))
+    if not unknown:
+        return []
+    pages = ", ".join(f"{library.location(entry)} ({entry.unknown_schema})" for entry in unknown)
+    return [_one_line(f"Unknown memory_schema, shown as regular pages: {pages}")]
+
+
+def _block_a(library: _Library, *, max_tokens: int) -> PinBlock:
+    pins = tuple(
+        PinEntry(
+            item_id=entry.item_id,
+            kind=entry.memory_kind or entry.type,
+            title=entry.title,
+            summary=entry.summary or entry.title,
+            location=library.location(entry),
+            day=entry.day,
+            path=entry.path,
+        )
+        for entry in library.scoped()
+        if entry.is_pinned_current
+    )
+    return pin_block(pins, max_tokens=max_tokens)
+
+
 def _block_b_items(library: _Library) -> tuple[_Entry, ...]:
-    """Newest ``updated`` first across every linked Vault, ties by (Vault, path). Usage is not read."""
-    current = sorted((entry for entry in library.scoped() if entry.is_current), key=lambda e: (e.vault_id, e.path))
+    """Newest ``updated`` first across every linked Vault, ties by (Vault name, path). Usage is not read.
+
+    The Vault name is the map name, or the Vault id without one. The id breaks any remaining tie.
+
+    Pinned pages belong to block A, including the ones block A had to leave out for its budget.
+    """
+    current = sorted(
+        (entry for entry in library.scoped() if entry.is_current and not entry.pinned),
+        key=lambda e: (library.label(e.vault_id), e.path, e.vault_id),
+    )
     ordered = sorted(current, key=lambda entry: entry.day, reverse=True)
     counts: dict[str, int] = {}
     selected: list[_Entry] = []
@@ -415,6 +501,7 @@ class _Layout:
 def _layout(
     library: _Library,
     *,
+    pins: PinBlock | None,
     notices: tuple[_Notice, ...],
     items: tuple[_Entry, ...],
     full: bool,
@@ -434,7 +521,7 @@ def _layout(
     item_lines = [_item_line(library, entry) for entry in items]
 
     def render(shown_items: int, shown_notices: int) -> str:
-        blocks: list[str] = []
+        blocks: list[str] = [pins.text] if pins is not None and pins.text else []
         if items:
             omitted = len(items) - shown_items
             lines = item_lines[:shown_items] + ([f"- {omitted}개 생략"] if omitted else [])
@@ -452,8 +539,11 @@ def _layout(
     while shown_items and not fits(render(shown_items, shown_notices)):
         shown_items -= 1
     text = render(shown_items, shown_notices)
-    shown = tuple(("B", entry) for entry in items[:shown_items]) + tuple(
-        ("C", notice.entry) for notice in notices[:shown_notices]
+    pinned_shown = tuple(("A", library.by_id(pin.item_id)) for pin in pins.shown) if pins is not None else ()
+    shown = (
+        tuple((block, entry) for block, entry in pinned_shown if entry is not None)
+        + tuple(("B", entry) for entry in items[:shown_items])
+        + tuple(("C", notice.entry) for notice in notices[:shown_notices])
     )
     return _Layout(text=text if fits(text) else "", shown=shown if fits(text) else ())
 
@@ -484,11 +574,17 @@ def _notice_line(notice: _Notice) -> str:
 
 
 def _how_to_open(library: _Library) -> str:
-    prefix = " 경로 앞 이름이 vault_id다." if library.many_vaults else ""
-    return (
-        "- 본문은 MCP 리소스 `vault://{vault_id}/pages/{path}`로 연다(path의 `/`는 `%2F`)."
-        f"{prefix} vault_id: {', '.join(library.vault_ids)}"
-    )
+    renamed = library.many_vaults and any(library.label(vault_id) != vault_id for vault_id in library.vault_ids)
+    if renamed:
+        prefix = " 경로 앞은 Vault 이름이다. 이름=vault_id:"
+        ids = ", ".join(
+            f"{library.label(vault_id)}={vault_id}" if library.label(vault_id) != vault_id else vault_id
+            for vault_id in library.vault_ids
+        )
+    else:
+        prefix = " 경로 앞 이름이 vault_id다. vault_id:" if library.many_vaults else " vault_id:"
+        ids = ", ".join(library.vault_ids)
+    return f"- 본문은 MCP 리소스 `vault://{{vault_id}}/pages/{{path}}`로 연다(path의 `/`는 `%2F`).{prefix} {ids}"
 
 
 def _injected_event(

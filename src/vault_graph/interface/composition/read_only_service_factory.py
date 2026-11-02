@@ -457,6 +457,7 @@ class _ProjectRecallScope:
     def resolve(self, cwd: Path) -> RecallScope:
         from vault_graph.context.pack.recall import RecallScope
         from vault_graph.interface.composition.query_scope_resolution import resolve_project_vaults
+        from vault_graph.interface.composition.vault_labels import vault_labels
         from vault_graph.operation.integration.vault_map import open_vault_map
 
         opening = open_vault_map(self._vault_map_path)
@@ -486,6 +487,9 @@ class _ProjectRecallScope:
             vault_ids=resolution.vault_ids,
             reason=reason,
             warnings=tuple(warnings),
+            vault_names={
+                vault_id: label.name for vault_id, label in vault_labels(opening.vault_map, self._catalog).items()
+            },
         )
 
     @property
