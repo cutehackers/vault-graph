@@ -47,7 +47,6 @@ vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
 - 프로젝트 Vault가 Graph Home에 하나도 등록되지 않았을 때 `search`는 빈 결과와 "`vg setup` 필요" 경고를 돌려주지만, `ask`, `context`와 MCP `find_related` 등 다섯 도구는 같은 내용을 오류로 낸다.
 - Vault 이름·종류(`vault_name`, `vault_role`)는 검색 결과에만 붙고, 답변과 context pack 결과에는 없다(의도 검수 F12). HTTP의 선택 필드 `cwd`는 `/search`에만 있다.
 - 폐기(`retired`) 페이지를 포함해 검색하는 옵션은 없다.
-- 세션 시작 훅의 색인 갱신은 임베딩을 만들지 않는다. 새 조각은 다음 `vg index`까지 의미 검색에 나오지 않는다(§4).
 - 2026-11-02 최초 의도 기준 검수([intent-audit](specs/2026-11-02-vault-long-term-memory/research/intent-audit.md))에서 다음 작업으로 넘긴 것:
   - F9: personal과 project Vault를 함께 연결한 프로젝트는 기본 저장 Vault가 없어 첫 쓰기가 `vault_required`다(vault-builder).
   - F10: 고정 기억의 `summary`가 제목과 같아 내용이 회상에 들어가지 않는다.
@@ -114,7 +113,9 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 - Graph Home(`$HOME/.vault-graph` 등) 아래의 파생 데이터와 설정. 명시적 명령(setup, index, watch, MCP 등록 등)과 바로 아래의 색인 갱신 두 경우에서만 기록한다. 정상 조회는 색인·설정을 기록하지 않는다. 예외는 세션 시작 회상과 MCP 페이지 리소스 읽기가 Graph Home `usage/`에 사용 기록을 덧붙여 쓰는 것 하나다. 사용 기록은 순위에 영향을 주지 않는다. 회상의 구획C 알림 중복 방지에만 쓰므로, `usage/`를 지워도 검색 결과와 회상 구획A·B는 같다.
 - Graph Home 색인은 두 경우에 명시적 `vg index` 없이도 갱신된다(2026-11-02 의도 검수 F1). 저장한 기억이 다음 세션 회상과 검색에 바로 나오게 하기 위해서다. 둘 다 Vault 파일은 읽기만 한다.
   1. MCP 쓰기 도구가 `published`를 돌려주면, MCP 서버가 그 Vault의 증분 색인(`vg index --vault-id`와 같은 동작)을 백그라운드로 시작하고, 끝나면 검색 서비스를 다시 연다. 도구 결과는 색인을 기다리지 않고, 색인이 실패해도 쓰기 결과는 바뀌지 않는다.
-  2. `vg hook session-start`는 회상 전에, 이미 색인된 연결 Vault에서 바뀐 파일만 메타데이터와 그래프로 다시 색인하고 새 세대를 발행한다. 임베딩은 만들지 않으므로 새 조각의 벡터는 다음 `vg index`가 만든다. 시간 한도는 기본 5초(`--refresh-budget`)이고, 한도를 넘거나 실패하면 아무것도 발행하지 않고 경고 한 줄을 낸 뒤 기존 색인으로 회상한다. 훅은 이 때문에 실패하지 않는다.
+  2. `vg hook session-start`는 회상 전에, 이미 색인된 연결 Vault에서 바뀐 파일만 메타데이터와 그래프로 다시 색인하고 새 세대를 발행한다. 임베딩은 만들지 않는다. 시간 한도는 기본 5초(`--refresh-budget`)이고, 바뀐 파일 찾기도 이 한도 안에서 한다. 한도를 넘거나, 바뀌거나 지운 파일이 200개를 넘거나, 다른 실행이 세대 발행 잠금을 1초 넘게 쥐고 있거나, 실패하면 아무것도 발행하지 않고 경고 한 줄을 낸 뒤 기존 색인으로 회상한다. 훅은 이 때문에 실패하지 않는다.
+  3. 같은 훅은 회상 출력을 쓴 뒤, 바뀐 파일이 있는 연결 Vault마다 일반 `vg index --vault-id`(임베딩 포함)를 분리된 백그라운드 프로세스로 실행한다. 새 조각의 벡터는 이 색인이 만든다. 훅은 기다리지 않는다. 프로세스 ID는 Graph Home `logs/session-start-index.pid`, 출력은 `logs/session-start-index.log`에 쓴다. 이 프로세스가 살아 있는 동안에는 다음 세션 시작이 새로 띄우지 않는다(2026-11-02 재검수 발견1·3).
+- 세대 발행은 프로세스 간 파일 잠금(`projections/.publish.lock`)으로 한 번에 하나만 한다. 발행 뒤에는 현재 세대와 바로 이전 세대만 남기고 나머지 세대 폴더를 지운다. 중단된 실행이 남긴 스테이징 폴더는 1시간이 지나면 다음 스테이징을 시작할 때 지운다(2026-11-02 재검수 발견4·5).
 - Vault에는 Vault 도구를 실행하는 세 경로로만 쓴다.
   1. publish-draft: `remember`(추가), `update_memory`(수정), `retire_memory`(폐기)에 `basis: stated`를 주면 Vault 검증을 통과하는 순간 확정된다.
   2. `review propose`: 같은 세 도구에 `basis: inferred`를 주면 검토 항목을 만들고 `proposed`와 `review_path`를 돌려준다. 사람이 `review resolve <review_path> --status accepted`로 승인하면 Vault가 발행한다. 승인 전에는 회상과 검색에 나오지 않는다. 사람이 `--status rejected`로 거부하면 기억 페이지는 만들어지거나 바뀌지 않고, `wiki/log.md`에 "Review rejected" 한 줄만 더해진다(2026-11-02 사용자 결정).
@@ -152,7 +153,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
   - 새 페이지의 저장 Vault는 결정12대로 고른다. `vault`는 `cwd` 프로젝트의 연결 Vault 안에서만 찾고, 연결되지 않은 이름이면 `rejected`와 연결 Vault 목록을 돌려준다. 수정·폐기는 `path`가 있는 연결 Vault를 찾는다. 하나면 그 Vault, 없으면 `rejected`, 둘 이상이면 `vault_required`다.
   - `published`면 MCP 서버가 그 Vault를 백그라운드로 색인한다(§4). 색인을 시작하면 `messages`의 "`vg index`를 실행하라" 안내가 "백그라운드로 색인 중" 안내로 바뀐다.
 - CLI `vg hook capture [--vault-map PATH] [--timeout S]`. 표준 입력으로 Claude Code PreCompact 또는 SessionEnd 훅 JSON을 받아 `vault-map.json` 폴더의 `vault_hooks.py capture --direct`에 그대로 넘긴다. 결과(`status`, `vault`, `path`)를 표준 오류에 한 줄로 요약한다. 종료 코드 0은 실행기가 정상으로 끝났음(written, no-new-turns, skipped 모두), 3은 실행기를 찾지 못했거나 실패했거나 시간 제한(기본 20초)을 넘었음이다. 3이면 훅 실행기가 직접 수집한다. Graph Home에 쓰지 않고 수집 뒤 색인하지 않는다. 수집한 원문은 다음 `vg hook session-start`의 색인 갱신이 반영한다.
-- `vg setup --agent claude --mcp`: Claude Code 사용자 설정 `$HOME/.claude.json`의 `mcpServers.vault-graph`에 `vg serve --mcp` 항목을 더한다(2026-11-02 의도 검수 F5). 다른 키와 MCP 서버는 그대로 두고, 바꾸기 전 파일을 `.claude.json.bak`으로 남기며, 파일이 JSON이 아니면 쓰지 않는다. `--mcp-config-path`, `--dry-run`, `--print-mcp-config`는 codex와 같다. `vg mcp config`·`vg mcp register`도 `--agent claude`를 받는다.
+- `vg setup --agent claude --mcp`: Claude Code 사용자 설정 `.claude.json`의 `mcpServers.vault-graph`에 `vg serve --mcp` 항목을 더한다(2026-11-02 의도 검수 F5). 파일 위치는 Claude Code와 같다. `CLAUDE_CONFIG_DIR`가 비어 있지 않으면 `$CLAUDE_CONFIG_DIR/.claude.json`, 아니면 `$HOME/.claude.json`이다(2026-11-02 재검수 발견6). 한글 등 ASCII가 아닌 글자는 `\u` 이스케이프로 바꾸지 않고 그대로 쓴다. 다른 키와 MCP 서버는 그대로 두고, 바꾸기 전 파일을 `.claude.json.bak`으로 남기며, 파일이 JSON이 아니면 쓰지 않는다. `--mcp-config-path`, `--dry-run`, `--print-mcp-config`는 codex와 같다. `vg mcp config`·`vg mcp register`도 `--agent claude`를 받는다.
 
 ## 6. 외부 계약
 
