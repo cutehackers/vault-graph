@@ -759,3 +759,20 @@ source of truth.
 **Reason:** The collector cannot go through publish-draft because publish-draft cannot write outside `wiki/`.
 
 **Implications:** The rule change is sent to vault-builder as request 1 and tracked as dependency 3 (not implemented). This exception does not apply to Vault Graph, which never writes to `raw/`.
+
+## 2026-11-02 - Redefine Vault Graph As A Long-Term Memory Tool Over Multiple Vaults
+
+**Question:** Is Vault Graph still a read-only search layer, and how should it handle several Vaults of different types?
+
+**Decision:** Vault Graph is a long-term memory tool for Claude Code built on Vault. `docs/SPEC.md` §0 records the intent. Vault is the only memory store. Vault Graph may add, update, and retire memory pages, always through Vault's own tools. Session transcripts are saved by Vault's `sessions capture`, and Vault Graph may decide when to run it. Vault Graph keeps only rebuildable data, and usage data moves into Vault once it affects ranking or cleanup. For multiple Vaults the user adopted the recommended defaults, modeled on OpenWiki workspaces:
+- Decision 12: write to the explicit `vault`, else the project's default write Vault, else return `vault_required`. There is no routing by memory kind.
+- Decision 13: search all linked Vaults into one ranked list, tagging each result with its Vault name and type.
+- Decision 14: session-start recall puts pinned memories first, then fills the budget from one ranked list with no per-Vault share.
+- Decision 15: a Vault type is a label in `vault-map.json`, and code never branches on a type name.
+
+**Reason:** Claude Code's built-in memory is flat files loaded in full, and its transcripts expire after 30 days. Memory naturally splits into personal, project, and team Vaults. Guessing a write target can leak a private memory into a shared Vault.
+
+**Implications:** This replaces "read-only" wording. Principles 4 and 5 in `docs/SPEC.md` now allow writes through Vault tools and capture orchestration, but never direct file writes. Not implemented yet:
+- update and retire (dependencies 4 and 5)
+- the team type and the default write Vault field in `vault-map.json` (request 5 extension)
+- capture orchestration (dependency 1)
