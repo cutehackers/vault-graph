@@ -98,12 +98,17 @@ def ports(
     vault_ids: tuple[str, ...] = ("main",),
     project_id: str | None = "alpha",
     indexed: set[str] | None = None,
+    vault_names: Mapping[str, str] | None = None,
 ) -> RecallPorts:
     by_vault: dict[str, tuple[DocumentSnapshot, ...]] = {}
     for item in documents:
         by_vault[item.vault_id] = (*by_vault.get(item.vault_id, ()), item)
     return RecallPorts(
-        scope=FakeScope(RecallScope(project_id=project_id, vault_ids=vault_ids)),
+        scope=FakeScope(
+            RecallScope(project_id=project_id, vault_ids=vault_ids)
+            if vault_names is None
+            else RecallScope(project_id=project_id, vault_ids=vault_ids, vault_names=vault_names)
+        ),
         documents=FakeDocuments(by_vault, indexed=indexed),
         usage=usage if usage is not None else FakeUsage(),
     )
@@ -545,3 +550,219 @@ def test_fetched_event_shape() -> None:
         "session_id": None,
         "at": NOW.isoformat(),
     }
+
+
+# Block A: pinned memory (spec 2026-11-02 V4, 결정14, 결정S11) ---------------------------------
+
+
+def pinned(
+    path: str,
+    *,
+    vault_id: str = "main",
+    title: str = "Pinned rule",
+    updated: str | None = None,
+    **frontmatter: Any,
+) -> DocumentSnapshot:
+    fields: dict[str, Any] = {
+        "title": title,
+        "type": "concept",
+        "pin": True,
+        "memory_schema": "vault-memory/v1",
+        "memory_kind": "rule",
+        "summary": f"Summary of {title}",
+        "updated": updated or day(30),
+    }
+    fields.update(frontmatter)
+    return doc(path, vault_id=vault_id, **fields)
+
+
+def headings(text: str) -> list[str]:
+    return [line for line in text.splitlines() if line.startswith("## ")]
+
+
+def test_pinned_page_comes_first_as_two_lines_and_leaves_block_b() -> None:
+    page = pinned("wiki/rules/use-uv.md", title="Use uv run")
+
+    bundle = run(ports((*BASE_DOCS, page)))
+
+    assert headings(bundle.text) == ["## 고정 기억", "## 기억 목록", "## 가져오는 방법"]
+    assert section(bundle.text, "## 고정 기억") == [
+        f"- [{memory_item_id('main', 'wiki/rules/use-uv.md')}] rule · Use uv run (wiki/rules/use-uv.md)",
+        "  Summary of Use uv run",
+    ]
+    assert "Use uv run" not in "\n".join(_block_b(bundle))
+
+
+def test_pinned_page_of_any_linked_vault_comes_before_newer_pages() -> None:
+    team = pinned("wiki/rules/team-rule.md", vault_id="team", title="Team rule", updated=day(90))
+
+    bundle = run(ports((*BASE_DOCS, team), vault_ids=("main", "team")))
+
+    assert headings(bundle.text)[0] == "## 고정 기억"
+    assert "(team:wiki/rules/team-rule.md)" in section(bundle.text, "## 고정 기억")[0]
+
+
+def test_kind_falls_back_to_type_without_memory_kind() -> None:
+    page = pinned("wiki/rules/plain.md", title="Plain pin", memory_kind=None)
+
+    first = section(run(ports((*BASE_DOCS, page))).text, "## 고정 기억")[0]
+
+    assert "] concept · Plain pin (" in first
+
+
+def test_quoted_true_is_not_a_pin_and_stays_in_block_b() -> None:
+    page = pinned("wiki/rules/quoted.md", title="Quoted pin", pin="true")
+
+    bundle = run(ports((*BASE_DOCS, page)))
+
+    assert "## 고정 기억" not in bundle.text
+    assert any("Quoted pin" in line for line in _block_b(bundle))
+
+
+@pytest.mark.parametrize("status", ["retired", "superseded", "deprecated", "stale"])
+def test_closed_pinned_pages_are_not_in_block_a(status: str) -> None:
+    page = pinned("wiki/rules/closed.md", title="Closed pin", status=status, retired_reason="gone")
+
+    bundle = run(ports((*BASE_DOCS, page)))
+
+    assert "## 고정 기억" not in bundle.text
+    assert "Closed pin" not in "\n".join(_block_b(bundle))
+
+
+def test_pinned_page_of_another_project_is_not_shown() -> None:
+    page = pinned("wiki/rules/beta.md", title="Beta pin", project="beta")
+
+    assert "Beta pin" not in run(ports((*BASE_DOCS, page))).text
+
+
+def test_pins_are_ordered_newest_first_then_by_path() -> None:
+    documents = (
+        *BASE_DOCS,
+        pinned("wiki/rules/b.md", title="B pin", updated=day(5)),
+        pinned("wiki/rules/a.md", title="A pin", updated=day(5)),
+        pinned("wiki/rules/new.md", title="New pin", updated=day(1)),
+    )
+
+    lines = section(run(ports(documents)).text, "## 고정 기억")
+
+    assert [line.split(" · ")[1].split(" (")[0] for line in lines[::2]] == ["New pin", "A pin", "B pin"]
+
+
+def test_block_a_over_400_tokens_is_cut_from_the_end_and_block_b_keeps_its_room() -> None:
+    long_summary = " ".join(["word"] * 40)
+    pins = tuple(
+        pinned(f"wiki/rules/r{index:02d}.md", title=f"Rule {index}", summary=long_summary, updated=day(index))
+        for index in range(30)
+    )
+    without_pins = run(ports(BASE_DOCS))
+
+    bundle = run(ports((*BASE_DOCS, *pins)))
+
+    block_a = "## 고정 기억\n" + "".join(line + "\n" for line in section(bundle.text, "## 고정 기억"))
+    assert estimate_recall_tokens(block_a) <= 400
+    assert re.fullmatch(r"- \d+개 생략", section(bundle.text, "## 고정 기억")[-1])
+    assert _block_b(bundle) == _block_b(without_pins)
+    assert estimate_recall_tokens(bundle.text) <= DEFAULT_RECALL_MAX_TOKENS
+    assert len(bundle.text) <= DEFAULT_RECALL_MAX_CHARS
+
+
+def test_unknown_memory_schema_is_a_regular_page_with_one_warning() -> None:
+    page = pinned("wiki/rules/future.md", title="Future pin", memory_schema="vault-memory/v9")
+
+    bundle = run(ports((*BASE_DOCS, page)))
+
+    assert "## 고정 기억" not in bundle.text
+    assert any("Future pin" in line for line in _block_b(bundle))
+    assert len(bundle.warnings) == 1
+    assert "vault-memory/v9" in bundle.warnings[0]
+    assert "\n" not in bundle.warnings[0]
+
+
+def test_pinned_items_are_logged_as_block_a() -> None:
+    usage = FakeUsage()
+
+    run(ports((*BASE_DOCS, pinned("wiki/rules/use-uv.md")), usage=usage))
+
+    assert usage.events[0]["block"] == "A"
+    assert usage.events[0]["item_id"] == memory_item_id("main", "wiki/rules/use-uv.md")
+
+
+def test_only_pinned_pages_still_print_block_a() -> None:
+    bundle = run(ports((pinned("wiki/rules/only.md", title="Only pin"),)))
+
+    assert bundle.exit_code == 0
+    assert headings(bundle.text) == ["## 고정 기억", "## 가져오는 방법"]
+
+
+def test_retiring_a_pinned_page_is_noticed_after_it_was_shown() -> None:
+    usage = FakeUsage()
+    page = pinned("wiki/rules/use-uv.md", title="Use uv run", updated=day(60))
+    run(ports((*BASE_DOCS, page), usage=usage), now=NOW - timedelta(hours=2))
+    retired = pinned(
+        "wiki/rules/use-uv.md", title="Use uv run", updated=day(60), status="retired", retired_reason="moved"
+    )
+
+    bundle = run(ports((*BASE_DOCS, retired), usage=usage))
+
+    assert section(bundle.text, "## 변경 알림") == [
+        f"- [{memory_item_id('main', 'wiki/rules/use-uv.md')}] Use uv run → 폐기됨: moved ({day(60)})"
+    ]
+
+
+def test_usage_history_never_changes_block_a() -> None:
+    """A-9: no log, 10 injections with no fetch, changed content hash and unreadable log give the same block A."""
+    documents = (*BASE_DOCS, pinned("wiki/rules/one.md", title="One"), pinned("wiki/rules/two.md", title="Two"))
+    baseline = section(run(ports(documents)).text, "## 고정 기억")
+
+    ignored = FakeUsage()
+    for hour in range(10, 0, -1):
+        run(ports(documents, usage=ignored), now=NOW - timedelta(hours=hour))
+    changed = FakeUsage()
+    run(ports(documents, usage=changed), now=NOW - timedelta(hours=2))
+    rehashed = tuple(
+        doc(item.path, content_hash="new", **item.frontmatter) if item.path == "wiki/rules/one.md" else item
+        for item in documents
+    )
+
+    assert baseline
+    assert section(run(ports(documents, usage=ignored)).text, "## 고정 기억") == baseline
+    assert section(run(ports(rehashed, usage=changed)).text, "## 고정 기억") == baseline
+    assert section(run(ports(documents, usage=FakeUsage(fail_read=True))).text, "## 고정 기억") == baseline
+
+
+def test_several_vaults_use_the_vault_name_in_every_location() -> None:
+    other = doc("wiki/decisions/other.md", vault_id="other", title="Other vault decision", updated=day(0))
+    team = pinned("wiki/rules/team-rule.md", vault_id="other", title="Team rule")
+
+    bundle = run(ports((*BASE_DOCS, other, team), vault_ids=("main", "other"), vault_names={"other": "team-wiki"}))
+
+    assert "(team-wiki:wiki/rules/team-rule.md)" in section(bundle.text, "## 고정 기억")[0]
+    assert "(team-wiki:wiki/decisions/other.md, ~42t)" in bundle.text
+    assert "(main:wiki/decisions/use-sqlite.md, ~42t)" in bundle.text
+    assert section(bundle.text, "## 가져오는 방법")[0].endswith(
+        "경로 앞은 Vault 이름이다. 이름=vault_id: main, team-wiki=other"
+    )
+
+
+def test_one_vault_shows_the_bare_path_even_with_a_name() -> None:
+    page = pinned("wiki/rules/use-uv.md", title="Use uv run")
+
+    bundle = run(ports((*BASE_DOCS, page), vault_names={"main": "personal-notes"}))
+
+    assert "personal-notes" not in bundle.text
+    assert "(wiki/rules/use-uv.md)" in section(bundle.text, "## 고정 기억")[0]
+
+
+def test_block_b_breaks_date_ties_by_vault_name_when_names_differ_from_ids() -> None:
+    documents = (
+        doc("wiki/notes/a.md", vault_id="alpha", title="Alpha A", updated=day(1)),
+        doc("wiki/notes/a.md", vault_id="zeta", title="Zeta A", updated=day(1)),
+        doc("wiki/notes/b.md", vault_id="alpha", title="Alpha B", updated=day(1)),
+    )
+
+    lines = _block_b(
+        run(ports(documents, vault_ids=("alpha", "zeta"), vault_names={"alpha": "zz-later", "zeta": "aa-first"}))
+    )
+
+    titles = [line.split(" · ")[3].split(" (")[0] for line in lines]
+    assert titles == ["Zeta A", "Alpha A", "Alpha B"]

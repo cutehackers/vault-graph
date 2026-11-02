@@ -400,3 +400,75 @@ def test_unexpected_error_exits_with_another_code_and_empty_stdout(
 
     assert result.exit_code not in (0, 3)
     assert result.stdout == ""
+
+
+def pin_page(vault: Path, relative: str, title: str, *, pin: str = "true", schema: str = "vault-memory/v1") -> None:
+    write_page(
+        vault,
+        relative,
+        f'type: concept\nstatus: active\nupdated: "{day(90)}"\npin: {pin}\nmemory_schema: {schema}\n'
+        f"memory_kind: rule\nsummary: Summary of {title}\n",
+        title,
+    )
+
+
+def test_yaml_true_pin_in_another_vault_is_printed_first_and_not_repeated(base: Path, graph_home: Path) -> None:
+    """A-1 at unit level: the pinned page of the second Vault opens the bundle (위험6 through a real index)."""
+    pin_page(base / "vaults" / "other", "wiki/rules/team-rule.md", "Team rule")
+    pin_page(base / "vaults" / "main", "wiki/rules/quoted.md", "Quoted rule", pin='"true"')
+    reindex(graph_home)
+
+    result = hook(graph_home, base, repo="both")
+
+    assert result.exit_code == 0, result.output
+    assert [line for line in result.stdout.splitlines() if line.startswith("## ")][0] == "## 고정 기억"
+    assert section(result.stdout, "## 고정 기억") == [
+        f"- [{memory_item_id('other', 'wiki/rules/team-rule.md')}] rule · Team rule (other:wiki/rules/team-rule.md)",
+        "  Summary of Team rule",
+    ]
+    block_b = "\n".join(section(result.stdout, "## 기억 목록"))
+    assert "Team rule" not in block_b
+    assert "Quoted rule" in block_b
+    assert estimate_recall_tokens(result.stdout) <= 1500
+    assert len(result.stdout) <= 9000
+
+
+def test_unknown_memory_schema_warns_once_on_stderr(base: Path, graph_home: Path) -> None:
+    pin_page(base / "vaults" / "main", "wiki/rules/future.md", "Future rule", schema="vault-memory/v9")
+    reindex(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "## 고정 기억" not in result.stdout
+    assert "Future rule" in "\n".join(section(result.stdout, "## 기억 목록"))
+    assert len(result.stderr.splitlines()) == 1
+    assert "vault-memory/v9" in result.stderr
+
+
+def test_several_vaults_use_map_names_in_locations(base: Path, graph_home: Path) -> None:
+    named_map = base / "map" / "named-vault-map.json"
+    named_map.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "vaults": {
+                    "personal-notes": {"path": str(base / "vaults" / "main"), "role": "personal"},
+                    "team-wiki": {"path": str(base / "vaults" / "other"), "role": "team"},
+                },
+                "projects": {
+                    "both": {"root": str(base / "repos" / "both"), "vaults": ["personal-notes", "team-wiki"]},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    pin_page(base / "vaults" / "other", "wiki/rules/team-rule.md", "Team rule")
+    reindex(graph_home)
+
+    result = hook(graph_home, base, repo="both", vault_map=named_map)
+
+    assert result.exit_code == 0, result.output
+    assert "(team-wiki:wiki/rules/team-rule.md)" in section(result.stdout, "## 고정 기억")[0]
+    assert "(team-wiki:wiki/decisions/other-decision.md, ~" in result.stdout
+    assert "(personal-notes:wiki/decisions/use-sqlite.md, ~" in result.stdout
