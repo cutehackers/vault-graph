@@ -37,10 +37,12 @@ vault-graph worktree에서 실행한다.
 
 ## done-when
 
-- [ ] 작업 17의 중간 동작(`inferred` → `rejected`)이 없어졌다
-- [ ] `remember`, `update_memory`, `retire_memory` 모두 `basis="inferred"`면 `VaultWriter.propose`를 부르고 `proposed`와 `review_path`를 돌려준다
-- [ ] `messages`에 `review resolve <review_path> --status accepted --resolution "<사유>"` 한 줄이 있다
-- [ ] 어댑터는 `vault-review-result/v1` JSON만 읽고, 종료 코드 1은 `rejected`, 2는 마이그레이션 안내 `error`다
-- [ ] `scratch/review/`를 색인하지 않는다는 기존 범위 테스트가 통과한다
+- [x] 작업 17의 중간 동작(`inferred` → `rejected`)이 없어졌다
+- [x] `remember`, `update_memory`, `retire_memory` 모두 `basis="inferred"`면 `VaultWriter.propose`를 부르고 `proposed`와 `review_path`를 돌려준다
+- [x] `messages`에 `review resolve <review_path> --status accepted --resolution "<사유>"` 한 줄이 있다
+- [x] 어댑터는 `vault-review-result/v1` JSON만 읽고, 종료 코드 1은 `rejected`, 2는 마이그레이션 안내 `error`다
+- [x] `scratch/review/`를 색인하지 않는다는 기존 범위 테스트가 통과한다
 
 멈춤: 작업 6의 `review propose --json` 출력이 spec 계약4와 다르면 보고한다.
+
+기록 (2026-11-02): 전체 pytest 1863 passed, 1 skipped. 실제 vault-builder를 복사한 Vault에서 `review propose --json` 테스트 통과(건너뜀 0). 범위 조정: `memory_ports.py`에 `propose`·`proposed`·`review_path`, `tests/test_memory_write_boundary.py`에 제안 경로를 더했다. `scratch/review/`는 `DEFAULT_CONTENT_SCOPES`(`raw`, `wiki`, `docs`, `scratch/reports`) 밖이라 색인되지 않는다. 승인 안내의 자리표시는 다른 메시지와 맞춰 영어 `<reason>`이다.

@@ -1,4 +1,6 @@
-"""The publish-draft subprocess adapter reads only the 계약1 JSON (spec 2026-11-02 V3 어댑터, 6절).
+"""The Vault CLI adapter reads only the 계약1 and 계약4 JSON (spec 2026-11-02 V3 어댑터, 6절).
+
+``publish`` runs ``publish-draft --json`` (계약1). ``propose`` runs ``review propose --json`` (계약4).
 
 The optional A-14 run on a copied Vault runs only when Vault tools are available. It copies them into
 a temporary directory and never touches the user's real Vault.
@@ -179,6 +181,110 @@ def test_vault_without_tools_is_an_error(tmp_path: Path) -> None:
     assert any("no publish-draft" in message for message in outcome.messages)
 
 
+# 계약4: review propose --json
+
+
+def review_result(status: str, review_path: str | None, messages: list[str]) -> dict[str, object]:
+    return {
+        "format": "vault-review-result/v1",
+        "status": status,
+        "review_id": None if review_path is None else "2026-11-02-memory-1a2b3c4d",
+        "review_path": review_path,
+        "draft_path": None if review_path is None else "scratch/review/2026-11-02-memory-1a2b3c4d.draft.json",
+        "target_path": None if review_path is None else "wiki/decisions/a.md",
+        "messages": messages,
+    }
+
+
+def test_propose_runs_review_propose_json_from_the_vault_root_and_reads_review_path(tmp_path: Path) -> None:
+    review_path = "scratch/review/2026-11-02-memory-1a2b3c4d.md"
+    script = json_script(review_result("proposed", review_path, []), exit_code=0, stderr="Review item created\n")
+    vault_root = fake_vault(tmp_path, script)
+    draft = draft_file(tmp_path)
+
+    outcome = VaultPublishCli().propose(vault_root, draft, summary="Add memory: A", timeout_s=30)
+
+    assert outcome.status == "proposed"
+    assert outcome.review_path == review_path
+    assert outcome.written_paths == ()
+    assert f"argv=review|propose|--draft|{draft}|--summary|Add memory: A|--json" in outcome.messages
+    assert f"cwd={vault_root.resolve()}" in outcome.messages
+    assert "flags=11" in outcome.messages
+    assert not any("Review item created" in message for message in outcome.messages)
+
+
+def test_propose_exit_1_is_rejected_with_the_vault_messages(tmp_path: Path) -> None:
+    refusal = "Memory proposal already exists: scratch/review/2026-11-02-memory-1a2b3c4d.md"
+    vault_root = fake_vault(tmp_path, json_script(review_result("rejected", None, [refusal]), exit_code=1))
+
+    outcome = VaultPublishCli().propose(vault_root, draft_file(tmp_path), summary="S", timeout_s=30)
+
+    assert outcome.status == "rejected"
+    assert outcome.review_path is None
+    assert refusal in outcome.messages
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "cli.py: error: unrecognized arguments: --json\n",
+        "cli.py review: error: argument review_command: invalid choice: 'propose'\n",
+    ],
+    ids=["no-json-flag", "no-propose-command"],
+)
+def test_propose_exit_2_asks_for_vault_migration(tmp_path: Path, stderr: str) -> None:
+    vault_root = fake_vault(tmp_path, f"import sys\nsys.stderr.write({stderr!r})\nsys.exit(2)\n")
+
+    outcome = VaultPublishCli().propose(vault_root, draft_file(tmp_path), summary="S", timeout_s=30)
+
+    assert outcome.status == "error"
+    assert any("review propose" in message and "Migrate" in message for message in outcome.messages)
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {**review_result("proposed", "scratch/review/a.md", []), "format": "vault-review-result/v2"},
+        {**review_result("proposed", "scratch/review/a.md", []), "status": "resolved"},
+        review_result("proposed", None, []),
+        {**review_result("proposed", "scratch/review/a.md", []), "messages": "one"},
+        ["not", "an", "object"],
+    ],
+    ids=["format", "status", "no-review-path", "messages", "shape"],
+)
+def test_propose_json_outside_contract_4_is_an_error(tmp_path: Path, result: object) -> None:
+    vault_root = fake_vault(tmp_path, f"import json\nprint(json.dumps({result!r}))\n")
+
+    outcome = VaultPublishCli().propose(vault_root, draft_file(tmp_path), summary="S", timeout_s=30)
+
+    assert outcome.status == "error"
+    assert outcome.review_path is None
+
+
+def test_propose_text_output_is_an_error_with_the_last_lines(tmp_path: Path) -> None:
+    vault_root = fake_vault(tmp_path, 'print("Review item created: scratch/review/a.md")\n')
+
+    outcome = VaultPublishCli().propose(vault_root, draft_file(tmp_path), summary="S", timeout_s=30)
+
+    assert outcome.status == "error"
+    assert outcome.review_path is None
+    assert "Review item created: scratch/review/a.md" in outcome.messages
+
+
+def test_propose_timeout_and_missing_tools_are_errors(tmp_path: Path) -> None:
+    slow = fake_vault(tmp_path, "import time\ntime.sleep(30)\n")
+    empty = tmp_path / "empty-vault"
+    empty.mkdir()
+
+    timed_out = VaultPublishCli().propose(slow, draft_file(tmp_path), summary="S", timeout_s=0.5)
+    missing = VaultPublishCli().propose(empty, tmp_path / "drafts" / "draft.json", summary="S", timeout_s=30)
+
+    assert timed_out.status == "error"
+    assert any("review propose did not finish in 0.5 seconds" in message for message in timed_out.messages)
+    assert missing.status == "error"
+    assert any(str(CLI_RELATIVE_PATH) in message for message in missing.messages)
+
+
 def _vault_template() -> Path | None:
     configured = os.environ.get(VAULT_TEMPLATE_ENV)
     candidate = Path(configured) if configured else Path.home() / "workspace" / "vault-builder"
@@ -260,3 +366,32 @@ def test_a14_draft_without_a_required_field_is_rejected_and_leaves_the_copy_unch
     assert outcome.status == "rejected", outcome.messages
     assert outcome.reason is not None
     assert file_bytes(copied_vault) == before
+
+
+def test_a14_inferred_remember_is_proposed_in_a_copied_vault_and_wiki_is_unchanged(copied_vault: Path) -> None:
+    service = MemoryWriteService(
+        vault_map=OneVaultMap(MappedVault(name="copy", path=copied_vault, role="project")),
+        writer=VaultPublishCli(python_executable=sys.executable),
+        page_reader=VaultPageFileReader(),
+    )
+    wiki_before = file_bytes(copied_vault / "wiki")
+
+    result = service.remember(
+        RememberRequest(
+            title="The index probably stays in SQLite",
+            kind="decision",
+            body="The agent inferred that the local index stays in SQLite files.",
+            evidence=("Agent inference from the 2026-11-02 session.",),
+            basis="inferred",
+            vault="copy",
+        )
+    )
+
+    assert result.status == "proposed", result.messages
+    assert result.review_path is not None
+    assert result.review_path.startswith("scratch/review/") and result.review_path.endswith(".md")
+    assert (copied_vault / result.review_path).is_file()
+    assert (copied_vault / result.review_path.removesuffix(".md")).with_suffix(".draft.json").is_file()
+    assert any(f"review resolve {result.review_path} --status accepted" in message for message in result.messages)
+    assert result.written_paths == ()
+    assert file_bytes(copied_vault / "wiki") == wiki_before

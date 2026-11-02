@@ -113,6 +113,77 @@ def test_three_write_tools_with_a_stand_in_writer_leave_vault_files_unchanged(
     assert sha256_by_file(vault) == before
 
 
+def test_three_write_tools_with_basis_inferred_propose_and_leave_vault_files_unchanged(
+    tmp_path: Path, vault: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vault_map = tmp_path / "vault-map.json"
+    vault_map.write_text(
+        json.dumps({"version": 2, "vaults": {"main": {"path": str(vault), "role": "project"}}, "projects": {}}),
+        encoding="utf-8",
+    )
+    proposals: list[tuple[dict[str, object], str]] = []
+    published: list[Path] = []
+
+    def stand_in_propose(
+        self: VaultPublishCli, vault_root: Path, draft_path: Path, *, summary: str, timeout_s: float
+    ) -> WriteOutcome:
+        proposals.append((json.loads(draft_path.read_text(encoding="utf-8")), summary))
+        return WriteOutcome(status="proposed", review_path=f"scratch/review/2026-11-02-memory-{len(proposals):08d}.md")
+
+    def stand_in_publish(
+        self: VaultPublishCli, vault_root: Path, draft_path: Path, *, timeout_s: float
+    ) -> WriteOutcome:
+        published.append(draft_path)
+        return WriteOutcome(status="published")
+
+    monkeypatch.setattr(VaultPublishCli, "propose", stand_in_propose)
+    monkeypatch.setattr(VaultPublishCli, "publish", stand_in_publish)
+    registry = McpToolRegistry(
+        services=cast(Any, None),
+        service_factory=McpServiceFactory(graph_home_path=tmp_path / "state", vault_map_path=vault_map),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+    before = sha256_by_file(vault)
+
+    bodies = [
+        registry.remember(
+            RememberInput(
+                title="Keep drafts outside", kind="decision", body="B", evidence=("E",), basis="inferred", vault="main"
+            )
+        ),
+        registry.update_memory(
+            UpdateMemoryInput(
+                path="wiki/decisions/use-sqlite.md", body="New body.", evidence=("E",), basis="inferred", vault="main"
+            )
+        ),
+        registry.retire_memory(
+            RetireMemoryInput(
+                path="wiki/decisions/use-sqlite.md",
+                reason="Replaced.",
+                basis="inferred",
+                vault="main",
+                replaced_by="wiki/decisions/use-postgres.md",
+            )
+        ),
+    ]
+
+    assert [body.payload["status"] for body in bodies] == ["proposed"] * 3
+    assert [body.payload["review_path"] for body in bodies] == [
+        f"scratch/review/2026-11-02-memory-{index:08d}.md" for index in (1, 2, 3)
+    ]
+    assert all(
+        any(
+            f"review resolve {body.payload['review_path']} --status accepted" in line
+            for line in body.payload["messages"]
+        )
+        for body in bodies
+    )
+    assert [draft["operation"] for draft, _ in proposals] == ["upsert-page", "upsert-page", "patch-page"]
+    assert published == []
+    assert sha256_by_file(vault) == before
+
+
 def _write_calls(path: Path) -> list[int]:
     lines = []
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):

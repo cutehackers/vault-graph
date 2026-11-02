@@ -4,8 +4,10 @@ vault-graph never writes Vault files itself. Each operation checks the agent's f
 Vault without guessing, builds a draft in the operating system's temporary directory, and hands the
 draft to a ``VaultWriter``. The draft directory is removed after every outcome.
 
-Only ``basis="stated"`` reaches the Vault in this version. ``basis="inferred"`` is rejected without
-any Vault command until the inferred path (V3, task 19) sends it to Vault review instead.
+``basis="stated"`` publishes the draft (계약1). ``basis="inferred"`` sends the same draft to the Vault
+review queue (계약4 ``review propose``) and returns ``proposed`` with the review item path and the
+command a person runs to accept it. vault-graph does not index ``scratch/review/``, so a proposal is
+not in recall or search until it is accepted and the next index run picks up the page.
 """
 
 from __future__ import annotations
@@ -40,9 +42,8 @@ from vault_graph.project.context.project_binding_reader import MappedVault, Vaul
 
 PUBLISH_TIMEOUT_SECONDS = 120.0  # Same as the llm-wiki router CLI_TIMEOUT_SECONDS.
 NEXT_INDEX_MESSAGE = "The recorded page becomes searchable after the next index run (vg index)."
-INFERRED_NOT_SUPPORTED_MESSAGE = (
-    "basis inferred is not written yet: only facts the user stated are recorded. "
-    "Ask the user to confirm the fact, then call again with basis stated."
+PROPOSED_MESSAGE = (
+    "basis inferred: the fact waits in the Vault review queue and is not in recall or search until a person accepts it."
 )
 PAGE_CHANGED_MESSAGE = (
     "The page changed after vault-graph read it, so the update was not sent. Please read it again and retry."
@@ -79,7 +80,7 @@ class MemoryWriteService:
         self._vault_map_problem = vault_map_problem
 
     def remember(self, request: RememberRequest) -> MemoryWriteResult:
-        refused = _refuse_input(validate_remember(request), request.basis, request.vault)
+        refused = _refuse_input(validate_remember(request), request.vault)
         if refused is not None:
             return refused
         if self._vault_map is None:
@@ -103,11 +104,11 @@ class MemoryWriteService:
                         ),
                     ),
                 )
-            outcome = self._publish(chosen.path, draft)
+            outcome = self._send(chosen.path, draft, request.basis, f"Add memory: {request.title.strip()}")
         return _result(chosen, outcome)
 
     def update(self, request: UpdateRequest) -> MemoryWriteResult:
-        refused = _refuse_input(validate_update(request), request.basis, request.vault)
+        refused = _refuse_input(validate_update(request), request.vault)
         if refused is not None:
             return refused
         chosen = self._page_vault(request.vault, request.cwd, request.path)
@@ -127,11 +128,13 @@ class MemoryWriteService:
                 again = self._page_reader.read(chosen.path, request.path)
                 return again is not None and again.sha256 == current.sha256
 
-            outcome = self._publish(chosen.path, draft, before_publish=unchanged)
+            outcome = self._send(
+                chosen.path, draft, request.basis, f"Update memory {request.path}", before_send=unchanged
+            )
         return _result(chosen, outcome)
 
     def retire(self, request: RetireRequest) -> MemoryWriteResult:
-        refused = _refuse_input(validate_retire(request), request.basis, request.vault)
+        refused = _refuse_input(validate_retire(request), request.vault)
         if refused is not None:
             return refused
         chosen = self._page_vault(request.vault, request.cwd, request.path)
@@ -153,7 +156,12 @@ class MemoryWriteService:
                         ),
                     ),
                 )
-            outcome = self._publish(chosen.path, build_retire_draft(request, today=self._today()))
+            outcome = self._send(
+                chosen.path,
+                build_retire_draft(request, today=self._today()),
+                request.basis,
+                f"Retire memory {request.path}: {request.reason.strip()}",
+            )
         return _result(chosen, outcome)
 
     def _page_vault(self, vault: str | None, cwd: str | None, path: str) -> Choice | MemoryWriteResult:
@@ -171,29 +179,35 @@ class MemoryWriteService:
         reason = self._vault_map_problem or "vault-map.json is missing or unusable."
         return MemoryWriteResult("error", None, (), (f"Cannot choose the target Vault: {reason}",))
 
-    def _publish(
+    def _send(
         self,
         vault_root: Path,
         draft: dict[str, object],
+        basis: str,
+        summary: str,
         *,
-        before_publish: Callable[[], bool] | None = None,
+        before_send: Callable[[], bool] | None = None,
     ) -> WriteOutcome:
+        """Publish a stated draft or propose an inferred one. Both read the draft from the OS temp folder."""
         with tempfile.TemporaryDirectory(prefix="vault-graph-memory-", dir=self._temp_root) as folder:
             draft_path = Path(folder) / "draft.json"
             draft_path.write_text(json.dumps(draft, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            if before_publish is not None and not before_publish():
+            if before_send is not None and not before_send():
                 return WriteOutcome("rejected", messages=(PAGE_CHANGED_MESSAGE,))
+            if basis == "inferred":
+                try:
+                    return self._writer.propose(vault_root, draft_path, summary=summary, timeout_s=self._timeout_s)
+                except Exception as exc:  # noqa: BLE001 - any writer failure is reported, never retried.
+                    return WriteOutcome("error", messages=(f"review propose could not run: {exc}",))
             try:
                 return self._writer.publish(vault_root, draft_path, timeout_s=self._timeout_s)
             except Exception as exc:  # noqa: BLE001 - any writer failure is reported, never retried.
                 return WriteOutcome("error", messages=(f"publish-draft could not run: {exc}",))
 
 
-def _refuse_input(problems: tuple[str, ...], basis: object, vault: str | None) -> MemoryWriteResult | None:
+def _refuse_input(problems: tuple[str, ...], vault: str | None) -> MemoryWriteResult | None:
     if problems:
         return MemoryWriteResult("rejected", vault, (), problems)
-    if basis == "inferred":
-        return MemoryWriteResult("rejected", vault, (), (INFERRED_NOT_SUPPORTED_MESSAGE,))
     return None
 
 
@@ -217,17 +231,46 @@ def _choice_result(choice: Choice | MemoryWriteResult) -> MemoryWriteResult:
     raise TypeError(f"unexpected Vault choice: {choice!r}")
 
 
+def approval_command(review_path: str) -> str:
+    """The Vault command a person runs, from the Vault root, to accept a memory proposal."""
+    return f'python3 tools/wiki/cli.py review resolve {review_path} --status accepted --resolution "<reason>"'
+
+
 def _result(vault: MappedVault, outcome: WriteOutcome) -> MemoryWriteResult:
     messages = outcome.messages
+    review_path = None
     if outcome.status == "published":
         messages = (*messages, NEXT_INDEX_MESSAGE)
-    return MemoryWriteResult(outcome.status, vault.name, outcome.written_paths, messages, vault_role=vault.role)
+    elif outcome.status == "proposed":
+        if outcome.review_path is None:
+            return MemoryWriteResult(
+                "error",
+                vault.name,
+                (),
+                (*messages, "The Vault reported a proposal without a review_path."),
+                vault_role=vault.role,
+            )
+        review_path = outcome.review_path
+        messages = (
+            *messages,
+            PROPOSED_MESSAGE,
+            f"To accept it, run in Vault {vault.name}: {approval_command(review_path)}",
+        )
+    return MemoryWriteResult(
+        outcome.status,
+        vault.name,
+        outcome.written_paths,
+        messages,
+        review_path=review_path,
+        vault_role=vault.role,
+    )
 
 
 __all__ = [
-    "INFERRED_NOT_SUPPORTED_MESSAGE",
     "NEXT_INDEX_MESSAGE",
     "PAGE_CHANGED_MESSAGE",
+    "PROPOSED_MESSAGE",
     "PUBLISH_TIMEOUT_SECONDS",
     "MemoryWriteService",
+    "approval_command",
 ]

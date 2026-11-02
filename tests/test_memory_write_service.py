@@ -95,13 +95,24 @@ class ChangingPageReader(DiskPageReader):
         return PageText(text=changed, sha256=hashlib.sha256(changed.encode()).hexdigest())
 
 
+REVIEW_PATH = "scratch/review/2026-11-02-memory-1a2b3c4d.md"
+
+
 class RecordingWriter:
-    def __init__(self, outcome: WriteOutcome | None = None, *, delay_s: float = 0.0) -> None:
+    def __init__(
+        self,
+        outcome: WriteOutcome | None = None,
+        *,
+        delay_s: float = 0.0,
+        propose_outcome: WriteOutcome | None = None,
+    ) -> None:
         self.outcome = outcome or WriteOutcome(
             status="published", written_paths=("wiki/decisions/use-sqlite.md",), messages=()
         )
+        self.propose_outcome = propose_outcome or WriteOutcome(status="proposed", review_path=REVIEW_PATH)
         self.delay_s = delay_s
         self.calls: list[tuple[Path, Path, float]] = []
+        self.proposals: list[tuple[Path, Path, str, float]] = []
         self.drafts: list[dict[str, object]] = []
         self.draft_paths: list[Path] = []
         self.active = 0
@@ -123,6 +134,12 @@ class RecordingWriter:
             with self._lock:
                 self.active -= 1
 
+    def propose(self, vault_root: Path, draft_path: Path, *, summary: str, timeout_s: float) -> WriteOutcome:
+        self.proposals.append((vault_root, draft_path, summary, timeout_s))
+        self.draft_paths.append(draft_path)
+        self.drafts.append(json.loads(draft_path.read_text(encoding="utf-8")))
+        return self.propose_outcome
+
 
 class TimeoutWriter(RecordingWriter):
     def publish(self, vault_root: Path, draft_path: Path, *, timeout_s: float) -> WriteOutcome:
@@ -134,6 +151,12 @@ class RaisingWriter(RecordingWriter):
     def publish(self, vault_root: Path, draft_path: Path, *, timeout_s: float) -> WriteOutcome:
         super().publish(vault_root, draft_path, timeout_s=timeout_s)
         raise RuntimeError("writer crashed")
+
+
+class RaisingProposeWriter(RecordingWriter):
+    def propose(self, vault_root: Path, draft_path: Path, *, summary: str, timeout_s: float) -> WriteOutcome:
+        super().propose(vault_root, draft_path, summary=summary, timeout_s=timeout_s)
+        raise RuntimeError("review propose crashed")
 
 
 class PageWritingWriter(RecordingWriter):
@@ -293,28 +316,132 @@ def test_invalid_retire_input_is_rejected_without_calling_the_writer(
     assert writer.calls == []
 
 
-# Intermediate rule until task 19: inferred never reaches the Vault.
+# Inferred path (V3 basis, 계약4, A-3 unit level): a proposal waits in Vault review.
+
+APPROVAL_LINE = f'review resolve {REVIEW_PATH} --status accepted --resolution "<reason>"'
 
 
-@pytest.mark.parametrize("operation", ["remember", "update", "retire"])
-def test_inferred_basis_is_rejected_without_any_vault_command(tmp_path: Path, operation: str) -> None:
-    main = make_vault(tmp_path, "main")
-    add_page(main)
-    writer = RecordingWriter()
-    reader = DiskPageReader()
-    service = make_service(tmp_path, writer, vaults=(main,), page_reader=reader)
-    requests = {
+def inferred_requests() -> dict[str, object]:
+    return {
         "remember": remember_request(basis="inferred", title="Another"),
         "update": update_request(basis="inferred"),
         "retire": retire_request(basis="inferred"),
     }
 
-    result = getattr(service, operation)(requests[operation])
+
+@pytest.mark.parametrize(
+    ("operation", "operation_name", "summary"),
+    [
+        ("remember", "upsert-page", "Add memory: Another"),
+        ("update", "upsert-page", "Update memory wiki/decisions/use-sqlite.md"),
+        ("retire", "patch-page", "Retire memory wiki/decisions/use-sqlite.md: We moved to Postgres."),
+    ],
+)
+def test_inferred_basis_is_proposed_for_review_instead_of_published(
+    tmp_path: Path, operation: str, operation_name: str, summary: str
+) -> None:
+    main = make_vault(tmp_path, "main")
+    add_page(main)
+    writer = RecordingWriter()
+    service = make_service(tmp_path, writer, vaults=(main,))
+
+    result = getattr(service, operation)(inferred_requests()[operation])
+
+    assert result.status == "proposed"
+    assert result.review_path == REVIEW_PATH
+    assert (result.vault, result.vault_role) == ("main", "project")
+    assert result.written_paths == ()
+    assert writer.calls == []
+    assert len(writer.proposals) == 1
+    vault_root, _, sent_summary, timeout_s = writer.proposals[0]
+    assert (vault_root, sent_summary, timeout_s) == (main.path, summary, PUBLISH_TIMEOUT_SECONDS)
+    assert writer.drafts[0]["operation"] == operation_name
+    assert sum(APPROVAL_LINE in message for message in result.messages) == 1
+    assert not any("next index" in message for message in result.messages)
+
+
+@pytest.mark.parametrize("operation", ["remember", "update"])
+def test_inferred_draft_records_basis_inferred_in_the_evidence_section(tmp_path: Path, operation: str) -> None:
+    main = make_vault(tmp_path, "main")
+    add_page(main)
+    writer = RecordingWriter()
+
+    getattr(make_service(tmp_path, writer, vaults=(main,)), operation)(inferred_requests()[operation])
+
+    assert "Status: inferred" in str(writer.drafts[0]["body"])
+
+
+def test_stated_basis_never_proposes(tmp_path: Path) -> None:
+    writer = RecordingWriter()
+
+    result = make_service(tmp_path, writer).remember(remember_request())
+
+    assert result.status == "published"
+    assert result.review_path is None
+    assert writer.proposals == []
+
+
+@pytest.mark.parametrize(
+    ("outcome", "status"),
+    [
+        (WriteOutcome(status="rejected", messages=("Memory proposal already exists",)), "rejected"),
+        (WriteOutcome(status="error", messages=("Migrate the Vault",)), "error"),
+    ],
+)
+def test_proposal_that_is_not_proposed_has_no_review_path_or_approval_line(
+    tmp_path: Path, outcome: WriteOutcome, status: str
+) -> None:
+    writer = RecordingWriter(propose_outcome=outcome)
+
+    result = make_service(tmp_path, writer).remember(remember_request(basis="inferred"))
+
+    assert result.status == status
+    assert result.review_path is None
+    assert result.messages[: len(outcome.messages)] == outcome.messages
+    assert not any("review resolve" in message for message in result.messages)
+
+
+def test_proposed_outcome_without_review_path_is_an_error(tmp_path: Path) -> None:
+    writer = RecordingWriter(propose_outcome=WriteOutcome(status="proposed"))
+
+    result = make_service(tmp_path, writer).remember(remember_request(basis="inferred"))
+
+    assert result.status == "error"
+    assert result.review_path is None
+
+
+def test_propose_exception_becomes_error_and_removes_the_draft(tmp_path: Path) -> None:
+    writer = RaisingProposeWriter()
+
+    result = make_service(tmp_path, writer).remember(remember_request(basis="inferred"))
+
+    assert result.status == "error"
+    assert any("review propose crashed" in message for message in result.messages)
+    assert not writer.draft_paths[0].parent.exists()
+    assert list((tmp_path / "os-temp").iterdir()) == []
+
+
+def test_inferred_update_is_not_proposed_when_the_page_changes(tmp_path: Path) -> None:
+    main = make_vault(tmp_path, "main")
+    add_page(main)
+    writer = RecordingWriter()
+    service = make_service(tmp_path, writer, vaults=(main,), page_reader=ChangingPageReader())
+
+    result = service.update(update_request(basis="inferred"))
 
     assert result.status == "rejected"
-    assert any("inferred" in message for message in result.messages)
-    assert writer.calls == []
-    assert reader.reads == []
+    assert writer.proposals == []
+
+
+def test_inferred_remember_of_an_existing_page_is_rejected_before_proposing(tmp_path: Path) -> None:
+    main = make_vault(tmp_path, "main")
+    add_page(main)
+    writer = RecordingWriter()
+
+    result = make_service(tmp_path, writer, vaults=(main,)).remember(remember_request(basis="inferred"))
+
+    assert result.status == "rejected"
+    assert writer.proposals == []
 
 
 # Write Vault choice (결정12, A-8)
