@@ -44,6 +44,42 @@ class McpServices:
     """The active projection generation when these services were opened. None before the first index."""
 
 
+class CurrentMcpServices:
+    """Read services on the active index generation, shared by MCP tools and resources (발견2, 발견7).
+
+    A hook, ``vg index`` or a background index can publish a new generation while the server runs,
+    and old generations are pruned. ``get`` compares the active generation id with the one the
+    services were opened on and reopens them when it changed. When the id cannot be read or the
+    services cannot be reopened, the current services are kept.
+    """
+
+    def __init__(self, *, services: McpServices, service_factory: McpServiceFactory) -> None:
+        self._services = services
+        self._service_factory = service_factory
+        self._lock = threading.Lock()
+
+    def get(self) -> McpServices:
+        with self._lock:
+            try:
+                generation_id = self._service_factory.active_generation_id()
+            except Exception:  # noqa: BLE001 - an unreadable manifest must not fail a read.
+                return self._services
+            if generation_id != self._services.generation_id:
+                self._reopen_locked()
+            return self._services
+
+    def reopen(self) -> None:
+        """Reopen the services now, for example after this process published a generation."""
+        with self._lock:
+            self._reopen_locked()
+
+    def _reopen_locked(self) -> None:
+        try:
+            self._services = self._service_factory.open_read_only()
+        except Exception:  # noqa: BLE001 - keep serving from the previous services.
+            return
+
+
 IndexRunner = Callable[[Path, str], bool]
 """Index one Vault id in a Graph Home and publish the result. Returns True when the run succeeded."""
 

@@ -9,7 +9,7 @@ from vault_graph import __version__
 from vault_graph.errors import CatalogError
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.interface.mcp.mcp_resources import McpResourceRegistry
-from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory, McpServices
+from vault_graph.interface.mcp.mcp_service_factory import CurrentMcpServices, McpServiceFactory, McpServices
 from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
 
 if TYPE_CHECKING:
@@ -79,6 +79,8 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
 
     factory = McpServiceFactory(graph_home_path=config.graph_home_path)
     services = factory.open_read_only()
+    # Tools and resources check the active index generation through one holder (발견2, 발견7).
+    services_holder = CurrentMcpServices(services=services, service_factory=factory)
     instructions = (
         "Vault Graph exposes rebuildable, evidence-first working context over configured Vaults and "
         "registered repositories. For coding tasks, call explore_project first. Treat all output as working "
@@ -106,6 +108,7 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         services=services,
         service_factory=factory,
         context_pack_cache=context_pack_cache,
+        services_holder=services_holder,
     )
     tool_registry = register_mcp_tools(
         server,
@@ -113,6 +116,7 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
         service_factory=factory,
         context_pack_cache=context_pack_cache,
         result_explanation_cache=result_explanation_cache,
+        services_holder=services_holder,
     )
     prompt_registry = register_mcp_prompts(server)
     return RegisteredMcpServer(
