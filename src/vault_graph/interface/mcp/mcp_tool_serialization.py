@@ -4,6 +4,7 @@ import dataclasses
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
@@ -11,6 +12,7 @@ from urllib.parse import quote, unquote, urlsplit
 from vault_graph.context.pack.context_pack import ContextEvidence, ContextPack, ContextPackSignal, ContextPackWarning
 from vault_graph.context.pack.context_pack_serialization import context_pack_to_dict
 from vault_graph.indexing.index_service import IndexStatusReport
+from vault_graph.interface.composition.vault_labels import VaultLabel, label_fields
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload
 from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink
 from vault_graph.interface.mcp.mcp_uri import encode_resource_segment
@@ -58,7 +60,16 @@ def remember_result_to_payload(result: MemoryWriteResult) -> dict[str, object]:
     }
 
 
-def search_response_to_payload(response: SearchResponse) -> dict[str, object]:
+def search_response_to_payload(
+    response: SearchResponse, *, labels: Mapping[str, VaultLabel] | None = None
+) -> dict[str, object]:
+    """Serialize a search response. With ``labels``, each result also gets ``vault_name`` and ``vault_role``."""
+    results = [_retrieval_result_to_dict(result) for result in response.results]
+    if labels is not None:
+        results = [
+            {**item, **label_fields(labels, result.vault_id)}
+            for item, result in zip(results, response.results, strict=True)
+        ]
     return {
         "query_text": response.query_text,
         "requested_scope": query_scope_to_dict(response.requested_scope),
@@ -67,7 +78,7 @@ def search_response_to_payload(response: SearchResponse) -> dict[str, object]:
         "result_count": response.result_count,
         "candidate_count": response.candidate_count,
         "dropped_candidate_count": response.dropped_candidate_count,
-        "results": [_retrieval_result_to_dict(result) for result in response.results],
+        "results": results,
         "warnings": [search_warning_to_dict(warning) for warning in response.warnings],
         "degraded": response.degraded,
         "store_revisions": [_search_store_revision_to_dict(revision) for revision in response.store_revisions],

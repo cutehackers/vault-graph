@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal, Protocol, cast
 
 from vault_graph.context.memory.memory_models import MemoryWarning, OpenQuestionsProjection, ProjectMemoryProjection
@@ -12,7 +13,15 @@ from vault_graph.context.pack.context_pack import (
     ContextPackBudget,
     ContextPackRequest,
 )
-from vault_graph.errors import MemoryProjectionError
+from vault_graph.errors import CatalogError, MemoryProjectionError
+from vault_graph.interface.composition.query_scope_resolution import (
+    PROJECT_SCOPE_WARNING_CODE,
+    ProjectQuerySelection,
+    empty_project_search_json,
+    metadata_index_check,
+    project_query_selection,
+    project_scope_warning_json,
+)
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
 from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink as McpResourceLink
@@ -20,6 +29,7 @@ from vault_graph.interface.mcp.mcp_scope import McpScopeInput, scope_from_mcp_in
 from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory, McpServices
 from vault_graph.interface.mcp.mcp_uri import encode_resource_segment
 from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
+from vault_graph.operation.integration.vault_map import vault_map_path
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.project.context import (
     DEFAULT_PROJECT_CONTEXT_DEPTH,
@@ -108,6 +118,7 @@ class AskVaultInput:
     max_evidence_tokens: int = 8000
     include_graph: bool = False
     include_cross_vault: bool = False
+    cwd: str | None = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +129,7 @@ class SearchVaultInput:
     include_graph: bool = False
     include_cross_vault: bool = False
     mode: SearchMode = "knowledge"
+    cwd: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +140,7 @@ class BuildContextPackInput:
     limit: int = DEFAULT_CONTEXT_RETRIEVAL_LIMIT
     include_graph: bool = False
     include_cross_vault: bool = False
+    cwd: str | None = None
 
 
 @dataclass(frozen=True)
@@ -241,11 +254,10 @@ class McpToolRegistry:
     def ask_vault(self, request: AskVaultInput) -> McpToolBody:
         try:
             _validate_ask_vault_request(request)
-            selected_scope = _scope_for_tool(
-                request.scope,
-                catalog=self._services.catalog,
-                allow_graph_cross_vault=request.include_graph,
+            selected_scope, selection = self._query_scope(
+                request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
             )
+            selected_scope = _require_project_scope(selected_scope, selection)
             _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
             from vault_graph.context.answer.answer_plan import AnswerRequest
             from vault_graph.context.answer.answer_response import AnswerMode
@@ -273,7 +285,10 @@ class McpToolRegistry:
                 tool_name="ask_vault",
                 payload=answer_response_to_payload(response),
                 resource_links=resource_links_for_answer(response),
-                warnings=tuple(mcp_warning_from_answer(warning) for warning in response.warnings),
+                warnings=(
+                    *_scope_warnings(selection),
+                    *(mcp_warning_from_answer(warning) for warning in response.warnings),
+                ),
             )
             self._result_explanation_cache.put_many(records)
             return body
@@ -283,12 +298,26 @@ class McpToolRegistry:
     def search_vault(self, request: SearchVaultInput) -> McpToolBody:
         try:
             _validate_search_vault_request(request)
-            selected_scope = _scope_for_tool(
-                request.scope,
-                catalog=self._services.catalog,
-                allow_graph_cross_vault=request.include_graph,
+            selected_scope, selection = self._query_scope(
+                request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
             )
             _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
+            from vault_graph.interface.mcp.mcp_tool_serialization import (
+                explanation_records_for_search,
+                mcp_warning_from_search,
+                resource_links_for_search,
+                search_response_to_payload,
+            )
+
+            if selected_scope is None:
+                return _tool_body(
+                    tool_name="search_vault",
+                    payload=empty_project_search_json(
+                        query_text=request.query, limit=request.limit, warnings=selection.warnings
+                    ),
+                    resource_links=(),
+                    warnings=_scope_warnings(selection),
+                )
             retrieval_service = (
                 self._service_factory.open_retrieval_service(include_graph=True)
                 if request.include_graph
@@ -303,19 +332,21 @@ class McpToolRegistry:
                 include_cross_vault=request.include_cross_vault,
                 mode=request.mode,
             )
-            from vault_graph.interface.mcp.mcp_tool_serialization import (
-                explanation_records_for_search,
-                mcp_warning_from_search,
-                resource_links_for_search,
-                search_response_to_payload,
-            )
-
             records = explanation_records_for_search(response)
+            payload = search_response_to_payload(response, labels=selection.labels)
+            if selection.warnings:
+                payload["warnings"] = [
+                    *(project_scope_warning_json(message) for message in selection.warnings),
+                    *cast(list[dict[str, object]], payload["warnings"]),
+                ]
             body = _tool_body(
                 tool_name="search_vault",
-                payload=search_response_to_payload(response),
+                payload=payload,
                 resource_links=resource_links_for_search(response),
-                warnings=tuple(mcp_warning_from_search(warning) for warning in response.warnings),
+                warnings=(
+                    *_scope_warnings(selection),
+                    *(mcp_warning_from_search(warning) for warning in response.warnings),
+                ),
             )
             self._result_explanation_cache.put_many(records)
             return body
@@ -325,11 +356,10 @@ class McpToolRegistry:
     def build_context_pack(self, request: BuildContextPackInput) -> McpToolBody:
         try:
             _validate_build_context_pack_request(request)
-            selected_scope = _scope_for_tool(
-                request.scope,
-                catalog=self._services.catalog,
-                allow_graph_cross_vault=request.include_graph,
+            selected_scope, selection = self._query_scope(
+                request.scope, request.cwd, allow_graph_cross_vault=request.include_graph
             )
+            selected_scope = _require_project_scope(selected_scope, selection)
             _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
             pack_request = ContextPackRequest(
                 goal=request.goal,
@@ -366,12 +396,49 @@ class McpToolRegistry:
                     ),
                     *resource_links_for_context_pack(pack),
                 ),
-                warnings=tuple(mcp_warning_from_context(warning) for warning in pack.warnings),
+                warnings=(
+                    *_scope_warnings(selection),
+                    *(mcp_warning_from_context(warning) for warning in pack.warnings),
+                ),
             )
             self._result_explanation_cache.put_many(records)
             return body
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
+    def _query_scope(
+        self,
+        scope_input: McpScopeInput | None,
+        cwd: str | None,
+        *,
+        allow_graph_cross_vault: bool,
+    ) -> tuple[QueryScope | None, ProjectQuerySelection]:
+        """Pick the scope of a query tool (spec V2) and the labels for its results.
+
+        A request that names ``vault_ids`` or ``all_vaults`` keeps its scope. Otherwise the
+        registered Vaults of the ``cwd`` project are used, ``cwd`` defaulting to the server working
+        directory. Outside a project the active Vault is used. None means the project has no
+        searchable Vault.
+        """
+        explicit = scope_input is not None and bool(scope_input.vault_ids or scope_input.all_vaults)
+        selection = project_query_selection(
+            None if explicit else Path(cwd) if cwd is not None else Path.cwd(),
+            catalog=self._services.catalog,
+            vault_map_file=vault_map_path(),
+            is_indexed=metadata_index_check(self._services.metadata_store),
+        )
+        if selection.vault_ids == ():
+            return None, selection
+        if selection.vault_ids is not None:
+            scope_input = McpScopeInput(
+                vault_ids=selection.vault_ids,
+                content_scopes=scope_input.content_scopes if scope_input is not None else None,
+                include_cross_vault=scope_input.include_cross_vault if scope_input is not None else False,
+            )
+        scope = _scope_for_tool(
+            scope_input, catalog=self._services.catalog, allow_graph_cross_vault=allow_graph_cross_vault
+        )
+        return scope, selection
 
     def find_related(self, request: FindRelatedInput) -> McpToolBody:
         try:
@@ -660,6 +727,7 @@ def register_mcp_tools(
         max_evidence_tokens: int = 8000,
         include_graph: bool = False,
         include_cross_vault: bool = False,
+        cwd: str | None = None,
     ) -> dict[str, object]:
         request = parse_ask_vault_input(
             question=question,
@@ -669,6 +737,7 @@ def register_mcp_tools(
             max_evidence_tokens=max_evidence_tokens,
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
+            cwd=cwd,
         )
         return registry.ask_vault(request).to_json_dict()
 
@@ -680,6 +749,7 @@ def register_mcp_tools(
         include_graph: bool = False,
         include_cross_vault: bool = False,
         mode: str = "knowledge",
+        cwd: str | None = None,
     ) -> dict[str, object]:
         request = parse_search_vault_input(
             query=query,
@@ -688,6 +758,7 @@ def register_mcp_tools(
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
             mode=mode,
+            cwd=cwd,
         )
         return registry.search_vault(request).to_json_dict()
 
@@ -699,6 +770,7 @@ def register_mcp_tools(
         limit: int = DEFAULT_CONTEXT_RETRIEVAL_LIMIT,
         include_graph: bool = False,
         include_cross_vault: bool = False,
+        cwd: str | None = None,
     ) -> dict[str, object]:
         request = parse_build_context_pack_input(
             goal=goal,
@@ -707,6 +779,7 @@ def register_mcp_tools(
             limit=limit,
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
+            cwd=cwd,
         )
         return registry.build_context_pack(request).to_json_dict()
 
@@ -876,6 +949,7 @@ def parse_ask_vault_input(
     max_evidence_tokens: int = 8000,
     include_graph: bool = False,
     include_cross_vault: bool = False,
+    cwd: str | None = None,
 ) -> AskVaultInput:
     request = AskVaultInput(
         question=_required_string(question, "question"),
@@ -885,6 +959,7 @@ def parse_ask_vault_input(
         max_evidence_tokens=_evidence_token_budget(max_evidence_tokens),
         include_graph=_required_bool(include_graph, "include_graph"),
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
+        cwd=_optional_cwd(cwd),
     )
     _validate_ask_vault_request(request)
     return request
@@ -898,6 +973,7 @@ def parse_search_vault_input(
     include_graph: bool = False,
     include_cross_vault: bool = False,
     mode: str = "knowledge",
+    cwd: str | None = None,
 ) -> SearchVaultInput:
     request = SearchVaultInput(
         query=_required_string(query, "query"),
@@ -906,6 +982,7 @@ def parse_search_vault_input(
         include_graph=_required_bool(include_graph, "include_graph"),
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
         mode=cast(SearchMode, mode),
+        cwd=_optional_cwd(cwd),
     )
     _validate_search_vault_request(request)
     return request
@@ -919,6 +996,7 @@ def parse_build_context_pack_input(
     limit: int = DEFAULT_CONTEXT_RETRIEVAL_LIMIT,
     include_graph: bool = False,
     include_cross_vault: bool = False,
+    cwd: str | None = None,
 ) -> BuildContextPackInput:
     request = BuildContextPackInput(
         goal=_required_string(goal, "goal"),
@@ -927,6 +1005,7 @@ def parse_build_context_pack_input(
         limit=_limit(limit),
         include_graph=_required_bool(include_graph, "include_graph"),
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
+        cwd=_optional_cwd(cwd),
     )
     _validate_build_context_pack_request(request)
     return request
@@ -1116,6 +1195,28 @@ def _scope_for_tool(
     allow_graph_cross_vault: bool = False,
 ) -> QueryScope:
     return scope_from_mcp_input(scope, catalog=catalog, allow_graph_cross_vault=allow_graph_cross_vault)
+
+
+def _optional_cwd(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise _invalid_arguments("cwd must be a non-empty string")
+    return value
+
+
+def _scope_warnings(selection: ProjectQuerySelection) -> tuple[McpErrorPayload, ...]:
+    return tuple(
+        McpErrorPayload(code=PROJECT_SCOPE_WARNING_CODE, message=message, severity="warning", affected_vault_ids=())
+        for message in selection.warnings
+    )
+
+
+def _require_project_scope(scope: QueryScope | None, selection: ProjectQuerySelection) -> QueryScope:
+    """Answers and context packs need at least one Vault. A project with none is an error, not a fallback."""
+    if scope is None:
+        raise CatalogError(" ".join(selection.warnings) or "The project has no searchable Vault. Run `vg setup`.")
+    return scope
 
 
 def _reject_cross_vault_without_graph(include_cross_vault: bool, *, include_graph: bool) -> None:

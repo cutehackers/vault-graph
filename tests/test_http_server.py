@@ -104,3 +104,142 @@ def test_http_explain_result_rejects_blank_result_id(tmp_path: Path) -> None:
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "invalid_result_id"
     assert response.json()["error"]["message"] == "result_id is required"
+
+
+# --- V2: /search without scope uses the `cwd` project's Vaults; results carry vault_name and vault_role ---
+
+
+class _RecordingRetrieval:
+    def __init__(self) -> None:
+        from tests.test_mcp_tool_serialization import make_search_response
+
+        self.response = make_search_response()
+        self.calls: list[dict[str, object]] = []
+
+    def search(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self.response
+
+
+class _SearchServiceFactory:
+    def __init__(self, catalog: object, retrieval: _RecordingRetrieval) -> None:
+        self.catalog = catalog
+        self.retrieval = retrieval
+
+    def open_read_only(self) -> object:
+        from types import SimpleNamespace
+
+        return SimpleNamespace(catalog=self.catalog, metadata_store=_AllIndexed())
+
+    def open_retrieval_service(self, *, include_graph: bool = False) -> _RecordingRetrieval:
+        del include_graph
+        return self.retrieval
+
+
+class _AllIndexed:
+    def list_document_states(self, vault_ids: tuple[str, ...]) -> tuple[object, ...]:
+        from types import SimpleNamespace
+
+        return tuple(SimpleNamespace(document_id="doc") for _ in vault_ids)
+
+
+def _project_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, project_vaults: tuple[str, ...] = ("personal", "team")
+) -> tuple[TestClient, _RecordingRetrieval, Path]:
+    import json
+    import subprocess
+    from typing import Any, cast
+
+    from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV
+    from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
+
+    entries = []
+    for vault_id, folder in (("main", "vault"), ("p-id", "personal"), ("t-id", "team")):
+        (tmp_path / folder).mkdir()
+        entries.append(VaultCatalogEntry.from_root(vault_id=vault_id, root_path=tmp_path / folder))
+    catalog = VaultCatalog.from_entries(entries=entries, active_vault_id="main")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    map_file = tmp_path / "vault-map.json"
+    map_file.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "vaults": {
+                    "personal": {"path": str(tmp_path / "personal"), "role": "personal"},
+                    "team": {"path": str(tmp_path / "team"), "role": "team"},
+                    "main-vault": {"path": str(tmp_path / "vault"), "role": "project"},
+                    "unregistered": {"path": str(tmp_path / "nowhere"), "role": "project"},
+                },
+                "projects": {"repo": {"root": str(repo), "vaults": list(project_vaults)}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(VAULT_MAP_ENV, str(map_file))
+    retrieval = _RecordingRetrieval()
+    app = create_http_app(
+        HttpServerConfig(graph_home_path=tmp_path / "state"),
+        service_factory=cast(Any, _SearchServiceFactory(catalog, retrieval)),
+    )
+    return TestClient(app, raise_server_exceptions=False), retrieval, repo
+
+
+def test_http_search_with_cwd_searches_every_project_vault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, retrieval, repo = _project_app(tmp_path, monkeypatch)
+
+    response = client.post("/search", json={"query": "GraphRAG", "cwd": str(repo)})
+
+    assert response.status_code == 200
+    assert retrieval.calls[0]["requested_scope"].vault_ids == ("p-id", "t-id")  # type: ignore[attr-defined]
+
+
+def test_http_search_without_cwd_uses_the_active_vault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, retrieval, repo = _project_app(tmp_path, monkeypatch)
+    monkeypatch.chdir(repo)
+
+    response = client.post("/search", json={"query": "GraphRAG"})
+
+    assert response.status_code == 200
+    assert retrieval.calls[0]["requested_scope"].vault_ids == ("main",)  # type: ignore[attr-defined]
+
+
+def test_http_search_results_carry_labels_and_explicit_scope_is_otherwise_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from vault_graph.interface.http.http_serialization import domain_to_json_dict
+
+    client, retrieval, repo = _project_app(tmp_path, monkeypatch)
+
+    response = client.post("/search", json={"query": "GraphRAG", "cwd": str(repo), "scope": {"vault_ids": ["main"]}})
+
+    payload = response.json()
+    assert retrieval.calls[0]["requested_scope"].vault_ids == ("main",)  # type: ignore[attr-defined]
+    assert (payload["results"][0]["vault_name"], payload["results"][0]["vault_role"]) == ("main-vault", "project")
+    for result in payload["results"]:
+        del result["vault_name"], result["vault_role"]
+    assert payload == domain_to_json_dict(retrieval.response)
+
+
+def test_http_search_project_without_registered_vault_returns_empty_and_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client, retrieval, repo = _project_app(tmp_path, monkeypatch, project_vaults=("unregistered",))
+
+    response = client.post("/search", json={"query": "GraphRAG", "cwd": str(repo)})
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert retrieval.calls == []
+    assert payload["results"] == []
+    assert payload["result_count"] == 0
+    assert any("vg setup" in warning["message"] for warning in payload["warnings"])
+
+
+def test_http_search_rejects_a_non_string_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _, _ = _project_app(tmp_path, monkeypatch)
+
+    response = client.post("/search", json={"query": "GraphRAG", "cwd": 3})
+
+    assert response.status_code == 400

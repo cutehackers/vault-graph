@@ -256,6 +256,7 @@ SCHEMAS_AT_28F1C96 = "6792f9841887ea174fc1a82e7969fa1771ac3a18877a040d1b3c272121
 
 def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> None:
     import asyncio
+    import copy
     import hashlib
     import json
 
@@ -272,6 +273,14 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
     tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
     read_tools = sorted(name for name in registry.tool_names if name != "remember")
     schemas = {name: {"input": tools[name].inputSchema, "output": tools[name].outputSchema} for name in read_tools}
+    # V2 adds one optional input `cwd` to three query tools (docs/SPEC.md §5 allows optional fields).
+    # Remove it before hashing so the hash still proves every existing field is unchanged.
+    for name in ("ask_vault", "search_vault", "build_context_pack"):
+        input_schema = copy.deepcopy(tools[name].inputSchema)
+        cwd_schema = input_schema["properties"].pop("cwd")
+        assert cwd_schema["default"] is None
+        assert "cwd" not in input_schema.get("required", [])
+        schemas[name]["input"] = input_schema
 
     assert len(read_tools) == 11
     digest = hashlib.sha256(json.dumps(schemas, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -732,3 +741,220 @@ def make_health_explorer_report() -> object:
         warnings=(),
         generated_at="2026-06-18T00:00:00+00:00",
     )
+
+
+# --- V2: search without scope covers the cwd project's Vaults; results carry vault_name and vault_role ---
+
+
+class FakeDocumentStates:
+    """Metadata store fake for the indexed check: listed Vault ids have one document."""
+
+    def __init__(self, indexed: tuple[str, ...]) -> None:
+        self.indexed = indexed
+
+    def list_document_states(self, vault_ids: tuple[str, ...]) -> tuple[object, ...]:
+        from types import SimpleNamespace
+
+        return tuple(SimpleNamespace(document_id="doc") for vault_id in vault_ids if vault_id in self.indexed)
+
+
+def project_setup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    project_vaults: tuple[str, ...] = ("personal", "team"),
+    indexed: tuple[str, ...] = ("main", "p-id", "t-id"),
+    retrieval_service: RecordingRetrievalService | None = None,
+    context_pack_builder: RecordingContextPackBuilder | None = None,
+) -> tuple[Path, McpServices]:
+    """A git repo linked in vault-map.json to Vaults ``personal`` and ``team``; ``main`` is active."""
+
+    import json
+    import subprocess
+
+    from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV
+
+    entries = []
+    for vault_id, folder in (("main", "vault"), ("p-id", "personal"), ("t-id", "team")):
+        (tmp_path / folder).mkdir()
+        entries.append(VaultCatalogEntry.from_root(vault_id=vault_id, root_path=tmp_path / folder))
+    catalog = VaultCatalog.from_entries(entries=entries, active_vault_id="main")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    (tmp_path / "unregistered").mkdir()
+    vault_map = {
+        "version": 2,
+        "vaults": {
+            "personal": {"path": str(tmp_path / "personal"), "role": "personal"},
+            "team": {"path": str(tmp_path / "team"), "role": "team"},
+            "main-vault": {"path": str(tmp_path / "vault"), "role": "project"},
+            "unregistered": {"path": str(tmp_path / "unregistered"), "role": "project"},
+        },
+        "projects": {"repo": {"root": str(repo), "vaults": list(project_vaults)}},
+    }
+    map_file = tmp_path / "vault-map.json"
+    map_file.write_text(json.dumps(vault_map), encoding="utf-8")
+    monkeypatch.setenv(VAULT_MAP_ENV, str(map_file))
+    services = McpServices(
+        catalog_service=cast(Any, object()),
+        catalog=catalog,
+        metadata_store=cast(Any, FakeDocumentStates(indexed)),
+        retrieval_service=cast(Any, retrieval_service or RecordingRetrievalService(make_search_response())),
+        context_pack_builder=cast(Any, context_pack_builder or RecordingContextPackBuilder(make_pack())),
+        context_pack_renderer=DefaultContextPackRenderer(),
+    )
+    return repo, services
+
+
+def _registry(services: McpServices, factory: RecordingFactory | None = None) -> McpToolRegistry:
+    return McpToolRegistry(
+        services=services,
+        service_factory=cast(Any, factory or fake_factory()),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+
+def test_search_vault_with_cwd_searches_every_registered_project_vault(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    retrieval = RecordingRetrievalService(make_search_response())
+    repo, services = project_setup(tmp_path, monkeypatch, retrieval_service=retrieval)
+
+    body = _registry(services).search_vault(SearchVaultInput(query="GraphRAG", cwd=str(repo)))
+
+    assert cast(QueryScope, retrieval.calls[0]["requested_scope"]).vault_ids == ("p-id", "t-id")
+    assert body.warnings == ()
+
+
+def test_search_vault_without_cwd_uses_the_server_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    retrieval = RecordingRetrievalService(make_search_response())
+    repo, services = project_setup(tmp_path, monkeypatch, retrieval_service=retrieval)
+    monkeypatch.chdir(repo)
+
+    _registry(services).search_vault(SearchVaultInput(query="GraphRAG"))
+
+    assert cast(QueryScope, retrieval.calls[0]["requested_scope"]).vault_ids == ("p-id", "t-id")
+
+
+def test_search_vault_outside_a_project_uses_the_active_vault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    retrieval = RecordingRetrievalService(make_search_response())
+    _, services = project_setup(tmp_path, monkeypatch, retrieval_service=retrieval)
+
+    _registry(services).search_vault(SearchVaultInput(query="GraphRAG", cwd=str(tmp_path / "team")))
+
+    assert cast(QueryScope, retrieval.calls[0]["requested_scope"]).vault_ids == ("main",)
+
+
+def test_search_results_carry_vault_name_and_role_and_explicit_scope_is_otherwise_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from vault_graph.interface.mcp.mcp_scope import McpScopeInput
+    from vault_graph.interface.mcp.mcp_tool_serialization import search_response_to_payload
+
+    response = make_search_response()
+    retrieval = RecordingRetrievalService(response)
+    repo, services = project_setup(tmp_path, monkeypatch, retrieval_service=retrieval)
+
+    body = _registry(services).search_vault(
+        SearchVaultInput(query="GraphRAG", scope=McpScopeInput(vault_ids=("main",)), cwd=str(repo))
+    )
+
+    assert cast(QueryScope, retrieval.calls[0]["requested_scope"]).vault_ids == ("main",)
+    results = cast(list[dict[str, object]], body.payload["results"])
+    assert (results[0]["vault_name"], results[0]["vault_role"]) == ("main-vault", "project")
+    before = search_response_to_payload(response)
+    for result in results:
+        del result["vault_name"], result["vault_role"]
+    assert body.payload == before
+    assert body.warnings == ()
+
+
+def test_vault_missing_from_the_map_has_null_labels(tmp_path: Path) -> None:
+    body = _registry(fake_services(tmp_path)).search_vault(SearchVaultInput(query="GraphRAG"))
+
+    result = cast(list[dict[str, object]], body.payload["results"])[0]
+    assert result["vault_name"] is None
+    assert result["vault_role"] is None
+
+
+def test_project_without_registered_vault_returns_no_results_and_a_setup_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    retrieval = RecordingRetrievalService(make_search_response())
+    repo, services = project_setup(tmp_path, monkeypatch, project_vaults=("unregistered",), retrieval_service=retrieval)
+
+    body = _registry(services).search_vault(SearchVaultInput(query="GraphRAG", cwd=str(repo)))
+
+    assert retrieval.calls == []
+    assert body.payload["result_count"] == 0
+    assert body.payload["results"] == []
+    assert any("vg setup" in warning.message and "unregistered" in warning.message for warning in body.warnings)
+    payload_warnings = cast(list[dict[str, object]], body.payload["warnings"])
+    assert any("vg setup" in cast(str, warning["message"]) for warning in payload_warnings)
+
+
+def test_partly_indexed_project_names_the_missing_vaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    retrieval = RecordingRetrievalService(make_search_response())
+    repo, services = project_setup(
+        tmp_path,
+        monkeypatch,
+        project_vaults=("personal", "team", "unregistered"),
+        indexed=("p-id",),
+        retrieval_service=retrieval,
+    )
+
+    body = _registry(services).search_vault(SearchVaultInput(query="GraphRAG", cwd=str(repo)))
+
+    assert cast(QueryScope, retrieval.calls[0]["requested_scope"]).vault_ids == ("p-id", "t-id")
+    messages = " ".join(warning.message for warning in body.warnings)
+    assert "unregistered" in messages
+    assert "team" in messages
+    assert "personal" not in messages
+
+
+def test_build_context_pack_with_cwd_uses_the_project_vaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = RecordingContextPackBuilder(replace(make_pack(), pack_id="pack-1"))
+    repo, services = project_setup(tmp_path, monkeypatch, context_pack_builder=builder)
+
+    _registry(services).build_context_pack(BuildContextPackInput(goal="Implement", cwd=str(repo)))
+
+    assert builder.requests[0].requested_scope.vault_ids == ("p-id", "t-id")
+
+
+def test_ask_vault_with_cwd_uses_the_project_vaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tests.test_mcp_ask_vault import RecordingAnswerService
+    from vault_graph.interface.mcp.mcp_tools import AskVaultInput
+
+    service = RecordingAnswerService()
+    factory = fake_factory()
+    factory.answer_service = service
+    repo, services = project_setup(tmp_path, monkeypatch)
+
+    _registry(services, factory).ask_vault(AskVaultInput(question="Why?", cwd=str(repo)))
+
+    assert service.requests[0].requested_scope.vault_ids == ("p-id", "t-id")
+
+
+def test_three_query_tools_accept_cwd_and_pass_it_on(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    retrieval = RecordingRetrievalService(make_search_response())
+    repo, services = project_setup(tmp_path, monkeypatch, retrieval_service=retrieval)
+    server = RecordingToolServer()
+    register_mcp_tools(
+        server,
+        services=services,
+        service_factory=cast(Any, fake_factory()),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    server.tools["search_vault"](query="GraphRAG", cwd=str(repo))
+
+    assert cast(QueryScope, retrieval.calls[0]["requested_scope"]).vault_ids == ("p-id", "t-id")
+    with pytest.raises(McpProtocolError):
+        server.tools["build_context_pack"](goal="g", cwd=3)
+    with pytest.raises(McpProtocolError):
+        server.tools["ask_vault"](question="q", cwd="")
