@@ -210,6 +210,30 @@ class IndexService:
         )
         return IndexRunReport(metadata=metadata_plan, vector=vector_result, graph=graph_result)
 
+    def run_apply_paths(
+        self,
+        *,
+        scope: QueryScope,
+        changed_paths: tuple[tuple[str, str], ...],
+        deleted_paths: tuple[tuple[str, str], ...],
+    ) -> IndexRunReport:
+        """Metadata for the listed files only (``MetadataIndexer.apply_paths``), then the graph. No vectors.
+
+        The graph is still reconciled for the whole scope: publication needs current graph evidence
+        for every selected Vault, and graph records merge evidence from many files.
+        """
+        metadata_plan = MetadataIndexer(catalog=self._catalog, metadata_store=self._metadata_store).apply_paths(
+            scope=scope,
+            changed_paths=changed_paths,
+            deleted_paths=deleted_paths,
+        )
+        graph_result = self._graph_apply(
+            source_store=MetadataGraphSourceStore(self._metadata_store),
+            scope=scope,
+            full=False,
+        )
+        return IndexRunReport(metadata=metadata_plan, vector=None, graph=graph_result)
+
     def status(self, *, scope: QueryScope | None = None) -> IndexStatusReport:
         if self._status_reader is None:
             raise RuntimeError("index status reader is not configured")

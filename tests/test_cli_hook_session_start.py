@@ -6,10 +6,12 @@ Fixture pages in tests/fixtures/session_recall use ``{base}`` for the temporary 
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -24,11 +26,12 @@ from tests.test_cli_setup import _deterministic_text_embeddings
 from vault_graph.context.pack.recall import estimate_recall_tokens, memory_item_id
 from vault_graph.interface.cli import hook_commands
 from vault_graph.interface.cli.main import app
+from vault_graph.interface.composition.local_index_service_factory import LocalIndexServiceBundle
+from vault_graph.interface.composition.recall_index_refresh import vectors_need_catch_up
 
 FIXTURES = Path(__file__).parent / "fixtures" / "session_recall"
 runner = CliRunner()
 REAL_START_CATCH_UP_INDEX = hook_commands.start_catch_up_index
-REAL_POPEN = subprocess.Popen
 
 
 def day(offset: int) -> str:
@@ -59,14 +62,25 @@ def fake_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
 
 
-@pytest.fixture(autouse=True)
-def catch_up(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Path, tuple[str, ...]]]:
-    """Record the detached catch-up `vg index` instead of starting a real process."""
-    started: list[tuple[Path, tuple[str, ...]]] = []
+CatchUps = list[tuple[Path, tuple[str, ...], tuple[str, ...]]]
 
-    def record(graph_home: Path, vault_ids: tuple[str, ...]) -> None:
-        started.append((graph_home, vault_ids))
-        sys.stdout.write("<catch-up started>")
+
+class _RecordedCatchUp:
+    def __init__(self, released: list[bool]) -> None:
+        self._released = released
+
+    def release(self) -> None:
+        self._released.append(True)
+
+
+@pytest.fixture(autouse=True)
+def catch_up(monkeypatch: pytest.MonkeyPatch) -> CatchUps:
+    """Record the detached catch-up instead of starting a real process: (graph home, index, check)."""
+    started: CatchUps = []
+
+    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+        started.append((graph_home, index_vault_ids, check_vault_ids))
+        return _RecordedCatchUp([])
 
     monkeypatch.setattr("vault_graph.interface.cli.hook_commands.start_catch_up_index", record)
     return started
@@ -582,7 +596,7 @@ def test_failed_refresh_warns_and_recalls_from_the_existing_index(
     def explode(*args: object, **kwargs: object) -> None:
         raise RuntimeError("disk full")
 
-    monkeypatch.setattr("vault_graph.indexing.metadata_indexer.MetadataIndexer.apply", explode)
+    monkeypatch.setattr("vault_graph.indexing.metadata_indexer.MetadataIndexer.apply_paths", explode)
     write_page(
         base / "vaults" / "main", "wiki/notes/fresh.md", f'type: note\nstatus: active\nupdated: "{day(0)}"\n', "Fresh"
     )
@@ -633,7 +647,7 @@ def test_refresh_past_its_time_limit_publishes_nothing(
     assert generations(graph_home) == staged_before
 
 
-# Vector catch-up after session start and bounded refresh (re-audit 발견1, 발견3) ----------------
+# Vector catch-up after session start and bounded refresh (re-audit 발견1, 발견3, 발견8, 발견10) ----
 
 
 def fresh_note(base: Path, name: str = "fresh", vault: str = "main") -> None:
@@ -645,43 +659,90 @@ def fresh_note(base: Path, name: str = "fresh", vault: str = "main") -> None:
     )
 
 
-def test_changed_vault_gets_a_catch_up_index_after_recall_is_printed(
-    base: Path, graph_home: Path, catch_up: list[tuple[Path, tuple[str, ...]]]
+def test_changed_vault_gets_a_catch_up_index_started_before_recall_is_printed(
+    base: Path, graph_home: Path, catch_up: CatchUps, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+        catch_up.append((graph_home, index_vault_ids, check_vault_ids))
+        sys.stdout.write("<catch-up started>")
+        return _RecordedCatchUp([])
+
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.start_catch_up_index", record)
     fresh_note(base)
     fresh_note(base, "team-fresh", vault="other")
 
     result = hook(graph_home, base, repo="both")
 
     assert result.exit_code == 0, result.output
-    assert catch_up == [(graph_home, ("main", "other"))]
-    assert result.stdout.endswith("<catch-up started>")
+    assert catch_up == [(graph_home, ("main", "other"), ())]
+    # Started right after the change scan, so a hook killed later still leaves it running.
+    assert result.stdout.startswith("<catch-up started>")
     assert "Fresh" in result.stdout
 
 
-def test_only_changed_linked_vaults_get_a_catch_up_index(
-    base: Path, graph_home: Path, catch_up: list[tuple[Path, tuple[str, ...]]]
-) -> None:
+def test_unchanged_linked_vaults_get_a_vector_check_only(base: Path, graph_home: Path, catch_up: CatchUps) -> None:
     fresh_note(base, "team-fresh", vault="other")
 
     hook(graph_home, base, repo="both")
 
-    assert catch_up == [(graph_home, ("other",))]
+    assert catch_up == [(graph_home, ("other",), ("main",))]
 
 
-def test_no_change_starts_no_catch_up_index(
-    base: Path, graph_home: Path, catch_up: list[tuple[Path, tuple[str, ...]]]
+def test_no_change_still_starts_a_vector_check_so_a_killed_catch_up_is_retried(
+    base: Path, graph_home: Path, catch_up: CatchUps
 ) -> None:
     result = hook(graph_home, base, repo="both")
 
     assert result.exit_code == 0, result.output
-    assert catch_up == []
+    assert catch_up == [(graph_home, (), ("main", "other"))]
+
+
+def test_the_hook_releases_the_catch_up_after_the_refresh(
+    base: Path, graph_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    released: list[bool] = []
+    events: list[str] = []
+    real_commit = LocalIndexServiceBundle.commit_projection
+
+    def commit(self: LocalIndexServiceBundle, report: object = None) -> None:
+        events.append("published")
+        real_commit(self, report)  # type: ignore[arg-type]
+
+    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+        events.append("started")
+        return _RecordedCatchUp(released)
+
+    monkeypatch.setattr(LocalIndexServiceBundle, "commit_projection", commit)
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.start_catch_up_index", record)
+    fresh_note(base)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert events == ["started", "published"]
+    assert released == [True]
+
+
+def test_quick_refresh_reads_only_the_changed_files(
+    base: Path, graph_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_walk(*args: object, **kwargs: object) -> None:
+        raise AssertionError("the quick refresh must not parse the whole Vault")
+
+    monkeypatch.setattr("vault_graph.indexing.ingestion.vault_loader.VaultLoader.load_documents", no_walk)
+    fresh_note(base)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
+    assert result.stderr == ""
 
 
 def test_too_many_changed_files_skip_the_quick_refresh_and_leave_no_staged_folder(
     base: Path,
     graph_home: Path,
-    catch_up: list[tuple[Path, tuple[str, ...]]],
+    catch_up: CatchUps,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("vault_graph.interface.composition.recall_index_refresh.MAX_QUICK_REFRESH_FILES", 2)
@@ -698,13 +759,13 @@ def test_too_many_changed_files_skip_the_quick_refresh_and_leave_no_staged_folde
     assert "3 changed files" in result.stderr
     assert active_generation(graph_home) == before
     assert generations(graph_home) == staged_before
-    assert catch_up == [(graph_home, ("main",))]
+    assert catch_up == [(graph_home, ("main",), ())]
 
 
 def test_time_limit_inside_the_change_scan_stops_before_staging(
     base: Path,
     graph_home: Path,
-    catch_up: list[tuple[Path, tuple[str, ...]]],
+    catch_up: CatchUps,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def no_staging(*args: object, **kwargs: object) -> None:
@@ -727,12 +788,10 @@ def test_time_limit_inside_the_change_scan_stops_before_staging(
     assert active_generation(graph_home) == before
     assert generations(graph_home) == staged_before
     # The scan did not finish, so every linked Vault gets the catch-up index.
-    assert catch_up == [(graph_home, ("main", "other"))]
+    assert catch_up == [(graph_home, ("main", "other"), ())]
 
 
-def test_zero_refresh_budget_starts_no_catch_up_index(
-    base: Path, graph_home: Path, catch_up: list[tuple[Path, tuple[str, ...]]]
-) -> None:
+def test_zero_refresh_budget_starts_no_catch_up_index(base: Path, graph_home: Path, catch_up: CatchUps) -> None:
     fresh_note(base)
 
     hook(graph_home, base, extra=("--refresh-budget", "0"))
@@ -740,143 +799,10 @@ def test_zero_refresh_budget_starts_no_catch_up_index(
     assert catch_up == []
 
 
-def test_catch_up_index_runs_detached_with_the_same_graph_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    started: list[tuple[list[str], dict[str, object]]] = []
-
-    class FakePopen:
-        pid = 4242
-
-        def __init__(self, command: list[str], **kwargs: object) -> None:
-            started.append((command, kwargs))
-
-    monkeypatch.setattr(hook_commands.subprocess, "Popen", FakePopen)
-    home = tmp_path / "graph-home"
-    home.mkdir()
-
-    REAL_START_CATCH_UP_INDEX(home, ("main", "other"))
-
-    assert len(started) == 1
-    command, kwargs = started[0]
-    assert command[0] == sys.executable
-    assert command[-3:] == [str(home), "main", "other"]
-    assert kwargs["start_new_session"] is True
-    assert kwargs["stdin"] is subprocess.DEVNULL
-    assert kwargs["close_fds"] is True
-    assert (home / "logs" / "session-start-index.log").exists()
-
-
-def test_catch_up_script_indexes_each_vault_in_turn(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    ran: list[list[str]] = []
-    monkeypatch.setattr(hook_commands.subprocess, "run", lambda command, **kwargs: ran.append(command))
-    monkeypatch.setattr(sys, "argv", ["-c", str(tmp_path), "main", "other"])
-
-    hook_commands.run_catch_up_index()
-
-    assert [command[-5:] for command in ran] == [
-        ["index", "--graph-home", str(tmp_path), "--vault-id", "main"],
-        ["index", "--graph-home", str(tmp_path), "--vault-id", "other"],
-    ]
-
-
-def _dead_pid() -> int:
-    process = REAL_POPEN([sys.executable, "-c", "pass"])
-    process.wait()
-    return process.pid
-
-
-class _RecordingPopen:
-    started: list[list[str]]
-    pid = 4242
-
-    def __init__(self, command: list[str], **kwargs: object) -> None:
-        type(self).started.append(command)
-
-
-@pytest.fixture
-def recording_popen(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    _RecordingPopen.started = []
-    monkeypatch.setattr(hook_commands.subprocess, "Popen", _RecordingPopen)
-    return _RecordingPopen.started
-
-
-def test_catch_up_index_records_the_detached_process_pid(tmp_path: Path, recording_popen: list[list[str]]) -> None:
-    REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
-
-    assert len(recording_popen) == 1
-    assert (tmp_path / "logs" / "session-start-index.pid").read_text(encoding="utf-8").strip() == "4242"
-
-
-def test_running_catch_up_index_is_not_started_again(tmp_path: Path, recording_popen: list[list[str]]) -> None:
-    pid_file = tmp_path / "logs" / "session-start-index.pid"
-    pid_file.parent.mkdir(parents=True)
-    pid_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
-
-    REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
-    REAL_START_CATCH_UP_INDEX(tmp_path, ("other",))
-
-    assert recording_popen == []
-    assert pid_file.read_text(encoding="utf-8").strip() == str(os.getpid())
-
-
-@pytest.mark.parametrize("content", ["dead", "not a pid", ""])
-def test_stale_or_unreadable_pid_file_is_replaced(
-    tmp_path: Path, recording_popen: list[list[str]], content: str
-) -> None:
-    pid_file = tmp_path / "logs" / "session-start-index.pid"
-    pid_file.parent.mkdir(parents=True)
-    pid_file.write_text(str(_dead_pid()) if content == "dead" else content, encoding="utf-8")
-
-    REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
-
-    assert len(recording_popen) == 1
-    assert pid_file.read_text(encoding="utf-8").strip() == "4242"
-
-
-def test_failed_start_releases_the_pid_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def fail(*args: object, **kwargs: object) -> None:
-        raise OSError("no python")
-
-    monkeypatch.setattr(hook_commands.subprocess, "Popen", fail)
-
-    with pytest.raises(OSError, match="no python"):
-        REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
-
-    assert not (tmp_path / "logs" / "session-start-index.pid").exists()
-
-
-def test_catch_up_script_removes_its_own_pid_file_when_done(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    pid_file = tmp_path / "logs" / "session-start-index.pid"
-    pid_file.parent.mkdir(parents=True)
-    pid_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
-
-    def failing_run(command: list[str], **kwargs: object) -> None:
-        raise RuntimeError("index crashed")
-
-    monkeypatch.setattr(hook_commands.subprocess, "run", failing_run)
-    monkeypatch.setattr(sys, "argv", ["-c", str(tmp_path), "main"])
-
-    with pytest.raises(RuntimeError):
-        hook_commands.run_catch_up_index()
-
-    assert not pid_file.exists()
-
-
-def test_catch_up_script_keeps_a_pid_file_of_another_process(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    pid_file = tmp_path / "logs" / "session-start-index.pid"
-    pid_file.parent.mkdir(parents=True)
-    pid_file.write_text("4242\n", encoding="utf-8")
-    monkeypatch.setattr(hook_commands.subprocess, "run", lambda command, **kwargs: None)
-    monkeypatch.setattr(sys, "argv", ["-c", str(tmp_path), "main"])
-
-    hook_commands.run_catch_up_index()
-
-    assert pid_file.read_text(encoding="utf-8") == "4242\n"
-
-
 def test_busy_projection_lock_skips_the_quick_refresh_after_a_short_wait(
     base: Path,
     graph_home: Path,
-    catch_up: list[tuple[Path, tuple[str, ...]]],
+    catch_up: CatchUps,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from vault_graph.indexing.publication.projection_generation import ProjectionPublishBusyError
@@ -902,4 +828,221 @@ def test_busy_projection_lock_skips_the_quick_refresh_after_a_short_wait(
     assert "another vg index" in result.stderr
     assert waits and waits[0] is not None and 0 < waits[0] <= 1.0
     assert active_generation(graph_home) == before
-    assert catch_up == [(graph_home, ("main",))]
+    assert catch_up == [(graph_home, ("main",), ())]
+
+
+# The detached catch-up process and its lock ----------------------------------------------------
+
+
+class _RecordingPopen:
+    started: list[tuple[list[str], dict[str, object]]]
+    pid = 4242
+
+    def __init__(self, command: list[str], **kwargs: object) -> None:
+        type(self).started.append((command, kwargs))
+
+
+@pytest.fixture
+def recording_popen(monkeypatch: pytest.MonkeyPatch) -> list[tuple[list[str], dict[str, object]]]:
+    _RecordingPopen.started = []
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.subprocess.Popen", _RecordingPopen)
+    return _RecordingPopen.started
+
+
+def lock_is_free(home: Path) -> bool:
+    descriptor = os.open(home / "logs" / "session-start-index.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    finally:
+        os.close(descriptor)
+    return True
+
+
+def test_catch_up_runs_detached_with_the_lock_and_the_gate(
+    tmp_path: Path, recording_popen: list[tuple[list[str], dict[str, object]]]
+) -> None:
+    home = tmp_path / "graph-home"
+    home.mkdir()
+
+    handle = REAL_START_CATCH_UP_INDEX(home, ("main",), ("other",))
+
+    assert handle is not None
+    assert len(recording_popen) == 1
+    command, kwargs = recording_popen[0]
+    assert command[0] == sys.executable
+    assert command[3] == str(home)
+    assert json.loads(command[5]) == {"index": ["main"], "check": ["other"]}
+    assert int(command[4]) in kwargs["pass_fds"]  # type: ignore[operator]
+    assert len(kwargs["pass_fds"]) == 2  # type: ignore[arg-type]
+    assert kwargs["start_new_session"] is True
+    assert kwargs["stdin"] is subprocess.DEVNULL
+    assert kwargs["close_fds"] is True
+    assert (home / "logs" / "session-start-index.log").exists()
+    assert (home / "logs" / "session-start-index.pid").read_text(encoding="utf-8").strip() == "4242"
+    handle.release()
+    handle.release()
+
+
+def test_no_vault_starts_nothing(tmp_path: Path, recording_popen: list[tuple[list[str], dict[str, object]]]) -> None:
+    assert REAL_START_CATCH_UP_INDEX(tmp_path, (), ()) is None
+    assert recording_popen == []
+
+
+def test_locked_catch_up_is_not_started_again(
+    tmp_path: Path, recording_popen: list[tuple[list[str], dict[str, object]]]
+) -> None:
+    (tmp_path / "logs").mkdir()
+    holder = os.open(tmp_path / "logs" / "session-start-index.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(holder, fcntl.LOCK_EX)
+    try:
+        assert REAL_START_CATCH_UP_INDEX(tmp_path, ("main",)) is None
+    finally:
+        os.close(holder)
+
+    assert recording_popen == []
+
+
+def test_a_live_pid_in_the_pid_file_does_not_block_a_new_catch_up(
+    tmp_path: Path, recording_popen: list[tuple[list[str], dict[str, object]]]
+) -> None:
+    pid_file = tmp_path / "logs" / "session-start-index.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
+
+    REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
+
+    assert len(recording_popen) == 1
+    assert pid_file.read_text(encoding="utf-8").strip() == "4242"
+
+
+def test_failed_start_releases_the_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise OSError("no python")
+
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.subprocess.Popen", fail)
+
+    with pytest.raises(OSError, match="no python"):
+        REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
+
+    assert lock_is_free(tmp_path)
+    assert not (tmp_path / "logs" / "session-start-index.pid").exists()
+
+
+def test_the_detached_process_holds_the_lock_until_it_ends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(hook_commands, "_CATCH_UP_SCRIPT", "import time; time.sleep(30)")
+
+    handle = REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
+    assert handle is not None
+    handle.release()
+    pid = int((tmp_path / "logs" / "session-start-index.pid").read_text(encoding="utf-8"))
+
+    assert not lock_is_free(tmp_path)
+    assert REAL_START_CATCH_UP_INDEX(tmp_path, ("main",)) is None
+    os.killpg(pid, signal.SIGTERM)
+    os.waitpid(pid, 0)
+    assert lock_is_free(tmp_path)
+
+
+def test_the_gate_opens_when_the_hook_releases_it() -> None:
+    read_end, write_end = os.pipe()
+    os.close(write_end)
+
+    assert hook_commands._wait_for_gate(read_end, timeout_s=5.0) is True
+
+
+def test_the_gate_gives_up_after_its_time_limit() -> None:
+    read_end, write_end = os.pipe()
+    try:
+        assert hook_commands._wait_for_gate(read_end, timeout_s=0.05) is False
+    finally:
+        os.close(write_end)
+
+
+def run_script(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plan: dict[str, list[str]]) -> list[list[str]]:
+    ran: list[list[str]] = []
+    read_end, write_end = os.pipe()
+    os.close(write_end)
+    monkeypatch.setattr(
+        "vault_graph.interface.cli.hook_commands.subprocess.run", lambda command, **kwargs: ran.append(command)
+    )
+    monkeypatch.setattr(sys, "argv", ["-c", str(tmp_path), str(read_end), json.dumps(plan)])
+    hook_commands.run_catch_up_index()
+    return ran
+
+
+def test_catch_up_script_indexes_changed_vaults_and_checked_vaults_with_stale_vectors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checked: list[str] = []
+
+    def stale(graph_home: Path, vault_id: str) -> bool:
+        checked.append(vault_id)
+        return vault_id == "stale"
+
+    monkeypatch.setattr(hook_commands, "vectors_need_catch_up", stale)
+
+    ran = run_script(tmp_path, monkeypatch, {"index": ["main"], "check": ["fresh", "stale"]})
+
+    assert checked == ["fresh", "stale"]
+    assert [command[-5:] for command in ran] == [
+        ["index", "--graph-home", str(tmp_path), "--vault-id", "main"],
+        ["index", "--graph-home", str(tmp_path), "--vault-id", "stale"],
+    ]
+
+
+def test_catch_up_script_removes_its_own_pid_file_when_done(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pid_file = tmp_path / "logs" / "session-start-index.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
+
+    run_script(tmp_path, monkeypatch, {"index": ["main"], "check": []})
+
+    assert not pid_file.exists()
+
+
+def test_catch_up_script_keeps_a_pid_file_of_another_process(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pid_file = tmp_path / "logs" / "session-start-index.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text("4242\n", encoding="utf-8")
+
+    run_script(tmp_path, monkeypatch, {"index": ["main"], "check": []})
+
+    assert pid_file.read_text(encoding="utf-8") == "4242\n"
+
+
+# Vector readiness check used by the catch-up (re-audit 발견10) ---------------------------------
+
+
+@pytest.fixture
+def deterministic_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "vault_graph.interface.composition.recall_index_refresh._catch_up_text_embeddings",
+        _deterministic_text_embeddings,
+    )
+
+
+def test_vectors_need_no_catch_up_after_vg_index(graph_home: Path, deterministic_check: None) -> None:
+    assert vectors_need_catch_up(graph_home, "main") is False
+
+
+def test_vectors_need_a_catch_up_after_a_quick_refresh(base: Path, graph_home: Path, deterministic_check: None) -> None:
+    fresh_note(base)
+    assert hook(graph_home, base).exit_code == 0
+
+    assert vectors_need_catch_up(graph_home, "main") is True
+    assert vectors_need_catch_up(graph_home, "other") is False
+    reindex(graph_home)
+    assert vectors_need_catch_up(graph_home, "main") is False
+
+
+def test_vectors_need_a_catch_up_when_the_vector_store_is_missing(graph_home: Path, deterministic_check: None) -> None:
+    layout = json.loads((graph_home / "projections" / "active.json").read_text(encoding="utf-8"))
+    shutil.rmtree(graph_home / layout["generation_path"] / "vector")
+
+    assert vectors_need_catch_up(graph_home, "main") is True
+
+
+def test_vector_check_on_an_unknown_vault_says_no(graph_home: Path, deterministic_check: None) -> None:
+    assert vectors_need_catch_up(graph_home, "missing") is False

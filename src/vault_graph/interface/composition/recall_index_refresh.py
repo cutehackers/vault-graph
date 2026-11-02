@@ -6,10 +6,15 @@ re-reads the linked, already indexed Vaults and publishes a new projection gener
 changed. The run uses the same metadata indexer, graph indexer and generation publisher as
 ``vg index``, with these differences:
 
+- Only the changed files. The scan lists changed and deleted files, and only those are read and
+  written to metadata (``IndexService.run_apply_paths``). The graph is still reconciled for the
+  whole Vault, because publication needs current graph evidence.
 - No embeddings. New and changed chunks keep no vector or an old one until the next ``vg index``,
-  which search readiness reports as stale vectors. Vectors of chunks that no longer exist are
-  removed so the published generation passes the same hygiene check as ``vg index``. The hook
-  starts that ``vg index`` in the background for every Vault in ``catch_up_vault_ids``.
+  which search readiness reports as stale vectors. Vectors of chunks removed from the changed files
+  are dropped so the published generation passes the same hygiene check as ``vg index``.
+- Right after the scan, ``on_scanned`` receives the Vaults that need ``vg index`` (changed, or
+  unknown because the scan stopped) and the other linked Vaults, which need it only when
+  ``vectors_need_catch_up`` says so. The hook starts the background catch-up from there.
 - A time limit. A quick scan compares each file's SHA-256 with the index and checks the limit after
   every file. The limit is checked again before staging and before publishing. A run past the
   limit publishes nothing and recall reads the current index. When another run holds the projection
@@ -21,6 +26,7 @@ changed. The run uses the same metadata indexer, graph indexer and generation pu
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,6 +50,7 @@ from vault_graph.operation.scope.active_projection import active_projection_layo
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
+from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
 from vault_graph.storage.interfaces.vector_store import VectorTombstone
 from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -53,10 +60,12 @@ DEFAULT_REFRESH_BUDGET_S = 5.0
 # with 500 new files at 1.4 s, so 200 keeps the quick refresh well inside the budget.
 MAX_QUICK_REFRESH_FILES = 200
 # Longest wait for the projection lock. A `vg index` holding it may run for minutes, and the
-# background `vg index` started after recall brings the changes in anyway.
+# background `vg index` started after the scan brings the changes in anyway.
 MAX_LOCK_WAIT_S = 1.0
 
 RefreshStatus = Literal["unchanged", "refreshed", "skipped", "failed"]
+# Called once after the change scan with (Vaults to index, Vaults to check for stale vectors).
+ScanCallback = Callable[[tuple[str, ...], tuple[str, ...]], None]
 
 
 @dataclass(frozen=True)
@@ -77,7 +86,12 @@ class RecallIndexRefresh:
 
 
 def refresh_linked_vaults(
-    cwd: Path, *, ports: RecallPorts, graph_home_path: Path, budget_s: float
+    cwd: Path,
+    *,
+    ports: RecallPorts,
+    graph_home_path: Path,
+    budget_s: float,
+    on_scanned: ScanCallback | None = None,
 ) -> RecallIndexRefresh:
     """Refresh the indexed Vaults linked to ``cwd``. Never raises: a failure becomes a warning."""
     if budget_s <= 0:
@@ -87,12 +101,20 @@ def refresh_linked_vaults(
         vault_ids = tuple(vault_id for vault_id in scope.vault_ids if ports.documents.is_indexed(vault_id))
         if not vault_ids:
             return RecallIndexRefresh(status="skipped")
-        return refresh_recall_index(graph_home_path=graph_home_path, vault_ids=vault_ids, budget_s=budget_s)
+        return refresh_recall_index(
+            graph_home_path=graph_home_path, vault_ids=vault_ids, budget_s=budget_s, on_scanned=on_scanned
+        )
     except Exception as exc:  # noqa: BLE001 - the hook must print recall whatever the refresh did
         return RecallIndexRefresh(status="failed", reason=f"{type(exc).__name__}: {exc}.")
 
 
-def refresh_recall_index(*, graph_home_path: Path, vault_ids: tuple[str, ...], budget_s: float) -> RecallIndexRefresh:
+def refresh_recall_index(
+    *,
+    graph_home_path: Path,
+    vault_ids: tuple[str, ...],
+    budget_s: float,
+    on_scanned: ScanCallback | None = None,
+) -> RecallIndexRefresh:
     deadline = monotonic() + budget_s
     catalog_service = CatalogService(graph_home_path=graph_home_path)
     catalog = catalog_service.load_catalog()
@@ -104,12 +126,16 @@ def refresh_recall_index(*, graph_home_path: Path, vault_ids: tuple[str, ...], b
     changes = _scan_changes(catalog, catalog_service.metadata_path, vault_ids, deadline=deadline)
     if changes is None:
         # The scan did not finish, so any linked Vault may have changed.
+        if on_scanned is not None:
+            on_scanned(vault_ids, ())
         return RecallIndexRefresh(
             status="skipped", vault_ids=vault_ids, reason=_time_limit(budget_s), catch_up_vault_ids=vault_ids
         )
     changed = sum(len(paths) for paths, _ in changes.values())
     deleted = sum(len(paths) for _, paths in changes.values())
     changed_vault_ids = tuple(vault_id for vault_id in vault_ids if any(changes[vault_id]))
+    if on_scanned is not None:
+        on_scanned(changed_vault_ids, tuple(vault_id for vault_id in vault_ids if vault_id not in changed_vault_ids))
     if not changed_vault_ids:
         return RecallIndexRefresh(status="unchanged", vault_ids=vault_ids)
 
@@ -138,12 +164,19 @@ def refresh_recall_index(*, graph_home_path: Path, vault_ids: tuple[str, ...], b
         )
     except ProjectionPublishBusyError as exc:
         return outcome("skipped", f"{exc}.")
+    changed_paths = tuple((vault_id, path) for vault_id in vault_ids for path in sorted(changes[vault_id][0]))
+    deleted_paths = tuple((vault_id, path) for vault_id in vault_ids for path in sorted(changes[vault_id][1]))
     try:
-        report = bundle.index_service.run_apply(scope=scope)
+        staged_metadata = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
+        chunks_before = _chunk_keys(staged_metadata, changed_paths + deleted_paths)
+        report = bundle.index_service.run_apply_paths(
+            scope=scope, changed_paths=changed_paths, deleted_paths=deleted_paths
+        )
         if report.exit_code:
             error = getattr(report.graph, "error", None) or "graph index failed."
             return outcome("failed", str(error))
-        _drop_vectors_of_removed_chunks(catalog_service, scope)
+        removed = chunks_before - _chunk_keys(staged_metadata, changed_paths + deleted_paths)
+        _drop_vectors_of_removed_chunks(catalog_service, scope, removed)
         if monotonic() > deadline:
             return outcome("skipped", _time_limit(budget_s))
         bundle.commit_projection(report)
@@ -251,19 +284,33 @@ def _open_metadata_bundle(
     )
 
 
-def _drop_vectors_of_removed_chunks(catalog_service: CatalogService, scope: QueryScope) -> None:
-    """Remove staged vectors whose chunk is gone. Needs no embedding model."""
-    if not catalog_service.vector_path.exists():
+def _chunk_keys(metadata_store: SQLiteMetadataStore, paths: tuple[tuple[str, str], ...]) -> set[tuple[str, str]]:
+    """(vault_id, chunk_id) of the listed files' current chunks."""
+    keys: set[tuple[str, str]] = set()
+    for vault_id, path in paths:
+        state = metadata_store.document_state(vault_id, path)
+        if state.document_id is None or state.is_tombstoned:
+            continue
+        chunks = metadata_store.list_document_chunks(vault_id=vault_id, document_id=state.document_id)
+        keys.update((chunk.vault_id, chunk.chunk_id) for chunk in chunks)
+    return keys
+
+
+def _drop_vectors_of_removed_chunks(
+    catalog_service: CatalogService, scope: QueryScope, removed: set[tuple[str, str]]
+) -> None:
+    """Remove staged vectors of chunks the changed files no longer have. Needs no embedding model.
+
+    The active generation passed the hygiene check, so vectors without a chunk can only come from
+    the changed files. A new file removes nothing and the vector store is not opened.
+    """
+    if not removed or not catalog_service.vector_path.exists():
         return
     from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 
-    chunks = {
-        (chunk.vault_id, chunk.chunk_id)
-        for chunk in SQLiteMetadataStore(catalog_service.metadata_path, initialize=False).list_chunks(scope)
-    }
     vector_store = ChromaVectorStore(catalog_service.vector_path, initialize=False)
     try:
-        removed = tuple(
+        tombstones = tuple(
             VectorTombstone(
                 vector_id=row.vector_id,
                 vault_id=row.vault_id,
@@ -271,18 +318,72 @@ def _drop_vectors_of_removed_chunks(catalog_service: CatalogService, scope: Quer
                 embedding_spec=row.embedding_spec,
             )
             for row in vector_store.export_manifest(scope)
-            if (row.vault_id, row.chunk_id) not in chunks
+            if (row.vault_id, row.chunk_id) in removed
         )
-        if removed:
+        if tombstones:
             vector_store.apply_vector_revision(
                 vector_index_revision=f"vector-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}",
                 records=(),
-                tombstones=removed,
+                tombstones=tombstones,
             )
     finally:
         close = getattr(vector_store, "close", None)
         if callable(close):
             close()
+
+
+def vectors_need_catch_up(graph_home_path: Path, vault_id: str) -> bool:
+    """True when the active index has chunks of the Vault without a current vector, or stray vectors.
+
+    Used by the background catch-up so a ``vg index`` that was killed is run again. It reads the
+    whole Vault's chunks and vectors (about 2 s for 10,000 files), so it never runs in the hook.
+    An unknown Vault, a Graph Home without a published index, or a vector store whose health check
+    fails returns False, so a problem ``vg index`` cannot fix does not start it at every session.
+    """
+    from vault_graph.interface.composition.read_only_service_factory import VectorIndexerStaleCounter
+    from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
+    from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
+
+    catalog_service = CatalogService(graph_home_path=graph_home_path)
+    catalog = catalog_service.load_catalog()
+    if active_projection_layout(catalog_service.graph_home_path) is None:
+        return False
+    try:
+        scope = catalog.scope_for_vault_ids((vault_id,))
+    except Exception:  # noqa: BLE001 - an unknown or disabled Vault has nothing to catch up
+        return False
+    if not catalog_service.vector_path.exists():
+        return True
+    metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
+    vector_store = ChromaVectorStore(catalog_service.vector_path, initialize=False, read_only=True)
+    try:
+        health = vector_store.health()
+        if not health.ok or not health.schema_compatible:
+            return False
+        counter = VectorIndexerStaleCounter(
+            metadata_store=metadata_store,
+            vector_store=vector_store,
+            text_embeddings=_catch_up_text_embeddings(catalog_service),
+        )
+        return any(
+            (counter.stale_count(scope=actual) or 0) > 0 for actual in actual_query_scopes(catalog=catalog, scope=scope)
+        )
+    finally:
+        close = getattr(vector_store, "close", None)
+        if callable(close):
+            close()
+
+
+def _catch_up_text_embeddings(catalog_service: CatalogService) -> TextEmbeddings:
+    """The embedding model spec ``vg index`` uses. Only its spec is read, nothing is downloaded."""
+    from vault_graph.interface.composition.adapters.text_embeddings import (
+        FastEmbedTextEmbeddings,
+        FastEmbedTextEmbeddingsConfig,
+    )
+
+    return FastEmbedTextEmbeddings(
+        config=FastEmbedTextEmbeddingsConfig(cache_dir=catalog_service.embedding_cache_path, local_files_only=True)
+    )
 
 
 def _time_limit(budget_s: float) -> str:
@@ -293,6 +394,8 @@ __all__ = [
     "DEFAULT_REFRESH_BUDGET_S",
     "MAX_QUICK_REFRESH_FILES",
     "RecallIndexRefresh",
+    "ScanCallback",
     "refresh_linked_vaults",
     "refresh_recall_index",
+    "vectors_need_catch_up",
 ]

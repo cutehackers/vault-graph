@@ -39,35 +39,43 @@ class VaultLoader:
             for markdown_path in sorted(scope_root.rglob("*.md")):
                 if markdown_path.is_symlink() or not markdown_path.is_file():
                     continue
-                relative_path = markdown_path.relative_to(entry.root_path).as_posix()
-                raw_bytes = markdown_path.read_bytes()
-                raw_sha256 = hashlib.sha256(raw_bytes).hexdigest()
-                source = SourceDocument(
-                    vault_id=entry.vault_id,
-                    root_path=entry.root_path,
-                    path=relative_path,
-                    suffix=markdown_path.suffix,
-                    raw_bytes=raw_bytes,
-                    raw_sha256=raw_sha256,
-                )
-                extracted = self._reader_registry.read(source)
-                text = raw_bytes.decode("utf-8")
-                frontmatter = extracted.frontmatter
-                content_hash = hashlib.sha256(frontmatter.body.encode("utf-8")).hexdigest()
-                documents.append(
-                    LoadedVaultDocument(
-                        vault_id=entry.vault_id,
-                        root_path=entry.root_path,
-                        path=relative_path,
-                        text=text,
-                        raw_sha256=raw_sha256,
-                        content_hash=content_hash,
-                        frontmatter=frontmatter,
-                        source_document=source,
-                        extracted_document=extracted,
-                    )
-                )
+                documents.append(self._load(entry, markdown_path))
         return tuple(documents)
+
+    def load_path(self, *, entry: VaultCatalogEntry, path: str) -> LoadedVaultDocument | None:
+        """Load one Vault-relative ``*.md`` file. None when it is gone, a symlink or not a file."""
+        markdown_path = entry.root_path / path
+        if markdown_path.suffix != ".md" or markdown_path.is_symlink() or not markdown_path.is_file():
+            return None
+        return self._load(entry, markdown_path)
+
+    def _load(self, entry: VaultCatalogEntry, markdown_path: Path) -> LoadedVaultDocument:
+        relative_path = markdown_path.relative_to(entry.root_path).as_posix()
+        raw_bytes = markdown_path.read_bytes()
+        raw_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        source = SourceDocument(
+            vault_id=entry.vault_id,
+            root_path=entry.root_path,
+            path=relative_path,
+            suffix=markdown_path.suffix,
+            raw_bytes=raw_bytes,
+            raw_sha256=raw_sha256,
+        )
+        extracted = self._reader_registry.read(source)
+        text = raw_bytes.decode("utf-8")
+        frontmatter = extracted.frontmatter
+        content_hash = hashlib.sha256(frontmatter.body.encode("utf-8")).hexdigest()
+        return LoadedVaultDocument(
+            vault_id=entry.vault_id,
+            root_path=entry.root_path,
+            path=relative_path,
+            text=text,
+            raw_sha256=raw_sha256,
+            content_hash=content_hash,
+            frontmatter=frontmatter,
+            source_document=source,
+            extracted_document=extracted,
+        )
 
 
 def _actual_content_scopes(*, entry: VaultCatalogEntry, scope: QueryScope) -> tuple[str, ...]:
