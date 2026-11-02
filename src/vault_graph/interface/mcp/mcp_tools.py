@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import threading
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -27,7 +26,7 @@ from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackRes
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
 from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink as McpResourceLink
 from vault_graph.interface.mcp.mcp_scope import McpScopeInput, scope_from_mcp_input
-from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory, McpServices
+from vault_graph.interface.mcp.mcp_service_factory import CurrentMcpServices, McpServiceFactory, McpServices
 from vault_graph.interface.mcp.mcp_uri import encode_resource_segment
 from vault_graph.interface.mcp.result_explanation_cache import ResultExplanationCache
 from vault_graph.operation.integration.vault_map import vault_map_path
@@ -269,9 +268,9 @@ class McpToolRegistry:
         service_factory: McpServiceFactory,
         context_pack_cache: ContextPackResourceCache,
         result_explanation_cache: ResultExplanationCache,
+        services_holder: CurrentMcpServices | None = None,
     ) -> None:
-        self._services = services
-        self._services_lock = threading.Lock()
+        self.services_holder = services_holder or CurrentMcpServices(services=services, service_factory=service_factory)
         self._service_factory = service_factory
         self._context_pack_cache = context_pack_cache
         self._result_explanation_cache = result_explanation_cache
@@ -856,33 +855,13 @@ class McpToolRegistry:
         return replace(result, messages=messages)
 
     def _current_services(self) -> McpServices:
-        """Return read services on the active index generation, reopening them when it changed (finding 발견2).
-
-        A hook or ``vg index`` in another process can publish a new generation while the server runs.
-        The check is one small file read. When the id cannot be read or the services cannot be
-        reopened, the tool keeps the services it has.
-        """
-        with self._services_lock:
-            try:
-                generation_id = self._service_factory.active_generation_id()
-            except Exception:  # noqa: BLE001 - an unreadable manifest must not fail a read tool.
-                return self._services
-            if generation_id != self._services.generation_id:
-                try:
-                    self._services = self._service_factory.open_read_only()
-                except Exception:  # noqa: BLE001 - keep serving from the previous services.
-                    pass
-            return self._services
+        """Return read services on the active index generation, reopening them when it changed (finding 발견2)."""
+        return self.services_holder.get()
 
     def _refresh_services_after_index(self, succeeded: bool) -> None:
-        """Reopen the startup read services so search reads the index generation just published."""
-        if not succeeded:
-            return
-        with self._services_lock:
-            try:
-                self._services = self._service_factory.open_read_only()
-            except Exception:  # noqa: BLE001 - keep serving from the previous services.
-                return
+        """Reopen the shared read services so search reads the index generation just published."""
+        if succeeded:
+            self.services_holder.reopen()
 
 
 def background_index_message(vault_name: str) -> str:
@@ -909,12 +888,14 @@ def register_mcp_tools(
     service_factory: McpServiceFactory,
     context_pack_cache: ContextPackResourceCache,
     result_explanation_cache: ResultExplanationCache,
+    services_holder: CurrentMcpServices | None = None,
 ) -> McpToolRegistry:
     registry = McpToolRegistry(
         services=services,
         service_factory=service_factory,
         context_pack_cache=context_pack_cache,
         result_explanation_cache=result_explanation_cache,
+        services_holder=services_holder,
     )
 
     @server.tool("ask_vault", structured_output=True)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -13,7 +14,7 @@ from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackRes
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
 from vault_graph.interface.mcp.mcp_resource_models import McpResourceBody as McpResourceBody
 from vault_graph.interface.mcp.mcp_resource_models import McpResourceContentMime as McpResourceContentMime
-from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory, McpServices
+from vault_graph.interface.mcp.mcp_service_factory import CurrentMcpServices, McpServiceFactory, McpServices
 from vault_graph.interface.mcp.mcp_uri import McpResourceUri, parse_mcp_resource_uri
 from vault_graph.operation.scope.vault_catalog import VaultCatalog
 
@@ -39,6 +40,18 @@ class McpResourceServer(Protocol):
         mime_type: str | None = None,
         meta: dict[str, object] | None = None,
     ) -> Callable[[Callable[..., object]], Callable[..., object]]: ...
+
+
+class MetadataResources(Protocol):
+    def read_document(self, uri: McpResourceUri) -> McpResourceBody: ...
+
+    def read_page(self, uri: McpResourceUri) -> McpResourceBody: ...
+
+    def read_source(self, uri: McpResourceUri) -> McpResourceBody: ...
+
+    def read_decision(self, uri: McpResourceUri) -> McpResourceBody: ...
+
+    def read_issue(self, uri: McpResourceUri) -> McpResourceBody: ...
 
 
 class GraphResourceReaderFactory(Protocol):
@@ -71,13 +84,15 @@ class McpResourceRegistry:
         self,
         *,
         catalog: VaultCatalog,
-        metadata_reader: MetadataResourceReader,
+        metadata_reader: MetadataResources,
         graph_reader_factory: GraphResourceReaderFactory,
         context_pack_cache: ContextPackResourceCache,
         current_context_reader: CurrentContextResourceReader,
         page_read_recorder: PageReadRecorder | None = None,
+        services_holder: CurrentMcpServices | None = None,
     ) -> None:
         self._catalog = catalog
+        self.services_holder = services_holder
         self._page_read_recorder = page_read_recorder
         self._metadata_reader = metadata_reader
         self._graph_reader_factory = graph_reader_factory
@@ -242,13 +257,13 @@ def register_mcp_resources(
     services: McpServices,
     service_factory: McpServiceFactory,
     context_pack_cache: ContextPackResourceCache,
+    services_holder: CurrentMcpServices | None = None,
 ) -> McpResourceRegistry:
-    from vault_graph.interface.mcp.metadata_resource_reader import MetadataResourceReader
-
+    holder = services_holder or CurrentMcpServices(services=services, service_factory=service_factory)
     registry = McpResourceRegistry(
         catalog=services.catalog,
-        metadata_reader=MetadataResourceReader(catalog=services.catalog, metadata_store=services.metadata_store),
-        graph_reader_factory=LazyGraphResourceReaderFactory(service_factory=service_factory),
+        metadata_reader=GenerationMetadataResourceReader(services_holder=holder),
+        graph_reader_factory=LazyGraphResourceReaderFactory(service_factory=service_factory, services_holder=holder),
         context_pack_cache=context_pack_cache,
         current_context_reader=CurrentContextResourceReader(
             catalog=services.catalog,
@@ -256,6 +271,7 @@ def register_mcp_resources(
             context_pack_cache=context_pack_cache,
         ),
         page_read_recorder=UsagePageReadRecorder(usage_log=service_factory.open_usage_log()),
+        services_holder=holder,
     )
 
     @server.resource("vault://{vault_id}/documents/{path}", mime_type="application/json")
@@ -318,19 +334,64 @@ class _UnavailableMetadataResourceReader:
         _raise_resource_not_available_for_uri(uri)
 
 
+class GenerationMetadataResourceReader:
+    """Read metadata resources from the metadata store of the active index generation (발견7).
+
+    The store opened at server start belongs to a generation that background indexing can prune.
+    Each read takes the current services from the holder the tools use.
+    """
+
+    def __init__(self, *, services_holder: CurrentMcpServices) -> None:
+        self._services_holder = services_holder
+
+    def _reader(self) -> MetadataResourceReader:
+        from vault_graph.interface.mcp.metadata_resource_reader import MetadataResourceReader
+
+        services = self._services_holder.get()
+        return MetadataResourceReader(catalog=services.catalog, metadata_store=services.metadata_store)
+
+    def read_document(self, uri: McpResourceUri) -> McpResourceBody:
+        return self._reader().read_document(uri)
+
+    def read_page(self, uri: McpResourceUri) -> McpResourceBody:
+        return self._reader().read_page(uri)
+
+    def read_source(self, uri: McpResourceUri) -> McpResourceBody:
+        return self._reader().read_source(uri)
+
+    def read_decision(self, uri: McpResourceUri) -> McpResourceBody:
+        return self._reader().read_decision(uri)
+
+    def read_issue(self, uri: McpResourceUri) -> McpResourceBody:
+        return self._reader().read_issue(uri)
+
+
 class LazyGraphResourceReaderFactory:
-    def __init__(self, *, service_factory: McpServiceFactory) -> None:
+    """Open the graph resource reader on first use, and again when the index generation changed."""
+
+    def __init__(
+        self,
+        *,
+        service_factory: McpServiceFactory,
+        services_holder: CurrentMcpServices | None = None,
+    ) -> None:
         self._service_factory = service_factory
+        self._services_holder = services_holder
         self._reader: GraphResourceReader | None = None
+        self._generation_id: str | None = None
+        self._lock = threading.Lock()
 
     def get(self) -> GraphResourceReader:
-        if self._reader is None:
-            from vault_graph.interface.mcp.graph_resource_reader import GraphResourceReader
+        generation_id = self._services_holder.get().generation_id if self._services_holder is not None else None
+        with self._lock:
+            if self._reader is None or generation_id != self._generation_id:
+                from vault_graph.interface.mcp.graph_resource_reader import GraphResourceReader
 
-            self._reader = GraphResourceReader(
-                graph_resource_service=self._service_factory.open_graph_resource_service(),
-            )
-        return self._reader
+                self._reader = GraphResourceReader(
+                    graph_resource_service=self._service_factory.open_graph_resource_service(),
+                )
+                self._generation_id = generation_id
+            return self._reader
 
 
 def _raise_resource_not_available_for_uri(uri: McpResourceUri) -> NoReturn:
