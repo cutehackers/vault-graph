@@ -38,10 +38,12 @@ vault-graph worktree에서 실행한다.
 
 ## done-when
 
-- [ ] 구획B는 모든 연결 Vault 페이지를 합쳐 `updated` 내림차순, 같으면 (Vault, 경로) 순이다
-- [ ] "바뀐 항목 올리기"와 "열리지 않은 항목 내리기"가 지워졌고 `DEMOTE_AFTER_INJECTIONS`가 없다
-- [ ] 사용 기록 네 경우(없음, 10회 주입 0회 열람, 내용 해시 변경, `usage/` 읽기 실패)에서 구획B 텍스트가 같다
-- [ ] `retired`가 `NOTICE_STATUSES`에 있고 알림 줄이 "옛 제목 → 폐기됨: <retired_reason> (날짜)"다
-- [ ] `injected`, `fetched` 기록은 계속 쓰고, 읽는 곳은 구획C 알림 중복 방지뿐이다
+- [x] 구획B는 모든 연결 Vault 페이지를 합쳐 `updated` 내림차순, 같으면 (Vault, 경로) 순이다
+- [x] "바뀐 항목 올리기"와 "열리지 않은 항목 내리기"가 지워졌고 `DEMOTE_AFTER_INJECTIONS`가 없다
+- [x] 사용 기록 네 경우(없음, 10회 주입 0회 열람, 내용 해시 변경, `usage/` 읽기 실패)에서 구획B 텍스트가 같다
+- [x] `retired`가 `NOTICE_STATUSES`에 있고 알림 줄이 "옛 제목 → 폐기됨: <retired_reason> (날짜)"다
+- [x] `injected`, `fetched` 기록은 계속 쓰고, 읽는 곳은 구획C 알림 중복 방지뿐이다
 
 멈춤: 순위 제거에 `recall.py` 공개 시그니처 변경이 필요하면 보고한다.
+
+기록 (2026-11-02): pytest 1650 passed, 1 skipped. 폐기 알림 날짜와 14일 창은 `retired_at`을 쓰고, 없으면 `updated`를 쓴다(spec 298행: 폐기는 `retired_reason`·`retired_at`을 정하고 `updated`는 말하지 않음).

@@ -421,29 +421,109 @@ def test_startup_with_nothing_to_show_hands_off() -> None:
     assert usage.events == []
 
 
-def test_item_changed_since_the_last_injection_moves_up() -> None:
-    usage = FakeUsage()
-    run(ports(BASE_DOCS, usage=usage), now=NOW - timedelta(hours=2))
-    documents = tuple(
+def _block_b(bundle: RecallBundle) -> list[str]:
+    return section(bundle.text, "## 기억 목록")
+
+
+def test_usage_history_never_changes_block_b() -> None:
+    """A-9: no log, 10 injections with no fetch, changed content hash and unreadable log give the same block B."""
+    baseline = _block_b(run(ports(BASE_DOCS)))
+
+    ignored = FakeUsage()
+    for hour in range(10, 0, -1):
+        run(ports(BASE_DOCS, usage=ignored), now=NOW - timedelta(hours=hour))
+    for item in BASE_DOCS[1:]:
+        ignored.events.append(fetched_event(vault_id="main", path=item.path, at=NOW - timedelta(minutes=5)))
+
+    changed = FakeUsage()
+    run(ports(BASE_DOCS, usage=changed), now=NOW - timedelta(hours=2))
+    rehashed = tuple(
         doc(item.path, content_hash="new", **item.frontmatter) if "untyped" in item.path else item for item in BASE_DOCS
     )
 
-    lines = section(run(ports(documents, usage=usage)).text, "## 기억 목록")
+    assert _block_b(run(ports(BASE_DOCS, usage=ignored))) == baseline
+    assert _block_b(run(ports(rehashed, usage=changed))) == baseline
+    assert _block_b(run(ports(BASE_DOCS, usage=FakeUsage(fail_read=True)))) == baseline
 
-    assert "Untyped note" in lines[0]
+
+def test_block_b_breaks_date_ties_by_vault_then_path_across_vaults() -> None:
+    documents = (
+        doc("wiki/notes/b.md", vault_id="zeta", title="Zeta B", updated=day(1)),
+        doc("wiki/notes/a.md", vault_id="zeta", title="Zeta A", updated=day(1)),
+        doc("wiki/notes/z.md", vault_id="alpha", title="Alpha Z", updated=day(1)),
+        doc("wiki/notes/new.md", vault_id="zeta", title="Newest", updated=day(0)),
+    )
+
+    lines = _block_b(run(ports(documents, vault_ids=("zeta", "alpha"))))
+
+    titles = [line.split(" · ")[3].split(" (")[0] for line in lines]
+    assert titles == ["Newest", "Alpha Z", "Zeta A", "Zeta B"]
 
 
-def test_item_injected_ten_times_and_never_opened_moves_down_one_step() -> None:
+def test_recall_code_has_no_usage_demotion() -> None:
+    import vault_graph.context.pack.recall as recall_module
+
+    assert not hasattr(recall_module, "DEMOTE_AFTER_INJECTIONS")
+    assert "DEMOTE_AFTER_INJECTIONS" not in Path(recall_module.__file__).read_text(encoding="utf-8")
+
+
+def test_retired_status_counts_as_stale_for_project_memory() -> None:
+    from vault_graph.context.memory.project_memory import STALE_STATUSES
+
+    assert "retired" in STALE_STATUSES
+
+
+def _retired() -> DocumentSnapshot:
+    return doc(
+        "wiki/decisions/use-sqlite.md",
+        title="Use SQLite",
+        type="decision",
+        status="retired",
+        retired_reason="no longer stored locally",
+        retired_at=day(0),
+        updated=day(1),
+        content_hash="h2",
+    )
+
+
+def _with_retired() -> tuple[DocumentSnapshot, ...]:
+    return (*(item for item in BASE_DOCS if "use-sqlite" not in item.path), _retired())
+
+
+def test_retired_page_leaves_block_b_and_is_noticed_once_with_its_reason() -> None:
     usage = FakeUsage()
-    for hour in range(10, 0, -1):
-        run(ports(BASE_DOCS, usage=usage), now=NOW - timedelta(hours=hour))
-    for item_path in BASE_DOCS[1:]:
-        usage.events.append(fetched_event(vault_id="main", path=item_path.path, at=NOW - timedelta(minutes=5)))
+    run(ports(BASE_DOCS, usage=usage), now=NOW - timedelta(hours=2))
 
-    lines = section(run(ports(BASE_DOCS, usage=usage)).text, "## 기억 목록")
+    second = run(ports(_with_retired(), usage=usage))
+    third = run(ports(_with_retired(), usage=usage), now=NOW + timedelta(hours=1))
 
-    assert "Use SQLite" in lines[1]
-    assert "Budget question" in lines[0]
+    assert "Use SQLite" not in "\n".join(_block_b(second))
+    assert section(second.text, "## 변경 알림") == [
+        f"- [{memory_item_id('main', 'wiki/decisions/use-sqlite.md')}] Use SQLite → 폐기됨: no longer stored locally "
+        f"({day(0)})"
+    ]
+    assert "## 변경 알림" not in third.text
+    assert "Use SQLite" not in third.text
+
+
+def test_retired_page_is_noticed_by_its_retired_date_without_usage() -> None:
+    documents = (
+        *(item for item in BASE_DOCS if "use-sqlite" not in item.path),
+        doc(
+            "wiki/decisions/use-sqlite.md",
+            title="Use SQLite",
+            status="retired",
+            retired_reason="moved",
+            retired_at=day(2),
+            updated=day(60),
+        ),
+    )
+
+    lines = section(run(ports(documents)).text, "## 변경 알림")
+
+    assert lines == [
+        f"- [{memory_item_id('main', 'wiki/decisions/use-sqlite.md')}] Use SQLite → 폐기됨: moved ({day(2)})"
+    ]
 
 
 def test_memory_item_id_is_stable_and_short() -> None:

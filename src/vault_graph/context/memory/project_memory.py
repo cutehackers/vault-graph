@@ -36,7 +36,7 @@ CONSTRAINT_TERMS = ("constraint", "policy", "boundary", "invariant", "non-goal")
 CONSTRAINT_PATH_TERMS = ("policy", "decision", "convention", "boundary")
 PRIORITY_TERMS = ("next", "priorities", "roadmap", "implementation order", "todo")
 PRIORITY_FRONTMATTER_TERMS = ("priority", "next", "roadmap", "phase")
-STALE_STATUSES = ("stale", "deprecated", "superseded")
+STALE_STATUSES = ("stale", "deprecated", "superseded", "retired")
 STALE_PATH_TERMS = ("deprecated", "superseded")
 
 

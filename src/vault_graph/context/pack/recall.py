@@ -6,7 +6,8 @@ C (change notices), D (how to open a page). Block A stays empty until Vault page
 ``pin``/``memory_kind`` (spec 의존5), so its heading is never printed today.
 
 The usage log port stores plain JSON objects. ``injected`` events from one run share the same
-``at`` value, which is how a run is told apart from the next one.
+``at`` value, which is how a run is told apart from the next one. Usage events never change the
+order of block B (§0 rule 5). They are read only to avoid repeating a block C notice.
 """
 
 from __future__ import annotations
@@ -28,9 +29,8 @@ DEFAULT_RECALL_MAX_CHARS = 9000
 BLOCK_C_MAX_TOKENS = 150
 RECALL_HANDOFF_EXIT_CODE = 3
 NOTICE_ONLY_SOURCES = frozenset({"resume", "fork"})
-NOTICE_STATUSES = ("superseded", "deprecated")
+NOTICE_STATUSES = ("superseded", "deprecated", "retired")
 FALLBACK_NOTICE_DAYS = 14
-DEMOTE_AFTER_INJECTIONS = 10
 # Starting values per spec 4.2.3; adjust after measurement.
 CATEGORY_CAPS: Mapping[str, int] = {"question": 8, "decision": 10, "change": 8}
 STATUS_MARKS: Mapping[str, str] = {"inferred": "추정", "contested": "논쟁 중"}
@@ -156,7 +156,7 @@ def recall(
             return RecallBundle(text="", warnings=tuple(warnings))
         layout = _layout(library, notices=notices, items=(), full=False, max_tokens=max_tokens, max_chars=max_chars)
     else:
-        items = _block_b_items(library, history)
+        items = _block_b_items(library)
         if not items and not notices:
             return _handoff("No memory to recall for this project.", warnings)
         layout = _layout(library, notices=notices, items=items, full=True, max_tokens=max_tokens, max_chars=max_chars)
@@ -190,10 +190,17 @@ class _Entry:
     supersedes: tuple[str, ...]
     superseded_by: tuple[str, ...]
     category: Category
+    retired_reason: str | None = None
+    retired_day: str | None = None
 
     @property
     def is_current(self) -> bool:
         return self.status not in STALE_STATUSES
+
+    @property
+    def notice_day(self) -> str:
+        """A retired page is reported on the day it was retired, which may be later than ``updated``."""
+        return self.retired_day if self.status == "retired" and self.retired_day else self.day
 
 
 @dataclass
@@ -257,6 +264,8 @@ def _entry(document: DocumentSnapshot, *, project_id: str | None) -> _Entry:
         supersedes=_targets(frontmatter.get("supersedes")),
         superseded_by=_targets(frontmatter.get("superseded_by")),
         category=_category(document.path, doc_type.casefold(), status),
+        retired_reason=_one_line(_text(frontmatter.get("retired_reason"))) or None,
+        retired_day=_day(frontmatter.get("retired_at")),
     )
 
 
@@ -315,19 +324,13 @@ class _History:
     base_items: Mapping[str, str]  # item id -> content hash in the last run that printed block B
     has_base: bool
     noticed: frozenset[str]  # block C items already reported after that run
-    demoted: frozenset[str]
 
     @classmethod
     def from_events(cls, events: Sequence[Mapping[str, object]], *, project_id: str | None) -> _History:
         runs: dict[str, list[Mapping[str, object]]] = {}
-        fetched: dict[str, list[str]] = {}
         for event in events:
-            item_id = str(event.get("item_id", ""))
-            at = str(event.get("at", ""))
-            if event.get("event") == "fetched":
-                fetched.setdefault(item_id, []).append(at)
-            elif event.get("event") == "injected" and event.get("project") == project_id:
-                runs.setdefault(at, []).append(event)
+            if event.get("event") == "injected" and event.get("project") == project_id:
+                runs.setdefault(str(event.get("at", "")), []).append(event)
         b_runs = sorted(at for at, run in runs.items() if any(event.get("block") == "B" for event in run))
         base_at = b_runs[-1] if b_runs else ""
         base_items = {
@@ -342,18 +345,7 @@ class _History:
             for event in run
             if event.get("block") == "C"
         )
-        injected_at: dict[str, list[str]] = {}
-        for at in b_runs:
-            for event in runs[at]:
-                if event.get("block") == "B":
-                    injected_at.setdefault(str(event.get("item_id")), []).append(at)
-        demoted = frozenset(
-            item_id
-            for item_id, times in injected_at.items()
-            if len(times) >= DEMOTE_AFTER_INJECTIONS
-            and not any(at >= times[-DEMOTE_AFTER_INJECTIONS] for at in fetched.get(item_id, ()))
-        )
-        return cls(base_items=base_items, has_base=bool(b_runs), noticed=noticed, demoted=demoted)
+        return cls(base_items=base_items, has_base=bool(b_runs), noticed=noticed)
 
 
 # Blocks --------------------------------------------------------------------------------------
@@ -371,11 +363,11 @@ def _notices(library: _Library, history: _History | None, *, today: date) -> tup
         changed = [entry for entry in candidates if entry is not None and entry.in_scope]
     else:
         since = (today - timedelta(days=FALLBACK_NOTICE_DAYS)).isoformat()
-        changed = [entry for entry in library.scoped() if entry.day >= since]
+        changed = [entry for entry in library.scoped() if entry.notice_day >= since]
     noticed = history.noticed if history is not None else frozenset()
     selected = sorted(
         (entry for entry in changed if entry.status in NOTICE_STATUSES and entry.item_id not in noticed),
-        key=lambda entry: (entry.day, entry.path),
+        key=lambda entry: (entry.notice_day, entry.path),
         reverse=True,
     )
     return tuple(_Notice(entry=entry, replacement=_replacement(library, entry)) for entry in selected)
@@ -401,20 +393,10 @@ def _replacement(library: _Library, entry: _Entry) -> str | None:
     return None
 
 
-def _block_b_items(library: _Library, history: _History | None) -> tuple[_Entry, ...]:
-    ordered = sorted(
-        (entry for entry in library.scoped() if entry.is_current),
-        key=lambda entry: (entry.day, entry.path),
-        reverse=True,
-    )
-    if history is not None:
-        changed = [
-            e for e in ordered if e.item_id in history.base_items and history.base_items[e.item_id] != e.content_hash
-        ]
-        ordered = changed + [entry for entry in ordered if entry not in changed]
-        for index in range(len(ordered) - 2, -1, -1):
-            if ordered[index].item_id in history.demoted:
-                ordered[index], ordered[index + 1] = ordered[index + 1], ordered[index]
+def _block_b_items(library: _Library) -> tuple[_Entry, ...]:
+    """Newest ``updated`` first across every linked Vault, ties by (Vault, path). Usage is not read."""
+    current = sorted((entry for entry in library.scoped() if entry.is_current), key=lambda e: (e.vault_id, e.path))
+    ordered = sorted(current, key=lambda entry: entry.day, reverse=True)
     counts: dict[str, int] = {}
     selected: list[_Entry] = []
     for entry in ordered:
@@ -491,8 +473,14 @@ def _item_line(library: _Library, entry: _Entry) -> str:
 
 
 def _notice_line(notice: _Notice) -> str:
-    replacement = notice.replacement or "폐기됨"
-    return f"- [{notice.entry.item_id}] {notice.entry.title} → {replacement} ({notice.entry.day})"
+    entry = notice.entry
+    if notice.replacement:
+        replacement = notice.replacement
+    elif entry.status == "retired" and entry.retired_reason:
+        replacement = f"폐기됨: {entry.retired_reason}"
+    else:
+        replacement = "폐기됨"
+    return f"- [{entry.item_id}] {entry.title} → {replacement} ({entry.notice_day})"
 
 
 def _how_to_open(library: _Library) -> str:
