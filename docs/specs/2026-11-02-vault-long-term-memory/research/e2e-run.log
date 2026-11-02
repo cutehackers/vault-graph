@@ -1,0 +1,12 @@
+$ VAULT_BUILDER_ROOT=$HOME/workspace/vault-builder uv run --python 3.12 --all-packages --all-extras pytest -q -rs -v tests/e2e/test_long_term_memory_scenarios.py
+# date: 2026-11-02 18:13 KST; vault-builder HEAD: a9fddb4; vault-graph HEAD: 24da45a
+============================= test session starts ==============================
+platform darwin -- Python 3.12.16, pytest-9.0.3, pluggy-1.6.0
+rootdir: $HOME/workspace/vault-graph/.worktrees/feat-jh-local-graph
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 6 items
+
+tests/e2e/test_long_term_memory_scenarios.py ......                      [100%]
+
+======================== 6 passed in 100.75s (0:01:40) =========================

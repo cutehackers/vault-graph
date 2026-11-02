@@ -36,9 +36,11 @@ vault-graph worktree에서 실행한다. vault-builder 검사는 `$HOME/workspac
 
 ## done-when
 
-- [ ] A-1~A-6이 시나리오마다 테스트 하나로 있고, 건너뜀 없이 통과한다
-- [ ] 테스트는 `VAULT_BUILDER_ROOT`의 vault-builder로 임시 HOME 아래에 Vault를 만들고, 임시 `vault-map.json`과 임시 Graph Home만 쓴다
-- [ ] 실제 Vault 도구를 하위 프로세스로 부르고 가짜 포트를 쓰지 않는다
-- [ ] 변수를 설정하고 실행한 로그가 완료 증거로 남아 있다(위험11)
+- [x] A-1~A-6이 시나리오마다 테스트 하나로 있고, 건너뜀 없이 통과한다
+- [x] 테스트는 `VAULT_BUILDER_ROOT`의 vault-builder로 임시 HOME 아래에 Vault를 만들고, 임시 `vault-map.json`과 임시 Graph Home만 쓴다
+- [x] 실제 Vault 도구를 하위 프로세스로 부르고 가짜 포트를 쓰지 않는다
+- [x] 변수를 설정하고 실행한 로그가 완료 증거로 남아 있다(위험11)
 
 멈춤: vault-builder 계약이 spec과 달라 실패하면, 여기서 vault-builder를 고치지 않고 보고한다.
+
+기록 (2026-11-02): `VAULT_BUILDER_ROOT=$HOME/workspace/vault-builder`로 시나리오 ①~⑥ 6 passed, 0 skipped. 실행 기록은 `research/e2e-run.log`. 멈춤 발생: 거부 시 `wiki/log.md`에 한 줄이 더해져 A-3과 어긋났고, 사용자가 "log.md 한 줄 허용"을 골라 spec A-3·계약4를 고쳤다. 시나리오④는 `install --with-hooks` 대신 실행기를 임시 설정 폴더에 직접 복사한다.
