@@ -7,6 +7,7 @@ Fixture pages in tests/fixtures/session_recall use ``{base}`` for the temporary 
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import stat
@@ -27,6 +28,7 @@ from vault_graph.interface.cli.main import app
 FIXTURES = Path(__file__).parent / "fixtures" / "session_recall"
 runner = CliRunner()
 REAL_START_CATCH_UP_INDEX = hook_commands.start_catch_up_index
+REAL_POPEN = subprocess.Popen
 
 
 def day(offset: int) -> str:
@@ -742,6 +744,8 @@ def test_catch_up_index_runs_detached_with_the_same_graph_home(tmp_path: Path, m
     started: list[tuple[list[str], dict[str, object]]] = []
 
     class FakePopen:
+        pid = 4242
+
         def __init__(self, command: list[str], **kwargs: object) -> None:
             started.append((command, kwargs))
 
@@ -772,6 +776,101 @@ def test_catch_up_script_indexes_each_vault_in_turn(tmp_path: Path, monkeypatch:
         ["index", "--graph-home", str(tmp_path), "--vault-id", "main"],
         ["index", "--graph-home", str(tmp_path), "--vault-id", "other"],
     ]
+
+
+def _dead_pid() -> int:
+    process = REAL_POPEN([sys.executable, "-c", "pass"])
+    process.wait()
+    return process.pid
+
+
+class _RecordingPopen:
+    started: list[list[str]]
+    pid = 4242
+
+    def __init__(self, command: list[str], **kwargs: object) -> None:
+        type(self).started.append(command)
+
+
+@pytest.fixture
+def recording_popen(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    _RecordingPopen.started = []
+    monkeypatch.setattr(hook_commands.subprocess, "Popen", _RecordingPopen)
+    return _RecordingPopen.started
+
+
+def test_catch_up_index_records_the_detached_process_pid(tmp_path: Path, recording_popen: list[list[str]]) -> None:
+    REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
+
+    assert len(recording_popen) == 1
+    assert (tmp_path / "logs" / "session-start-index.pid").read_text(encoding="utf-8").strip() == "4242"
+
+
+def test_running_catch_up_index_is_not_started_again(tmp_path: Path, recording_popen: list[list[str]]) -> None:
+    pid_file = tmp_path / "logs" / "session-start-index.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
+
+    REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
+    REAL_START_CATCH_UP_INDEX(tmp_path, ("other",))
+
+    assert recording_popen == []
+    assert pid_file.read_text(encoding="utf-8").strip() == str(os.getpid())
+
+
+@pytest.mark.parametrize("content", ["dead", "not a pid", ""])
+def test_stale_or_unreadable_pid_file_is_replaced(
+    tmp_path: Path, recording_popen: list[list[str]], content: str
+) -> None:
+    pid_file = tmp_path / "logs" / "session-start-index.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text(str(_dead_pid()) if content == "dead" else content, encoding="utf-8")
+
+    REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
+
+    assert len(recording_popen) == 1
+    assert pid_file.read_text(encoding="utf-8").strip() == "4242"
+
+
+def test_failed_start_releases_the_pid_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise OSError("no python")
+
+    monkeypatch.setattr(hook_commands.subprocess, "Popen", fail)
+
+    with pytest.raises(OSError, match="no python"):
+        REAL_START_CATCH_UP_INDEX(tmp_path, ("main",))
+
+    assert not (tmp_path / "logs" / "session-start-index.pid").exists()
+
+
+def test_catch_up_script_removes_its_own_pid_file_when_done(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pid_file = tmp_path / "logs" / "session-start-index.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
+
+    def failing_run(command: list[str], **kwargs: object) -> None:
+        raise RuntimeError("index crashed")
+
+    monkeypatch.setattr(hook_commands.subprocess, "run", failing_run)
+    monkeypatch.setattr(sys, "argv", ["-c", str(tmp_path), "main"])
+
+    with pytest.raises(RuntimeError):
+        hook_commands.run_catch_up_index()
+
+    assert not pid_file.exists()
+
+
+def test_catch_up_script_keeps_a_pid_file_of_another_process(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pid_file = tmp_path / "logs" / "session-start-index.pid"
+    pid_file.parent.mkdir(parents=True)
+    pid_file.write_text("4242\n", encoding="utf-8")
+    monkeypatch.setattr(hook_commands.subprocess, "run", lambda command, **kwargs: None)
+    monkeypatch.setattr(sys, "argv", ["-c", str(tmp_path), "main"])
+
+    hook_commands.run_catch_up_index()
+
+    assert pid_file.read_text(encoding="utf-8") == "4242\n"
 
 
 def test_busy_projection_lock_skips_the_quick_refresh_after_a_short_wait(
