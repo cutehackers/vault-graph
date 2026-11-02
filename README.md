@@ -66,6 +66,28 @@ config at `$CODEX_HOME/config.toml` or `~/.codex/config.toml`. Existing Codex
 config is backed up before the `vault-graph` server entry is changed. Keep this
 Data Home directory outside your Vault.
 
+For Claude Code, use `--agent claude`:
+
+```bash
+vg setup --vault /path/to/llm-wiki --agent claude --mcp --dry-run
+vg setup --vault /path/to/llm-wiki --agent claude --mcp
+```
+
+This adds a user-scope `mcpServers.vault-graph` entry to `~/.claude.json`. The
+entry starts the absolute path of your `vg` command with `serve --mcp`, and adds
+`--graph-home` only when you use a Data Home other than `~/.vault-graph`. Other
+keys and MCP servers in the file are kept, the old file is backed up next to it
+as `~/.claude.json.bak`, and setup refuses to write when the file is not valid
+JSON. Use `--mcp-config-path` to choose another file, `--dry-run` to see the
+target without writing, or `--print-mcp-config` to print the entry and add it
+yourself.
+
+If one file in a Vault has frontmatter that strict YAML rejects, indexing reads
+it with Vault's own frontmatter rules and prints a warning with the file path.
+When setup reads several Vaults from the vault map, a Vault that fails is
+reported as one `setup_failed:` line and setup continues with the next Vault.
+Setup exits non-zero when any Vault failed.
+
 Vault Graph is currently pre-release. If `~/.vault-graph` contains an older
 pre-release layout, setup stops without reading or changing it. Choose a new
 Data Home (or move the rebuildable old directory aside) and run setup again;
