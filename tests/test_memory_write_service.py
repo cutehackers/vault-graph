@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 from tests.test_read_only_boundary import file_bytes
+from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
 from vault_graph.operation.memory.memory_ports import PageText, WriteOutcome
 from vault_graph.operation.memory.memory_requests import RememberRequest, RetireRequest, UpdateRequest
 from vault_graph.operation.memory.memory_write_service import PUBLISH_TIMEOUT_SECONDS, MemoryWriteService
@@ -239,7 +240,7 @@ def make_service(
         writer=writer,
         page_reader=page_reader or DiskPageReader(),
         today=lambda: TODAY,
-        temp_root=temp_root,
+        drafts=TemporaryDraftFiles(temp_root=temp_root),
     )
 
 
@@ -510,7 +511,11 @@ def test_vault_argument_selects_the_named_vault_inside_the_project(tmp_path: Pat
 def test_missing_vault_map_is_an_error(tmp_path: Path) -> None:
     writer = RecordingWriter()
     service = MemoryWriteService(
-        vault_map=None, writer=writer, page_reader=DiskPageReader(), today=lambda: TODAY, temp_root=tmp_path
+        vault_map=None,
+        writer=writer,
+        page_reader=DiskPageReader(),
+        today=lambda: TODAY,
+        drafts=TemporaryDraftFiles(temp_root=tmp_path),
     )
 
     for result in (

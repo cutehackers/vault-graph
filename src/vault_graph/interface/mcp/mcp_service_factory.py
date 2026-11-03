@@ -181,8 +181,10 @@ class McpServiceFactory:
         return JsonlUsageLog(GraphHomeResolver().resolve(self._graph_home_path).root_path)
 
     def open_memory_write_service(self) -> MemoryWriteService:
-        """Open memory writes with the read-only ``vault-map.json``, the page reader and the publish-draft adapter."""
+        """Open memory writes with the read-only ``vault-map.json``, the page reader, the temporary draft
+        files and the publish-draft adapter."""
 
+        from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
         from vault_graph.interface.composition.adapters.vault_page_reader import VaultPageFileReader
         from vault_graph.interface.composition.adapters.vault_publish_cli import VaultPublishCli
         from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
@@ -193,6 +195,7 @@ class McpServiceFactory:
             vault_map=opening.vault_map,
             writer=VaultPublishCli(),
             page_reader=VaultPageFileReader(),
+            drafts=TemporaryDraftFiles(),
             vault_map_problem=None if opening.vault_map else opening.warning or f"no vault-map.json at {opening.path}.",
         )
 

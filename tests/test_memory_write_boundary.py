@@ -15,6 +15,7 @@ from typing import Any, cast
 
 import pytest
 
+from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
 from vault_graph.interface.composition.adapters.vault_page_reader import VaultPageFileReader
 from vault_graph.interface.composition.adapters.vault_publish_cli import VaultPublishCli
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
@@ -201,15 +202,27 @@ def _write_calls(path: Path) -> list[int]:
     return lines
 
 
-def test_memory_package_writes_only_the_temporary_draft() -> None:
+def test_memory_package_writes_no_file() -> None:
+    """정리 발견3: the draft file is written by the composition adapter, not by the M18 service."""
     writes = {path.name: _write_calls(path) for path in sorted(MEMORY_PACKAGE.glob("*.py"))}
 
-    assert {name: lines for name, lines in writes.items() if lines} == {
-        "memory_write_service.py": writes["memory_write_service.py"]
-    }
-    assert len(writes["memory_write_service.py"]) == 1
-    source = (MEMORY_PACKAGE / "memory_write_service.py").read_text(encoding="utf-8")
-    assert "tempfile.TemporaryDirectory(" in source
+    assert {name: lines for name, lines in writes.items() if lines} == {}
+    assert all("tempfile" not in path.read_text(encoding="utf-8") for path in MEMORY_PACKAGE.glob("*.py"))
+
+
+def test_draft_adapter_writes_one_json_file_outside_the_vault_and_removes_it(tmp_path: Path, vault: Path) -> None:
+    before = sha256_by_file(vault)
+    temp_root = tmp_path / "os-temp"
+    temp_root.mkdir()
+
+    with TemporaryDraftFiles(temp_root=temp_root).stage({"path": "wiki/a.md", "title": "한글"}) as draft_path:
+        assert draft_path.parent.parent == temp_root
+        assert draft_path.name == "draft.json"
+        assert json.loads(draft_path.read_text(encoding="utf-8")) == {"path": "wiki/a.md", "title": "한글"}
+        assert "한글" in draft_path.read_text(encoding="utf-8")
+
+    assert list(temp_root.iterdir()) == []
+    assert sha256_by_file(vault) == before
 
 
 def test_page_reader_reads_text_and_sha256_without_writing(vault: Path) -> None:

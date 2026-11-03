@@ -71,7 +71,7 @@ src/vault_graph/
 | M15 진단 | `operation/diagnostics/` | 상태·투영 위생·확장 준비 설명. 자동 수리하지 않음 |
 | M16 실행 운영 | `operation/runtime/` | 초기 설정·주기 색인·중단·자원 정리 |
 | M17 연동 설정 | `operation/integration/` | MCP 등록·저장소 연결 catalog·지침의 명시적 변경 |
-| M18 기억 쓰기 | `operation/memory/` | 저장 Vault 고르기·draft 만들기·Vault 쓰기 포트·Vault별 잠금. Vault 명령 실행은 `interface/composition/adapters/`가 한다(§4) |
+| M18 기억 쓰기 | `operation/memory/` | 저장 Vault 고르기·draft 만들기·Vault 쓰기 포트·Vault별 잠금. Vault 명령 실행과 draft 파일 쓰기(`DraftFiles` 포트)는 `interface/composition/adapters/`가 한다(§4). M18 자체는 파일을 쓰지 않는다 |
 
 `interface`는 입력 검증·전송·직렬화와 구성을 담당한다. `storage`는 포트의 구체 저장 방식과 저장 모델을 담당한다. `errors.py` 등 지원 파일과 하위 모듈은 생략했으므로 위 트리는 전체 파일 목록이 아니다.
 
@@ -229,7 +229,7 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 
 | 쓰기 경로 | 실행하는 Vault 명령 | vault-graph 쪽 위치 |
 |---|---|---|
-| 확정 쓰기 | MCP `remember`·`update_memory`·`retire_memory`에 `basis: stated`를 주면 `tools/wiki/cli.py publish-draft <draft> --json`을 실행한다. 결과는 `published` 또는 `rejected`다 | M18 `operation/memory/`(요청·저장 Vault 고르기·draft·포트·흐름), 어댑터 `interface/composition/adapters/vault_publish_cli.py`, 수정 전 현재 페이지 읽기 `interface/composition/adapters/vault_page_reader.py` |
+| 확정 쓰기 | MCP `remember`·`update_memory`·`retire_memory`에 `basis: stated`를 주면 `tools/wiki/cli.py publish-draft <draft> --json`을 실행한다. 결과는 `published` 또는 `rejected`다 | M18 `operation/memory/`(요청·저장 Vault 고르기·draft·포트·흐름), 어댑터 `interface/composition/adapters/vault_publish_cli.py`, OS 임시 폴더에 draft 파일 쓰기 `interface/composition/adapters/temporary_draft_files.py`, 수정 전 현재 페이지 읽기 `interface/composition/adapters/vault_page_reader.py` |
 | 제안 | 같은 세 도구에 `basis: inferred`를 주면 `tools/wiki/cli.py review propose --draft <draft> --summary <text> --json`을 실행한다. 결과는 `proposed`와 `review_path`이고, 사람이 `review resolve <review_path> --status accepted`로 승인해야 Vault가 발행한다 | 위와 같은 M18 모듈과 `vault_publish_cli.py` |
 | 세션 수집 | `vg hook capture`가 `vault-map.json` 폴더의 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 `raw/sessions/`에 쓴다. vault-graph는 실행 시점만 정하고 Vault와 내용은 고르지 않으며, 수집 뒤 색인하지 않는다 | `interface/cli/hook_commands.py`, 어댑터 `interface/composition/adapters/vault_capture_cli.py`. 기능 영역은 따로 두지 않는다 |
 

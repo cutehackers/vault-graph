@@ -2,11 +2,14 @@
 
 ``VaultWriter`` hands a draft to the Vault tool: ``publish`` for ``stated`` memories (계약1) and
 ``propose`` for ``inferred`` memories, which wait in the Vault review queue (계약4). ``VaultPageReader``
-reads a current page and never writes.
+reads a current page and never writes. ``DraftFiles`` turns a draft into the file the Vault tool reads,
+outside every Vault, and removes it afterwards, so the M18 service writes no file itself.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
@@ -49,4 +52,10 @@ class VaultPageReader(Protocol):
         ...
 
 
-__all__ = ["PageText", "VaultPageReader", "VaultWriter", "WriteOutcome", "WriteStatus"]
+class DraftFiles(Protocol):
+    def stage(self, draft: Mapping[str, object]) -> AbstractContextManager[Path]:
+        """Write ``draft`` as JSON outside every Vault and yield its path. The file is gone on exit."""
+        ...
+
+
+__all__ = ["DraftFiles", "PageText", "VaultPageReader", "VaultWriter", "WriteOutcome", "WriteStatus"]
