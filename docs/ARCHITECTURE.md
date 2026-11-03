@@ -233,7 +233,7 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 | 제안 | 같은 세 도구에 `basis: inferred`를 주면 `tools/wiki/cli.py review propose --draft <draft> --summary <text> --json`을 실행한다. 결과는 `proposed`와 `review_path`이고, 사람이 `review resolve <review_path> --status accepted`로 승인해야 Vault가 발행한다 | 위와 같은 M18 모듈과 `vault_publish_cli.py` |
 | 세션 수집 | `vg hook capture`가 `vault-map.json` 폴더의 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 `raw/sessions/`에 쓴다. vault-graph는 실행 시점만 정하고 Vault와 내용은 고르지 않으며, 수집 뒤 색인하지 않는다 | `interface/cli/hook_commands.py`, 어댑터 `interface/composition/adapters/vault_capture_cli.py`. 기능 영역은 따로 두지 않는다 |
 
-M18 `operation/memory/`는 M01과 M12만 가져오고, 어떤 기능 영역도 M18을 가져오지 않는다. M18을 가져오는 곳은 `interface/` 계층(MCP 도구·직렬화·서비스 구성, 두 어댑터)뿐이다. 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 세 경로를 쓰지 않는다. 사용자 범위의 `vault-map.json`은 읽기만 한다.
+M18 `operation/memory/`는 M01과 M12만 가져오고, 어떤 기능 영역도 M18을 가져오지 않는다. M18을 가져오는 곳은 `interface/` 계층(MCP 도구·직렬화·서비스 구성, 어댑터)뿐이다. MCP 쓰기 도구 세 개는 `interface/mcp/mcp_memory_tools.py`에 있고, 읽기 도구와 등록은 `mcp_tools.py`, 둘이 함께 쓰는 도구 이름·본문·인자 오류는 `mcp_tool_body.py`에 있다(2026-11-03 정리 발견1). 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 세 경로를 쓰지 않는다. 사용자 범위의 `vault-map.json`은 읽기만 한다.
 
 기억을 읽는 쪽에 새로 생긴 파일은 다음과 같다. 세션 시작 회상의 고정 기억 구획은 `context/pack/recall_pins.py`(M08), 검색 결과의 Vault 이름·종류 표시는 `interface/composition/vault_labels.py`, `cwd` 프로젝트의 연결 Vault 전부를 기본 검색 범위로 정하는 일은 `interface/composition/query_scope_resolution.py`가 한다. 기본 검색에서 status `retired` 페이지를 빼는 필터는 `retrieval/search/evidence_result_assembly.py`(M05)에 있다. 메타데이터·벡터·그래프·코드 투영은 원본으로부터 다시 만들 수 있는 파생 데이터이며 지식의 공식 원본이 아니다. 임시 결과 설명 캐시도 영구 기억 저장소가 아니다.
 
