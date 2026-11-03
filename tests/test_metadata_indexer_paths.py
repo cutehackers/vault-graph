@@ -150,3 +150,39 @@ def test_index_service_run_apply_paths_writes_metadata_only_for_listed_paths(tmp
     assert report.graph is None
     assert store.document_state("main", "wiki/notes/new.md").document_id is not None
     assert store.document_state("main", "wiki/notes/unlisted.md").document_id is None
+
+
+# 발견13: a changed file and the pages it links by provenance stay in one family ---------------
+
+
+def family(store: SQLiteMetadataStore, path: str) -> str | None:
+    return store.document_state("main", path).provenance_family_id
+
+
+def test_a_new_page_that_supersedes_an_unlisted_page_joins_its_family(tmp_path: Path, vault: Path) -> None:
+    partial, partial_indexer = indexed_store(tmp_path, vault, "partial")
+    whole, whole_indexer = indexed_store(tmp_path, vault, "whole")
+    # "a-new" sorts before "note-4", so the family seed moves to the new page.
+    write(vault, "wiki/notes/a-new.md", "---\ntitle: New\nsupersedes:\n  - wiki/notes/note-4.md\n---\n# New\nBody\n")
+    scope = catalog_for(vault).default_scope()
+
+    plan = partial_indexer.apply_paths(scope=scope, changed_paths=(("main", "wiki/notes/a-new.md"),), deleted_paths=())
+    whole_indexer.apply(scope=scope)
+
+    assert family(partial, "wiki/notes/a-new.md") == family(partial, "wiki/notes/note-4.md")
+    assert plan.changed_paths == (("main", "wiki/notes/a-new.md"), ("main", "wiki/notes/note-4.md"))
+    assert rows(partial) == rows(whole)
+
+
+def test_a_changed_page_keeps_the_family_of_an_unlisted_page_that_points_to_it(tmp_path: Path, vault: Path) -> None:
+    write(vault, "wiki/notes/a-old.md", "---\ntitle: Old\nsupersedes: [wiki/notes/note-3.md]\n---\n# Old\nBody\n")
+    partial, partial_indexer = indexed_store(tmp_path, vault, "partial")
+    whole, whole_indexer = indexed_store(tmp_path, vault, "whole")
+    write(vault, "wiki/notes/note-3.md", "---\ntitle: Note 3\n---\n# Note 3\nChanged body\n")
+    scope = catalog_for(vault).default_scope()
+
+    partial_indexer.apply_paths(scope=scope, changed_paths=(("main", "wiki/notes/note-3.md"),), deleted_paths=())
+    whole_indexer.apply(scope=scope)
+
+    assert family(partial, "wiki/notes/note-3.md") == family(partial, "wiki/notes/a-old.md")
+    assert rows(partial) == rows(whole)

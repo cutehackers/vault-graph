@@ -66,7 +66,7 @@ def assign_provenance_families(items: tuple[NormalizedDocument, ...]) -> tuple[N
     for item in items:
         key = (item.document.vault_id, item.document.path)
         add(key)
-        for target_path in _provenance_paths(item.document.frontmatter):
+        for target_path in provenance_paths(item.document.frontmatter):
             target = (item.document.vault_id, target_path)
             add(target)
             union(key, target)
@@ -91,7 +91,8 @@ def assign_provenance_families(items: tuple[NormalizedDocument, ...]) -> tuple[N
     return tuple(assigned)
 
 
-def _provenance_paths(frontmatter: Mapping[str, object]) -> tuple[str, ...]:
+def provenance_paths(frontmatter: Mapping[str, object]) -> tuple[str, ...]:
+    """Vault paths a page names in its provenance fields, the edges of its provenance family."""
     paths: list[str] = []
     for field_name in _PROVENANCE_FIELDS:
         for value in _frontmatter_values(frontmatter.get(field_name)):
