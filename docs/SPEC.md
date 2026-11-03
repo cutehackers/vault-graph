@@ -45,7 +45,7 @@ vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
 현재 구현과의 차이(남은 일만 적는다, 2026-11-02 기준):
 
 - 프로젝트 Vault가 Graph Home에 하나도 등록되지 않았을 때 `search`는 빈 결과와 "`vg setup` 필요" 경고를 돌려주지만, `ask`, `context`와 MCP `find_related` 등 다섯 도구는 같은 내용을 오류로 낸다.
-- Vault 이름·종류(`vault_name`, `vault_role`)는 검색 결과에만 붙고, 답변과 context pack 결과에는 없다(의도 검수 F12). HTTP의 선택 필드 `cwd`는 `/search`에만 있다.
+- Vault 이름·종류(`vault_name`, `vault_role`)는 MCP 읽기 도구 결과에는 모두 붙지만(2026-11-03 F12), CLI `ask`·`context`와 HTTP의 검색 외 응답에는 없다. HTTP의 선택 필드 `cwd`는 `/search`에만 있다.
 - 폐기(`retired`) 페이지를 포함해 검색하는 옵션은 없다.
 - 2026-11-02 최초 의도 기준 검수([intent-audit](specs/2026-11-02-vault-long-term-memory/research/intent-audit.md))에서 다음 작업으로 넘긴 것:
   - F9: personal과 project Vault를 함께 연결한 프로젝트는 기본 저장 Vault가 없어 첫 쓰기가 `vault_required`다(vault-builder).
@@ -135,7 +135,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 유지한다:
 
 - 기존 CLI 명령(`vg setup`, `vg vault add`, `vg index`, `vg watch`, `vg search`, `vg ask`, `vg context`, `vg status` 등)의 이름·인자·응답 형식.
-- 기존 MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 기존 이름과 입력·출력 필드를 바꾸지 않는다. `search_vault`, `ask_vault`, `build_context_pack`과 `find_related`, `get_decision_trace`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`는 선택 입력 `cwd`를 더 받는다. `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 쓰고, 그 프로젝트에 연결되고 등록된 Vault 전부를 범위로 쓴다(뒤의 다섯 도구는 2026-11-02 의도 검수 F4). `search_vault` 결과에는 선택 필드 `vault_name`, `vault_role`이 붙는다.
+- 기존 MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 기존 이름과 입력·출력 필드를 바꾸지 않는다. `search_vault`, `ask_vault`, `build_context_pack`과 `find_related`, `get_decision_trace`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`는 선택 입력 `cwd`를 더 받는다. `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 쓰고, 그 프로젝트에 연결되고 등록된 Vault 전부를 범위로 쓴다(뒤의 다섯 도구는 2026-11-02 의도 검수 F4). `search_vault` 결과에는 선택 필드 `vault_name`, `vault_role`이 붙는다. `cwd`를 받는 나머지 일곱 도구도 결과 안에서 `vault_id`를 가진 모든 객체(답변 인용, context pack 항목, 그래프 개체, 기억 항목)에 같은 두 필드를 붙인다. 지도에 없는 Vault는 둘 다 `null`이다(2026-11-03 F12, §0 규칙4).
 - 호환 규칙: 기존 필드는 바꾸지 않는다. 선택 필드와 도구를 더하는 것은 허용한다. 기존 호출자는 모르는 필드를 무시하면 그대로 동작한다(2026-11-02, 위험12).
 - MCP 리소스와 로컬 HTTP(FastAPI) 응답.
 - `project-bindings.json`, `vg setup --vault`, `vg vault add`는 1차에서 지우지 않는다. 제거는 n차-7이다.

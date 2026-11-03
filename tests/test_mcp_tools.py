@@ -1122,3 +1122,64 @@ def test_three_query_tools_accept_cwd_and_pass_it_on(tmp_path: Path, monkeypatch
         server.tools["build_context_pack"](goal="g", cwd=3)
     with pytest.raises(McpProtocolError):
         server.tools["ask_vault"](question="q", cwd="")
+
+
+# --- F12: every read tool result names its source Vault (rule 4), not only search_vault ---
+
+
+def _vault_items(value: object) -> list[dict[str, object]]:
+    """Every object in a payload that carries a ``vault_id``."""
+    if isinstance(value, dict):
+        own = [value] if isinstance(value.get("vault_id"), str) else []
+        return own + [item for child in value.values() for item in _vault_items(child)]
+    if isinstance(value, list):
+        return [item for child in value for item in _vault_items(child)]
+    return []
+
+
+@pytest.mark.parametrize(
+    "tool_name",
+    [
+        "ask_vault",
+        "build_context_pack",
+        "find_related",
+        "get_decision_trace",
+        "summarize_project_memory",
+        "get_open_questions",
+    ],
+)
+def test_read_tool_results_carry_vault_name_and_role(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tool_name: str
+) -> None:
+    from tests.test_mcp_ask_vault import RecordingAnswerService
+    from vault_graph.interface.mcp.mcp_scope import McpScopeInput
+    from vault_graph.interface.mcp.mcp_tools import AskVaultInput
+
+    factory = fake_factory()
+    factory.answer_service = RecordingAnswerService()
+    builder = RecordingContextPackBuilder(replace(make_pack(), pack_id="pack-1"))
+    repo, services = project_setup(tmp_path, monkeypatch, context_pack_builder=builder)
+    registry = _registry(services, factory)
+    scope = McpScopeInput(vault_ids=("main",))
+    calls: dict[str, Callable[[], object]] = {
+        "ask_vault": lambda: registry.ask_vault(AskVaultInput(question="Why?", scope=scope, cwd=str(repo))),
+        "build_context_pack": lambda: registry.build_context_pack(
+            BuildContextPackInput(goal="Implement", scope=scope, cwd=str(repo))
+        ),
+        "find_related": lambda: registry.find_related(FindRelatedInput(target="GraphRAG", scope=scope, cwd=str(repo))),
+        "get_decision_trace": lambda: registry.get_decision_trace(
+            DecisionTraceInput(decision_or_topic="Phase 5", scope=scope, cwd=str(repo))
+        ),
+        "summarize_project_memory": lambda: registry.summarize_project_memory(
+            SummarizeProjectMemoryInput(scope=scope, cwd=str(repo))
+        ),
+        "get_open_questions": lambda: registry.get_open_questions(GetOpenQuestionsInput(scope=scope, cwd=str(repo))),
+    }
+
+    body = cast(Any, calls[tool_name]())
+
+    items = _vault_items(body.payload)
+    assert any(item["vault_id"] == "main" for item in items)
+    for item in items:
+        expected = ("main-vault", "project") if item["vault_id"] == "main" else (None, None)
+        assert (item["vault_name"], item["vault_role"]) == expected

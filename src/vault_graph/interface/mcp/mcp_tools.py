@@ -22,6 +22,7 @@ from vault_graph.interface.composition.query_scope_resolution import (
     project_query_selection,
     project_scope_warning_json,
 )
+from vault_graph.interface.composition.vault_labels import label_payload
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError, map_exception_to_mcp_error
 from vault_graph.interface.mcp.mcp_resource_models import McpResourceLink as McpResourceLink
@@ -325,7 +326,7 @@ class McpToolRegistry:
             records = explanation_records_for_answer(response)
             body = _tool_body(
                 tool_name="ask_vault",
-                payload=answer_response_to_payload(response),
+                payload=_labeled(answer_response_to_payload(response), selection),
                 resource_links=resource_links_for_answer(response),
                 warnings=(
                     *_scope_warnings(selection),
@@ -431,7 +432,7 @@ class McpToolRegistry:
             records = explanation_records_for_context_pack(pack)
             body = _tool_body(
                 tool_name="build_context_pack",
-                payload=context_pack_to_payload(pack),
+                payload=_labeled(context_pack_to_payload(pack), selection),
                 resource_links=(
                     McpResourceLink(
                         rel="context_pack",
@@ -524,7 +525,7 @@ class McpToolRegistry:
             records = explanation_records_for_related(response)
             body = _tool_body(
                 tool_name="find_related",
-                payload=related_response_to_payload(response),
+                payload=_labeled(related_response_to_payload(response), selection),
                 resource_links=resource_links_for_related(response),
                 warnings=(
                     *_scope_warnings(selection),
@@ -561,7 +562,7 @@ class McpToolRegistry:
             records = explanation_records_for_decision_trace(response)
             body = _tool_body(
                 tool_name="get_decision_trace",
-                payload=decision_trace_response_to_payload(response),
+                payload=_labeled(decision_trace_response_to_payload(response), selection),
                 resource_links=resource_links_for_decision_trace(response),
                 warnings=(
                     *_scope_warnings(selection),
@@ -656,7 +657,7 @@ class McpToolRegistry:
             )
             return _tool_body(
                 tool_name="summarize_project_memory",
-                payload=project_memory_projection_to_payload(projection),
+                payload=_labeled(project_memory_projection_to_payload(projection), selection),
                 resource_links=resource_links_for_memory_projection(projection),
                 warnings=warnings,
             )
@@ -684,7 +685,7 @@ class McpToolRegistry:
             )
             return _tool_body(
                 tool_name="get_open_questions",
-                payload=open_questions_projection_to_payload(projection),
+                payload=_labeled(open_questions_projection_to_payload(projection), selection),
                 resource_links=resource_links_for_memory_projection(projection),
                 warnings=warnings,
             )
@@ -713,7 +714,7 @@ class McpToolRegistry:
 
             return _tool_body(
                 tool_name="get_recent_changes",
-                payload=recent_changes_projection_to_payload(projection),
+                payload=_labeled(recent_changes_projection_to_payload(projection), selection),
                 resource_links=resource_links_for_recent_changes(projection),
                 warnings=(
                     *_scope_warnings(selection),
@@ -1613,6 +1614,11 @@ def _scope_warnings(selection: ProjectQuerySelection) -> tuple[McpErrorPayload, 
         McpErrorPayload(code=PROJECT_SCOPE_WARNING_CODE, message=message, severity="warning", affected_vault_ids=())
         for message in selection.warnings
     )
+
+
+def _labeled(payload: dict[str, object], selection: ProjectQuerySelection) -> dict[str, object]:
+    """Name the source Vault of every result in a read tool payload (§0 rule 4, F12)."""
+    return cast(dict[str, object], label_payload(payload, selection.labels))
 
 
 def _require_project_scope(scope: QueryScope | None, selection: ProjectQuerySelection) -> QueryScope:
