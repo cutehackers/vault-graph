@@ -22,6 +22,7 @@ from vault_graph.context.pack.recall import (
     memory_item_id,
     recall,
 )
+from vault_graph.context.pack.recall_pins import PIN_EXCERPT_MAX_TOKENS
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 
 NOW = datetime(2026, 10, 30, 9, 0, tzinfo=UTC)
@@ -63,6 +64,7 @@ class FakeDocuments:
     by_vault: dict[str, tuple[DocumentSnapshot, ...]]
     indexed: set[str] | None = None
     tokens: int = 42
+    bodies: dict[str, str] = field(default_factory=dict)
 
     def is_indexed(self, vault_id: str) -> bool:
         return vault_id in (self.indexed if self.indexed is not None else set(self.by_vault))
@@ -72,6 +74,17 @@ class FakeDocuments:
 
     def body_tokens(self, vault_id: str, document_id: str) -> int:
         return self.tokens
+
+    def body_text(self, vault_id: str, document_id: str) -> str:
+        return self.bodies.get(document_id, "")
+
+
+@dataclass
+class FakeProposals:
+    counts: Mapping[str, int]
+
+    def pending_count(self, vault_id: str) -> int:
+        return self.counts.get(vault_id, 0)
 
 
 @dataclass
@@ -99,6 +112,8 @@ def ports(
     project_id: str | None = "alpha",
     indexed: set[str] | None = None,
     vault_names: Mapping[str, str] | None = None,
+    bodies: Mapping[str, str] | None = None,
+    proposals: Mapping[str, int] | None = None,
 ) -> RecallPorts:
     by_vault: dict[str, tuple[DocumentSnapshot, ...]] = {}
     for item in documents:
@@ -109,8 +124,9 @@ def ports(
             if vault_names is None
             else RecallScope(project_id=project_id, vault_ids=vault_ids, vault_names=vault_names)
         ),
-        documents=FakeDocuments(by_vault, indexed=indexed),
+        documents=FakeDocuments(by_vault, indexed=indexed, bodies=dict(bodies or {})),
         usage=usage if usage is not None else FakeUsage(),
+        proposals=FakeProposals(proposals or {}),
     )
 
 
@@ -593,6 +609,33 @@ def test_pinned_page_comes_first_as_two_lines_and_leaves_block_b() -> None:
     assert "Use uv run" not in "\n".join(_block_b(bundle))
 
 
+def test_pin_whose_summary_is_its_title_shows_the_start_of_its_body() -> None:
+    """F10: ``remember`` writes ``summary`` equal to the title, so block A shows the body instead."""
+    page = pinned("wiki/rules/use-uv.md", title="Use uv run", summary="Use uv run")
+    body = "# Use uv run\n\nRun every Python command  with `uv run`.\nNever call pip.\n\n## Evidence\n\nStatus: x\n"
+
+    bundle = run(ports((*BASE_DOCS, page), bodies={"main:wiki/rules/use-uv.md": body}))
+
+    assert section(bundle.text, "## 고정 기억")[1] == "  Run every Python command with `uv run`. Never call pip."
+
+
+def test_pin_body_excerpt_is_cut_to_its_own_budget() -> None:
+    page = pinned("wiki/rules/long.md", title="Long rule", summary=None)
+    body = "# Long rule\n\n" + " ".join(f"w{index}" for index in range(500))
+
+    line = section(run(ports((page,), bodies={"main:wiki/rules/long.md": body})).text, "## 고정 기억")[1]
+
+    assert line.endswith("…")
+    assert estimate_recall_tokens(line) == PIN_EXCERPT_MAX_TOKENS
+    assert line.split()[0] == "w0"
+
+
+def test_pin_without_summary_or_body_falls_back_to_its_title() -> None:
+    page = pinned("wiki/rules/empty.md", title="Empty rule", summary="Empty rule")
+
+    assert section(run(ports((page,))).text, "## 고정 기억")[1] == "  Empty rule"
+
+
 def test_pinned_page_of_any_linked_vault_comes_before_newer_pages() -> None:
     team = pinned("wiki/rules/team-rule.md", vault_id="team", title="Team rule", updated=day(90))
 
@@ -804,3 +847,26 @@ def test_only_navigation_pages_hand_off_and_a_pinned_navigation_page_stays_in_bl
     bundle = run(ports((*BASE_DOCS, page)))
 
     assert "Pinned index" in "\n".join(section(bundle.text, "## 고정 기억"))
+
+
+# Pending proposals (F11) ---------------------------------------------------------------------
+
+
+def test_pending_proposals_are_counted_with_how_to_check_them_in_block_d() -> None:
+    bundle = run(ports(BASE_DOCS, vault_ids=("main", "other"), indexed={"main", "other"}, proposals={"other": 2}))
+
+    assert section(bundle.text, "## 가져오는 방법")[1] == (
+        "- 승인을 기다리는 추론 제안: other 2개. "
+        "확인은 그 Vault 폴더에서 `python3 tools/wiki/cli.py review list --status pending`"
+    )
+
+
+def test_no_pending_proposal_adds_no_line() -> None:
+    assert len(section(run(ports(BASE_DOCS, proposals={"main": 0})).text, "## 가져오는 방법")) == 1
+
+
+def test_pending_proposals_are_not_printed_on_resume() -> None:
+    usage = FakeUsage()
+    run(ports(BASE_DOCS, usage=usage, proposals={"main": 3}))
+
+    assert "추론 제안" not in run(ports(BASE_DOCS, usage=usage, proposals={"main": 3}), source="resume").text

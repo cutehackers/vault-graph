@@ -465,6 +465,42 @@ def test_yaml_true_pin_in_another_vault_is_printed_first_and_not_repeated(base: 
     assert len(result.stdout) <= 9000
 
 
+def test_pin_written_like_remember_shows_its_body_not_its_title(base: Path, graph_home: Path) -> None:
+    """F10 through a real index: ``remember`` sets ``summary`` to the title."""
+    write_page(
+        base / "vaults" / "main",
+        "wiki/systems/use-uv.md",
+        f'type: system\nstatus: active\nupdated: "{day(1)}"\npin: true\nmemory_schema: vault-memory/v1\n'
+        "summary: Use uv\n",
+        "Use uv",
+    )
+    reindex(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert section(result.stdout, "## 고정 기억")[1] == "  Body of Use uv."
+
+
+def test_pending_memory_proposals_of_the_vault_are_counted(base: Path, graph_home: Path) -> None:
+    """F11: the Vault review queue is read, not indexed. Only pending ``memory-proposal`` items count."""
+    review = base / "vaults" / "main" / "scratch" / "review"
+    review.mkdir(parents=True)
+    for name, kind, status in (
+        ("a", "memory-proposal", "pending"),
+        ("b", "memory-proposal", "pending"),
+        ("c", "memory-proposal", "accepted"),
+        ("d", "contradiction", "pending"),
+    ):
+        (review / f"{name}.md").write_text(f"---\nreview_id: {name}\ntype: {kind}\nstatus: {status}\n---\n# {name}\n")
+    (review / "a.draft.json").write_text("{}")
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "- 승인을 기다리는 추론 제안: main 2개." in section(result.stdout, "## 가져오는 방법")[1]
+
+
 def test_unknown_memory_schema_warns_once_on_stderr(base: Path, graph_home: Path) -> None:
     pin_page(base / "vaults" / "main", "wiki/rules/future.md", "Future rule", schema="vault-memory/v9")
     reindex(graph_home)
@@ -1081,27 +1117,60 @@ def test_quick_refresh_records_its_duration_per_vault_set(base: Path, graph_home
 
     assert result.exit_code == 0, result.output
     times = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))
-    record = times["main"]
+    (record,) = times["main"]["runs"]
     assert 0 < record["seconds"] < 60
     assert record["documents"] > 0
     assert "recorded_at" in record
 
 
-def _record_quick_refresh(graph_home: Path, key: str, *, seconds: float, documents: int, age: timedelta) -> None:
+def _record_quick_refreshes(graph_home: Path, key: str, *runs: tuple[float, timedelta], documents: int = 5) -> None:
+    """Write ``(seconds, age)`` runs, oldest first, in the record format the hook writes."""
     from datetime import UTC, datetime
 
     path = graph_home / QUICK_REFRESH_TIMES
     path.parent.mkdir(parents=True, exist_ok=True)
-    recorded_at = (datetime.now(UTC) - age).isoformat()
-    path.write_text(
-        json.dumps({key: {"seconds": seconds, "documents": documents, "recorded_at": recorded_at}}), encoding="utf-8"
-    )
+    records = [
+        {"seconds": seconds, "documents": documents, "recorded_at": (datetime.now(UTC) - age).isoformat()}
+        for seconds, age in runs
+    ]
+    path.write_text(json.dumps({key: {"runs": records}}), encoding="utf-8")
 
 
-def test_a_slow_last_quick_refresh_skips_the_next_one_before_staging(
+def test_one_slow_quick_refresh_does_not_turn_the_next_one_off(base: Path, graph_home: Path) -> None:
+    """발견12: the first run after ``vg setup`` took 11 s once and turned the refresh off for a day."""
+    _record_quick_refreshes(graph_home, "main", (30.0, timedelta(minutes=5)))
+    fresh_note(base)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
+    assert result.stderr == ""
+    runs = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))["main"]["runs"]
+    assert [run["seconds"] for run in runs][0] == 30.0
+    assert len(runs) == 2
+
+
+def test_a_record_in_the_old_single_run_format_counts_as_one_run(base: Path, graph_home: Path) -> None:
+    from datetime import UTC, datetime
+
+    path = graph_home / QUICK_REFRESH_TIMES
+    path.parent.mkdir(parents=True, exist_ok=True)
+    old = {"seconds": 11.0, "documents": 5, "recorded_at": datetime.now(UTC).isoformat()}
+    path.write_text(json.dumps({"main": old}), encoding="utf-8")
+    fresh_note(base)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
+    assert len(json.loads(path.read_text(encoding="utf-8"))["main"]["runs"]) == 2
+
+
+def test_two_slow_quick_refreshes_in_a_row_skip_the_next_one_before_staging(
     base: Path, graph_home: Path, catch_up: CatchUps
 ) -> None:
-    _record_quick_refresh(graph_home, "main", seconds=30.0, documents=5, age=timedelta(minutes=5))
+    _record_quick_refreshes(graph_home, "main", (30.0, timedelta(minutes=9)), (20.0, timedelta(minutes=5)))
     fresh_note(base)
     before = active_generation(graph_home)
     staged_before = generations(graph_home)
@@ -1111,14 +1180,27 @@ def test_a_slow_last_quick_refresh_skips_the_next_one_before_staging(
     assert result.exit_code == 0, result.output
     assert "Fresh" not in result.stdout
     assert len(result.stderr.splitlines()) == 1
-    assert "last quick refresh" in result.stderr
+    assert "last two quick refreshes" in result.stderr
     assert active_generation(graph_home) == before
     assert generations(graph_home) == staged_before
     assert catch_up == [(graph_home, ("main",), ())]
 
 
-def test_an_old_slow_record_is_ignored_so_the_quick_refresh_is_tried_again(base: Path, graph_home: Path) -> None:
-    _record_quick_refresh(graph_home, "main", seconds=30.0, documents=5, age=timedelta(days=2))
+def test_a_fast_run_after_a_slow_one_keeps_the_refresh_on(base: Path, graph_home: Path) -> None:
+    _record_quick_refreshes(graph_home, "main", (30.0, timedelta(minutes=9)), (0.5, timedelta(minutes=5)))
+    fresh_note(base)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
+    runs = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))["main"]["runs"]
+    assert len(runs) == 2
+    assert runs[0]["seconds"] == 0.5
+
+
+def test_old_slow_records_are_ignored_so_the_quick_refresh_is_tried_again(base: Path, graph_home: Path) -> None:
+    _record_quick_refreshes(graph_home, "main", (30.0, timedelta(days=3)), (30.0, timedelta(days=2)))
     fresh_note(base)
 
     result = hook(graph_home, base)
@@ -1126,8 +1208,8 @@ def test_an_old_slow_record_is_ignored_so_the_quick_refresh_is_tried_again(base:
     assert result.exit_code == 0, result.output
     assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
     assert result.stderr == ""
-    record = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))["main"]
-    assert record["seconds"] < 30.0
+    runs = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))["main"]["runs"]
+    assert runs[-1]["seconds"] < 30.0
 
 
 def test_an_unreadable_duration_record_does_not_block_the_quick_refresh(base: Path, graph_home: Path) -> None:

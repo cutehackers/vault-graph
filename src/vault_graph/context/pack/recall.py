@@ -2,7 +2,8 @@
 
 ``recall`` reads only document metadata through injected ports. It never searches and never
 opens embeddings or a vector store. Blocks print in order A (pinned memory, ``recall_pins``),
-B (memory list), C (change notices), D (how to open a page). Block A takes current in-scope pages
+B (memory list), C (change notices), D (how to open a page and, on startup, how many inferred
+facts wait in the Vault review queues, F11). Block A takes current in-scope pages
 with ``pin: true`` from every linked Vault, has its own 400-token budget, and its pages are not
 repeated in block B (spec 2026-11-02 V4, 결정14).
 
@@ -29,6 +30,7 @@ from vault_graph.context.pack.recall_pins import (
     PinEntry,
     is_pinned,
     pin_block,
+    pin_line,
     unknown_memory_schema,
 )
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
@@ -47,6 +49,9 @@ STATUS_MARKS: Mapping[str, str] = {"inferred": "추정", "contested": "논쟁 �
 # them out by page type, whatever the Vault role (결정15). Block A still shows them when pinned.
 NAVIGATION_PAGE_TYPES = frozenset({"index", "log", "map", "overview"})
 UNKNOWN_TYPE = "기타"
+
+# Vault ``tools/wiki/cli.py`` lists review items by status; ``memory-proposal`` items are the inferred facts.
+PENDING_PROPOSALS_COMMAND = "python3 tools/wiki/cli.py review list --status pending"
 
 BLOCK_B_TITLE = "## 기억 목록"
 BLOCK_C_TITLE = "## 변경 알림"
@@ -85,6 +90,10 @@ class RecallDocumentReader(Protocol):
 
     def body_tokens(self, vault_id: str, document_id: str) -> int: ...
 
+    def body_text(self, vault_id: str, document_id: str) -> str:
+        """Indexed body as Markdown, section headings included. Empty when nothing is indexed."""
+        ...
+
 
 class UsageLogPort(Protocol):
     """Append-only usage events. Both methods raise ``OSError`` when the log is unusable."""
@@ -94,11 +103,18 @@ class UsageLogPort(Protocol):
     def append_events(self, events: Sequence[Mapping[str, object]]) -> None: ...
 
 
+class ProposalCounter(Protocol):
+    """Pending ``memory-proposal`` items in a Vault review queue. Raises ``OSError`` when unreadable."""
+
+    def pending_count(self, vault_id: str) -> int: ...
+
+
 @dataclass(frozen=True)
 class RecallPorts:
     scope: RecallScopeResolver
     documents: RecallDocumentReader
     usage: UsageLogPort
+    proposals: ProposalCounter | None = None
 
 
 @dataclass(frozen=True)
@@ -187,7 +203,14 @@ def recall(
         if not items and not notices and not pins.text:
             return _handoff("No memory to recall for this project.", warnings)
         layout = _layout(
-            library, pins=pins, notices=notices, items=items, full=True, max_tokens=max_tokens, max_chars=max_chars
+            library,
+            pins=pins,
+            notices=notices,
+            items=items,
+            full=True,
+            max_tokens=max_tokens,
+            max_chars=max_chars,
+            proposals=_pending_proposals(ports.proposals, indexed, warnings),
         )
 
     events = [
@@ -246,6 +269,7 @@ class _Library:
     vault_ids: tuple[str, ...]
     many_vaults: bool
     token_reader: Callable[[str, str], int]
+    body_reader: Callable[[str, str], str]
     vault_names: Mapping[str, str] = field(default_factory=dict)
     _by_path: dict[tuple[str, str], _Entry] = field(default_factory=dict)
     _by_id: dict[str, _Entry] = field(default_factory=dict)
@@ -275,6 +299,7 @@ class _Library:
             vault_ids=vault_ids,
             many_vaults=many_vaults,
             token_reader=reader.body_tokens,
+            body_reader=reader.body_text,
             vault_names=vault_names,
         )
 
@@ -463,7 +488,11 @@ def _block_a(library: _Library, *, max_tokens: int) -> PinBlock:
             item_id=entry.item_id,
             kind=entry.memory_kind or entry.type,
             title=entry.title,
-            summary=entry.summary or entry.title,
+            summary=pin_line(
+                title=entry.title,
+                summary=entry.summary,
+                body=library.body_reader(entry.vault_id, entry.document_id),
+            ),
             location=library.location(entry),
             day=entry.day,
             path=entry.path,
@@ -515,6 +544,7 @@ def _layout(
     full: bool,
     max_tokens: int,
     max_chars: int,
+    proposals: Mapping[str, int] | None = None,
 ) -> _Layout:
     def fits(text: str) -> bool:
         return estimate_recall_tokens(text) <= max_tokens and len(text) <= max_chars
@@ -525,7 +555,7 @@ def _layout(
         if estimate_recall_tokens(_block(BLOCK_C_TITLE, candidate)) > BLOCK_C_MAX_TOKENS:
             break
         notice_lines = candidate
-    block_d = _block(BLOCK_D_TITLE, [_how_to_open(library)]) if full else ""
+    block_d = _block(BLOCK_D_TITLE, [_how_to_open(library), *_proposal_lines(library, proposals or {})]) if full else ""
     item_lines = [_item_line(library, entry) for entry in items]
 
     def render(shown_items: int, shown_notices: int) -> str:
@@ -595,6 +625,29 @@ def _how_to_open(library: _Library) -> str:
     return f"- 본문은 MCP 리소스 `vault://{{vault_id}}/pages/{{path}}`로 연다(path의 `/`는 `%2F`).{prefix} {ids}"
 
 
+def _pending_proposals(
+    counter: ProposalCounter | None, vault_ids: Sequence[str], warnings: list[str]
+) -> dict[str, int]:
+    """Pending proposal count per Vault, for block D (F11). An unreadable queue only warns."""
+    if counter is None:
+        return {}
+    counts: dict[str, int] = {}
+    for vault_id in vault_ids:
+        try:
+            counts[vault_id] = counter.pending_count(vault_id)
+        except OSError as exc:
+            warnings.append(_one_line(f"Review queue of Vault {vault_id} was not read: {exc}"))
+    return counts
+
+
+def _proposal_lines(library: _Library, counts: Mapping[str, int]) -> list[str]:
+    """One line when inferred facts wait for a person in any linked Vault review queue."""
+    waiting = ", ".join(f"{library.label(vault_id)} {counts[vault_id]}개" for vault_id in counts if counts[vault_id])
+    if not waiting:
+        return []
+    return [f"- 승인을 기다리는 추론 제안: {waiting}. 확인은 그 Vault 폴더에서 `{PENDING_PROPOSALS_COMMAND}`"]
+
+
 def _injected_event(
     entry: _Entry, *, block: str, session_id: str, project_id: str | None, at: datetime
 ) -> dict[str, object]:
@@ -624,7 +677,9 @@ __all__ = [
     "DEFAULT_RECALL_MAX_CHARS",
     "DEFAULT_RECALL_MAX_TOKENS",
     "NAVIGATION_PAGE_TYPES",
+    "PENDING_PROPOSALS_COMMAND",
     "RECALL_HANDOFF_EXIT_CODE",
+    "ProposalCounter",
     "RecallBundle",
     "RecallDocumentReader",
     "RecallPorts",

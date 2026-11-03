@@ -30,6 +30,7 @@ from tests.test_mcp_tools import (
     project_setup,
 )
 from tests.test_memory_write_service import DiskPageReader, RecordingWriter
+from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.interface.mcp.mcp_errors import McpProtocolError
 from vault_graph.interface.mcp.mcp_service_factory import McpServices
@@ -75,7 +76,11 @@ def _real_write_service(writer: RecordingWriter) -> MemoryWriteService:
     opening = open_vault_map(vault_map_path())
     assert opening.vault_map is not None
     return MemoryWriteService(
-        vault_map=opening.vault_map, writer=writer, page_reader=DiskPageReader(), today=lambda: date(2026, 11, 2)
+        vault_map=opening.vault_map,
+        writer=writer,
+        page_reader=DiskPageReader(),
+        today=lambda: date(2026, 11, 2),
+        drafts=TemporaryDraftFiles(),
     )
 
 

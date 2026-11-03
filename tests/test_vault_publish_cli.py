@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from tests.test_read_only_boundary import file_bytes
+from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
 from vault_graph.interface.composition.adapters.vault_page_reader import VaultPageFileReader
 from vault_graph.interface.composition.adapters.vault_publish_cli import (
     CLI_RELATIVE_PATH,
@@ -327,6 +328,7 @@ def test_a14_remember_publishes_one_decision_page_in_a_copied_vault(copied_vault
         vault_map=OneVaultMap(MappedVault(name="copy", path=copied_vault, role="project")),
         writer=VaultPublishCli(python_executable=sys.executable),
         page_reader=VaultPageFileReader(),
+        drafts=TemporaryDraftFiles(),
     )
 
     result = service.remember(
@@ -373,6 +375,7 @@ def test_a14_inferred_remember_is_proposed_in_a_copied_vault_and_wiki_is_unchang
         vault_map=OneVaultMap(MappedVault(name="copy", path=copied_vault, role="project")),
         writer=VaultPublishCli(python_executable=sys.executable),
         page_reader=VaultPageFileReader(),
+        drafts=TemporaryDraftFiles(),
     )
     wiki_before = file_bytes(copied_vault / "wiki")
 

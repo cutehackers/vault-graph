@@ -1,4 +1,4 @@
-"""Vault name and role shown next to each search result (spec V2, 결정S2).
+"""Vault name and role shown next to each search result (spec V2, 결정S2) and read tool result (F12).
 
 Search results carry only ``vault_id``. The name and role come from ``vault-map.json``, matched to
 Graph Home catalog entries by real path, so retrieval never reads the map. Role is a display string:
@@ -43,6 +43,23 @@ def label_fields(labels: Mapping[str, VaultLabel], vault_id: str) -> dict[str, s
     }
 
 
+def label_payload(value: object, labels: Mapping[str, VaultLabel]) -> object:
+    """Copy a JSON payload, adding ``vault_name`` and ``vault_role`` to every object with a ``vault_id``.
+
+    Read tools nest results differently (answer citations, context pack items, graph entities), so
+    every object that names its Vault gets the label. An object that already has ``vault_name`` keeps it.
+    """
+    if isinstance(value, dict):
+        copied = {key: label_payload(child, labels) for key, child in value.items()}
+        vault_id = copied.get("vault_id")
+        if isinstance(vault_id, str) and "vault_name" not in copied:
+            copied.update(label_fields(labels, vault_id))
+        return copied
+    if isinstance(value, list):
+        return [label_payload(child, labels) for child in value]
+    return value
+
+
 def _real(path: Path) -> Path:
     try:
         return path.expanduser().resolve()
@@ -50,4 +67,4 @@ def _real(path: Path) -> Path:
         return path.expanduser().absolute()
 
 
-__all__ = ["VaultLabel", "label_fields", "vault_labels"]
+__all__ = ["VaultLabel", "label_fields", "label_payload", "vault_labels"]

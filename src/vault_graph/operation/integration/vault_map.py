@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import unquote, urlsplit
 
+from vault_graph.operation.scope.git_command import run_git
 from vault_graph.project.context.project_binding_reader import MappedProjectMatch, MappedVault, VaultMapReader
 
 VAULT_MAP_VERSION = 2
@@ -252,22 +252,6 @@ def _shape_problem(data: Any) -> str | None:
     return None
 
 
-def _git(folder: Path, *arguments: str) -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(folder), *arguments],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
-        return None
-    output = result.stdout.strip()
-    if result.returncode != 0 or not output:
-        return None
-    return output
-
-
 def _resolve(path: Path) -> Path:
     try:
         return path.expanduser().resolve()
@@ -277,19 +261,19 @@ def _resolve(path: Path) -> Path:
 
 def main_worktree_root(start: Path) -> Path | None:
     """Return the main worktree root of the repository holding ``start``, or None outside git."""
-    common_dir = _git(start, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    common_dir = run_git(start, "rev-parse", "--path-format=absolute", "--git-common-dir") or None
     if common_dir is None:
         return None
     common = Path(common_dir)
     if common.name == ".git":
         return _resolve(common.parent)
-    top = _git(start, "rev-parse", "--show-toplevel")
+    top = run_git(start, "rev-parse", "--show-toplevel") or None
     return _resolve(Path(top)) if top else None
 
 
 def origin_url(root: Path) -> str | None:
     """Return the origin URL as written in the git config, or None."""
-    return _git(root, "config", "--get", "remote.origin.url")
+    return run_git(root, "config", "--get", "remote.origin.url") or None
 
 
 def normalize_remote(url: str, base: Path) -> str:

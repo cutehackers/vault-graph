@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
-import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from vault_graph.operation.scope.git_command import run_git
 from vault_graph.project.code.code_models import CODE_PARSER_SPEC_VERSION, CodeFileInput, CodeRepositoryEntry
 from vault_graph.project.code.repository_catalog import repository_policy_revision
 
@@ -195,12 +195,12 @@ def _source_revision(
     content_digest = _selected_digest(selected)
     if git_revision_policy == "content-hash":
         return f"content-hash:{content_digest}"
-    head = _git(root, "rev-parse", "HEAD")
+    head = run_git(root, "rev-parse", "HEAD", timeout_s=5)
     if head is None:
         return f"content-hash:{content_digest}"
     if git_revision_policy == "head":
         return f"git:{head}"
-    dirty = _git(root, "status", "--porcelain", "--untracked-files=all")
+    dirty = run_git(root, "status", "--porcelain", "--untracked-files=all", timeout_s=5)
     if dirty is None:
         return f"git:{head}"
     if dirty:
@@ -221,20 +221,3 @@ def _selected_digest(selected: list[tuple[str, bytes, str, bool]]) -> str:
         digest.update(hashlib.sha256(content).digest())
         digest.update(b"\n")
     return digest.hexdigest()
-
-
-def _git(root: Path, *arguments: str) -> str | None:
-    try:
-        result = subprocess.run(
-            ("git", *arguments),
-            cwd=root,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip()

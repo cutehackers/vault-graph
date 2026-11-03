@@ -116,6 +116,7 @@ class ReadOnlyServiceFactory:
         without creating anything when the Graph Home is not set up.
         """
         from vault_graph.context.pack.recall import RecallPorts, RecallUnavailable
+        from vault_graph.interface.composition.adapters.vault_review_queue import VaultReviewQueue
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
         from vault_graph.storage.local.usage_log import JsonlUsageLog
 
@@ -137,6 +138,7 @@ class ReadOnlyServiceFactory:
                 metadata_path=metadata_path,
             ),
             usage=JsonlUsageLog(descriptor.root_path),
+            proposals=VaultReviewQueue(catalog=catalog),
         )
 
     def open_read_only(self) -> ReadOnlyServices:
@@ -528,3 +530,7 @@ class _MetadataRecallDocuments:
     def body_tokens(self, vault_id: str, document_id: str) -> int:
         chunks = self._metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
         return sum(chunk.token_count for chunk in chunks)
+
+    def body_text(self, vault_id: str, document_id: str) -> str:
+        chunks = self._metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
+        return "\n\n".join(f"## {chunk.section}\n\n{chunk.text}" if chunk.section else chunk.text for chunk in chunks)

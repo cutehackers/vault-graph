@@ -1,8 +1,9 @@
 """Pick the Vault a memory write goes to (spec 2026-11-02 V3, 결정12, A2).
 
 New pages: an explicit ``vault``, then the project's ``default_write_vault``, then the only linked
-Vault. Several linked Vaults and no choice give ``VaultRequired``. Neither ``memory_kind`` nor the
-Vault role takes part in the choice (결정12, 결정15).
+Vault. Several linked Vaults and no choice give ``VaultRequired``, whose message also names the
+vault-builder ``set-default-write`` command that ends the question for that project (F9).
+Neither ``memory_kind`` nor the Vault role takes part in the choice (결정12, 결정15).
 
 Existing pages (update, retire): the linked Vaults that hold the path. The default write Vault
 does not apply because the page already lives in one Vault.
@@ -51,8 +52,19 @@ def choose_write_vault(vault: str | None, cwd: Path | None, vault_map: VaultMapR
     return VaultRequired(
         match.vaults,
         f"Project {match.project_id} links several Vaults and has no default_write_vault. "
-        f"Pass vault as one of: {_names(match.vaults)}.",
+        f"Pass vault as one of: {_names(match.vaults)}. "
+        f"To stop asking, a person can set the default once in the vault-builder folder: "
+        f"`{set_default_write_command(match.project_id, match.vaults)}`.",
     )
+
+
+def set_default_write_command(project_id: str, vaults: tuple[MappedVault, ...]) -> str:
+    """The vault-builder command that sets the project's ``default_write_vault`` (F9, vault-map 계약5).
+
+    vault-graph only reads ``vault-map.json``, so it names the command and never runs it.
+    """
+    choices = "|".join(vault.name for vault in vaults)
+    return f"python3 tools/vault_migration/cli.py set-default-write --project {project_id} --vault <{choices}>"
 
 
 def choose_page_vault(

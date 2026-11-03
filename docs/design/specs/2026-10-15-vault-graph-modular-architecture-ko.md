@@ -51,9 +51,9 @@ P01은 벡터 없이 동작한다. P02는 원본 파일 로더가 아니며, `se
 
 | ID / 기능 | 소유할 책임·대표 진입점 | 현재 위치 | 경계 밖의 책임 |
 |---|---|---|---|
-| M01 `vault_scope` | Vault 등록·catalog·Graph Home 경로 안전성·조회 범위 해석 | `operation/scope/` | 검색 순위·개별 저장소 쿼리 |
+| M01 `vault_scope` | Vault 등록·catalog·Graph Home 경로 안전성·조회 범위 해석·Vault frontmatter 줄 규칙(`vault_frontmatter.py`, M02와 M18이 함께 씀. 2026-11-03 정리 발견4)·읽기 전용 git 실행(`git_command.py`, M11과 M17이 함께 씀. 정리 발견5) | `operation/scope/` | 검색 순위·개별 저장소 쿼리 |
 | M02 `document_ingestion` | 원본 읽기·리더 선택·정규화·문서/청크 생성. `VaultLoader`, `DocumentReaderRegistry`, `DocumentNormalizer` | `indexing/ingestion/` | 임베딩 모델·그래프 경로 계산 |
-| M03 `projection_indexing` | 문서 선택과 메타데이터·벡터·그래프 색인 계획/반영. `IndexService.run_plan/run_apply` | `indexing/`, `indexing/extraction/`, `indexing/vector_index_adapter.py` | 활성 세대 교체·검색 |
+| M03 `projection_indexing` | 문서 선택과 메타데이터·벡터·그래프 색인 계획/반영. `IndexService.run_plan/run_apply`. 세션 시작 갱신용으로 바뀐 파일 찾기(`indexing/change_scan.py`)와, 바뀐 파일만 반영하면서 사라진 청크의 벡터를 지우는 `IndexService.run_apply_paths`도 맡는다(2026-11-03 정리 발견2) | `indexing/`, `indexing/extraction/`, `indexing/vector_index_adapter.py` | 활성 세대 교체·검색 |
 | M04 `projection_publication` | 비공개 세대 준비·검증·활성화·폐기·복구. `ProjectionBundlePublisher` | `indexing/publication/` | 추출 정책·순위·원본 수정 |
 | M05 `hybrid_retrieval` | 키워드·벡터·선택적 그래프 후보 결합·중복 제거·순위·검색 응답. `RetrievalService.search` | `retrieval/search/` | 문맥 팩 전체 구성·답변 작성 |
 | M06 `graph_retrieval` | 관련 항목·결정 경로·엔터티/개념 리소스 조회. `GraphRetrievalService`, `GraphResourceService` | `retrieval/graph/` | 일반 경로 알고리즘·벡터 검색 |
@@ -68,7 +68,7 @@ P01은 벡터 없이 동작한다. P02는 원본 파일 로더가 아니며, `se
 | M15 `projection_diagnostics` | 상태·투영 위생·실행 캐시·확장 준비 상태의 설명. `IndexStatusReader`, `ProjectionHygieneService.audit`, `HealthExplorerService.inspect` | `operation/diagnostics/` | 조회 전제 판정 재구현·자동 수리 |
 | M16 `runtime_operations` | 초기 설정·색인 주기 실행·중단/정리. `SetupService.setup`, `WatchService.run` | `operation/runtime/` | 색인 세부 계산·설정 파일 형식 구현 |
 | M17 `integration_configuration` | 명시적으로 요청한 MCP 등록·저장소 연결 설정·지침 preview/install/remove | `operation/integration/` | 일반 조회에서의 자동 기록·Vault 내용 수정 |
-| M18 `memory_write` | Vault 기억의 추가·수정·폐기·제안. 저장 Vault 고르기(결정12), draft 만들기, Vault 쓰기 포트, Vault별 잠금. `MemoryWriteService.remember/update/retire`. M01·M12만 가져오고 다른 영역은 M18을 가져오지 않는다 (2026-11-02, [장기 기억 spec](../../specs/2026-11-02-vault-long-term-memory/spec.md) 결정S1) | `operation/memory/` | Vault 파일 직접 쓰기·Vault 명령 실행(구성 지점 어댑터 몫)·세션 수집 |
+| M18 `memory_write` | Vault 기억의 추가·수정·폐기·제안. 저장 Vault 고르기(결정12), draft 만들기, Vault 쓰기 포트, Vault별 잠금. `MemoryWriteService.remember/update/retire`. M01·M12만 가져오고 다른 영역은 M18을 가져오지 않는다 (2026-11-02, [장기 기억 spec](../../specs/2026-11-02-vault-long-term-memory/spec.md) 결정S1) | `operation/memory/` | Vault 파일 직접 쓰기·Vault 명령 실행과 draft 파일 쓰기(구성 지점 어댑터 몫, `DraftFiles` 포트는 2026-11-03 정리 발견3)·세션 수집 |
 
 M07만 신규 기능 계약을 포함한다. 나머지는 기존 기능의 경계 정리이다. M10의 여러 기억 조회는 같은 읽기 문맥을 공유하므로 함께 둔다. M11도 쓰기/읽기 진입점을 구분하되 파서·색인·조회마다 새 패키지를 만들지 않는다. M17은 설정 변경의 권한과 파일 보존을 담당하며 각 설정 형식은 기존 구현이 유지한다. M18은 2026-11-02에 더한 영역이다. Vault 내용 쓰기는 M17의 설정 기록과 바뀌는 이유가 달라 따로 둔다.
 

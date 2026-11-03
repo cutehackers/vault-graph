@@ -1,8 +1,8 @@
 """Add, update and retire memories through the Vault tool (spec 2026-11-02 V3, 결정12, 결정S5, 결정S6, 결정S8).
 
 vault-graph never writes Vault files itself. Each operation checks the agent's fields, picks one
-Vault without guessing, builds a draft in the operating system's temporary directory, and hands the
-draft to a ``VaultWriter``. The draft directory is removed after every outcome.
+Vault without guessing, builds a draft, has ``DraftFiles`` write it outside every Vault, and hands
+the draft file to a ``VaultWriter``. The draft file is removed after every outcome.
 
 ``basis="stated"`` publishes the draft (계약1). ``basis="inferred"`` sends the same draft to the Vault
 review queue (계약4 ``review propose``) and returns ``proposed`` with the review item path and the
@@ -12,15 +12,13 @@ not in recall or search until it is accepted and the next index run picks up the
 
 from __future__ import annotations
 
-import json
-import tempfile
 import threading
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
 from vault_graph.operation.memory.memory_drafts import build_remember_draft, build_retire_draft, build_update_draft
-from vault_graph.operation.memory.memory_ports import VaultPageReader, VaultWriter, WriteOutcome
+from vault_graph.operation.memory.memory_ports import DraftFiles, VaultPageReader, VaultWriter, WriteOutcome
 from vault_graph.operation.memory.memory_requests import (
     MemoryWriteResult,
     RememberRequest,
@@ -66,8 +64,8 @@ class MemoryWriteService:
         vault_map: VaultMapReader | None,
         writer: VaultWriter,
         page_reader: VaultPageReader,
+        drafts: DraftFiles,
         today: Callable[[], date] = date.today,
-        temp_root: Path | None = None,
         timeout_s: float = PUBLISH_TIMEOUT_SECONDS,
         vault_map_problem: str | None = None,
     ) -> None:
@@ -75,7 +73,7 @@ class MemoryWriteService:
         self._writer = writer
         self._page_reader = page_reader
         self._today = today
-        self._temp_root = temp_root
+        self._drafts = drafts
         self._timeout_s = timeout_s
         self._vault_map_problem = vault_map_problem
 
@@ -188,10 +186,8 @@ class MemoryWriteService:
         *,
         before_send: Callable[[], bool] | None = None,
     ) -> WriteOutcome:
-        """Publish a stated draft or propose an inferred one. Both read the draft from the OS temp folder."""
-        with tempfile.TemporaryDirectory(prefix="vault-graph-memory-", dir=self._temp_root) as folder:
-            draft_path = Path(folder) / "draft.json"
-            draft_path.write_text(json.dumps(draft, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        """Publish a stated draft or propose an inferred one. Both read the file ``DraftFiles`` staged."""
+        with self._drafts.stage(draft) as draft_path:
             if before_send is not None and not before_send():
                 return WriteOutcome("rejected", messages=(PAGE_CHANGED_MESSAGE,))
             if basis == "inferred":

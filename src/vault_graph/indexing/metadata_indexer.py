@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from vault_graph.indexing.ingestion.document_authority import assign_provenance_families
+from vault_graph.indexing.ingestion.document_authority import assign_provenance_families, provenance_paths
 from vault_graph.indexing.ingestion.document_normalizer import (
     ChunkSnapshot,
     DocumentNormalizer,
@@ -90,22 +90,40 @@ class MetadataIndexer:
     ) -> MetadataRevisionPlan:
         """Index only the listed ``(vault_id, path)`` files, so the cost follows the list, not the Vault.
 
-        A listed changed file that is gone is deleted. Paths outside ``scope`` are ignored. Provenance
-        families are computed from the listed files only, so a family that depends on an unlisted
-        file is corrected by the next whole-Vault ``apply``.
+        A listed changed file that is gone is deleted. Paths outside ``scope`` are ignored.
+
+        Provenance families need every member, so the listed files are read together with their
+        family: the pages they name in a provenance field (``supersedes`` and so on), and the pages
+        that shared an indexed family with them. Without that, a new page that supersedes an
+        unlisted one splits the family until the next whole-Vault ``apply`` and search shows both
+        (2026-11-03 발견13). Family members whose result is the same are reported unchanged.
         """
         index_revision = f"metadata-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
-        loaded = []
+        loaded: list[NormalizedDocument] = []
         gone: list[tuple[str, str]] = []
-        for vault_id, path in sorted(set(changed_paths)):
-            if not _key_in_scope(vault_id=vault_id, path=path, scope=scope):
-                continue
+        members: dict[str, list[tuple[str, str]]] | None = None
+        pending = sorted(key for key in set(changed_paths) if _key_in_scope(vault_id=key[0], path=key[1], scope=scope))
+        seen = set(pending)
+        while pending:
+            vault_id, path = pending.pop(0)
             document = self._loader.load_path(entry=self._catalog.resolve(vault_id), path=path)
+            linked: list[tuple[str, str]] = []
             if document is None:
                 gone.append((vault_id, path))
             else:
-                loaded.append(document)
-        normalized = assign_provenance_families(tuple(self._normalizer.normalize(item) for item in loaded))
+                item = self._normalizer.normalize(document)
+                loaded.append(item)
+                linked.extend((vault_id, target) for target in provenance_paths(item.document.frontmatter))
+            family_id = self._metadata_store.document_state(vault_id, path).provenance_family_id
+            if family_id:
+                if members is None:
+                    members = _family_members(self._metadata_store.list_document_states(scope.vault_ids))
+                linked.extend(members.get(family_id, ()))
+            for key in linked:
+                if key not in seen and _key_in_scope(vault_id=key[0], path=key[1], scope=scope):
+                    seen.add(key)
+                    pending.append(key)
+        normalized = assign_provenance_families(tuple(loaded))
         changed: list[tuple[str, str]] = []
         unchanged: list[tuple[str, str]] = []
         for item in normalized:
@@ -210,6 +228,15 @@ def _chunk_sort_key(chunk: ChunkSnapshot) -> tuple[str, str, str]:
 
 def _document_sort_key(document: DocumentSnapshot) -> tuple[str, str, str]:
     return (document.vault_id, document.path, document.document_id)
+
+
+def _family_members(states: tuple[DocumentState, ...]) -> dict[str, list[tuple[str, str]]]:
+    """Indexed ``(vault_id, path)`` keys by provenance family id."""
+    members: dict[str, list[tuple[str, str]]] = {}
+    for state in states:
+        if state.provenance_family_id and state.document_id is not None and not state.is_tombstoned:
+            members.setdefault(state.provenance_family_id, []).append((state.vault_id, state.path))
+    return members
 
 
 def _key_in_scope(*, vault_id: str, path: str, scope: QueryScope) -> bool:
