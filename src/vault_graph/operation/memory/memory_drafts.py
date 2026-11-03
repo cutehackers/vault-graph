@@ -20,6 +20,7 @@ from typing import Any
 
 from vault_graph.operation.memory.memory_ports import PageText
 from vault_graph.operation.memory.memory_requests import RememberRequest, RetireRequest, UpdateRequest
+from vault_graph.operation.scope.vault_frontmatter import parse_vault_frontmatter, split_frontmatter
 
 MEMORY_SCHEMA = "vault-memory/v1"
 
@@ -141,60 +142,8 @@ def parse_frontmatter(text: str) -> dict[str, Any] | None:
     Using the Vault's own rules keeps every unchanged value as the Vault would render it again.
     Returns None when the page has no closed frontmatter block.
     """
-    if not text.startswith("---\n"):
-        return None
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return None
-    lines = text[4:end].splitlines()
-    root: dict[str, Any] = {}
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        if not line.strip() or line.startswith(" ") or ":" not in line:
-            index += 1
-            continue
-        key, value = (part.strip() for part in line.split(":", 1))
-        if value == "":
-            root[key], index = _block_value(lines, index + 1)
-            continue
-        root[key] = _scalar(value)
-        index += 1
-    return root
-
-
-def _block_value(lines: list[str], start: int) -> tuple[Any, int]:
-    mapping: dict[str, Any] = {}
-    sequence: list[Any] = []
-    index = start
-    while index < len(lines) and lines[index].startswith("  "):
-        stripped = lines[index].strip()
-        if stripped.startswith("- "):
-            sequence.append(_scalar(stripped[2:].strip()))
-        elif ":" in stripped:
-            key, value = (part.strip() for part in stripped.split(":", 1))
-            mapping[key] = _scalar(value)
-        index += 1
-    if mapping and not sequence:
-        return mapping, index
-    if sequence and not mapping:
-        return sequence, index
-    return {}, index
-
-
-def _scalar(value: str) -> Any:
-    if value == "":
-        return ""
-    if value in {"true", "false"}:
-        return value == "true"
-    if value.isdigit():
-        return int(value)
-    if value.startswith("[") and value.endswith("]"):
-        inner = value[1:-1].strip()
-        return [_scalar(part.strip()) for part in inner.split(",")] if inner else []
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-        return value[1:-1]
-    return value
+    block = split_frontmatter(text)
+    return parse_vault_frontmatter(block[0]) if block is not None else None
 
 
 def _set_memory_fields(frontmatter: dict[str, Any], *, pin: bool | None, memory_kind: str | None) -> None:

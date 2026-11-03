@@ -54,7 +54,7 @@ src/vault_graph/
 
 | 책임 | 구현 위치 | 소유 범위 |
 |---|---|---|
-| M01 범위·등록 | `operation/scope/` | catalog·Graph Home·안전 경로·조회 범위 |
+| M01 범위·등록 | `operation/scope/` | catalog·Graph Home·안전 경로·조회 범위·Vault frontmatter 줄 규칙(`vault_frontmatter.py`, M02 색인과 M18 기억 쓰기가 함께 씀) |
 | M02 문서 준비 | `indexing/ingestion/` | 리더 선택·읽기·정규화·청크 |
 | M03 투영 색인 | `indexing/`, `indexing/extraction/` | 문서 선택·색인 계획·반영·명시적 관계 추출 |
 | M04 세대 발행 | `indexing/publication/` | 비공개 세대 검증·활성화·폐기·복구 |
