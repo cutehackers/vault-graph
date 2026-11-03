@@ -285,7 +285,7 @@ MCP 도구:
 1. `vault`가 있으면 그 이름을 찾는다. `cwd`의 프로젝트가 정해지면 그 프로젝트의 연결 Vault 안에서만 찾는다(발견3 수정). 프로젝트가 정해지지 않으면 map 전체에서 찾는다.
 2. `vault`가 없으면 프로젝트의 `default_write_vault`를 쓴다.
 3. 기본 저장 Vault가 없고 연결 Vault가 하나면 그것을 쓴다.
-4. 둘 이상이면 쓰지 않고 `vault_required`와 후보를 돌려준다.
+4. 둘 이상이면 쓰지 않고 `vault_required`와 후보를 돌려준다. 메시지에는 사람이 한 번 실행하면 다음부터 묻지 않게 되는 vault-builder 명령 `python3 tools/vault_migration/cli.py set-default-write --project <id> --vault <후보1|후보2>`을 프로젝트 id를 채워 넣는다. vault-graph는 이 명령을 실행하지 않는다(2026-11-03 F9).
 5. `memory_kind`나 role로 고르지 않는다.
 
 수정·폐기 대상 페이지 찾기(A2):

@@ -65,6 +65,29 @@ def test_two_linked_vaults_without_default_or_vault_ask_for_a_vault() -> None:
     assert chosen.candidates == (PROJECT, TEAM)
 
 
+def test_vault_required_for_a_new_page_names_the_command_that_sets_a_default() -> None:
+    """F9: personal and project Vaults linked together ask for ``vault`` on every first write.
+
+    The message gives the exact vault-builder command a person runs once so later writes need no choice.
+    """
+    chosen = choose_write_vault(None, Path("/repo"), make_map())
+
+    assert isinstance(chosen, VaultRequired)
+    assert (
+        "python3 tools/vault_migration/cli.py set-default-write --project demo --vault <project|team>"
+        in chosen.message
+    )
+
+
+def test_vault_required_for_an_existing_page_has_no_default_command() -> None:
+    chosen = choose_page_vault(
+        None, Path("/repo"), make_map(), path="wiki/decisions/a.md", has_page=has_page_in("project", "team")
+    )
+
+    assert isinstance(chosen, VaultRequired)
+    assert "set-default-write" not in chosen.message
+
+
 def test_default_write_vault_is_used() -> None:
     assert choose_write_vault(None, Path("/repo"), make_map(default=TEAM)) == TEAM
 
