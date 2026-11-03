@@ -56,7 +56,7 @@ src/vault_graph/
 |---|---|---|
 | M01 범위·등록 | `operation/scope/` | catalog·Graph Home·안전 경로·조회 범위·Vault frontmatter 줄 규칙(`vault_frontmatter.py`, M02 색인과 M18 기억 쓰기가 함께 씀)·읽기 전용 git 실행(`git_command.py`, M11 코드 스캔과 M17 vault-map이 함께 씀) |
 | M02 문서 준비 | `indexing/ingestion/` | 리더 선택·읽기·정규화·청크 |
-| M03 투영 색인 | `indexing/`, `indexing/extraction/` | 문서 선택·색인 계획·반영·명시적 관계 추출 |
+| M03 투영 색인 | `indexing/`, `indexing/extraction/` | 문서 선택·색인 계획·반영·명시적 관계 추출·바뀐 파일 찾기(`change_scan.py`)·바뀐 파일만 반영할 때 사라진 청크의 벡터 지우기(`IndexService.run_apply_paths`). 세션 시작 갱신(`interface/composition/recall_index_refresh.py`)은 저장소를 열어 주기만 하고 직접 읽거나 지우지 않는다 |
 | M04 세대 발행 | `indexing/publication/` | 비공개 세대 검증·활성화·폐기·복구 |
 | M05 통합 검색 | `retrieval/search/` | 키워드·벡터·선택적 그래프 후보 결합·순위·주변 청크 |
 | M06 그래프 조회 | `retrieval/graph/` | 관련 항목·결정 경로·리소스·일반 그래프 투영 어댑터 |

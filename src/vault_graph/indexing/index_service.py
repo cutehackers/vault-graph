@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Protocol
 
 from vault_graph.errors import UnsupportedGraphScopeWidthError
@@ -25,7 +27,7 @@ from vault_graph.storage.interfaces.vector_status_store import (
     embedding_spec_key,
     scope_key_for_status,
 )
-from vault_graph.storage.interfaces.vector_store import VectorStore
+from vault_graph.storage.interfaces.vector_store import VectorStore, VectorTombstone
 
 
 @dataclass(frozen=True)
@@ -216,12 +218,20 @@ class IndexService:
         scope: QueryScope,
         changed_paths: tuple[tuple[str, str], ...],
         deleted_paths: tuple[tuple[str, str], ...],
+        open_vector_store: Callable[[], VectorStore | None] | None = None,
     ) -> IndexRunReport:
-        """Metadata for the listed files only (``MetadataIndexer.apply_paths``), then the graph. No vectors.
+        """Metadata for the listed files only (``MetadataIndexer.apply_paths``), then the graph. No embeddings.
 
         The graph is still reconciled for the whole scope: publication needs current graph evidence
         for every selected Vault, and graph records merge evidence from many files.
+
+        Vectors of chunks the listed files no longer have are dropped, so the generation passes the
+        same hygiene check as a full run without an embedding model. ``open_vector_store`` is called
+        only when a chunk was removed (a new file removes none), and the store it returns is closed
+        here. It may return None when there is no vector store yet.
         """
+        listed = changed_paths + deleted_paths
+        chunks_before = self._chunk_keys(listed)
         metadata_plan = MetadataIndexer(catalog=self._catalog, metadata_store=self._metadata_store).apply_paths(
             scope=scope,
             changed_paths=changed_paths,
@@ -232,7 +242,11 @@ class IndexService:
             scope=scope,
             full=False,
         )
-        return IndexRunReport(metadata=metadata_plan, vector=None, graph=graph_result)
+        report = IndexRunReport(metadata=metadata_plan, vector=None, graph=graph_result)
+        removed = chunks_before - self._chunk_keys(listed)
+        if removed and report.exit_code == 0 and open_vector_store is not None:
+            _drop_vectors(open_vector_store, scope, removed)
+        return report
 
     def status(self, *, scope: QueryScope | None = None) -> IndexStatusReport:
         if self._status_reader is None:
@@ -246,6 +260,17 @@ class IndexService:
         close_graph = getattr(self._graph_store, "close", None)
         if callable(close_graph):
             close_graph()
+
+    def _chunk_keys(self, paths: tuple[tuple[str, str], ...]) -> set[tuple[str, str]]:
+        """(vault_id, chunk_id) of the listed files' current chunks."""
+        keys: set[tuple[str, str]] = set()
+        for vault_id, path in paths:
+            state = self._metadata_store.document_state(vault_id, path)
+            if state.document_id is None or state.is_tombstoned:
+                continue
+            chunks = self._metadata_store.list_document_chunks(vault_id=vault_id, document_id=state.document_id)
+            keys.update((chunk.vault_id, chunk.chunk_id) for chunk in chunks)
+        return keys
 
     def _vector_plan(self, *, chunk_store: object, scope: QueryScope, full: bool) -> VectorRevisionPlan | None:
         if self._vector_store is None or self._text_embeddings is None:
@@ -432,3 +457,32 @@ def _failed_graph_result(*, mode: str, error: str) -> GraphIndexApplyResult:
 def _revision_from_values(values: tuple[str | None, ...], *, fallback: str) -> str:
     revisions = tuple(sorted({value for value in values if value}))
     return ",".join(revisions) if revisions else fallback
+
+
+def _drop_vectors(
+    open_vector_store: Callable[[], VectorStore | None], scope: QueryScope, removed: set[tuple[str, str]]
+) -> None:
+    vector_store = open_vector_store()
+    if vector_store is None:
+        return
+    try:
+        tombstones = tuple(
+            VectorTombstone(
+                vector_id=row.vector_id,
+                vault_id=row.vault_id,
+                chunk_id=row.chunk_id,
+                embedding_spec=row.embedding_spec,
+            )
+            for row in vector_store.export_manifest(scope)
+            if (row.vault_id, row.chunk_id) in removed
+        )
+        if tombstones:
+            vector_store.apply_vector_revision(
+                vector_index_revision=f"vector-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}",
+                records=(),
+                tombstones=tombstones,
+            )
+    finally:
+        close = getattr(vector_store, "close", None)
+        if callable(close):
+            close()

@@ -53,7 +53,7 @@ P01은 벡터 없이 동작한다. P02는 원본 파일 로더가 아니며, `se
 |---|---|---|---|
 | M01 `vault_scope` | Vault 등록·catalog·Graph Home 경로 안전성·조회 범위 해석·Vault frontmatter 줄 규칙(`vault_frontmatter.py`, M02와 M18이 함께 씀. 2026-11-03 정리 발견4)·읽기 전용 git 실행(`git_command.py`, M11과 M17이 함께 씀. 정리 발견5) | `operation/scope/` | 검색 순위·개별 저장소 쿼리 |
 | M02 `document_ingestion` | 원본 읽기·리더 선택·정규화·문서/청크 생성. `VaultLoader`, `DocumentReaderRegistry`, `DocumentNormalizer` | `indexing/ingestion/` | 임베딩 모델·그래프 경로 계산 |
-| M03 `projection_indexing` | 문서 선택과 메타데이터·벡터·그래프 색인 계획/반영. `IndexService.run_plan/run_apply` | `indexing/`, `indexing/extraction/`, `indexing/vector_index_adapter.py` | 활성 세대 교체·검색 |
+| M03 `projection_indexing` | 문서 선택과 메타데이터·벡터·그래프 색인 계획/반영. `IndexService.run_plan/run_apply`. 세션 시작 갱신용으로 바뀐 파일 찾기(`indexing/change_scan.py`)와, 바뀐 파일만 반영하면서 사라진 청크의 벡터를 지우는 `IndexService.run_apply_paths`도 맡는다(2026-11-03 정리 발견2) | `indexing/`, `indexing/extraction/`, `indexing/vector_index_adapter.py` | 활성 세대 교체·검색 |
 | M04 `projection_publication` | 비공개 세대 준비·검증·활성화·폐기·복구. `ProjectionBundlePublisher` | `indexing/publication/` | 추출 정책·순위·원본 수정 |
 | M05 `hybrid_retrieval` | 키워드·벡터·선택적 그래프 후보 결합·중복 제거·순위·검색 응답. `RetrievalService.search` | `retrieval/search/` | 문맥 팩 전체 구성·답변 작성 |
 | M06 `graph_retrieval` | 관련 항목·결정 경로·엔터티/개념 리소스 조회. `GraphRetrievalService`, `GraphResourceService` | `retrieval/graph/` | 일반 경로 알고리즘·벡터 검색 |
