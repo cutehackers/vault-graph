@@ -42,15 +42,13 @@ vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
 
 참고한 사례: OpenWiki의 workspace 규칙(위키마다 독립, 사용자 범위 등록부, 후보가 여럿이고 선택이 없으면 `workspace_required`, 결과마다 출처 위키 표시).
 
-현재 구현과의 차이(남은 일만 적는다, 2026-11-02 기준):
+현재 구현과의 차이(남은 일만 적는다, 2026-11-03 기준):
 
 - 프로젝트 Vault가 Graph Home에 하나도 등록되지 않았을 때 `search`는 빈 결과와 "`vg setup` 필요" 경고를 돌려주지만, `ask`, `context`와 MCP `find_related` 등 다섯 도구는 같은 내용을 오류로 낸다.
 - Vault 이름·종류(`vault_name`, `vault_role`)는 MCP 읽기 도구 결과에는 모두 붙지만(2026-11-03 F12), CLI `ask`·`context`와 HTTP의 검색 외 응답에는 없다. HTTP의 선택 필드 `cwd`는 `/search`에만 있다.
 - 폐기(`retired`) 페이지를 포함해 검색하는 옵션은 없다.
 - 2026-11-02 최초 의도 기준 검수([intent-audit](specs/2026-11-02-vault-long-term-memory/research/intent-audit.md))에서 다음 작업으로 넘긴 것:
-  - F9: personal과 project Vault를 함께 연결한 프로젝트는 기본 저장 Vault가 없어 첫 쓰기가 `vault_required`다(vault-builder).
-  - F10: 고정 기억의 `summary`가 제목과 같아 내용이 회상에 들어가지 않는다.
-  - F11: 대기 중인 추론 제안 수를 어디서도 보여 주지 않는다.
+  - F9: personal과 project Vault를 함께 연결한 프로젝트는 기본 저장 Vault가 없어 첫 쓰기가 `vault_required`다. 2026-11-03에 `vault_required` 메시지가 `set-default-write` 명령을 알려 주게 했다. `link`가 기본 저장 Vault를 정하게 할지는 vault-builder 쪽 결정으로 남았다.
   - F13: 설치한 훅이 worktree의 `.venv` 안 vg를 가리킨다. 병합 뒤 고정 경로의 vg로 다시 설치한다.
 
 실제 Vault로 시나리오 ①~⑥을 도는 자동 E2E(`tests/e2e/test_long_term_memory_scenarios.py`)는 `VAULT_BUILDER_ROOT`를 주고 실행해 6개 모두 통과했다(2026-11-02, [실행 기록](specs/2026-11-02-vault-long-term-memory/research/e2e-run.log)). `VAULT_BUILDER_ROOT`가 없으면 이 테스트는 건너뛴다. 실제 Claude Code 세션 하나로 하는 수동 확인도 마쳤다(2026-11-02, 장기 기억 spec 작업23).

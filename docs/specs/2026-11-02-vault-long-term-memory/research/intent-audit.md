@@ -69,3 +69,24 @@ F1~F8을 고친 뒤 같은 기준(§0 규칙1~5)으로 다시 검수했다. 발�
 |---|---|---|
 | 발견12 | 빠른 갱신이 한 번 느리게 기록되면 하루 동안 세션 시작 갱신이 꺼진다. MCP로 쓴 기억은 영향이 없고, 원문·사람 편집·승인한 제안이 한 세션 늦게 회상된다. | 다음 작업. 성공한 백그라운드 색인이 기록을 갱신하거나, 두 번 연속 느릴 때만 건너뛴다 |
 | 발견13 | 바뀐 파일만 갱신할 때 `supersedes`로 가리킨 옛 페이지의 provenance family가 백그라운드 색인이 끝날 때까지(작은 Vault 약 3초) 갈라져 검색에 두 결과로 나올 수 있다. | 다음 작업. 바뀐 파일이 가리키는 페이지도 함께 읽는다 |
+
+## 잔여 이슈 정리 (2026-11-03)
+
+검수와 PR #15 리뷰에서 다음 작업으로 넘긴 항목을 정리했다. 구조 항목의 번호(정리 발견1~7)는 코드 리뷰에서 붙인 것이고, 위 표의 발견1~13과 다르다. 모든 동작 항목은 실패하는 테스트를 먼저 쓰고 고쳤다.
+
+| 번호 | 처리 | 커밋 |
+|---|---|---|
+| F9 | vault-graph 쪽만 고쳤다. 새 페이지의 `vault_required` 메시지에 `python3 tools/vault_migration/cli.py set-default-write --project <id> --vault <후보>`를 프로젝트 id를 채워 넣는다. vault-builder `link`가 기본 저장 Vault를 정하게 할지는 사용자 결정으로 남겼다(결정12, vault-builder는 이번에 고치지 않음). | `4aa07c0` |
+| F10 | 고정 기억의 `summary`가 없거나 제목과 같으면 둘째 줄에 본문 앞 60토큰을 넣는다. 제목 줄과 `## Evidence` 절은 뺀다. 구획 예산 400토큰은 그대로다. | `34fe1cc` |
+| F11 | 세션 시작 회상 구획D에 연결 Vault의 `scratch/review/` 안 대기 `memory-proposal` 수와 확인 명령(`review list --status pending`)을 한 줄로 보여 준다. 대기열은 색인하지 않고 frontmatter만 읽는다. | `2ad8d6d` |
+| F12 | `cwd`를 받는 MCP 읽기 도구 일곱 개가 결과 안의 `vault_id`가 있는 모든 객체에 `vault_name`·`vault_role`을 붙인다. CLI `ask`·`context`와 HTTP 검색 외 응답은 아직 없다(SPEC §0 남은 일). | `2fbb799` |
+| 발견12 | 빠른 갱신은 최근 두 번의 기록이 모두 느릴 때만 건너뛴다. 기록 파일은 Vault 묶음마다 최근 두 번을 남기고, 예전 한 건 형식은 한 번으로 읽는다. 그래서 `vg setup` 직후 11초 기록 하나로 꺼진 갱신은 다음 세션에서 다시 돈다. | `fe3bb58` |
+| 발견13 | 바뀐 파일만 색인할 때 그 파일이 provenance 필드로 가리키는 페이지와, 색인에서 같은 family였던 페이지도 함께 읽는다. 결과는 Vault 전체 색인과 같다(테스트로 비교). | `6848142` |
+| 정리 발견1 | 기억 쓰기 도구 세 개를 `interface/mcp/mcp_memory_tools.py`로, 두 파일이 함께 쓰는 도구 이름·본문·인자 오류를 `mcp_tool_body.py`로 옮겼다. `mcp_tools.py`는 1,950줄에서 1,521줄이 됐다. 예전 import 이름은 그대로 쓸 수 있다. | `a7cfc0d` |
+| 정리 발견2 | 바뀐 파일 찾기를 M03 `indexing/change_scan.py`로, 사라진 청크의 벡터 지우기를 `IndexService.run_apply_paths`로 옮겼다. `recall_index_refresh.py`는 저장소를 열어 주기만 한다. 요청에는 M11로 적혀 있었지만 `indexing/index_service.py`는 M03이다. | `a432246` |
+| 정리 발견3 | draft 파일 쓰기를 M18 포트 `DraftFiles`와 어댑터 `interface/composition/adapters/temporary_draft_files.py`로 옮겼다. M18은 파일을 쓰지 않는다(경계 테스트). | `173119b` |
+| 정리 발견4 | Vault frontmatter 줄 규칙을 M01 `operation/scope/vault_frontmatter.py` 하나로 합쳤다. M02 색인과 M18 기억 쓰기가 함께 쓴다. | `aeca545` |
+| 정리 발견5 | `vault_map.py`(M17)와 `source_scanning.py`(M11)의 `_git`을 M01 `operation/scope/git_command.run_git` 하나로 합쳤다. 시간 제한은 각 호출이 예전 값을 그대로 넘긴다. | `05b9369` |
+| 정리 발견7 | 나누지 않았다. 잠금 코드는 `_acquire_lock`·`_release_lock` 약 45줄이고, 같은 관리자 안의 보유자 중첩 상태와 `stage`·`activate`·`discard`가 함께 쓴다. 떼어 내면 그 상태를 두 파일이 나눠 가져 오히려 읽기 어렵다. 파일은 세대 관리자와 묶음 발행자 두 클래스로 응집돼 있고 609줄이다. 파일이 더 커지거나 잠금을 다른 곳에서 쓰게 되면 그때 나눈다. | 없음 |
+
+검증: 아래 세 단계를 이 worktree와 `.venv` 없는 `git archive HEAD` 복사본에서 모두 통과했다. 가져오기 방향 예외 0, 순환 0.
