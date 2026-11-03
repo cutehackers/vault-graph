@@ -6,6 +6,7 @@ import json
 import os
 import stat
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -132,7 +133,7 @@ def test_claude_register_keeps_non_ascii_text_unescaped(home: Path) -> None:
 
 def test_claude_register_preserves_other_keys_servers_order_and_mode(home: Path) -> None:
     config_path = home / ".claude.json"
-    original = {
+    original: dict[str, Any] = {
         "numStartups": 12,
         "projects": {"/repo": {"allowedTools": ["Bash"], "mcpServers": {"local": {"command": "x"}}}},
         "mcpServers": {"other": {"type": "stdio", "command": "other", "args": []}},

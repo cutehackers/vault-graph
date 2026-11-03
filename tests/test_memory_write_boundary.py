@@ -175,7 +175,7 @@ def test_three_write_tools_with_basis_inferred_propose_and_leave_vault_files_unc
     assert all(
         any(
             f"review resolve {body.payload['review_path']} --status accepted" in line
-            for line in body.payload["messages"]
+            for line in cast(list[str], body.payload["messages"])
         )
         for body in bodies
     )

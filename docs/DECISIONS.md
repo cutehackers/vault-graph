@@ -786,3 +786,13 @@ source of truth.
 **Reason:** A retired page has no replacement and its content is no longer true. If search returns it, the agent cannot tell that the content is withdrawn. A `deprecated` page points to its replacement through `superseded_by`, so it still helps.
 
 **Implications:** The filter runs in the search step (M05) through the metadata store's document frontmatter, before ranking and before `limit` is applied, so a retired page does not take a result slot. Scores and order of the remaining results do not change. There is no option yet to include retired pages in search.
+
+## 2026-11-03 - Run Only Lint, Type Check And Tests In Pull Request CI
+
+**Question:** Pull request CI ran eight jobs: two rustworkx runtime checks, five per-module jobs (lint, mypy, tests, build, twine), and a `verify` job that also built and checked the release wheels. Is that needed on every pull request?
+
+**Decision:** No. `ci.yml` keeps one `verify` job with `ruff`, `mypy` and `pytest` over `tests` and `packages/*/tests`. The user decided this. It replaces decision 3 of `docs/specs/2026-10-28-single-package-release/spec.md`, which kept the per-module jobs.
+
+**Reason:** The `verify` job already runs every module's tests. The wheel, build and release distribution checks run again in `publish-pypi.yml` and `publish-testpypi.yml` before upload.
+
+**Implications:** A module that starts importing a `vault-graph` dependency, or a break on the minimum rustworkx version, now shows up only in the release workflows, not on the pull request.

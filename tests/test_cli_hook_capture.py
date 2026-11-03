@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
+from typer.testing import CliRunner, Result
 
 from vault_graph.interface.cli.main import app
 from vault_graph.interface.composition.adapters.vault_capture_cli import CaptureOutcome, run_capture
@@ -153,7 +153,7 @@ def test_run_capture_keeps_unreadable_result_as_unknown(
 # CLI
 
 
-def invoke(*args: str) -> object:
+def invoke(*args: str) -> Result:
     return runner.invoke(app, ["hook", "capture", *args], input=HOOK_JSON)
 
 

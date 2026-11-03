@@ -47,8 +47,9 @@ repository modules (`graph_search`, `graph_document`, `text_embeddings`,
 `vector_search`, `vector_index`) and declares their external dependencies
 directly, so it does not require any `nolemy-*` distribution.
 
-The `nolemy-*` module wheels are built only for CI checks and are not
-published. Release workflows build with `uv build` (root only) and run
+The `nolemy-*` module wheels are built only for checks in the release
+workflows and are not published. Pull request CI runs only lint, type check
+and tests. Release workflows build with `uv build` (root only) and run
 `tests/verify_release_dist.py dist` before upload. See the 2026-10-28 entry in
 [DECISIONS.md](DECISIONS.md).
 
