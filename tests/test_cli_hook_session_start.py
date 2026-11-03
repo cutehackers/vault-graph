@@ -482,6 +482,25 @@ def test_pin_written_like_remember_shows_its_body_not_its_title(base: Path, grap
     assert section(result.stdout, "## 고정 기억")[1] == "  Body of Use uv."
 
 
+def test_pending_memory_proposals_of_the_vault_are_counted(base: Path, graph_home: Path) -> None:
+    """F11: the Vault review queue is read, not indexed. Only pending ``memory-proposal`` items count."""
+    review = base / "vaults" / "main" / "scratch" / "review"
+    review.mkdir(parents=True)
+    for name, kind, status in (
+        ("a", "memory-proposal", "pending"),
+        ("b", "memory-proposal", "pending"),
+        ("c", "memory-proposal", "accepted"),
+        ("d", "contradiction", "pending"),
+    ):
+        (review / f"{name}.md").write_text(f"---\nreview_id: {name}\ntype: {kind}\nstatus: {status}\n---\n# {name}\n")
+    (review / "a.draft.json").write_text("{}")
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "- 승인을 기다리는 추론 제안: main 2개." in section(result.stdout, "## 가져오는 방법")[1]
+
+
 def test_unknown_memory_schema_warns_once_on_stderr(base: Path, graph_home: Path) -> None:
     pin_page(base / "vaults" / "main", "wiki/rules/future.md", "Future rule", schema="vault-memory/v9")
     reindex(graph_home)

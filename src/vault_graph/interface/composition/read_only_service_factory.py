@@ -116,6 +116,7 @@ class ReadOnlyServiceFactory:
         without creating anything when the Graph Home is not set up.
         """
         from vault_graph.context.pack.recall import RecallPorts, RecallUnavailable
+        from vault_graph.interface.composition.adapters.vault_review_queue import VaultReviewQueue
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
         from vault_graph.storage.local.usage_log import JsonlUsageLog
 
@@ -137,6 +138,7 @@ class ReadOnlyServiceFactory:
                 metadata_path=metadata_path,
             ),
             usage=JsonlUsageLog(descriptor.root_path),
+            proposals=VaultReviewQueue(catalog=catalog),
         )
 
     def open_read_only(self) -> ReadOnlyServices:

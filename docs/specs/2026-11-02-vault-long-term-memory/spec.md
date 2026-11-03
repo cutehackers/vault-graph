@@ -323,12 +323,13 @@ draft(모두 vault-graph가 에이전트 입력과 실행 날짜만으로 결정
 #### V4 세션 시작 회상: 고정 기억과 사용 기록 분리 (범위 f, g)
 
 - 구획A(고정 기억): 프로젝트 범위 안 `wiki/` 페이지 중 frontmatter `pin: true`이고 현재 상태인 것(`STALE_STATUSES`와 `retired` 제외)을 넣는다. Vault와 상관없이 구획B보다 먼저 넣는다(결정14).
-  - 항목은 두 줄이다. 첫 줄은 `- [m:<id>] <memory_kind 또는 type> · <제목> (<위치>)`, 둘째 줄은 frontmatter `summary`다.
+  - 항목은 두 줄이다. 첫 줄은 `- [m:<id>] <memory_kind 또는 type> · <제목> (<위치>)`, 둘째 줄은 frontmatter `summary`다. `summary`가 없거나 제목과 같으면(`remember`는 제목을 그대로 넣는다) 둘째 줄은 본문 앞부분 60토큰이다. 제목 줄과 `## Evidence` 절은 빼고, 잘리면 `…`를 붙인다(2026-11-03 F10).
   - 순서: `updated` 내림차순, 같으면 경로순.
   - 예산 400토큰. 넘치면 뒤에서부터 줄이고 "N개 생략" 한 줄을 둔다.
   - 구획A에 넣은 페이지는 구획B에 다시 넣지 않는다.
   - 제목은 `## 고정 기억`이다.
 - 구획B 순서: 모든 연결 Vault 페이지를 합쳐 `updated` 내림차순, 같으면 (Vault 이름, 경로)순으로 정렬한다. 사용 기록으로 순서를 바꾸는 두 동작을 지운다(`recall.py:410-417`의 "바뀐 항목 올리기"와 "열리지 않은 항목 내리기", `DEMOTE_AFTER_INJECTIONS`).
+- 구획D(2026-11-03 F11): `startup`·`clear`·`compact`에서 연결 Vault의 `scratch/review/` 안 `type: memory-proposal`, `status: pending` 항목이 있으면 `- 승인을 기다리는 추론 제안: <Vault 이름> N개. 확인은 그 Vault 폴더에서 `python3 tools/wiki/cli.py review list --status pending`` 한 줄을 더한다. 검토 대기열은 색인하지 않으므로 항목 frontmatter를 직접 읽기만 한다(`interface/composition/adapters/vault_review_queue.py`). 읽지 못하면 경고 한 줄을 내고 줄을 뺀다.
 - 구획B 제외(2026-11-02 의도 검수 반영, F3): frontmatter `type`이 `index`, `log`, `map`, `overview`인 페이지는 구획B에 넣지 않는다(`NAVIGATION_PAGE_TYPES`). Vault가 발행할 때마다 다시 쓰는 탐색 페이지라서 기억이 아니다. Vault 종류(role)가 아니라 페이지 `type`으로 거른다(결정15). 고정(`pin: true`)한 탐색 페이지는 구획A에 그대로 나온다.
 - 구획C: `retired`를 `NOTICE_STATUSES`에 더한다. 알림 줄은 "옛 제목 → 폐기됨: <retired_reason> (날짜)"다.
 - 사용 기록 남김: `injected`, `fetched` 기록은 계속 쓴다. 읽는 곳은 구획C 알림 중복 방지(`_History.noticed`와 기준 실행 찾기) 하나다. 측정용으로 남긴다(brief 3번).

@@ -80,6 +80,14 @@ class FakeDocuments:
 
 
 @dataclass
+class FakeProposals:
+    counts: Mapping[str, int]
+
+    def pending_count(self, vault_id: str) -> int:
+        return self.counts.get(vault_id, 0)
+
+
+@dataclass
 class FakeUsage:
     events: list[dict[str, object]] = field(default_factory=list)
     fail_read: bool = False
@@ -105,6 +113,7 @@ def ports(
     indexed: set[str] | None = None,
     vault_names: Mapping[str, str] | None = None,
     bodies: Mapping[str, str] | None = None,
+    proposals: Mapping[str, int] | None = None,
 ) -> RecallPorts:
     by_vault: dict[str, tuple[DocumentSnapshot, ...]] = {}
     for item in documents:
@@ -117,6 +126,7 @@ def ports(
         ),
         documents=FakeDocuments(by_vault, indexed=indexed, bodies=dict(bodies or {})),
         usage=usage if usage is not None else FakeUsage(),
+        proposals=FakeProposals(proposals or {}),
     )
 
 
@@ -837,3 +847,26 @@ def test_only_navigation_pages_hand_off_and_a_pinned_navigation_page_stays_in_bl
     bundle = run(ports((*BASE_DOCS, page)))
 
     assert "Pinned index" in "\n".join(section(bundle.text, "## 고정 기억"))
+
+
+# Pending proposals (F11) ---------------------------------------------------------------------
+
+
+def test_pending_proposals_are_counted_with_how_to_check_them_in_block_d() -> None:
+    bundle = run(ports(BASE_DOCS, vault_ids=("main", "other"), indexed={"main", "other"}, proposals={"other": 2}))
+
+    assert section(bundle.text, "## 가져오는 방법")[1] == (
+        "- 승인을 기다리는 추론 제안: other 2개. "
+        "확인은 그 Vault 폴더에서 `python3 tools/wiki/cli.py review list --status pending`"
+    )
+
+
+def test_no_pending_proposal_adds_no_line() -> None:
+    assert len(section(run(ports(BASE_DOCS, proposals={"main": 0})).text, "## 가져오는 방법")) == 1
+
+
+def test_pending_proposals_are_not_printed_on_resume() -> None:
+    usage = FakeUsage()
+    run(ports(BASE_DOCS, usage=usage, proposals={"main": 3}))
+
+    assert "추론 제안" not in run(ports(BASE_DOCS, usage=usage, proposals={"main": 3}), source="resume").text
