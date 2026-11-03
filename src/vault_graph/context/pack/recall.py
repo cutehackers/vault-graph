@@ -29,6 +29,7 @@ from vault_graph.context.pack.recall_pins import (
     PinEntry,
     is_pinned,
     pin_block,
+    pin_line,
     unknown_memory_schema,
 )
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
@@ -84,6 +85,10 @@ class RecallDocumentReader(Protocol):
     def documents(self, vault_id: str) -> tuple[DocumentSnapshot, ...]: ...
 
     def body_tokens(self, vault_id: str, document_id: str) -> int: ...
+
+    def body_text(self, vault_id: str, document_id: str) -> str:
+        """Indexed body as Markdown, section headings included. Empty when nothing is indexed."""
+        ...
 
 
 class UsageLogPort(Protocol):
@@ -246,6 +251,7 @@ class _Library:
     vault_ids: tuple[str, ...]
     many_vaults: bool
     token_reader: Callable[[str, str], int]
+    body_reader: Callable[[str, str], str]
     vault_names: Mapping[str, str] = field(default_factory=dict)
     _by_path: dict[tuple[str, str], _Entry] = field(default_factory=dict)
     _by_id: dict[str, _Entry] = field(default_factory=dict)
@@ -275,6 +281,7 @@ class _Library:
             vault_ids=vault_ids,
             many_vaults=many_vaults,
             token_reader=reader.body_tokens,
+            body_reader=reader.body_text,
             vault_names=vault_names,
         )
 
@@ -463,7 +470,11 @@ def _block_a(library: _Library, *, max_tokens: int) -> PinBlock:
             item_id=entry.item_id,
             kind=entry.memory_kind or entry.type,
             title=entry.title,
-            summary=entry.summary or entry.title,
+            summary=pin_line(
+                title=entry.title,
+                summary=entry.summary,
+                body=library.body_reader(entry.vault_id, entry.document_id),
+            ),
             location=library.location(entry),
             day=entry.day,
             path=entry.path,

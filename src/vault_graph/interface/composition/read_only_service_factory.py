@@ -528,3 +528,7 @@ class _MetadataRecallDocuments:
     def body_tokens(self, vault_id: str, document_id: str) -> int:
         chunks = self._metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
         return sum(chunk.token_count for chunk in chunks)
+
+    def body_text(self, vault_id: str, document_id: str) -> str:
+        chunks = self._metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
+        return "\n\n".join(f"## {chunk.section}\n\n{chunk.text}" if chunk.section else chunk.text for chunk in chunks)

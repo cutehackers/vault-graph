@@ -4,6 +4,10 @@ A page is pinned only when its frontmatter ``pin`` is the YAML boolean ``true`` 
 The string ``"true"`` does not pin. A page whose ``memory_schema`` is not a known value is treated
 as a regular page; the caller warns about it. Block A has its own token budget, so it never takes
 room from block B. Usage history is never read here.
+
+The second line of an item is the page ``summary``. ``remember`` writes the title there, so when
+the summary is missing or equals the title, the line is the start of the body instead, cut to
+``PIN_EXCERPT_MAX_TOKENS`` (F10).
 """
 
 from __future__ import annotations
@@ -13,6 +17,9 @@ from dataclasses import dataclass
 
 PIN_BLOCK_TITLE = "## 고정 기억"
 PIN_BLOCK_MAX_TOKENS = 400
+PIN_EXCERPT_MAX_TOKENS = 60
+# The section that ``remember`` drafts end with. It holds evidence lines, not the memory itself.
+_EVIDENCE_HEADING = "## evidence"
 MEMORY_SCHEMA_V1 = "vault-memory/v1"
 KNOWN_MEMORY_SCHEMAS = frozenset({MEMORY_SCHEMA_V1})
 
@@ -51,6 +58,27 @@ def is_pinned(frontmatter: Mapping[str, object]) -> bool:
     return frontmatter.get("pin") is True and unknown_memory_schema(frontmatter) is None
 
 
+def pin_line(*, title: str, summary: str | None, body: str) -> str:
+    """The second line of a pinned item: a summary that says more than the title, else the body start."""
+    if summary and summary != title:
+        return summary
+    return body_excerpt(body, max_tokens=PIN_EXCERPT_MAX_TOKENS) or title
+
+
+def body_excerpt(body: str, *, max_tokens: int) -> str:
+    """The body as one line without headings, stopping at the evidence section, cut to ``max_tokens``."""
+    words: list[str] = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.casefold() == _EVIDENCE_HEADING:
+            break
+        if not stripped.startswith("#"):
+            words.extend(stripped.split())
+    if len(words) <= max_tokens:
+        return " ".join(words)
+    return " ".join(words[:max_tokens]) + "…"
+
+
 def pin_block(entries: Sequence[PinEntry], *, max_tokens: int) -> PinBlock:
     """Render block A newest ``updated`` first, ties by path, dropping items from the end to fit."""
     by_path = sorted(entries, key=lambda item: (item.path, item.location))
@@ -86,9 +114,12 @@ __all__ = [
     "MEMORY_SCHEMA_V1",
     "PIN_BLOCK_MAX_TOKENS",
     "PIN_BLOCK_TITLE",
+    "PIN_EXCERPT_MAX_TOKENS",
     "PinBlock",
     "PinEntry",
+    "body_excerpt",
     "is_pinned",
     "pin_block",
+    "pin_line",
     "unknown_memory_schema",
 ]

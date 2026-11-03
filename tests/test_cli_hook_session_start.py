@@ -465,6 +465,23 @@ def test_yaml_true_pin_in_another_vault_is_printed_first_and_not_repeated(base: 
     assert len(result.stdout) <= 9000
 
 
+def test_pin_written_like_remember_shows_its_body_not_its_title(base: Path, graph_home: Path) -> None:
+    """F10 through a real index: ``remember`` sets ``summary`` to the title."""
+    write_page(
+        base / "vaults" / "main",
+        "wiki/systems/use-uv.md",
+        f'type: system\nstatus: active\nupdated: "{day(1)}"\npin: true\nmemory_schema: vault-memory/v1\n'
+        "summary: Use uv\n",
+        "Use uv",
+    )
+    reindex(graph_home)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert section(result.stdout, "## 고정 기억")[1] == "  Body of Use uv."
+
+
 def test_unknown_memory_schema_warns_once_on_stderr(base: Path, graph_home: Path) -> None:
     pin_page(base / "vaults" / "main", "wiki/rules/future.md", "Future rule", schema="vault-memory/v9")
     reindex(graph_home)
