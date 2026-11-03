@@ -23,10 +23,12 @@ changed. The run uses the same metadata indexer, graph indexer and generation pu
 - A cost check before staging. The graph rebuild and the publication read the whole Vault, so their
   time grows with the indexed document count, not with the changed files. The refresh is skipped
   when the linked Vaults hold more than ``MAX_QUICK_REFRESH_DOCUMENTS`` indexed documents, or when
-  the last quick refresh of the same Vaults, scaled to today's document count, took longer than the
-  time left. Each quick refresh that staged a generation writes its duration to
-  ``logs/quick-refresh-times.json`` in the Graph Home. A record older than
-  ``QUICK_REFRESH_RECORD_MAX_AGE`` is ignored, so one slow run does not turn the refresh off for good.
+  each of the last ``SLOW_RUNS_TO_SKIP`` quick refreshes of the same Vaults, scaled to today's
+  document count, took longer than the time left. Each quick refresh that staged a generation adds
+  its duration to ``logs/quick-refresh-times.json`` in the Graph Home, which keeps the last
+  ``SLOW_RUNS_TO_SKIP`` runs per Vault set. One slow run, such as the first one after ``vg setup``,
+  does not skip the next (2026-11-03 발견12). A run older than ``QUICK_REFRESH_RECORD_MAX_AGE`` is
+  ignored, so slow runs do not turn the refresh off for good.
 - Nothing changed means nothing is written. Vault files are never written.
 """
 
@@ -78,6 +80,8 @@ MAX_LOCK_WAIT_S = 1.0
 MAX_QUICK_REFRESH_DOCUMENTS = 1500
 QUICK_REFRESH_TIMES = Path("logs") / "quick-refresh-times.json"
 QUICK_REFRESH_RECORD_MAX_AGE = timedelta(days=1)
+# Slow runs in a row that skip the next quick refresh. One slow run can be a cold start.
+SLOW_RUNS_TO_SKIP = 2
 
 RefreshStatus = Literal["unchanged", "refreshed", "skipped", "failed"]
 # Called once after the change scan with (Vaults to index, Vaults to check for stale vectors).
@@ -182,16 +186,16 @@ def refresh_recall_index(
             "refreshes. `vg index` runs in the background.",
         )
     times_path = catalog_service.graph_home_path / QUICK_REFRESH_TIMES
-    last = _last_quick_refresh(times_path, vault_ids)
-    if last is not None:
-        last_seconds, last_documents = last
-        estimate = last_seconds * max(documents, 1) / max(last_documents, 1)
-        if estimate > deadline - monotonic():
-            return outcome(
-                "skipped",
-                f"the last quick refresh took {last_seconds:.1f} s, more than the time left. "
-                "`vg index` runs in the background.",
-            )
+    recent = _recent_quick_refreshes(times_path, vault_ids)
+    time_left = deadline - monotonic()
+    if len(recent) >= SLOW_RUNS_TO_SKIP and all(
+        seconds * max(documents, 1) / max(run_documents, 1) > time_left for seconds, run_documents in recent
+    ):
+        took = ", ".join(f"{seconds:.1f} s" for seconds, _ in recent)
+        return outcome(
+            "skipped",
+            f"the last two quick refreshes took {took}, more than the time left. `vg index` runs in the background.",
+        )
 
     try:
         bundle = _open_metadata_bundle(
@@ -279,15 +283,30 @@ def _read_quick_refresh_times(path: Path) -> dict[str, object]:
     return loaded if isinstance(loaded, dict) else {}
 
 
-def _last_quick_refresh(path: Path, vault_ids: tuple[str, ...]) -> tuple[float, int] | None:
-    """(seconds, documents) of the last quick refresh of these Vaults, if recorded recently."""
+def _recent_quick_refreshes(path: Path, vault_ids: tuple[str, ...]) -> list[tuple[float, int]]:
+    """(seconds, documents) of the recent quick refreshes of these Vaults, oldest first.
+
+    A record written before 발견12 holds one run without ``runs`` and counts as that one run.
+    """
     record = _read_quick_refresh_times(path).get(_quick_refresh_key(vault_ids))
     if not isinstance(record, dict):
+        return []
+    runs = record.get("runs", [record])
+    recent: list[tuple[float, int]] = []
+    for run in runs if isinstance(runs, list) else []:
+        parsed = _parse_run(run)
+        if parsed is not None:
+            recent.append(parsed)
+    return recent[-SLOW_RUNS_TO_SKIP:]
+
+
+def _parse_run(run: object) -> tuple[float, int] | None:
+    if not isinstance(run, dict):
         return None
     try:
-        seconds = float(record["seconds"])
-        documents = int(record["documents"])
-        recorded_at = datetime.fromisoformat(str(record["recorded_at"]))
+        seconds = float(run["seconds"])
+        documents = int(run["documents"])
+        recorded_at = datetime.fromisoformat(str(run["recorded_at"]))
     except (KeyError, TypeError, ValueError):
         return None
     if recorded_at.tzinfo is None or datetime.now(UTC) - recorded_at > QUICK_REFRESH_RECORD_MAX_AGE:
@@ -296,13 +315,14 @@ def _last_quick_refresh(path: Path, vault_ids: tuple[str, ...]) -> tuple[float, 
 
 
 def _record_quick_refresh(path: Path, vault_ids: tuple[str, ...], *, seconds: float, documents: int) -> None:
-    """Write the duration of a quick refresh. A write that fails only loses the estimate."""
+    """Add the duration of a quick refresh, keeping the last runs. A write that fails only loses the estimate."""
     times = _read_quick_refresh_times(path)
-    times[_quick_refresh_key(vault_ids)] = {
-        "seconds": round(seconds, 3),
-        "documents": documents,
-        "recorded_at": datetime.now(UTC).isoformat(),
-    }
+    key = _quick_refresh_key(vault_ids)
+    previous = times.get(key)
+    runs = previous.get("runs", [previous]) if isinstance(previous, dict) else []
+    run = {"seconds": round(seconds, 3), "documents": documents, "recorded_at": datetime.now(UTC).isoformat()}
+    kept = [item for item in (runs if isinstance(runs, list) else []) if _parse_run(item) is not None]
+    times[key] = {"runs": [*kept, run][-SLOW_RUNS_TO_SKIP:]}
     temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
