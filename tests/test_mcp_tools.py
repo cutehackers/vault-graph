@@ -465,11 +465,12 @@ def test_vault_required_payload_lists_candidates(tmp_path: Path) -> None:
 @pytest.mark.parametrize("tool_name", WRITE_TOOLS)
 def test_write_tools_need_basis(tmp_path: Path, tool_name: str) -> None:
     server, _ = register_with(tmp_path, PUBLISHED)
-    kwargs = {
+    kwargs_by_tool: dict[str, dict[str, Any]] = {
         "remember": {"title": "A", "kind": "decision", "body": "B", "evidence": ["E"]},
         "update_memory": {"path": "wiki/a.md", "body": "B", "evidence": ["E"]},
         "retire_memory": {"path": "wiki/a.md", "reason": "R"},
-    }[tool_name]
+    }
+    kwargs = kwargs_by_tool[tool_name]
 
     with pytest.raises(TypeError, match="basis"):
         server.tools[tool_name](**kwargs)

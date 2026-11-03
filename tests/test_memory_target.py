@@ -6,6 +6,7 @@ Source: spec 2026-11-02-vault-long-term-memory V3 (저장 Vault 고르기, 수�
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -140,7 +141,7 @@ def test_roles_do_not_change_the_choice(role: str) -> None:
 # Update and retire target
 
 
-def has_page_in(*names: str):  # noqa: ANN201 - test helper
+def has_page_in(*names: str) -> Callable[[MappedVault], bool]:
     return lambda vault: vault.name in names
 
 

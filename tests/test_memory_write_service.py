@@ -11,8 +11,10 @@ import hashlib
 import json
 import threading
 import time
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -753,7 +755,7 @@ def test_calls_for_the_same_vault_run_one_at_a_time(tmp_path: Path) -> None:
     writer = RecordingWriter(delay_s=0.05)
     service = make_service(tmp_path, writer, vaults=(main,))
     other_service = make_service(tmp_path, writer, vaults=(main,))
-    calls = [
+    calls: list[tuple[Callable[[Any], object], object]] = [
         (service.remember, remember_request(title="Decision 1")),
         (other_service.remember, remember_request(title="Decision 2")),
         (service.update, update_request(path="wiki/decisions/existing.md")),
