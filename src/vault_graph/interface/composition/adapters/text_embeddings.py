@@ -80,7 +80,7 @@ EMBEDDING_PRESETS: Mapping[str, EmbeddingPreset] = MappingProxyType(
                 normalization=True,
                 max_tokens=8192,
                 download_mb=587,
-                summary="Recommended: Korean and English coding-agent sessions",
+                summary="Alternative: best Korean scores, slow re-index with high memory use",
                 query_prefix="query: ",
             ),
             EmbeddingPreset(
@@ -98,7 +98,7 @@ EMBEDDING_PRESETS: Mapping[str, EmbeddingPreset] = MappingProxyType(
                 normalization=True,
                 max_tokens=512,
                 download_mb=135,
-                summary="Alternative: smaller and faster",
+                summary="Recommended: Korean and English coding-agent sessions, small and fast",
                 query_prefix="query: ",
                 document_prefix="passage: ",
             ),
@@ -122,7 +122,7 @@ EMBEDDING_PRESETS: Mapping[str, EmbeddingPreset] = MappingProxyType(
         )
     }
 )
-DEFAULT_EMBEDDING_PRESET = "arctic-l"
+DEFAULT_EMBEDDING_PRESET = "e5-small"
 
 _REGISTERED_CUSTOM_MODELS: set[str] = set()
 _REGISTRATION_LOCK = threading.Lock()

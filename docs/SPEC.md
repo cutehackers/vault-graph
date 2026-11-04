@@ -81,7 +81,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 | 코드 | 가치 | Vault만으로는 | vault-graph 현재 | 남은 일 |
 |---|---|---|---|---|
 | 가치1 | 대량 원문 검색: 세션 원문 수천 개에서 찾기 | `wiki/`만 찾고 매번 전체를 다시 읽는다 | 구현. `raw/` 포함 상시 색인, 증분 색인 | 세션 수집(의존2, 의존3)이 먼저 있어야 성립한다. 규모 측정 |
-| 가치2 | 의미 검색: "인증 실패"로 "로그인 오류" 찾기 | 없음 | 구현. 기본 임베딩 모델은 사람이 정한 `arctic-l`(snowflake-arctic-embed-l-v2.0), `vg embedding use`로 대안 `e5-small`·`minilm`을 고른다 | 측정1과 같은 방법의 모델 비교(n차-4)는 남아 있다. 한국어 키워드는 지금 Vault 검색이 낫다(1차-5에서 보강) |
+| 가치2 | 의미 검색: "인증 실패"로 "로그인 오류" 찾기 | 없음 | 구현. 기본 임베딩 모델은 사람이 정한 `e5-small`(multilingual-e5-small), `vg embedding use`로 대안 `arctic-l`·`minilm`을 고른다 | 측정1과 같은 방법의 모델 비교(n차-4)는 남아 있다. 한국어 키워드는 지금 Vault 검색이 낫다(1차-5에서 보강) |
 | 가치3 | 코드 위키: 코드와 결정·작업 기록을 함께 조회 | 코드를 읽지 않는다 | 일부. Python·Dart 코드 투영, `explore_project`. 검색 색인과 분리 | `explain_symbol`, 질의 하나로 코드와 기억 찾기(n차-3) |
 | 가치4 | 관련 기억만 담은 회상 | `recall.sh`는 고정 섹션만 출력한다 | 구현. context pack(기본 8,000토큰 예산), 세션 시작 회상(고정 기억 구획 포함) | 질문 기반 회상(n차-8) |
 | 가치5 | 문단 단위 근거: 중복 제거, 인용 검증 | 페이지 단위 결과 | 구현. 문단 조각, provenance 묶음, 인용 검증 | 대체된 claim 제외를 Vault와 맞추기(n차-1) |
@@ -363,7 +363,7 @@ Vault 전용 정책과 기존 저장 형식의 변환은 `vault_graph.indexing.v
 | n차-1 | 대체된 claim을 기본 결과와 회상에서 빼고 최근 기억에 가중치를 준다. Vault `supersede-claim` 결과를 읽는다 | 의존4, 의존5 |
 | n차-2 | 기억 frontmatter(`peer`, `kind`, `observed_at`, claim 상태) 해석과 프로필 조회 `get_profile`. 모르는 스키마 버전은 경고한다 | 의존5 |
 | n차-3 | 코드와 기억을 질의 하나로 찾는다. MCP `explain_symbol`, 코드 청크 색인 여부 결정 | 1차 완료 |
-| n차-4 | 임베딩 모델은 사람의 결정으로 `arctic-l`을 기본으로 정했다(DECISIONS 2026-11-04). 남은 일은 측정1과 같은 방법으로 `arctic-l`·`e5-small`·`minilm`을 비교해 그 결정을 확인하는 것이다 | 측정1 |
+| n차-4 | 임베딩 모델은 사람의 결정으로 `e5-small`을 기본으로 정했다(DECISIONS 2026-11-04 Default To E5-Small). 남은 일은 측정1과 같은 방법으로 `e5-small`·`arctic-l`·`minilm`을 비교해 그 결정을 확인하는 것이다 | 측정1 |
 | n차-5 | 폴링 watch를 파일 변경 이벤트(`watchfiles`) 기반으로 바꾼다 | 없음 |
 | n차-6 | `raw/sessions/<agent>/`를 수집 대상별(Claude Code, Codex, ChatGPT)로 역할 분류하고 evidence 모드에서 찾는다 | 의존2 |
 | n차-7 | `project-bindings.json`과 자체 Vault 등록을 `vault-map.json` 읽기로 대체하고 정리한다 | 1차-2 |

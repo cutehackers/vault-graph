@@ -816,3 +816,16 @@ source of truth.
 - A broken settings file or an unknown preset name stops commands that use the model. Vault Graph still never falls back to another model silently.
 - The `minilm` preset keeps the old spec, so a Graph Home that selects it before re-embedding with another model reuses its existing MiniLM vectors.
 - Measurement 1 (`docs/SPEC.md` n-4) still has to compare the models on the user's own data.
+
+## 2026-11-04 - Default To E5-Small After Measuring Arctic-L
+
+**Question:** The previous decision made `arctic-l` the default on estimated costs. A measured full re-index on the user's six Vaults (26,209 chunks, a computer with 36 GB of memory) did not finish in 1 hour 55 minutes and used about 40 GB of memory, which made the computer swap. Should `arctic-l` stay the default (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`, 결정13)?
+
+**Decision:** The user chose `e5-small` (`Xenova/multilingual-e5-small`, int8 ONNX, 384 dimensions, up to 512 tokens) as the default and recommended model. `arctic-l` stays as an alternative. A Graph Home without `configs/embedding.json` uses `e5-small`. This replaces the default model in `2026-11-04 - Default To Arctic-L And Let Users Pick An Embedding Preset`. The preset list, the settings file and the commands from that decision stay.
+
+**Reason:** A Graph Home without a settings file starts a background full re-index at the first session after an upgrade. With `arctic-l` that run takes hours and uses more memory than the computer has. `e5-small` supports Korean, reads 512 tokens per chunk against MiniLM's 128, and downloads about 135 MB. The earlier figures of about 48 minutes and 2.7 times the storage were wrong.
+
+**Implications:**
+
+- `README.md` lists `arctic-l` as an alternative with its measured cost.
+- Measurement 1 (`docs/SPEC.md` n-4) still has to compare the models on the user's own data.

@@ -181,7 +181,7 @@ def test_use_failures_exit_non_zero_and_leave_settings_bytes_unchanged(
     assert result.exit_code != 0
     assert _settings_bytes(home) == before
     if case == "unknown-name":
-        assert "arctic-l, e5-small, minilm" in result.output
+        assert "e5-small, arctic-l, minilm" in result.output
         assert hub.calls == []
     if case == "models-dir-inside-vault":
         assert hub.calls == []
@@ -191,9 +191,9 @@ def test_use_failures_exit_non_zero_and_leave_settings_bytes_unchanged(
 def test_list_json_shows_recommended_model_first_and_writes_nothing(hub: FakeHub, home: Path, tmp_path: Path) -> None:
     models_dir = tmp_path / "models"
     CatalogService(graph_home_path=home).save_embedding_selection(
-        EmbeddingSelection(model="e5-small", models_dir=models_dir)
+        EmbeddingSelection(model="arctic-l", models_dir=models_dir)
     )
-    hub.downloaded.add((EMBEDDING_PRESETS["e5-small"].repo_id, str(models_dir)))
+    hub.downloaded.add((EMBEDDING_PRESETS["arctic-l"].repo_id, str(models_dir)))
     before = _tree_digest(home)
 
     result = runner.invoke(app, ["embedding", "list", "--format", "json", "--graph-home", str(home)])
@@ -203,7 +203,7 @@ def test_list_json_shows_recommended_model_first_and_writes_nothing(hub: FakeHub
     assert payload["settings_path"] == str(_settings(home))
     assert payload["models_dir"] == str(models_dir)
     models = payload["models"]
-    assert [model["name"] for model in models] == ["arctic-l", "e5-small", "minilm"]
+    assert [model["name"] for model in models] == ["e5-small", "arctic-l", "minilm"]
     assert [model["role"] for model in models] == ["recommended", "alternative", "alternative"]
     assert [model["selected"] for model in models] == [False, True, False]
     assert [model["downloaded"] for model in models] == [False, True, False]
@@ -239,7 +239,7 @@ def test_list_text_shows_settings_path_folder_and_recommended_model_first(hub: F
     assert lines[0] == f"embedding_settings: {_settings(home)}"
     assert lines[1].startswith("models_dir: ")
     model_lines = [line for line in lines if line.startswith("model: ")]
-    assert [line.split()[1] for line in model_lines] == ["arctic-l", "e5-small", "minilm"]
+    assert [line.split()[1] for line in model_lines] == ["e5-small", "arctic-l", "minilm"]
     assert "recommended" in model_lines[0] and "selected=yes" in model_lines[0]
     assert all("alternative" in line and "selected=no" in line for line in model_lines[1:])
     assert all("downloaded=no" in line for line in model_lines)

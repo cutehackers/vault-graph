@@ -139,7 +139,7 @@ agent after MCP registration so it can load the new server.
 | Index all Vaults | `vg index --all-vaults --graph-home ~/.vault-graph` |
 | Check health | `vg status --graph-home ~/.vault-graph` |
 | List embedding models | `vg embedding list --graph-home ~/.vault-graph` |
-| Switch embedding model | `vg embedding use arctic-l --graph-home ~/.vault-graph` |
+| Switch embedding model | `vg embedding use e5-small --graph-home ~/.vault-graph` |
 | Search evidence | `vg search --graph-home ~/.vault-graph "query"` |
 | Expand raw/source evidence | `vg search --mode evidence --graph-home ~/.vault-graph "query"` |
 | Audit projection duplication | `vg projection-audit --graph-home ~/.vault-graph` |
@@ -161,16 +161,16 @@ either option use the active Vault.
 ## Embedding Model
 
 Vault Graph embeds every chunk with a local model for semantic search. The
-recommended model is `arctic-l` (`Snowflake/snowflake-arctic-embed-l-v2.0`,
-int8). It suits Korean text and coding agent session transcripts, reads up to
-8192 tokens per chunk, and downloads about 587 MB. It is the default, so you do
-not need to do anything to use it.
+recommended model is `e5-small` (`Xenova/multilingual-e5-small`, int8). It
+suits Korean and English coding agent session transcripts, reads up to 512
+tokens per chunk, and downloads about 135 MB. It is the default, so you do not
+need to do anything to use it.
 
 Two alternatives are available:
 
 | Name | Use it when | Dimensions | Max tokens | Download |
 | --- | --- | --- | --- | --- |
-| `e5-small` | You want a smaller, faster model | 384 | 512 | about 135 MB |
+| `arctic-l` | You want the best Korean scores and accept a slow, memory-heavy re-index | 1024 | 8192 | about 587 MB |
 | `minilm` | You want the previous default back | 384 | 128 | about 220 MB |
 
 Model files live in `~/llm/models`, outside every registered Vault. Your choice
@@ -181,7 +181,7 @@ Change the folder with `--models-dir` on `vg embedding use`.
 ```bash
 vg embedding list --graph-home ~/.vault-graph
 vg embedding use e5-small --graph-home ~/.vault-graph
-vg embedding use arctic-l --models-dir /path/to/models --graph-home ~/.vault-graph
+vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph
 ```
 
 `vg embedding list` shows each model, which one is selected, whether it is
@@ -206,9 +206,13 @@ What happens after you switch:
 2. Search returns keyword results only until re-indexing finishes for that
    Vault, with a `vector_stale` warning. Vaults that finish first get semantic
    search back first.
-3. The first full re-index with `arctic-l` can take up to about 48 minutes, and
-   the vector store grows to about 2.7 times its `minilm` size. Both numbers are
-   estimates.
+3. Re-indexing cost was measured on six Vaults with 26,209 chunks on a
+   computer with 36 GB of memory. `e5-small` re-indexed all six Vaults in about
+   14 minutes, used up to about 21 GB of memory without swapping, and the whole
+   index folder was about 496 MB. `arctic-l` took 192 seconds and
+   16.5 GB of memory for one Vault of 420 chunks. On all six Vaults it did not
+   finish in 1 hour 55 minutes, used more memory than the computer has, and made
+   the computer swap. Pick `arctic-l` only for a few small Vaults.
 4. After a successful re-index, `vg index` removes the old model's empty vector
    collections and prints `removed_vector_collections: N`. The previous index
    generation keeps its copy until the next index replaces it, so disk space
@@ -217,7 +221,7 @@ What happens after you switch:
 5. A running MCP server does not need a restart. It reads the new choice when
    the re-index publishes a new index.
 
-Upgrading from a version that used MiniLM switches the model to `arctic-l` and
+Upgrading from a version that used MiniLM switches the model to `e5-small` and
 starts re-embedding at the next session start. To keep your current vectors,
 run `vg embedding use minilm` before that. If `configs/embedding.json` names an
 unknown model or is not valid, commands that need the model stop with an error.

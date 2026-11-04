@@ -37,9 +37,9 @@ def _config(preset: EmbeddingPreset, tmp_path: Path, **kwargs: Any) -> FastEmbed
 # Preset table (A-4, A-5) ----------------------------------------------------------------------
 
 
-def test_preset_table_has_three_presets_and_arctic_l_is_the_default() -> None:
+def test_preset_table_has_three_presets_and_e5_small_is_the_default() -> None:
     assert set(EMBEDDING_PRESETS) == {"arctic-l", "e5-small", "minilm"}
-    assert DEFAULT_EMBEDDING_PRESET == "arctic-l"
+    assert DEFAULT_EMBEDDING_PRESET == "e5-small"
     assert all(name == preset.name for name, preset in EMBEDDING_PRESETS.items())
 
 
@@ -377,13 +377,13 @@ def _files(root: Path) -> list[Path]:
     return sorted(root.rglob("*"))
 
 
-def test_text_embeddings_for_without_settings_file_uses_arctic_l_and_creates_nothing(tmp_path: Path) -> None:
+def test_text_embeddings_for_without_settings_file_uses_e5_small_and_creates_nothing(tmp_path: Path) -> None:
     catalog_service = CatalogService(graph_home_path=tmp_path / "home")
     before = _files(tmp_path)
 
     embeddings = text_embeddings_for(catalog_service, local_files_only=True)
 
-    assert embeddings.model_spec() == ARCTIC.model_spec()
+    assert embeddings.model_spec() == E5.model_spec()
     assert embeddings.config.cache_dir == Path("~/llm/models").expanduser()
     assert embeddings.config.local_files_only is True
     assert _files(tmp_path) == before

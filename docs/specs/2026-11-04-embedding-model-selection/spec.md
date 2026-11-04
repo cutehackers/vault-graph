@@ -192,6 +192,7 @@
 | 결정10 | 내려받을 파일을 프리셋의 `files`로 제한한다 | Hugging Face 저장소에는 int8 외의 가중치 파일이 함께 있을 수 있다. 제한하지 않으면 570MB 대신 몇 GB를 받을 수 있다(7절 2번) | spec 작성자 |
 | 결정11 | `vg embedding status`는 만들지 않고, `vg embedding list`가 선택·폴더·받음 여부를 함께 보여 준다. `vg status`는 바꾸지 않는다 | 명령 두 개로 충분하다. 벡터가 오래되었는지는 이미 `vg status`가 보여 준다 | [가정] brief 가정3을 줄임 |
 | 결정12 | 모델 폴더 기본값 `~/llm/models` | 사람이 정했다 | 사람(앞선 대화) |
+| 결정13 | 기본 프리셋과 추천 모델을 `e5-small`로 바꾼다. `arctic-l`은 대안으로 남긴다. 결정1, 결정2의 추천 모델, 결정9를 대신한다 | A-29 측정에서 `arctic-l`은 Vault 6개(26,209조각)의 전체 재색인을 1시간 55분 안에 끝내지 못했고, 메모리 사용량이 40GB로 RAM(36GB)보다 커서 스왑이 일어났다(7절 4번). 설정 파일이 없는 Graph Home은 새 버전 설치 뒤 첫 세션에 백그라운드로 전체 재색인을 시작하므로, 이 비용이 기본값이 되면 안 된다. `e5-small`은 한국어를 지원하고 512토큰을 읽어 MiniLM의 128토큰보다 길다 | 사람(측정 뒤 질문 "Switch to e5-small") |
 
 ## 6. Failure and boundary behavior
 
@@ -232,6 +233,7 @@
 3. 한국어 점수는 공식 MTEB 실행이 아니라 커뮤니티 표의 한국어 문장 질의응답 점수다. 코드 식별자, 경로, 셸 출력이 섞인 세션 원문에서 arctic-l이 MiniLM보다 낫다는 것은 측정되지 않았다(n차-4에 남음).
 4. 재색인 시간 48분과 저장소 2.7배는 32개 조각(405토큰)으로 한 번 잰 속도와 차원 비율로 계산한 값이다. 실제 조각은 더 짧아 시간은 더 짧을 것으로 보지만 확인하지 않았다.
    - 측정(2026-11-04, 임시 Graph Home, 메모리 36GB 컴퓨터, 배치 크기 256): Vault 1개 420조각은 `vg index`에 192초, 최대 메모리 16.5GB, 벡터 폴더 6.5MB였다. Vault 6개 26,209조각은 `vg index --all-vaults --full`로 1시간 55분(6,898초)을 돌려도 끝나지 않아 멈췄다. 이때 최대 메모리는 20.2GB(상주), 메모리 사용량은 40GB로 RAM보다 커서 스왑이 일어났다. 끝까지 돌지 않아 전체 시간과 전체 벡터 폴더 크기는 재지 못했다. 420조각 속도로 계산하면 스왑이 없어도 약 3시간이므로 48분 추정은 맞지 않다. 저장소 배율은 재지 못했다. 5번의 메모리 위험이 실제로 일어났다.
+   - 측정(2026-11-04, 같은 조건, 결정13 뒤): `e5-small`은 Vault 6개를 `vg index --all-vaults --full`로 830초(약 14분)에 끝냈다. 최대 메모리 21.2GB(상주), 스왑 0, `vector_stale_count: 0`, 색인 폴더(`projections/`) 전체 496MB였다. 벡터 폴더만의 크기는 따로 재지 않았다.
 5. arctic-l을 배치 크기 256으로 돌릴 때 메모리 사용량을 재지 않았다. 최대 8192토큰을 읽으므로 긴 조각이 많은 배치에서 메모리가 크게 늘 수 있다.
 6. 떠 있는 MCP 서버가 언제 서비스를 다시 여는지 확인하지 않았다. `docs/ARCHITECTURE.md:242`는 활성 세대가 바뀌면 다시 연다고 적지만, 그때 임베딩 객체도 다시 만들어 설정 파일을 다시 읽는지는 코드로 확인하지 않았다. 아니라면 모델을 바꾼 뒤 MCP 서버를 다시 시작해야 하고, README에 그렇게 적어야 한다.
 7. fastembed 0.8.0에서 `add_custom_model`을 같은 이름으로 두 번 부르면 어떻게 되는지 확인하지 않았다. 4.2는 "이미 등록되었으면 건너뜀"으로 이를 피한다.
@@ -248,13 +250,13 @@
 - A-1 `uv run --python 3.12 ruff check src tests packages`가 통과한다.
 - A-2 `uv run --python 3.12 mypy src tests packages/text-embeddings/src packages/vector-search/src packages/vector-index/src`가 통과한다.
 - A-3 `uv run --python 3.12 --all-packages --all-extras pytest -q tests packages/*/tests`가 통과한다. 새 테스트와 바뀐 테스트는 `snapshot_resolver`·`backend_factory` 대역이나 가짜 `fastembed` 모듈만 쓰고, 모델 파일을 내려받거나 실제 모델 폴더를 바꾸지 않는다(`docs/DECISIONS.md:333`).
-- A-4 `EMBEDDING_PRESETS`에 `arctic-l`, `e5-small`, `minilm`이 있고 `DEFAULT_EMBEDDING_PRESET == "arctic-l"`이다. 모든 프리셋의 `revision`은 40자 16진수이고, `spec_version`은 서로 다르다. 테스트로 확인한다.
+- A-4 `EMBEDDING_PRESETS`에 `arctic-l`, `e5-small`, `minilm`이 있고 `DEFAULT_EMBEDDING_PRESET == "e5-small"`이다(결정13). 모든 프리셋의 `revision`은 40자 16진수이고, `spec_version`은 서로 다르다. 테스트로 확인한다.
 - A-5 `minilm` 프리셋의 스펙 네 필드가 `44dbf86`의 `DEFAULT_FASTEMBED_MODEL_SPEC`(`faf4aa4225822f3bc6376869cb1164e8e3feedd0`, 384, `fastembed-multilingual-minilm-l12-v2-cosine-v1`)과 같고, `repo_id`가 `qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q`다. 테스트로 확인한다.
-- A-6 임베딩 설정 파일이 없는 Graph Home에서 `text_embeddings_for(..., local_files_only=True).model_spec()`이 `arctic-l`의 스펙이고, `config.cache_dir`가 `~/llm/models`를 펼친 경로다. 이 호출 뒤 Graph Home에 새 파일이 없다.
+- A-6 임베딩 설정 파일이 없는 Graph Home에서 `text_embeddings_for(..., local_files_only=True).model_spec()`이 `e5-small`의 스펙이고(결정13), `config.cache_dir`가 `~/llm/models`를 펼친 경로다. 이 호출 뒤 Graph Home에 새 파일이 없다.
 - A-7 `src` 안에서 `FastEmbedTextEmbeddingsConfig(`를 부르는 곳은 `interface/composition/adapters/text_embeddings.py` 한 파일뿐이고, `llm/models` 문자열은 `operation/scope/embedding_selection.py` 한 곳에만 있다. `rg` 검색으로 확인한다.
 - A-8 `vg embedding use e5-small --graph-home <tmp>`(가짜 내려받기)를 실행하면 종료 코드가 0이고, `<tmp>/configs/embedding.json`이 `{"version": 1, "model": "e5-small", "models_dir": <절대 경로>}`이다. 내려받기 대역은 `local_files_only=False`, `revision`이 프리셋 값, `allow_patterns`가 프리셋 `files`인 호출을 받는다.
 - A-9 `vg embedding use nope`, 내려받기 대역이 실패하는 `vg embedding use e5-small`, 등록 Vault 안을 가리키는 `--models-dir`로 실행한 `vg embedding use e5-small`은 모두 0이 아닌 종료 코드로 끝나고, 실행 전후 `configs/embedding.json`의 바이트(또는 없음)가 같다.
-- A-10 `vg embedding list --format json`은 프리셋 세 개를 이름, 추천/대안 표시, 선택 여부, 차원, 받음 여부, `summary`와 함께 돌려준다. 첫 항목은 `arctic-l`이고 추천으로 표시되며, 나머지 둘은 대안으로 표시된다. 결과는 또한 설정 파일 경로와 모델 폴더를 담는다. 실행 중 내려받기 대역은 `local_files_only=True` 호출만 받고, 실행 전후 Graph Home 바이트가 같다.
+- A-10 `vg embedding list --format json`은 프리셋 세 개를 이름, 추천/대안 표시, 선택 여부, 차원, 받음 여부, `summary`와 함께 돌려준다. 첫 항목은 `e5-small`이고 추천으로 표시되며(결정13), 나머지 둘은 대안으로 표시된다. 결과는 또한 설정 파일 경로와 모델 폴더를 담는다. 실행 중 내려받기 대역은 `local_files_only=True` 호출만 받고, 실행 전후 Graph Home 바이트가 같다.
 - A-11 가짜 백엔드가 받은 문자열로 접두어를 확인한다. `e5-small`: `embed_query("x")` → `"query: x"`, `embed`의 문서 `"y"` → `"passage: y"`. `arctic-l`: `"query: x"`, `"y"`. `minilm`: `"x"`, `"y"`.
 - A-12 검색 서비스가 질의를 `embed_query`로 임베딩한다. `embed`를 부르면 실패하는 대역으로 `RetrievalService` 벡터 검색 테스트를 돌려 확인한다.
 - A-13 `custom` 프리셋으로 `_default_backend_factory`를 같은 프로세스에서 두 번 부르면, 가짜 `fastembed` 모듈의 `add_custom_model`이 프리셋의 `model_name`, `pooling`, `normalization`, `dim`, `model_file`로 한 번만 불린다. `minilm`에서는 불리지 않고, 기존 MiniLM 경고 억제 테스트(`tests/test_fastembed_text_embeddings.py:130-152`)가 통과한다.
@@ -262,7 +264,7 @@
 - A-15 경계 테스트 `tests/test_feature_import_direction.py`, `tests/test_module_import_cycles.py`, `tests/test_functional_module_boundaries.py`, `tests/test_read_only_boundary.py`, `tests/test_search_read_only_boundary.py`가 위반 예외 목록을 늘리지 않고 통과한다. `operation/scope/embedding_selection.py`는 다른 기능 영역을 가져오지 않는다.
 - A-16 `git diff 44dbf86 -- packages/` 출력이 비어 있다(일반 패키지 계약 무변경).
 - A-17 기존 CLI 명령과 인자가 그대로 있다. `vg --help`의 기존 명령 목록에서 빠지거나 이름이 바뀐 것이 없고 `embedding`만 더해졌다. 기존 CLI·MCP 계약 테스트가 고치지 않고 통과한다.
-- A-18 README에 "Embedding model" 절이 있고, 그 절에 `arctic-l`, `e5-small`, `minilm`, `~/llm/models`, `vg embedding list`, `vg embedding use`가 있다. 절 안에서 `arctic-l`이 다른 두 이름보다 먼저 나오고 추천 모델(recommended)로 적혀 있다. 모델을 바꾼 뒤 다시 색인될 때까지 키워드 결과만 나온다는 문장이 있다. `tests/test_readme_onboarding_contract.py`에 이 확인을 더하고, 기존 확인 문장(`:26`)도 계속 통과한다.
+- A-18 README에 "Embedding model" 절이 있고, 그 절에 `arctic-l`, `e5-small`, `minilm`, `~/llm/models`, `vg embedding list`, `vg embedding use`가 있다. 절 안에서 `e5-small`이 다른 두 이름보다 먼저 나오고(결정13) 추천 모델(recommended)로 적혀 있다. 모델을 바꾼 뒤 다시 색인될 때까지 키워드 결과만 나온다는 문장이 있다. `tests/test_readme_onboarding_contract.py`에 이 확인을 더하고, 기존 확인 문장(`:26`)도 계속 통과한다.
 - A-19 `docs/ARCHITECTURE.md` §4가 `vg embedding use`를 모델을 내려받고 설정을 쓸 수 있는 명시적 명령으로 적고, 색인 발행 전 새 세대에서 빈 예전 벡터 컬렉션을 지운다는 것을 적는다.
 
 예전 빈 컬렉션 정리(4.7). 모두 임시 폴더의 실제 Chroma 저장소와 가짜 임베딩으로 확인하며 모델을 내려받지 않는다.
@@ -293,6 +295,7 @@
 | 질문2 예전 빈 벡터 컬렉션 정리를 이번에 넣을 것인가 | 옵션2 "이번에 넣음" | 결정8, 1절 문제7, 4.7, 6절, A-20~A-27. 3절에서 정리 제외 항목을 지웠다 |
 | 질문3 목록을 세 개로 시작할 것인가 | "이런 유형에 작업에 가장 적합한 모델을 후보로 골라서 하나만으로 먼저 시작합니다. 위 세 개로 추가해도 무방할 듯 합니다 만 일단 이런 의견을 고려해서 진행해주세요" | 결정2, 2절 3번, 4.1·4.5·4.6, A-10, A-18. 해석: 추천 모델은 `arctic-l` 하나로 내세우고, 목록에는 대안 둘을 함께 둔다 |
 | 승인 | "승인합니다 위 작업에 다운로드 양이 많다면 이작업을 내일 세벽 1시부터 스케쥴하여 다시 시작하는 걸로합니다." | 아래 "실행 일정" |
+| 질문4 A-29 측정 뒤 기본 모델을 `e5-small`로 바꿀 것인가 | "Switch to e5-small" | 결정13, A-4, A-6, A-10, A-18, README, DECISIONS |
 
 ### 실행 일정
 
