@@ -10,7 +10,7 @@
 | 발견2 | vg를 vault-builder install 뒤에 설치하면 hook이 vg를 못 찾을 수 있다. 팀 요약의 "install 순서 때문에 hook이 빠진다"는 일부만 맞다. 실행 중 launcher는 `VAULT_GRAPH_BIN`, `vault-hooks.json`의 `vg`, `PATH` 순서로 찾으므로 Claude Code hook 프로세스의 `PATH`에 uv tool 폴더가 있으면 동작한다. GUI나 IDE에서 Claude Code를 시작해 그 폴더가 `PATH`에 없으면 recall.sh로 대체되고, 사용자는 원인을 알 수 없다. install 시점에 vg가 없으면 한 줄 note만 나온다. | `assets/vault-hooks/vault_hooks.py:17`, `:66-79`, `hooks.py:158-166`, `installing.py:494-500`. |
 | 발견3 | 저장소 연결을 Vault마다 한 번씩 해야 한다. `link`는 Vault 이름 하나만 받는다. | `cli.py:585-589`, `linking.py:96-155`. |
 | 발견4 | Vault마다 install을 따로 실행하고, install은 `$HOME/.claude.json`을 쓰므로 실행 전마다 Claude Code를 종료해야 한다. | `installing.py:17`, `:203-206`, usage.md §17.6. |
-| 발견5 | vault-graph는 PyPI에 없다. README의 clone 주소 `git@me.github.com:cutehackers/vault-graph.git`는 작성자 개인 SSH host 별칭이라 다른 사람의 컴퓨터에서는 그대로 동작하지 않는다. | vault-graph `README.md:35`, `:48-53`. |
+| 발견5 | [정정 2026-11-04] vault-graph는 PyPI에 있다(0.1.0~0.2.1, 최신 0.2.1은 2026-10-29 업로드, `https://pypi.org/pypi/vault-graph/json`로 확인). 다만 0.2.1에는 이 작업이 더하는 `vg mcp unregister`와 hook 상태 알림이 없어(`git grep unregister v0.2.1`), 설치 명령은 PyPI 버전을 쓸 수 없다. README의 clone 주소 `git@me.github.com:cutehackers/vault-graph.git`는 작성자 개인 SSH host 별칭이라 다른 사람의 컴퓨터에서는 그대로 동작하지 않는다. | vault-graph `README.md:35`, `:48-53`. |
 | 발견6 | hook은 `install --with-hooks`를 줄 때만 설치된다. 팀 요약 순서에는 이 옵션이 없으므로 그대로 따라 한 사용자는 hook이 하나도 없고, 경고도 받지 않는다. 발견2보다 큰 공백이다. | vault-builder `tools/vault_migration/cli.py:565-566`, `installing.py:21-23`("Without --with-hooks install does not open that file"). |
 | 발견7 | `vg setup`의 `--agent` 기본값이 `codex`이고 README Quick Start 첫 예시도 `--agent codex`다. Claude Code 사용자가 첫 예시를 따라 하면 MCP 서버가 Codex 설정에 등록된다. | vault-graph `src/vault_graph/interface/cli/main.py:419`, `README.md:60`. |
 | 발견8 | hook 상태를 한 번에 검사하는 명령이 없다. vault-builder `doctor`는 Vault 하나를 받고 MCP, skill, recall을 보지만 hook 항목과 `vault-hooks.json`의 vg 경로는 보지 않는다. vg는 `vault-hooks.json`을 전혀 읽지 않는다. | usage.md §17.6 doctor 항목 목록, `cli.py:580-581`. vault-graph `src/`에서 `vault-hooks`를 검색해 결과 0건. |
@@ -26,13 +26,13 @@
 - 저장소 하나를 연결할 때 명령 하나로 그 저장소가 쓸 Vault 전부를 연결한다.
 - team Vault처럼 personal, project 말고 다른 역할의 Vault도 첫 설치와 Vault 추가 단계에서 함께 넣을 수 있다. 기준 사용자(personal + project)에게는 이 단계가 추가 명령을 요구하지 않는다(brief 답변 5, 6).
 - 나중에 새 역할이 생겨도 설치·연결 명령의 사용법은 바뀌지 않는다(brief 답변 5).
-- vg는 PyPI 공개 없이 git 주소로 설치한다. 저장소 권한이 있는 사람만 설치할 수 있어도 된다(brief 답변 2).
+- vg는 git 주소로 설치한다. PyPI 최신 버전(0.2.1)에는 설치 명령이 쓰는 명령이 없다(발견5). 저장소 권한이 있는 사람만 설치할 수 있어도 된다(brief 답변 2).
 - 설계 결과는 두 저장소에 구현하고 PR까지 간다(brief 답변 1).
 - [가정] 이미 설치한 사용자의 환경은 그대로 동작하고, 새 설치 명령을 다시 실행하면 빠진 부분(hook, vg 경로)만 채워진다.
 
 ## 3. Non-goals
 
-- vault-graph의 PyPI 첫 공개 배포(brief 답변 2).
+- vault-graph의 새 PyPI 배포. PyPI에는 0.2.1까지 있다(발견5, brief 답변 2).
 - Windows 지원 [가정].
 - Codex 사용자의 원클릭 설치. 설치 명령은 Claude Code를 기준으로 한다. Codex 사용자는 지금처럼 `vg setup --agent codex`를 쓴다 [가정].
 - `vg setup`의 `--agent` 기본값 변경. 기존 Codex 사용자의 동작이 바뀌기 때문이다. 설치 명령이 `--agent claude`를 명시하고, README가 Claude 예시를 먼저 보여 주는 것으로 대신한다.
@@ -301,7 +301,7 @@ vault-builder만 설치와 명령 관리:
 
 - A-26. Vault 안 파일, `vault-map.json` version 2 형식, manifest 형식, `install`의 `--with-hooks` 기본값(꺼짐), `vg setup`의 `--agent` 기본값(`codex`)이 바뀌지 않는다.
 - A-27. 실행 환경은 macOS와 Linux의 bash, zsh다. Windows는 검사 대상이 아니다.
-- A-28. vault-graph는 PyPI 배포 없이 git 주소로만 설치된다.
+- A-28. 설치 명령은 vault-graph를 PyPI가 아니라 git 주소로 설치한다.
 - A-29. vault-builder README, README-kr, usage.md §1의 첫 설치 안내가 같은 설치 명령 한 줄이고, vault-graph README "Install"의 첫 안내가 그 명령을 가리킨다. vault-graph README "Quick Start"의 첫 예시는 `--agent claude`다.
 - A-30. 두 저장소의 기존 테스트와 lint, 타입 검사가 통과한다.
 

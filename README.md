@@ -47,8 +47,10 @@ vault-builder and Vault Graph by default. Add `--without-vault-graph` (`| bash
 -s -- --without-vault-graph`) to install vault-builder only. See the
 vault-builder README for its other options.
 
-Installing Vault Graph needs read access to this GitHub repository over SSH.
-Vault Graph is not published on PyPI.
+The install command installs Vault Graph from this GitHub repository over SSH,
+so it needs read access to the repository. Vault Graph also has releases on
+PyPI, but the latest one (0.2.1) does not have commands the install command
+uses, such as `vg mcp unregister`.
 
 ### Install `vg` only
 
