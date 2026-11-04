@@ -21,7 +21,8 @@ def test_readme_promotes_setup_as_first_run_path() -> None:
     normalized_install = " ".join(install_section.split())
     assert "merged into `main`" in normalized_install
     assert "--without-vault-graph" in install_section
-    assert "uv tool install git+ssh://git@github.com/cutehackers/vault-graph.git" in install_section
+    assert "uv tool install git+https://github.com/cutehackers/vault-graph.git" in install_section
+    assert "git+ssh" not in readme
     assert "me.github.com" not in readme
     assert "uv tool install vault-graph" not in readme
     assert "uv tool install -e ." not in install_section

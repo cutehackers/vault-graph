@@ -47,8 +47,8 @@ vault-builder and Vault Graph by default. Add `--without-vault-graph` (`| bash
 -s -- --without-vault-graph`) to install vault-builder only. See the
 vault-builder README for its other options.
 
-The install command installs Vault Graph from this GitHub repository over SSH,
-so it needs read access to the repository. Vault Graph also has releases on
+The install command installs Vault Graph from this public GitHub repository
+over HTTPS. No SSH key is needed. Vault Graph also has releases on
 PyPI, but the latest one (0.2.1) does not have commands the install command
 uses, such as `vg mcp unregister`.
 
@@ -58,10 +58,9 @@ Prerequisites:
 
 - Python 3.12+
 - [`uv`](https://docs.astral.sh/uv/)
-- SSH access to `github.com/cutehackers/vault-graph`
 
 ```bash
-uv tool install git+ssh://git@github.com/cutehackers/vault-graph.git
+uv tool install git+https://github.com/cutehackers/vault-graph.git
 vg --help
 ```
 
@@ -314,7 +313,7 @@ Vault Graph user-facing features preserve these guarantees:
 Clone the repository and run `vg` from the checkout:
 
 ```bash
-git clone git@github.com:cutehackers/vault-graph.git
+git clone https://github.com/cutehackers/vault-graph.git
 cd vault-graph
 uv sync
 uv run --python 3.12 vg --help
