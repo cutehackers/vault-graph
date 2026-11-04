@@ -407,6 +407,39 @@ def mcp_register(
         typer.echo(f"backup_path: {report.backup_path}")
 
 
+@mcp_app.command("unregister")
+def mcp_unregister(
+    agent: str = typer.Option("claude", "--agent", help="Agent config format: claude."),
+    config_path: Path | None = typer.Option(
+        None, "--config-path", help="Agent MCP config file path. Defaults to the path register uses."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Report changes without writing config."),
+) -> None:
+    from vault_graph.operation.integration.mcp.mcp_config_registration import (
+        McpAgent,
+        McpConfigRegistrar,
+        McpUnregistrationRequest,
+    )
+
+    registrar = McpConfigRegistrar()
+    report = _exit_on_domain_error(
+        lambda: registrar.unregister(
+            McpUnregistrationRequest(
+                agent=cast(McpAgent, agent),
+                config_path=config_path or registrar.default_config_path(cast(McpAgent, agent)),
+                dry_run=dry_run,
+            )
+        )
+    )
+    typer.echo(f"agent: {report.agent}")
+    typer.echo(f"config_path: {report.config_path}")
+    typer.echo(f"server_name: {report.server_name}")
+    typer.echo(f"changed: {report.changed}")
+    typer.echo(f"dry_run: {report.dry_run}")
+    if report.backup_path is not None:
+        typer.echo(f"backup_path: {report.backup_path}")
+
+
 @app.command()
 def setup(
     vault: Path | None = typer.Option(
@@ -457,10 +490,23 @@ def setup(
         except Exception as exc:  # noqa: BLE001 - reported per Vault, then setup exits non-zero.
             reason = " ".join(f"{type(exc).__name__}: {exc}".split())
             failures.append(f"setup_failed: vault_id={target_id} vault_path={target_path} error={reason}")
+    if agent == "claude":
+        # Only Claude Code runs the vault-builder hooks. Codex users have none to report on.
+        _echo_hook_status()
     for line in failures:
         typer.echo(line)
     if failures:
         raise typer.Exit(1)
+
+
+def _echo_hook_status() -> None:
+    """Report, read-only, whether the vault-builder hooks run this vg. vault-builder setup fixes it."""
+    from vault_graph.operation.integration import hook_status
+
+    warning = hook_status.hook_status_warning(hook_status.vault_hooks_path(), hook_status.running_vg_path())
+    if warning is not None:
+        # stderr keeps stdout machine-readable, for example the --print-mcp-config JSON.
+        typer.echo(f"warning: {warning}", err=True)
 
 
 def _vault_map_setup_targets(state: Path, explicit: Path | None, *, dry_run: bool) -> tuple[tuple[Path, str], ...]:

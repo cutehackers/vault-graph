@@ -34,6 +34,14 @@ class McpRegistrationRequest:
 
 
 @dataclass(frozen=True)
+class McpUnregistrationRequest:
+    agent: McpAgent
+    config_path: Path
+    dry_run: bool = False
+    server_name: str = "vault-graph"
+
+
+@dataclass(frozen=True)
 class McpRegistrationReport:
     agent: McpAgent
     config_path: Path
@@ -144,6 +152,42 @@ class McpConfigRegistrar:
             dry_run=False,
             backup_path=backup_path,
             rendered_config=rendered,
+        )
+
+    def unregister(self, request: McpUnregistrationRequest) -> McpRegistrationReport:
+        """Remove ``mcpServers.<server_name>`` from a Claude Code config, keeping every other key and a backup."""
+        if request.agent != "claude":
+            raise McpConfigError("unsupported_mcp_agent: unregister supports claude only")
+        _validate_server_name(request.server_name)
+        config_path = request.config_path.expanduser()
+        current_payload = self._read_existing_payload(config_path)
+        current_servers = _mcp_servers(current_payload)
+        changed = request.server_name in current_servers
+        if request.dry_run or not changed:
+            return McpRegistrationReport(
+                agent=request.agent,
+                config_path=config_path,
+                server_name=request.server_name,
+                changed=changed,
+                dry_run=request.dry_run,
+            )
+
+        backup_path = self._backup_path(config_path)
+        # copy2 keeps the file mode, so a private config stays private in its backup.
+        shutil.copy2(config_path, backup_path)
+        next_payload = dict(current_payload)
+        next_payload["mcpServers"] = {
+            name: entry for name, entry in current_servers.items() if name != request.server_name
+        }
+        # Same write rule as register for Claude Code: keep key order and text, replace in one rename.
+        _replace_file(config_path, json.dumps(next_payload, indent=2, ensure_ascii=False) + "\n")
+        return McpRegistrationReport(
+            agent=request.agent,
+            config_path=config_path,
+            server_name=request.server_name,
+            changed=True,
+            dry_run=False,
+            backup_path=backup_path,
         )
 
     def default_config_path(self, agent: McpAgent) -> Path:
