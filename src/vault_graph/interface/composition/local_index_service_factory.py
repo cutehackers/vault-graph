@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from vault_graph.errors import GraphStoreError
+from vault_graph.errors import GraphStoreError, VectorStoreError
 from vault_graph.indexing.index_service import IndexRunReport, IndexService
 from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION
 from vault_graph.indexing.publication.projection_generation import (
@@ -14,9 +14,10 @@ from vault_graph.indexing.publication.projection_generation import (
     ProjectionGenerationManager,
     ProjectionLayout,
 )
+from vault_graph.indexing.vector_index_adapter import VectorApplyResult
 from vault_graph.interface.composition.adapters.text_embeddings import (
     FastEmbedTextEmbeddings,
-    FastEmbedTextEmbeddingsConfig,
+    text_embeddings_for,
 )
 from vault_graph.interface.composition.graph_store_factory import (
     GraphBackend,
@@ -29,14 +30,24 @@ from vault_graph.operation.diagnostics.index_status_reader import IndexStatusRea
 from vault_graph.operation.diagnostics.projection_hygiene_service import ProjectionHygieneService
 from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.embedding_selection import load_embedding_selection
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.storage.interfaces.graph_store import GraphStore
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingModelSpec
 from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore
+
+
+@dataclass(frozen=True)
+class ProjectionCommitResult:
+    """What publishing removed from the new generation. Only `vg index` prints it (spec 4.7)."""
+
+    removed_vector_collections: tuple[str, ...] = ()
+    vector_cleanup_error: str | None = None
 
 
 @dataclass
@@ -49,12 +60,13 @@ class LocalIndexServiceBundle:
     staged_generation: ProjectionLayout | None = None
     projection_committed: bool = False
 
-    def commit_projection(self, report: IndexRunReport | None = None) -> None:
+    def commit_projection(self, report: IndexRunReport | None = None) -> ProjectionCommitResult:
+        result = ProjectionCommitResult()
         if self.staged_generation is None:
-            return
+            return result
         if self.bundle_publisher is None:
             if self.generation_manager is None:
-                return
+                return result
             self.generation_manager.activate(self.staged_generation)
         else:
             if report is None:
@@ -81,6 +93,8 @@ class LocalIndexServiceBundle:
                     close = getattr(graph_store, "close", None)
                     if callable(close):
                         close()
+            if isinstance(report.vector, VectorApplyResult) and not report.vector.failed:
+                result = _remove_empty_vector_collections(self.catalog_service, keep=report.vector.embedding_spec)
             enabled_components = _write_projection_component_manifests(
                 publisher=self.bundle_publisher,
                 staged=self.staged_generation,
@@ -94,6 +108,7 @@ class LocalIndexServiceBundle:
                 run_id=f"projection-run-{self.staged_generation.generation_id}",
             )
         self.projection_committed = True
+        return result
 
     def close(self) -> None:
         self.index_service.close()
@@ -234,7 +249,8 @@ class LocalIndexServiceFactory:
         catalog_service.assert_graph_home_write_target_safe(
             target_path=catalog_service.graph_status_path, catalog=catalog
         )
-        catalog_service.assert_cache_target_safe(target_path=catalog_service.embedding_cache_path, catalog=catalog)
+        models_dir = load_embedding_selection(catalog_service.embedding_config_path).models_dir.expanduser()
+        catalog_service.assert_cache_target_safe(target_path=models_dir, catalog=catalog)
 
 
 def _select_graph_backend(
@@ -336,7 +352,27 @@ def _discard_staged_document_cache(config: CatalogService, catalog: VaultCatalog
 
 
 def _default_text_embeddings(catalog_service: CatalogService) -> FastEmbedTextEmbeddings:
-    return FastEmbedTextEmbeddings(config=FastEmbedTextEmbeddingsConfig(cache_dir=catalog_service.embedding_cache_path))
+    return text_embeddings_for(catalog_service, local_files_only=False)
+
+
+_CLEANUP_FAILED_PREFIX = "vector collection cleanup failed: "
+
+
+def _remove_empty_vector_collections(
+    catalog_service: CatalogService, *, keep: EmbeddingModelSpec
+) -> ProjectionCommitResult:
+    """Drop old-model empty collections from the unpublished generation. A failure does not stop publishing."""
+
+    vector_store: ChromaVectorStore | None = None
+    try:
+        vector_store = ChromaVectorStore(catalog_service.vector_path)
+        return ProjectionCommitResult(removed_vector_collections=vector_store.remove_empty_collections(keep=keep))
+    except VectorStoreError as exc:
+        # The adapter already prefixes its message with the phrase `vg index` prints before it.
+        return ProjectionCommitResult(vector_cleanup_error=str(exc).removeprefix(_CLEANUP_FAILED_PREFIX))
+    finally:
+        if vector_store is not None:
+            vector_store.close()
 
 
 def _use_projection_root(catalog_service: CatalogService, root_path: Path) -> None:

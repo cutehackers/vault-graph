@@ -35,7 +35,7 @@ from vault_graph.retrieval.search.search_response import (
 )
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordIndex, KeywordQuery
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
-from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, TextEmbeddings
+from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
 from vault_graph.storage.interfaces.vector_store import VectorHit, VectorQuery, VectorStore
 
 DEFAULT_CONTEXT_EXPANSION_MAX_TOKENS = 256
@@ -258,7 +258,7 @@ class RetrievalService:
         if not _can_run_vector_search_globally(readiness):
             return ()
         try:
-            query_vector = self._text_embeddings.embed((EmbeddingInput(input_id="query", text=request.query_text),))[0]
+            query_vector = self._text_embeddings.embed_query(request.query_text)
             hits: list[VectorHit] = []
             for scope in request.actual_scopes:
                 if _vector_stale_count_for_scope(readiness=readiness, scope=scope) not in (None, 0):

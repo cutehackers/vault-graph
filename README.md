@@ -123,8 +123,9 @@ Vault.
 Vault Graph builds local metadata, keyword, vector, and graph projections. It
 uses local storage and local embeddings by default; it does not require hosted
 services for normal use. The first indexing run may download the pinned local
-embedding model and cache it outside your Vault. Restart your agent after MCP
-registration so it can load the new server.
+embedding model and cache it outside your Vault, in `~/llm/models` by default.
+See [Embedding Model](#embedding-model) to choose another model. Restart your
+agent after MCP registration so it can load the new server.
 
 ## Common Commands
 
@@ -137,6 +138,8 @@ registration so it can load the new server.
 | Index one Vault | `vg index --vault-id work --graph-home ~/.vault-graph` |
 | Index all Vaults | `vg index --all-vaults --graph-home ~/.vault-graph` |
 | Check health | `vg status --graph-home ~/.vault-graph` |
+| List embedding models | `vg embedding list --graph-home ~/.vault-graph` |
+| Switch embedding model | `vg embedding use arctic-l --graph-home ~/.vault-graph` |
 | Search evidence | `vg search --graph-home ~/.vault-graph "query"` |
 | Expand raw/source evidence | `vg search --mode evidence --graph-home ~/.vault-graph "query"` |
 | Audit projection duplication | `vg projection-audit --graph-home ~/.vault-graph` |
@@ -154,6 +157,71 @@ registration so it can load the new server.
 Commands that accept `--vault-id` operate on one registered Vault. Commands that
 accept `--all-vaults` expand to all enabled registered Vaults. Commands without
 either option use the active Vault.
+
+## Embedding Model
+
+Vault Graph embeds every chunk with a local model for semantic search. The
+recommended model is `arctic-l` (`Snowflake/snowflake-arctic-embed-l-v2.0`,
+int8). It suits Korean text and coding agent session transcripts, reads up to
+8192 tokens per chunk, and downloads about 587 MB. It is the default, so you do
+not need to do anything to use it.
+
+Two alternatives are available:
+
+| Name | Use it when | Dimensions | Max tokens | Download |
+| --- | --- | --- | --- | --- |
+| `e5-small` | You want a smaller, faster model | 384 | 512 | about 135 MB |
+| `minilm` | You want the previous default back | 384 | 128 | about 220 MB |
+
+Model files live in `~/llm/models`, outside every registered Vault. Your choice
+and the model folder are saved in `configs/embedding.json` under your Data Home
+(`~/.vault-graph/configs/embedding.json` by default).
+Change the folder with `--models-dir` on `vg embedding use`.
+
+```bash
+vg embedding list --graph-home ~/.vault-graph
+vg embedding use e5-small --graph-home ~/.vault-graph
+vg embedding use arctic-l --models-dir /path/to/models --graph-home ~/.vault-graph
+```
+
+`vg embedding list` shows each model, which one is selected, whether it is
+already downloaded, and the model folder. It never downloads anything.
+`vg embedding use NAME` downloads the model if the folder does not have it, then
+saves the choice. If the download fails, the saved choice does not change.
+
+To pick a model before the first index, run the steps one by one instead of
+`vg setup`:
+
+```bash
+vg init --vault /path/to/llm-wiki --graph-home ~/.vault-graph
+vg embedding use e5-small --graph-home ~/.vault-graph
+vg index --graph-home ~/.vault-graph
+```
+
+What happens after you switch:
+
+1. `vg embedding use` does not re-embed anything. The next `vg index`, or the
+   background index at the next agent session start, re-embeds every chunk with
+   the new model.
+2. Search returns keyword results only until re-indexing finishes for that
+   Vault, with a `vector_stale` warning. Vaults that finish first get semantic
+   search back first.
+3. The first full re-index with `arctic-l` can take up to about 48 minutes, and
+   the vector store grows to about 2.7 times its `minilm` size. Both numbers are
+   estimates.
+4. After a successful re-index, `vg index` removes the old model's empty vector
+   collections and prints `removed_vector_collections: N`. The previous index
+   generation keeps its copy until the next index replaces it, so disk space
+   comes back one index later. When you re-index only some Vaults with
+   `--vault-id`, the old collection stays until every Vault is re-indexed.
+5. A running MCP server does not need a restart. It reads the new choice when
+   the re-index publishes a new index.
+
+Upgrading from a version that used MiniLM switches the model to `arctic-l` and
+starts re-embedding at the next session start. To keep your current vectors,
+run `vg embedding use minilm` before that. If `configs/embedding.json` names an
+unknown model or is not valid, commands that need the model stop with an error.
+Vault Graph never switches to another model on its own.
 
 ## Connect An Agent Through MCP
 

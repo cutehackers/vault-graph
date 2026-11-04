@@ -128,9 +128,9 @@ def test_cli_status_reports_vector_fields(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "vector_ok:" in result.stdout
     assert "vector_backend: chroma" in result.stdout
-    assert "embedding_model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" in result.stdout
-    assert "embedding_model_version: faf4aa4225822f3bc6376869cb1164e8e3feedd0" in result.stdout
-    assert "embedding_dimensions: 384" in result.stdout
+    assert "embedding_model: Snowflake/snowflake-arctic-embed-l-v2.0" in result.stdout
+    assert "embedding_model_version: ac6544c8a46e00af67e330e85a9028c66b8cfd9a" in result.stdout
+    assert "embedding_dimensions: 1024" in result.stdout
     assert "vector_status_scope: default:raw,wiki,docs,scratch/reports" in result.stdout
 
 

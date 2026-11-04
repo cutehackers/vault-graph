@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from vault_graph.operation.scope import embedding_selection
 from vault_graph.operation.scope.active_projection import active_projection_layout
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
 from vault_graph.operation.scope.path_guard import (
@@ -13,10 +14,11 @@ from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalog
 
 
 class CatalogService:
-    def __init__(self, *, graph_home_path: Path, embedding_cache_path: Path | None = None) -> None:
+    def __init__(self, *, graph_home_path: Path) -> None:
         self.graph_home_path = graph_home_path.expanduser().resolve()
         GraphHomeResolver().resolve(self.graph_home_path)
         self.config_path = self.graph_home_path / "configs" / "vaults.yaml"
+        self.embedding_config_path = self.graph_home_path / "configs" / "embedding.json"
         self.code_config_path = self.graph_home_path / "configs" / "repositories.yaml"
         active = active_projection_layout(self.graph_home_path)
         projection_path = active.root_path if active is not None else self.graph_home_path
@@ -26,11 +28,6 @@ class CatalogService:
         self.vector_status_path = self.graph_home_path / "vector" / "status.json"
         self.graph_path = projection_path / "graph" / "graph.sqlite3"
         self.graph_status_path = self.graph_home_path / "graph" / "status.json"
-        self.embedding_cache_path = (
-            embedding_cache_path.expanduser().resolve()
-            if embedding_cache_path is not None
-            else Path("~/.cache/vault-graph/embeddings").expanduser().resolve()
-        )
 
     def create_default_catalog(self, *, vault_root: Path, vault_id: str = "default") -> VaultCatalog:
         GraphHomeResolver().initialize(self.graph_home_path, vault_roots=(vault_root,))
@@ -56,6 +53,12 @@ class CatalogService:
         self.assert_graph_home_safe(catalog)
         self.assert_graph_home_write_target_safe(target_path=self.config_path, catalog=catalog)
         catalog.save(self.config_path)
+
+    def save_embedding_selection(self, selection: embedding_selection.EmbeddingSelection) -> None:
+        catalog = self.load_catalog()
+        self.assert_graph_home_write_target_safe(target_path=self.embedding_config_path, catalog=catalog)
+        self.assert_cache_target_safe(target_path=selection.models_dir, catalog=catalog)
+        embedding_selection.save_embedding_selection(self.embedding_config_path, selection)
 
     def assert_graph_home_safe(self, catalog: VaultCatalog) -> None:
         assert_graph_home_outside_vaults(

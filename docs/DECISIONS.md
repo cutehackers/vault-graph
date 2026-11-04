@@ -526,6 +526,10 @@ local embedding implementation and model, pinned to FastEmbed artifact revision
 `faf4aa4225822f3bc6376869cb1164e8e3feedd0`. The source model provenance
 revision is `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
 
+**Current note:** The default model was replaced by `2026-11-04 - Default To
+Arctic-L And Let Users Pick An Embedding Preset`. This model stays available as
+the `minilm` preset with the same spec, and the guardrails below still apply.
+
 **Reason:** Vault Graph must stay local-first and useful for mixed Korean and
 English Vault content. A small 384-dimensional multilingual model keeps the
 default simple while preserving the `TextEmbeddings` and `EmbeddingModelSpec`
@@ -796,3 +800,19 @@ source of truth.
 **Reason:** The `verify` job already runs every module's tests. The wheel, build and release distribution checks run again in `publish-pypi.yml` and `publish-testpypi.yml` before upload.
 
 **Implications:** A module that starts importing a `vault-graph` dependency, or a break on the minimum rustworkx version, now shows up only in the release workflows, not on the pull request.
+
+## 2026-11-04 - Default To Arctic-L And Let Users Pick An Embedding Preset
+
+**Question:** The embedding model was one hard-coded constant (multilingual MiniLM, 128 tokens per chunk). Users search Korean-heavy coding agent session transcripts and could not change the model. Which model should be the default, and how should users switch (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`)?
+
+**Decision:** The user chose `arctic-l` (`Snowflake/snowflake-arctic-embed-l-v2.0`, int8 ONNX, 1024 dimensions, up to 8192 tokens) as the default and recommended model. Models are named presets in `EMBEDDING_PRESETS` (`interface/composition/adapters/text_embeddings.py`), each pinned to a fixed revision. The first list has `arctic-l` (recommended), `e5-small` (smaller and faster alternative) and `minilm` (the previous default, kept for rollback). `vg embedding use NAME` downloads the model into the model folder (default `~/llm/models`) and then writes `<graph-home>/configs/embedding.json`. `vg embedding list` shows the presets, the selection and the folder. A Graph Home without that file uses `arctic-l`. This replaces the default in `2026-06-08 - Use FastEmbed Multilingual MiniLM As Default Local Embeddings`.
+
+**Reason:** On a public Korean retrieval table `arctic-l` scores 0.724 against MiniLM's 0.410, it is Apache-2.0, and it downloads about 570 MB. The user accepted the cost: the first full re-index can take up to about 48 minutes and the vector store grows about 2.7 times. These figures are estimates and are not yet measured on the user's Vaults.
+
+**Implications:**
+
+- Switching models only changes the spec. Existing vectors become stale, and the next `vg index` or session-start background index re-embeds them. Until then, search in each Vault returns keyword results only.
+- A successful index removes empty `vault_graph_` vector collections of other specs from the new generation before publishing it. Read paths never remove collections.
+- A broken settings file or an unknown preset name stops commands that use the model. Vault Graph still never falls back to another model silently.
+- The `minilm` preset keeps the old spec, so a Graph Home that selects it before re-embedding with another model reuses its existing MiniLM vectors.
+- Measurement 1 (`docs/SPEC.md` n-4) still has to compare the models on the user's own data.
