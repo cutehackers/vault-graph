@@ -21,7 +21,7 @@ from vault_graph.retrieval.search.retrieval_service import RetrievalService
 from vault_graph.retrieval.search.search_response import SearchStoreRevision, SearchWarning
 from vault_graph.storage.interfaces.keyword_index import KeywordHit
 from vault_graph.storage.interfaces.store_health import StoreHealth
-from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.storage.interfaces.vector_store import VectorEmbeddingRecord, VectorHit, VectorQuery
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
@@ -281,6 +281,62 @@ def test_keyword_and_vector_signals_merge_by_vault_chunk(tmp_path: Path) -> None
 
     assert response.result_count == 1
     assert tuple(signal.kind for signal in response.results[0].signals) == ("keyword", "vector")
+    assert response.degraded is False
+
+
+class QueryOnlyTextEmbeddings(DeterministicTextEmbeddings):
+    """Fails on document embedding, so a search that embeds its query with ``embed`` fails."""
+
+    def __init__(self) -> None:
+        super().__init__(SPEC)
+        self.queries: list[str] = []
+
+    def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]:
+        raise AssertionError("search must embed the query with embed_query")
+
+    def embed_query(self, text: str) -> EmbeddingVector:
+        self.queries.append(text)
+        return DeterministicTextEmbeddings(SPEC).embed_query(text)
+
+
+def test_vector_search_embeds_the_query_with_embed_query(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store, document_id, chunk_id = _metadata_store(tmp_path)
+    chunk = store.resolve_chunk(vault_id="default", chunk_id=chunk_id)
+    assert chunk is not None
+    vector = DeterministicTextEmbeddings(SPEC).embed((EmbeddingInput(input_id="default:chunk", text=chunk.text),))[0]
+    record = VectorEmbeddingRecord(
+        vector_id=stable_vector_id(vault_id="default", chunk_id=chunk_id, embedding_spec=SPEC),
+        vault_id="default",
+        document_id=document_id,
+        chunk_id=chunk_id,
+        content_scope="wiki",
+        embedding=vector,
+        source_chunk_hash=chunk.content_hash,
+        chunker_version=chunk.chunker_version,
+        metadata_index_revision="metadata-1",
+        vector_index_revision="vector-1",
+        backend_schema_version="memory-vector-v1",
+    )
+    vector_store = InMemoryVectorStore()
+    vector_store.apply_vector_revision(vector_index_revision="vector-1", records=(record,), tombstones=())
+    embeddings = QueryOnlyTextEmbeddings()
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=InMemoryKeywordIndex(()),
+        vector_store=vector_store,
+        text_embeddings=embeddings,
+        readiness=StaticReadiness(ready_report(vector_ok=True, vector_stale_count=0, can_embed_without_download=True)),
+    )
+
+    response = service.search(
+        query_text="Body", requested_scope=catalog.default_scope(), limit=10, output_format="text"
+    )
+
+    assert embeddings.queries == ["Body"]
+    assert response.result_count == 1
+    assert tuple(signal.kind for signal in response.results[0].signals) == ("vector",)
     assert response.degraded is False
 
 

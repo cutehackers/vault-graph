@@ -49,7 +49,13 @@ class TextEmbeddings(Protocol):
 
     def can_embed_without_download(self) -> bool: ...
 
-    def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]: ...
+    def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]:
+        """Embed documents."""
+        ...
+
+    def embed_query(self, text: str) -> EmbeddingVector:
+        """Embed one search query."""
+        ...
 
 
 def _require_non_empty(value: str, field_name: str) -> None:

@@ -44,3 +44,28 @@ def test_readme_keeps_manual_init_and_mcp_details_out_of_first_path() -> None:
     assert "vg init" not in quick_start
     assert "implementation design" not in readme.lower()
     assert "Recommended Easy Setup" not in readme
+
+
+def _readme_section(readme: str, heading: str) -> str:
+    start = readme.index(heading)
+    next_heading = readme.find("\n## ", start + len(heading))
+    return readme[start:] if next_heading == -1 else readme[start:next_heading]
+
+
+def test_readme_explains_embedding_model_selection() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+    section = _readme_section(readme, "## Embedding Model")
+    normalized = " ".join(section.split()).lower()
+
+    for text in ("e5-small", "~/llm/models", "vg embedding list", "vg embedding use", "EMBEDDING_PRESETS"):
+        assert text in section
+    assert "arctic-l" not in section
+    assert "keyword results only until re-indexing finishes" in normalized
+
+
+def test_readme_lists_embedding_commands_in_common_commands() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+    common_commands = _readme_section(readme, "## Common Commands")
+
+    assert "vg embedding list --graph-home ~/.vault-graph" in common_commands
+    assert "vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph" in common_commands

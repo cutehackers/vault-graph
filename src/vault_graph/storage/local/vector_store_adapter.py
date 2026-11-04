@@ -32,6 +32,8 @@ SQLITE_VECTOR_ID_BATCH_SIZE = 500
 
 class ChromaVectorStore(VectorStore):
     def __init__(self, path: Path, *, initialize: bool = False, read_only: bool = False) -> None:
+        self._path = path.expanduser().resolve()
+        self._read_only = read_only
         self._store = GenericChromaVectorStore(
             path,
             initialize=initialize,
@@ -133,6 +135,41 @@ class ChromaVectorStore(VectorStore):
             raise VectorStoreError(str(exc)) from exc
         manifest = tuple(_manifest_record_from_metadata(row.record_id, row.metadata) for row in rows)
         return tuple(sorted(manifest, key=lambda row: (row.vault_id, row.chunk_id, row.vector_id)))
+
+    def remove_empty_collections(self, *, keep: EmbeddingModelSpec) -> tuple[str, ...]:
+        """Delete empty `vault_graph_` collections other than `keep`'s and return their names.
+
+        Opens a second Chroma client on the same path. Chroma shares one refcounted system per path,
+        so closing this client leaves the generic store's client open.
+        """
+
+        if self._read_only:
+            raise VectorStoreError("read-only ChromaVectorStore cannot remove collections")
+        if not (self._path / "chroma.sqlite3").exists():
+            return ()
+        prefix = f"{COLLECTION_PREFIX}_"
+        keep_name = _collection_spec(keep).name
+        try:
+            import chromadb
+
+            client = chromadb.PersistentClient(path=str(self._path))
+        except Exception as exc:
+            raise VectorStoreError(f"vector store unavailable: {exc}") from exc
+        removed: list[str] = []
+        try:
+            for collection in client.list_collections():
+                name = collection.name
+                if name.startswith(prefix) and name != keep_name and collection.count() == 0:
+                    client.delete_collection(name=name)
+                    removed.append(name)
+        except Exception as exc:
+            raise VectorStoreError(f"vector collection cleanup failed: {exc}") from exc
+        finally:
+            # `ClientAPI` stubs omit close(); the runtime client has it and only decrements the shared refcount.
+            close = getattr(client, "close", None)
+            if callable(close):
+                close()
+        return tuple(sorted(removed))
 
     def health(self) -> StoreHealth:
         result = self._store.health()

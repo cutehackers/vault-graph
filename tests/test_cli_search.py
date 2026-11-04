@@ -210,7 +210,7 @@ def test_cli_search_missing_keyword_projection_exits_nonzero_without_writes(tmp_
 def test_search_text_embeddings_uses_local_files_only(tmp_path: Path) -> None:
     from vault_graph.operation.scope.catalog_service import CatalogService
 
-    config = CatalogService(graph_home_path=tmp_path / "state", embedding_cache_path=tmp_path / "embedding-cache")
+    config = CatalogService(graph_home_path=tmp_path / "state")
 
     embeddings = _search_text_embeddings(config)
 
