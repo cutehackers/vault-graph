@@ -528,8 +528,9 @@ revision is `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
 
 **Current note:** The default model was replaced by `2026-11-04 - Default To
 Arctic-L And Let Users Pick An Embedding Preset`, and then by `2026-11-04 -
-Default To E5-Small After Measuring Arctic-L`. This model stays available as
-the `minilm` preset with the same spec, and the guardrails below still apply.
+Default To E5-Small After Measuring Arctic-L`. `2026-11-04 - Keep One Embedding
+Model` removed the `minilm` preset. The guardrails below still apply to
+`e5-small`.
 
 **Reason:** Vault Graph must stay local-first and useful for mixed Korean and
 English Vault content. A small 384-dimensional multilingual model keeps the
@@ -804,7 +805,7 @@ source of truth.
 
 ## 2026-11-04 - Default To Arctic-L And Let Users Pick An Embedding Preset
 
-**Current note:** The default model was replaced by `2026-11-04 - Default To E5-Small After Measuring Arctic-L`. `arctic-l` stays as an alternative preset, and the preset list, settings file and commands below still apply.
+**Current note:** The default model was replaced by `2026-11-04 - Default To E5-Small After Measuring Arctic-L`. `2026-11-04 - Keep One Embedding Model` then removed the `arctic-l` and `minilm` presets. The preset list, settings file and commands below still apply.
 
 **Question:** The embedding model was one hard-coded constant (multilingual MiniLM, 128 tokens per chunk). Users search Korean-heavy coding agent session transcripts and could not change the model. Which model should be the default, and how should users switch (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`)?
 
@@ -822,6 +823,8 @@ source of truth.
 
 ## 2026-11-04 - Default To E5-Small After Measuring Arctic-L
 
+**Current note:** `2026-11-04 - Keep One Embedding Model` removed `arctic-l` and `minilm` from the list.
+
 **Question:** The previous decision made `arctic-l` the default on estimated costs. A measured full re-index on the user's six Vaults (26,209 chunks, a computer with 36 GB of memory) did not finish in 1 hour 55 minutes and used about 40 GB of memory, which made the computer swap. Should `arctic-l` stay the default (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`, 결정13)?
 
 **Decision:** The user chose `e5-small` (`Xenova/multilingual-e5-small`, int8 ONNX, 384 dimensions, up to 512 tokens) as the default and recommended model. `arctic-l` stays as an alternative. A Graph Home without `configs/embedding.json` uses `e5-small`. This replaces the default model in `2026-11-04 - Default To Arctic-L And Let Users Pick An Embedding Preset`. The preset list, the settings file and the commands from that decision stay.
@@ -832,8 +835,6 @@ source of truth.
 
 - `README.md` lists `arctic-l` as an alternative with its measured cost.
 - Measurement 1 (`docs/SPEC.md` n-4) still has to compare the models on the user's own data.
-
-**Current note:** `2026-11-04 - Keep One Embedding Model` removed `arctic-l` and `minilm` from the list.
 
 ## 2026-11-04 - Keep One Embedding Model
 

@@ -261,7 +261,7 @@
 - A-10 `vg embedding list --format json`은 프리셋(결정14 뒤로 `e5-small` 하나)을 이름, 추천/대안 표시, 선택 여부, 차원, 받음 여부, `summary`와 함께 돌려준다. 첫 항목은 `e5-small`이고 추천으로 표시된다(결정13). 프리셋이 더 있으면 나머지는 대안으로 표시된다. 결과는 또한 설정 파일 경로와 모델 폴더를 담는다. 실행 중 내려받기 대역은 `local_files_only=True` 호출만 받고, 실행 전후 Graph Home 바이트가 같다.
 - A-11 가짜 백엔드가 받은 문자열로 접두어를 확인한다. `e5-small`: `embed_query("x")` → `"query: x"`, `embed`의 문서 `"y"` → `"passage: y"`. 접두어가 없는 프리셋은 `"x"`, `"y"`다. 결정14 뒤로 이 경우는 테스트 전용 프리셋으로 확인한다.
 - A-12 검색 서비스가 질의를 `embed_query`로 임베딩한다. `embed`를 부르면 실패하는 대역으로 `RetrievalService` 벡터 검색 테스트를 돌려 확인한다.
-- A-13 `custom` 프리셋으로 `_default_backend_factory`를 같은 프로세스에서 두 번 부르면, 가짜 `fastembed` 모듈의 `add_custom_model`이 프리셋의 `model_name`, `pooling`, `normalization`, `dim`, `model_file`로 한 번만 불린다. `minilm`에서는 불리지 않고, 기존 MiniLM 경고 억제 테스트(`tests/test_fastembed_text_embeddings.py:130-152`)가 통과한다.
+- A-13 `custom` 프리셋으로 `_default_backend_factory`를 같은 프로세스에서 두 번 부르면, 가짜 `fastembed` 모듈의 `add_custom_model`이 프리셋의 `model_name`, `pooling`, `normalization`, `dim`, `model_file`로 한 번만 불린다. builtin 프리셋에서는 불리지 않는다. 결정14 뒤로 이 경우는 테스트 전용 프리셋으로 확인한다. MiniLM 경고 억제는 `minilm` 프리셋과 함께 없어졌다.
 - A-14 잘못된 임베딩 설정 파일(JSON 아님, `version: 2`, 모르는 키, 모르는 프리셋 이름 각각)로 `vg search`와 `vg index`를 실행하면 0이 아닌 종료 코드와 파일 경로가 담긴 오류가 나오고, 다른 모델로 임베딩하지 않으며, 설정 파일 바이트가 같다.
 - A-15 경계 테스트 `tests/test_feature_import_direction.py`, `tests/test_module_import_cycles.py`, `tests/test_functional_module_boundaries.py`, `tests/test_read_only_boundary.py`, `tests/test_search_read_only_boundary.py`가 위반 예외 목록을 늘리지 않고 통과한다. `operation/scope/embedding_selection.py`는 다른 기능 영역을 가져오지 않는다.
 - A-16 `git diff 44dbf86 -- packages/` 출력이 비어 있다(일반 패키지 계약 무변경).
@@ -298,7 +298,7 @@
 | 질문3 목록을 세 개로 시작할 것인가 | "이런 유형에 작업에 가장 적합한 모델을 후보로 골라서 하나만으로 먼저 시작합니다. 위 세 개로 추가해도 무방할 듯 합니다 만 일단 이런 의견을 고려해서 진행해주세요" | 결정2, 2절 3번, 4.1·4.5·4.6, A-10, A-18. 해석: 추천 모델은 `arctic-l` 하나로 내세우고, 목록에는 대안 둘을 함께 둔다 |
 | 승인 | "승인합니다 위 작업에 다운로드 양이 많다면 이작업을 내일 세벽 1시부터 스케쥴하여 다시 시작하는 걸로합니다." | 아래 "실행 일정" |
 | 질문4 A-29 측정 뒤 기본 모델을 `e5-small`로 바꿀 것인가 | "Switch to e5-small" | 결정13, A-4, A-6, A-10, A-18, README, DECISIONS |
-| 질문5 모델 목록을 `e5-small` 하나로 줄일 것인가 | "좋아 그렇다면 e5-small 하나만 사용하는 걸로 한다. 세가지 옵션이라는 케이스는 없을것 단일 모델만 일단 사용하고 나중에 사용자가 원할 경우 모델을 추가해서 사용하는 걸로 한다." | 결정14, A-4, A-5, A-10, A-11, A-18, README, DECISIONS |
+| 질문5 모델 목록을 `e5-small` 하나로 줄일 것인가 | "좋아 그렇다면 e5-small 하나만 사용하는 걸로 한다. 세가지 옵션이라는 케이스는 없을것 단일 모델만 일단 사용하고 나중에 사용자가 원할 경우 모델을 추가해서 사용하는 걸로 한다." | 결정14, A-4, A-5, A-10, A-11, A-13, A-18, README, DECISIONS |
 
 ### 실행 일정
 
