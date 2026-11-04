@@ -278,7 +278,7 @@
 일정과 실제 Graph Home 보호(9절 "실행 일정")
 
 - A-28 지금 구현 세션은 모델 파일을 내려받지 않는다. 구현 세션 전후로 `$HOME/.vault-graph/projections/active.json`과 `$HOME/.vault-graph/configs/`의 바이트가 같다.
-- A-29 2026-11-05 01:00 실행 세션의 결과로 다음이 남는다. (1) `~/llm/models`에 `arctic-l` 프리셋의 고정 revision 스냅샷이 있다. (2) 그 모델로 짧은 한국어 질의와 영어 코드 문장을 임베딩해 1024차원 벡터가 나온다. (3) 임시 Graph Home에서 사용자 Vault 전체를 `arctic-l`로 다시 임베딩한 시간과 벡터 폴더 크기가 기록된다. (4) 이 실행 전후로 `$HOME/.vault-graph`의 `projections/active.json`과 `configs/`의 바이트가 같다.
+- A-29 2026-11-04 12:00 실행 세션의 결과로 다음이 남는다. (1) `~/llm/models`에 `arctic-l` 프리셋의 고정 revision 스냅샷이 있다. (2) 그 모델로 짧은 한국어 질의와 영어 코드 문장을 임베딩해 1024차원 벡터가 나온다. (3) 임시 Graph Home에서 사용자 Vault 전체를 `arctic-l`로 다시 임베딩한 시간과 벡터 폴더 크기가 기록된다. (4) 이 실행 전후로 `$HOME/.vault-graph`의 `projections/active.json`과 `configs/`의 바이트가 같다.
 
 ## 9. Open decisions
 
@@ -296,9 +296,9 @@
 ### 실행 일정
 
 1. 지금(2026-11-04) 코드와 테스트를 구현한다. 테스트는 모델을 내려받지 않으므로(A-3) 큰 내려받기 없이 끝난다(A-28).
-2. 큰 내려받기가 필요한 일은 2026-11-05 01:00(이 컴퓨터 시간)에 예약한 세션에서 한다(A-29).
+2. 큰 내려받기가 필요한 일은 2026-11-04 12:00(이 컴퓨터 시간)에 예약한 세션에서 한다(A-29). 처음에는 2026-11-05 01:00이었으나 사람이 2026-11-04에 "오늘 점심시간 12시부터"로 바꿨다.
    1. `arctic-l`(약 570MB)을 `~/llm/models`에 받는다.
    2. 실제 모델로 짧은 임베딩을 돌려 로드와 차원을 확인한다.
    3. 임시 Graph Home을 만들어 사용자 Vault를 등록하고, `arctic-l`로 전체를 다시 임베딩하는 시간과 벡터 폴더 크기를 잰다. 결과는 Vault 내용 없이 합계만 남긴다. 7절 4번의 추정값을 이 값으로 바꾼다.
 3. 지금 쓰이는 `vg`는 uv tool로 설치된 vault-graph 0.2.1이다(`$HOME/.local/share/uv/tools/vault-graph/lib/python3.12/site-packages/vault_graph-0.2.1.dist-info`로 확인). 그래서 사용자의 실제 Graph Home(`$HOME/.vault-graph`)은 새 버전을 릴리스해 설치한 뒤에야 `arctic-l`로 바뀐다.
-4. 01:00 세션은 작업 트리 코드로 `$HOME/.vault-graph`를 색인하지 않는다. 설치된 0.2.1의 세션 시작 훅이 MiniLM 스펙으로 벡터를 오래된 것으로 보고 다시 MiniLM으로 임베딩해 되돌리기 때문이다. 시간 측정은 임시 Graph Home에서만 한다(3절 9번, A-29).
+4. 예약 세션은 작업 트리 코드로 `$HOME/.vault-graph`를 색인하지 않는다. 설치된 0.2.1의 세션 시작 훅이 MiniLM 스펙으로 벡터를 오래된 것으로 보고 다시 MiniLM으로 임베딩해 되돌리기 때문이다. 시간 측정은 임시 Graph Home에서만 한다(3절 9번, A-29).
