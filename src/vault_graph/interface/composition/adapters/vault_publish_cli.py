@@ -26,11 +26,13 @@ REVIEW_RESULT_FORMAT = "vault-review-result/v1"
 MAX_MESSAGE_LINES = 20
 MIGRATE_MESSAGE = (
     "The Vault tools do not support publish-draft --json (Vault contract below 4). "
-    "Migrate the Vault to contract 4: run `vault-builder audit --target <vault>`, then `vault-builder apply`."
+    "Migrate the Vault to contract 4: run `vault-builder audit --target <vault> --plan-out <plan.json>`, "
+    "review the plan, then run `vault-builder apply --target <vault> --plan <plan.json>`."
 )
 PROPOSE_MIGRATE_MESSAGE = (
     "The Vault tools do not support review propose --json (Vault contract below 4). "
-    "Migrate the Vault to contract 4: run `vault-builder audit --target <vault>`, then `vault-builder apply`."
+    "Migrate the Vault to contract 4: run `vault-builder audit --target <vault> --plan-out <plan.json>`, "
+    "review the plan, then run `vault-builder apply --target <vault> --plan <plan.json>`."
 )
 LINT_DIRTY_MESSAGE = "Vault lint was already failing before the write. Fix the Vault lint first, then retry."
 
