@@ -125,7 +125,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 단계:
 
 1. 사전 검사. 파일을 쓰지 않는다. 옵션을 해석하고, `vault-map.json`을 읽고, Vault마다 `install --dry-run`과 같은 precheck를 실행하고, vault-graph 저장소 접근(`git ls-remote`)을 확인하고, Claude Code 실행 여부를 확인한다(§5 결정5). 하나라도 실패하면 아무것도 쓰지 않고 멈춘다.
-2. vg 설치. `uv tool install --force git+<vault-graph 주소>`를 실행한다. 주소 기본값은 `https://github.com/cutehackers/vault-graph.git`이고(결정3) `VAULT_GRAPH_REPO`로 바꾼다. 설치된 vg 절대 경로는 `uv tool dir --bin`으로 구한다. `--without-vault-graph`를 주면 이 단계와 5단계를 건너뛴다.
+2. vg 설치. `uv tool install --force --python 3.12 git+<vault-graph 주소>`를 실행한다(결정3). 주소 기본값은 `https://github.com/cutehackers/vault-graph.git`이고(결정3) `VAULT_GRAPH_REPO`로 바꾼다. 설치된 vg 절대 경로는 `uv tool dir --bin`으로 구한다. `--without-vault-graph`를 주면 이 단계와 5단계를 건너뛴다.
 3. Vault마다 `install <PATH> --name <NAME> [--role <ROLE>] --with-hooks`를 실행한다. 이때 `VAULT_GRAPH_BIN=<2단계 vg 절대 경로>`를 넘겨 `vault-hooks.json`에 vg 절대 경로를 적는다. 그래서 vg를 먼저 설치하고 Vault를 나중에 설치하는 순서가 고정된다(발견2, 발견6). install 순서는 지정된 순서이고 Claude Code 종료는 한 번만 확인한다(발견4).
 4. 저장소 연결. 저장소마다 `link --repo <PATH> <NAME>...`을 한 번 실행한다(§4.5).
 5. `vg setup --agent claude --mcp`를 2단계의 vg 절대 경로로 실행한다. `--vault`를 주지 않으므로 `vault-map.json`의 모든 Vault를 색인한다(`main.py:432`, `:468-486`).
@@ -180,7 +180,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 
 - vault-builder `README.md`, `README-kr.md`: 첫 절을 "설치"로 바꾸고 설치 명령 한 줄, 끝난 뒤 할 일(Claude Code 재시작, `/mcp` 확인), 다음 저장소 연결 명령, vault-graph 저장소 권한이 없을 때(`--without-vault-graph`)를 적는다. `bootstrap.sh`는 "Vault 폴더만 만들기" 절로 옮긴다.
 - vault-builder `docs/usage.md` §1: 같은 설치 명령으로 시작한다. §16, §17: `python3 tools/vault_migration/cli.py ...` 예시를 `vault-builder ...`로 바꾸고, 같은 동작을 builder checkout에서 직접 실행하는 방법은 한 줄로 남긴다. §17.1의 "역할 3가지 가운데 하나"를 "비어 있지 않은 문자열, 알려진 역할은 §17.2 표"로 고친다. §17.3에 여러 Vault `link`와 이름 없는 `link`를 적는다. §17.6에 `--all`, 새 doctor 항목, hook이 기본으로 설치된다는 점을 적는다.
-- vault-graph `README.md` "Install": Claude Code 사용자는 vault-builder 설치 명령을 쓰라고 먼저 안내한다. vg만 설치하는 방법은 `uv tool install git+https://github.com/cutehackers/vault-graph.git`로 적는다(발견5, 결정3). "Quick Start"는 `--agent claude` 예시를 먼저 둔다(발견7). 개발용 editable 설치는 아래 절로 옮긴다.
+- vault-graph `README.md` "Install": Claude Code 사용자는 vault-builder 설치 명령을 쓰라고 먼저 안내한다. vg만 설치하는 방법은 `uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git`로 적는다(발견5, 결정3). "Quick Start"는 `--agent claude` 예시를 먼저 둔다(발견7). 개발용 editable 설치는 아래 절로 옮긴다.
 
 ## 5. Decisions
 
@@ -188,7 +188,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 |---|---|---|---|
 | 결정1 | 옵션2(지금 CLI 유지 + 한 명령)를 쓴다. | §4.1. plugin은 uv, vg 설치와 Vault 생성을 하지 못해 "명령 1개"를 맞추지 못하고, vg 절대 경로 기록을 잃는다. | 사람이 정했다(§9 질문1, 2026-11-03). |
 | 결정2 | 설치 명령은 vault-builder 저장소(`scripts/install.sh`)에 둔다. | vault-builder는 인증 없는 `codeload.github.com`으로 내려받는다(`bootstrap.sh:133`). vault-graph도 공개 저장소라 HTTPS로 받는다(결정3). 입구는 누구나 받을 수 있는 쪽에 둔다. | [가정] |
-| 결정3 | vg는 `uv tool install --force git+https://github.com/cutehackers/vault-graph.git`로 설치한다. | 사람이 git 주소 설치를 정했다(brief 답변 2). 저장소가 공개라서(`gh repo view --json visibility` 결과 PUBLIC, 2026-11-04) HTTPS 주소는 SSH 키 없이 동작한다(위험5). | 설치 방식은 사람, HTTPS 주소도 사람(2026-11-04 "Switch to HTTPS") |
+| 결정3 | vg는 `uv tool install --force --python 3.12 git+https://github.com/cutehackers/vault-graph.git`로 설치한다. | 사람이 git 주소 설치를 정했다(brief 답변 2). Python은 3.12로 고정한다. 2026-11-04 실제 컴퓨터 확인에서 uv가 Homebrew Python 3.15를 골랐고, onnxruntime에 cp315 wheel이 없어 설치가 실패했다(vault-graph `requires-python >=3.12`). 저장소가 공개라서(`gh repo view --json visibility` 결과 PUBLIC, 2026-11-04) HTTPS 주소는 SSH 키 없이 동작한다(위험5). | 설치 방식은 사람, HTTPS 주소도 사람(2026-11-04 "Switch to HTTPS") |
 | 결정4 | uv가 없으면 대화 모드에서 설치 여부를 묻고, 예이면 uv 공식 설치 스크립트를 실행한다. 비대화 모드에서는 설치 명령 한 줄을 출력하고 멈춘다. `--install-uv`를 주면 묻지 않고 설치한다. | 묻고 설치하면 기준 사용자의 명령 수가 1개로 유지된다. 사용자 모르게 도구를 설치하지 않는다. | 사람이 정했다(§9 질문3, 2026-11-03) |
 | 결정5 | Claude Code가 실행 중이면 `$HOME/.claude.json`을 쓰는 단계 전에 멈춘다. 대화 모드는 "종료한 뒤 Enter"를 기다리고 다시 확인한다. 비대화 모드는 exit 3으로 끝낸다. 확인을 건너뛰는 옵션은 두지 않는다. | 실행 중인 Claude Code와 쓰기가 겹치면 한쪽 변경이 사라진다(usage.md §17.6). 종료를 한 번만 확인하므로 재시작은 1번이다. | 사람이 정했다(§9 질문4, 2026-11-03) |
 | 결정6 | `setup`은 hook을 항상 설치한다(`install --with-hooks`). | 발견6. hook이 없으면 vg recall과 세션 원문 저장이 조용히 빠진다. 지금 `install` 명령의 기본값은 바꾸지 않아 기존 스크립트 사용자는 영향이 없다. | [가정] |
@@ -249,6 +249,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 | 위험7 | 이름 없는 `link`가 역할 목록에 없는 역할을 공유로 보는 규칙(결정7). 사용자가 저장소 하나에만 쓰려고 만든 새 역할의 Vault가 다른 저장소에도 연결될 수 있다. | 그 Vault 내용이 다른 저장소 세션의 검색과 recall에 보인다. |
 | 위험8 | `$HOME/.local/bin`이 macOS 기본 shell의 `PATH`에 없을 수 있다. uv 설치 스크립트가 이 폴더를 `PATH`에 더하는지 확인하지 않았다. | 다음 작업에서 `vault-builder` 명령을 찾지 못한다. 설치 명령이 `export` 한 줄을 안내한다. |
 | 위험9 | 첫 색인 시간. 임베딩 모델을 처음 내려받으므로 설치 명령 전체 시간이 길어질 수 있다(README "Quick Start" 끝 문단). 2026-11-04 측정(spec `2026-11-04-embedding-model-selection` §7 4번): 모델 `e5-small` 다운로드 약 135MB, Vault 6개 26,209조각의 전체 색인 약 14분, 메모리 최대 약 21GB. 기준 사용자(Vault 2개)의 첫 색인 시간은 재지 않았다. | 사용자가 멈춘 줄 알고 중단할 수 있다. 단계마다 진행 줄을 출력해야 한다. |
+| 위험10 | 3.12가 없는 컴퓨터에서는 uv가 관리용 Python 3.12를 내려받는다. 사용자가 `UV_PYTHON_DOWNLOADS=never`로 막았으면 vg 설치가 실패한다. | 2단계 실패 규칙대로 3단계 전에 멈추고 uv 오류 마지막 20줄과 직접 실행할 명령을 출력한다. 아무것도 쓰지 않는다. |
 
 ## 8. Acceptance criteria
 

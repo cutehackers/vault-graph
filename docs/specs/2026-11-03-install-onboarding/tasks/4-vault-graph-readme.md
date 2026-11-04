@@ -38,6 +38,6 @@ vault-graph README만 연 사용자도 vault-builder 설치 명령 한 줄로 �
 
 - [ ] "Install"의 첫 안내가 `curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-builder/main/scripts/install.sh | bash`다. 이 경로는 task 10이 만드는 파일과 같다.
 - [ ] README에 이 URL은 vault-builder PR이 `main`에 merge된 뒤에만 동작한다고 적었다. PR 설명에도 같은 내용을 적는다.
-- [ ] vg만 설치하는 방법이 `uv tool install git+https://github.com/cutehackers/vault-graph.git`다(spec 결정3, 2026-11-04 HTTPS로 바꿈). 개인 host 별칭 `me.github.com`은 남아 있지 않다.
+- [ ] vg만 설치하는 방법이 `uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git`다(spec 결정3, 2026-11-04 HTTPS로 바꿈). 개인 host 별칭 `me.github.com`은 남아 있지 않다.
 - [ ] "Quick Start"의 첫 예시가 `--agent claude`다.
-- [ ] 개발용 editable 설치(`uv tool install -e .`)를 아래 절로 옮겼다.
+- [ ] 개발용 editable 설치(`uv tool install --python 3.12 -e .`)를 아래 절로 옮겼다.

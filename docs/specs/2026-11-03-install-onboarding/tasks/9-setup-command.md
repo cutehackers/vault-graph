@@ -55,7 +55,7 @@ worktree 루트에서 실행한다.
   - [ ] Vault마다 precheck
   - [ ] `git ls-remote`
   - [ ] Claude Code 실행 확인
-- [ ] vg(`uv tool install --force git+<VAULT_GRAPH_REPO>`)를 Vault install보다 먼저 설치한다.
+- [ ] vg(`uv tool install --force --python 3.12 git+<VAULT_GRAPH_REPO>`)를 Vault install보다 먼저 설치한다.
 - [ ] install을 `--with-hooks`로 실행하고 `VAULT_GRAPH_BIN=<uv tool dir --bin의 vg>`를 넘긴다.
 - [ ] 저장소마다 `link --repo <PATH> <공유 Vault...> <project Vault>`를 한 번 실행한다.
 - [ ] 2단계의 vg로 `vg setup --agent claude --mcp`를 실행한다. 그다음 경로 없는 doctor를 실행한다.
