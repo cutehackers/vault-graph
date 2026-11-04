@@ -29,7 +29,7 @@ def test_readme_promotes_setup_as_first_run_path() -> None:
     assert "uv tool install -e ." in readme[readme.index("## Develop From Source") :]
     first_setup = quick_start.split("```bash", 1)[1].split("```", 1)[0]
     assert "--agent claude" in first_setup.splitlines()[1]
-    assert "vg setup --vault /path/to/llm-wiki --agent codex" in quick_start
+    assert "vg setup --vault /path/to/vault --agent codex" in quick_start
     assert 'vg ask --graph-home ~/.vault-graph "What changed recently?"' in quick_start
     assert 'vg search --graph-home ~/.vault-graph "GraphRAG"' in quick_start
     assert 'vg context --graph-home ~/.vault-graph "Implement GraphRAG MVP"' in quick_start

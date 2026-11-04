@@ -73,8 +73,8 @@ yourself only when you installed `vg` alone. For Claude Code, use
 `--agent claude`:
 
 ```bash
-vg setup --vault /path/to/llm-wiki --agent claude --mcp --dry-run
-vg setup --vault /path/to/llm-wiki --agent claude --mcp
+vg setup --vault /path/to/vault --agent claude --mcp --dry-run
+vg setup --vault /path/to/vault --agent claude --mcp
 ```
 
 By default, setup uses `~/.vault-graph` for local Data Home, registers the Vault,
@@ -93,7 +93,7 @@ For Codex, use `--agent codex`. This is also the default when `--agent` is
 omitted:
 
 ```bash
-vg setup --vault /path/to/llm-wiki --agent codex --mcp
+vg setup --vault /path/to/vault --agent codex --mcp
 ```
 
 This registers the `vault-graph` stdio MCP server in the Codex config at
@@ -149,7 +149,7 @@ your agent after MCP registration so it can load the new server.
 
 | Goal | Command |
 | --- | --- |
-| Register a Vault | `vg init --vault /path/to/llm-wiki --graph-home ~/.vault-graph` |
+| Register a Vault | `vg init --vault /path/to/vault --graph-home ~/.vault-graph` |
 | Add another Vault | `vg vault add work --path /path/to/other-vault --graph-home ~/.vault-graph` |
 | List Vaults | `vg vault list --graph-home ~/.vault-graph` |
 | Index the active Vault | `vg index --graph-home ~/.vault-graph` |
@@ -233,7 +233,7 @@ MCP server installation and MCP server registration are different things:
 For Codex, the easiest supported path is:
 
 ```bash
-vg setup --vault /path/to/llm-wiki --agent codex --mcp
+vg setup --vault /path/to/vault --agent codex --mcp
 ```
 
 For explicit control, render or register the stdio server manually:

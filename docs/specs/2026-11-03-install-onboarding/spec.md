@@ -98,7 +98,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 
 - 설치는 두 종류다. 둘 다 같은 설치 명령으로 시작한다.
   1. 전체 설치(기본): vault-builder와 vault-graph를 함께 설치한다. vault-graph는 따로 설치하지 않고 이 명령 안에서 vault-builder가 설치한다(사람 답변 2026-11-04).
-  2. vault-builder만 설치: `--without-vault-graph`. vg, `mcpServers.vault-graph`, vg 색인 없이 Vault, hook, 저장소 연결, `llm-wiki` MCP 서버만 설치한다. vault-builder는 vault-graph 없이도 완전히 동작해야 한다(사람 답변 2026-11-04). 대화 모드는 "vault-graph(여러 Vault 검색과 세션 시작 회상)도 설치할까요 [예]"로 묻는다.
+  2. vault-builder만 설치: `--without-vault-graph`. vg, `mcpServers.vault-graph`, vg 색인 없이 Vault, hook, 저장소 연결, `vault-wiki` MCP 서버만 설치한다. vault-builder는 vault-graph 없이도 완전히 동작해야 한다(사람 답변 2026-11-04). 대화 모드는 "vault-graph(여러 Vault 검색과 세션 시작 회상)도 설치할까요 [예]"로 묻는다.
   3. vault-builder만 설치한 뒤 vault-graph를 더하려면 같은 설치 명령(또는 `vault-builder setup`)을 `--without-vault-graph` 없이 다시 실행한다. vg가 설치되고 hook의 vg 경로가 기록된다.
 - `vault-builder` 명령의 생애는 설치 명령이 관리한다(사람 답변 2026-11-04).
   1. 설치: 설치 명령이 `$HOME/.local/bin/vault-builder`를 만든다. 파일 안에 builder가 만들었다는 표시 줄과 builder checkout 경로를 적는다. 다시 실행하면 같은 내용이면 그대로 두고, 표시 줄이 있는 이전 내용이면 교체한다.
@@ -130,7 +130,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 4. 저장소 연결. 저장소마다 `link --repo <PATH> <NAME>...`을 한 번 실행한다(§4.5).
 5. `vg setup --agent claude --mcp`를 2단계의 vg 절대 경로로 실행한다. `--vault`를 주지 않으므로 `vault-map.json`의 모든 Vault를 색인한다(`main.py:432`, `:468-486`).
 6. `doctor`(경로 없음, §4.7)를 실행하고 결과를 요약한다.
-7. 마지막 줄들: "Claude Code를 다시 시작하세요", `/mcp`에서 `llm-wiki`와 `vault-graph`가 보이는지 확인하는 방법, 다음 저장소 연결 명령 `vault-builder link --repo <경로>`.
+7. 마지막 줄들: "Claude Code를 다시 시작하세요", `/mcp`에서 `vault-wiki`와 `vault-graph`가 보이는지 확인하는 방법, 다음 저장소 연결 명령 `vault-builder link --repo <경로>`.
 
 같은 `setup`을 다시 실행해도 결과가 같다. 이미 있는 Vault는 install이 vault 밖 단계만 실행하고(`installing.py:8-9`), 이미 연결된 Vault는 `link`가 다시 더하지 않는다(`linking.py:140-141`). 그래서 중간에 실패하면 원인을 고치고 같은 명령을 다시 실행하면 된다. 다음 Vault 추가는 `vault-builder setup --vault team=$HOME/team-vault --role team=team --repo /path/app`처럼 같은 명령에 새 Vault만 넘긴다.
 
@@ -199,6 +199,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 | 결정11 | 비대화 모드의 project Vault 기본 경로는 `$HOME/vaults/<저장소 폴더 이름>`이다. 개인 Vault 기본 경로는 `$HOME/vault`다. | 개인 Vault 경로는 usage.md §17.6 예시와 같다. project Vault 경로는 정해진 관례가 없어 새로 정한다. | 사람이 정했다(§9 질문6, 2026-11-03) |
 | 결정12 | vault-graph는 hook 상태를 읽기만 하고 고치지 않는다. 고치는 일은 vault-builder `setup`이 한다. | vault-graph는 Vault 쪽 설정을 쓰지 않는다(AGENTS.md "Project Boundary"). hook 파일은 vault-builder가 만들고 지운다(`hooks.py:8`). | [가정] |
 | 결정13 | 설치는 전체 설치(기본)와 vault-builder만 설치 두 종류다. vault-graph는 vault-builder 설치 명령으로만 설치한다. | 사람이 정했다(2026-11-04). vault-builder는 vault-graph 없이도 쓸 수 있어야 한다. 기본값을 전체 설치로 둔 것은 [가정]이다. | 사람, 기본값은 [가정] |
+| 결정14 | `$HOME/.claude.json`의 공유 MCP 서버 이름을 `llm-wiki`에서 `vault-wiki`로 바꾼다. 도구 이름은 `mcp__vault-wiki__*`가 된다. install(과 setup)은 우리 라우터를 가리키는 `llm-wiki` 항목을 같은 쓰기에서 `vault-wiki`로 옮기고, 다른 프로그램의 `llm-wiki` 항목은 그대로 둔다. uninstall은 두 이름 모두 우리 것이면 지우고, doctor는 남은 우리 `llm-wiki` 항목을 문제로 알린다. 라우터 파일과 폴더 이름(`llm-wiki-router/llm_wiki_router.py`)은 manifest와 MCP 인자에 기록된 경로라서 바꾸지 않는다. | 사람이 정했다(2026-11-04, 배포 전 이름 변경). 파일 이름 유지는 [가정]. CHANGELOG 규칙상 MCP 도구 이름 변경은 MAJOR이며 VERSION 변경은 배포 결정에 맡긴다. | 사람, 파일 이름 유지는 [가정] |
 
 ## 6. Failure and boundary behavior
 
@@ -255,7 +256,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 
 - A-1. 빈 `HOME`(Vault, `vault-map.json`, `$HOME/.claude.json`, vg가 없음)에서 Claude Code를 종료한 상태로 README에 적힌 설치 명령 한 줄(`--repo <앱 저장소>` 포함)을 실행하고 질문마다 Enter만 누르면 exit 0으로 끝난다. 이 뒤에 사용자가 실행하는 명령 없이 Claude Code를 한 번 시작하면 A-2~A-5가 성립한다.
 - A-2. A-1 뒤 `vault-map.json`에 역할 `personal` Vault 1개와 역할 `project` Vault 1개가 있다. 앱 저장소 project 항목의 `vaults`에 둘 다 있고, `default_write_vault`는 project Vault다.
-- A-3. A-1 뒤 `$HOME/.claude.json`에 `mcpServers.llm-wiki`와 `mcpServers.vault-graph`가 있다. `vault-graph`의 `command`는 실행 가능한 vg 절대 경로다.
+- A-3. A-1 뒤 `$HOME/.claude.json`에 `mcpServers.vault-wiki`와 `mcpServers.vault-graph`가 있다. `vault-graph`의 `command`는 실행 가능한 vg 절대 경로다.
 - A-4. A-1 뒤 `$HOME/.claude/settings.json`에 SessionStart, PreCompact, SessionEnd launcher 항목이 하나씩 있다. `$HOME/.claude/vault-builder/vault-hooks.json`의 `vg`가 A-3의 vg와 같은 절대 경로다.
 - A-5. A-1 뒤 `PATH`에 uv tool 폴더가 없는 환경에서 launcher `session-start`를 앱 저장소 cwd로 실행하면 recall.sh가 아니라 `vg hook session-start`의 출력이 나온다(발견2).
 - A-6. A-1 뒤 `vault-builder doctor`가 exit 0이다.
@@ -287,15 +288,19 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 다음 Vault, 제거, 기존 사용자:
 
 - A-22. A-1 뒤 `vault-builder setup --vault team=<경로> --role team=team --repo <앱 저장소>` 한 명령으로 team Vault가 설치, 연결, 색인되고 hook과 MCP 항목은 바뀌지 않는다.
-- A-23. `install.sh --uninstall` 뒤 `mcpServers.llm-wiki`, `mcpServers.vault-graph`, launcher hook 항목, `vault-map.json`, `vault-builder` 명령이 없고, Vault 폴더의 `raw/`, `wiki/`와 `$HOME/.vault-graph`는 남는다.
+- A-23. `install.sh --uninstall` 뒤 `mcpServers.vault-wiki`, `mcpServers.vault-graph`, launcher hook 항목, `vault-map.json`, `vault-builder` 명령이 없고, Vault 폴더의 `raw/`, `wiki/`와 `$HOME/.vault-graph`는 남는다.
 - A-24. `vg mcp unregister --agent claude`는 `mcpServers.vault-graph`만 지우고 다른 key는 그대로 두며 백업 파일을 남긴다. `--dry-run`은 파일을 쓰지 않는다.
 - A-25. 지금 방식(hook 없이 install, editable vg)으로 설치한 환경에서 설치 명령을 한 번 실행하면 hook이 추가되고, 기존 Vault, 연결, `default_write_vault`는 그대로이며, A-6이 성립한다.
 
 vault-builder만 설치와 명령 관리:
 
-- A-31. `--without-vault-graph`로 빈 `HOME`에 설치하면 exit 0이다. vg와 `mcpServers.vault-graph`가 없고, `mcpServers.llm-wiki`, hook launcher 항목, `vault-map.json` 연결이 있으며, `vault-builder doctor`가 exit 0이다. launcher `session-start`는 recall.sh 출력을 낸다.
+- A-31. `--without-vault-graph`로 빈 `HOME`에 설치하면 exit 0이다. vg와 `mcpServers.vault-graph`가 없고, `mcpServers.vault-wiki`, hook launcher 항목, `vault-map.json` 연결이 있으며, `vault-builder doctor`가 exit 0이다. launcher `session-start`는 recall.sh 출력을 낸다.
 - A-32. A-31 뒤 `--without-vault-graph` 없이 같은 명령을 다시 실행하면 A-3, A-4가 성립한다.
 - A-33. 설치 명령이 `$HOME/.local/bin/vault-builder`를 만들고, 제거 명령이 그 파일을 지운다. 표시 줄이 없는 같은 이름 파일이 있으면 설치는 그 파일을 바꾸지 않고 exit 1로 멈추고, 제거는 그 파일을 지우지 않는다.
+
+MCP 서버 이름 (결정14):
+
+- A-34. 새 설치는 `mcpServers.vault-wiki`를 쓰고 `llm-wiki`는 쓰지 않는다. 우리 라우터를 가리키는 기존 `llm-wiki` 항목이 있으면 install 한 번으로 `vault-wiki`로 바뀌고 다른 서버 항목은 그대로다. 다른 프로그램의 `llm-wiki` 항목은 남는다. uninstall은 우리 것인 두 항목을 모두 지운다. MCP 서버 `initialize`의 `serverInfo.name`은 `vault-wiki`다.
 
 범위와 호환:
 
