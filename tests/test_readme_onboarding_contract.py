@@ -21,12 +21,12 @@ def test_readme_promotes_setup_as_first_run_path() -> None:
     normalized_install = " ".join(install_section.split())
     assert "merged into `main`" in normalized_install
     assert "--without-vault-graph" in install_section
-    assert "uv tool install git+https://github.com/cutehackers/vault-graph.git" in install_section
+    assert "uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git" in install_section
     assert "git+ssh" not in readme
     assert "me.github.com" not in readme
     assert "uv tool install vault-graph" not in readme
-    assert "uv tool install -e ." not in install_section
-    assert "uv tool install -e ." in readme[readme.index("## Develop From Source") :]
+    assert "uv tool install --python 3.12 -e ." not in install_section
+    assert "uv tool install --python 3.12 -e ." in readme[readme.index("## Develop From Source") :]
     first_setup = quick_start.split("```bash", 1)[1].split("```", 1)[0]
     assert "--agent claude" in first_setup.splitlines()[1]
     assert "vg setup --vault /path/to/vault --agent codex" in quick_start

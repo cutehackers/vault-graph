@@ -60,7 +60,7 @@ Prerequisites:
 - [`uv`](https://docs.astral.sh/uv/)
 
 ```bash
-uv tool install git+https://github.com/cutehackers/vault-graph.git
+uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git
 vg --help
 ```
 
@@ -322,7 +322,7 @@ uv run --python 3.12 vg --help
 To put the checkout's `vg` on your `PATH` as an editable install:
 
 ```bash
-uv tool install -e .
+uv tool install --python 3.12 -e .
 vg --help
 ```
 
