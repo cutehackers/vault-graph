@@ -179,7 +179,7 @@ flowchart TB
 
 이 독립 모듈 5개(현재 `vault-graph` wheel에 포함해 배포)는 `vault_graph`를 가져오지 않고 Vault ID·역할·경로·세대 정책을 해석하지 않는다. `vector_index`는 임베딩·벡터 계약을 사용하고 `graph_document`는 선택적 `search_bridge`로 그래프 검색과 연결된다. 다섯 패키지 사이의 모든 의존을 금지하는 규칙은 아니다. 배포 이름과 `packages/` 위치는 유지한다.
 
-Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베딩 계약은 `storage/interfaces/text_embeddings.py`, Chroma 연결은 `storage/local/vector_store_adapter.py`가 소유한다. 제공자·모델 경로·오프라인 정책의 구체 구성은 `interface/composition/adapters/text_embeddings.py`에서 맡는다. 고를 수 있는 임베딩 모델 목록(`EMBEDDING_PRESETS`, 기본 `e5-small`)도 이 파일에 있고, 사용자가 고른 모델 이름과 모델 폴더(기본 `~/llm/models`)는 Graph Home의 `configs/embedding.json`에 저장된다. 이 파일의 형식 확인과 읽기·쓰기는 M01 `operation/scope/embedding_selection.py`가 맡는다.
+Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베딩 계약은 `storage/interfaces/text_embeddings.py`, Chroma 연결은 `storage/local/vector_store_adapter.py`가 소유한다. 제공자·모델 경로·오프라인 정책의 구체 구성은 `interface/composition/adapters/text_embeddings.py`에서 맡는다. 임베딩 모델 목록(`EMBEDDING_PRESETS`, 지금은 `e5-small` 하나)도 이 파일에 있고, 모델을 더하려면 이 목록에 항목 하나를 더한다. 선택된 모델 이름과 모델 폴더(기본 `~/llm/models`)는 Graph Home의 `configs/embedding.json`에 저장된다. 이 파일의 형식 확인과 읽기·쓰기는 M01 `operation/scope/embedding_selection.py`가 맡는다.
 
 ## 3. 의존과 구성 규칙
 

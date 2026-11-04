@@ -80,8 +80,7 @@ def test_unknown_preset_error_lists_the_available_names(tmp_path: Path) -> None:
     with pytest.raises(TextEmbeddingsError, match="'nope'") as caught:
         text_embeddings_for(catalog_service, local_files_only=False)
 
-    for name in ("arctic-l", "e5-small", "minilm"):
-        assert name in str(caught.value)
+    assert "available: e5-small" in str(caught.value)
 
 
 @pytest.mark.parametrize("case", sorted(BAD_SETTINGS))
@@ -118,7 +117,7 @@ def test_index_checks_the_models_dir_from_the_settings_file(tmp_path: Path) -> N
     home = tmp_path / "home"
     assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(home)]).exit_code == 0
     save_embedding_selection(
-        home / "configs" / "embedding.json", EmbeddingSelection("minilm", (vault_root / "models").resolve())
+        home / "configs" / "embedding.json", EmbeddingSelection("e5-small", (vault_root / "models").resolve())
     )
 
     result = runner.invoke(app, ["index", "--graph-home", str(home)])

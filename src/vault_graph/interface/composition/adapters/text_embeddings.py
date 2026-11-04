@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -55,34 +54,12 @@ class EmbeddingPreset:
 _TOKENIZER_FILES = ("config.json", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json")
 
 # Pinned from Hugging Face API metadata on 2026-11-04, without downloading any model file.
-# arctic-l revision (`sha`): https://huggingface.co/api/models/Snowflake/snowflake-arctic-embed-l-v2.0/revision/main
-# arctic-l files and sizes:
-#   https://huggingface.co/api/models/Snowflake/snowflake-arctic-embed-l-v2.0/tree/ac6544c8a46e00af67e330e85a9028c66b8cfd9a/onnx
 # e5-small revision (`sha`): https://huggingface.co/api/models/Xenova/multilingual-e5-small/revision/main
 # e5-small files and sizes: https://huggingface.co/api/models/Xenova/multilingual-e5-small/tree/main?recursive=true
-# minilm keeps the values of the previous single-model constants.
 EMBEDDING_PRESETS: Mapping[str, EmbeddingPreset] = MappingProxyType(
     {
         preset.name: preset
         for preset in (
-            EmbeddingPreset(
-                name="arctic-l",
-                model_name="Snowflake/snowflake-arctic-embed-l-v2.0",
-                revision="ac6544c8a46e00af67e330e85a9028c66b8cfd9a",
-                dimensions=1024,
-                spec_version="fastembed-arctic-embed-l-v2-int8-cls-qprefix-v1",
-                repo_id="Snowflake/snowflake-arctic-embed-l-v2.0",
-                source_model_revision="ac6544c8a46e00af67e330e85a9028c66b8cfd9a",
-                files=("onnx/model_int8.onnx", *_TOKENIZER_FILES),
-                fastembed_registration="custom",
-                model_file="onnx/model_int8.onnx",
-                pooling="CLS",
-                normalization=True,
-                max_tokens=8192,
-                download_mb=587,
-                summary="Alternative: best Korean scores, slow re-index with high memory use",
-                query_prefix="query: ",
-            ),
             EmbeddingPreset(
                 name="e5-small",
                 model_name="Xenova/multilingual-e5-small",
@@ -98,26 +75,9 @@ EMBEDDING_PRESETS: Mapping[str, EmbeddingPreset] = MappingProxyType(
                 normalization=True,
                 max_tokens=512,
                 download_mb=135,
-                summary="Recommended: Korean and English coding-agent sessions, small and fast",
+                summary="Korean and English coding-agent sessions, small and fast",
                 query_prefix="query: ",
                 document_prefix="passage: ",
-            ),
-            EmbeddingPreset(
-                name="minilm",
-                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                revision="faf4aa4225822f3bc6376869cb1164e8e3feedd0",
-                dimensions=384,
-                spec_version="fastembed-multilingual-minilm-l12-v2-cosine-v1",
-                repo_id="qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
-                source_model_revision="e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
-                files=None,
-                fastembed_registration="builtin",
-                model_file="",
-                pooling="",
-                normalization=False,
-                max_tokens=128,
-                download_mb=220,
-                summary="Alternative: previous default, keeps existing vectors",
             ),
         )
     }
@@ -284,22 +244,12 @@ def _default_backend_factory(config: FastEmbedTextEmbeddingsConfig, snapshot_pat
     preset = config.preset
     if preset.fastembed_registration == "custom":
         _register_custom_model(TextEmbedding, preset)
-    with warnings.catch_warnings():
-        if preset.name == "minilm":
-            warnings.filterwarnings(
-                "ignore",
-                message=(
-                    r"The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 "
-                    r"now uses mean pooling instead of CLS embedding.*"
-                ),
-                category=UserWarning,
-            )
-        return TextEmbedding(
-            model_name=preset.model_name,
-            specific_model_path=str(snapshot_path),
-            cache_dir=str(config.cache_dir.expanduser()),
-            lazy_load=config.embedding_lazy_load,
-        )
+    return TextEmbedding(
+        model_name=preset.model_name,
+        specific_model_path=str(snapshot_path),
+        cache_dir=str(config.cache_dir.expanduser()),
+        lazy_load=config.embedding_lazy_load,
+    )
 
 
 def _register_custom_model(text_embedding: Any, preset: EmbeddingPreset) -> None:

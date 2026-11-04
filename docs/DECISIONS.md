@@ -832,3 +832,19 @@ source of truth.
 
 - `README.md` lists `arctic-l` as an alternative with its measured cost.
 - Measurement 1 (`docs/SPEC.md` n-4) still has to compare the models on the user's own data.
+
+**Current note:** `2026-11-04 - Keep One Embedding Model` removed `arctic-l` and `minilm` from the list.
+
+## 2026-11-04 - Keep One Embedding Model
+
+**Question:** After `e5-small` became the default, the list still had `arctic-l` and `minilm`. Should users keep choosing among three models (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`, 결정14)?
+
+**Decision:** The user chose to keep one model, `e5-small`. The `arctic-l` and `minilm` presets are removed. `EMBEDDING_PRESETS`, `configs/embedding.json`, `vg embedding list` and `vg embedding use` stay, so adding a model later is one new entry in `EMBEDDING_PRESETS`.
+
+**Reason:** On the public Korean table `arctic-l` scores only 0.05 above `e5-small`, and it could not finish a full re-index on the user's computer. The user wants one model now and more models only when needed.
+
+**Implications:**
+
+- A Graph Home that still has MiniLM vectors cannot keep them by selecting `minilm`. The next index re-embeds them with `e5-small`.
+- `vg embedding use e5-small --models-dir PATH` is how a user moves the model folder.
+- Measurement 1 (`docs/SPEC.md` n-4) still has to check `e5-small` on the user's own data.

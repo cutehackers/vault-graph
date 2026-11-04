@@ -52,8 +52,8 @@ Promote each item to its own spec before starting.
 - [ ] **n차-3:** Code and memory in one query, MCP `explain_symbol`, decide on
   code chunk indexing (needs first pass)
 - [ ] **n차-4:** The default embedding model (`e5-small`) was chosen by a person
-  (DECISIONS 2026-11-04). Still open: compare `e5-small`, `arctic-l` and
-  `minilm` with measurement 1
+  (DECISIONS 2026-11-04). Still open: check `e5-small` against the previous
+  MiniLM model with measurement 1
 - [ ] **n차-5:** Replace polling watch with file change events (`watchfiles`)
 - [ ] **n차-6:** Classify `raw/sessions/<agent>/` by source and search them in
   evidence mode (needs 의존2)

@@ -139,7 +139,7 @@ agent after MCP registration so it can load the new server.
 | Index all Vaults | `vg index --all-vaults --graph-home ~/.vault-graph` |
 | Check health | `vg status --graph-home ~/.vault-graph` |
 | List embedding models | `vg embedding list --graph-home ~/.vault-graph` |
-| Switch embedding model | `vg embedding use minilm --graph-home ~/.vault-graph` |
+| Change model folder | `vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph` |
 | Search evidence | `vg search --graph-home ~/.vault-graph "query"` |
 | Expand raw/source evidence | `vg search --mode evidence --graph-home ~/.vault-graph "query"` |
 | Audit projection duplication | `vg projection-audit --graph-home ~/.vault-graph` |
@@ -160,72 +160,50 @@ either option use the active Vault.
 
 ## Embedding Model
 
-Vault Graph embeds every chunk with a local model for semantic search. The
-recommended model is `e5-small` (`Xenova/multilingual-e5-small`, int8). It
-suits Korean and English coding agent session transcripts, reads up to 512
-tokens per chunk, and downloads about 135 MB. It is the default, so you do not
-need to do anything to use it.
+Vault Graph embeds every chunk with a local model for semantic search. It uses
+one model, `e5-small` (`Xenova/multilingual-e5-small`, int8). The model suits
+Korean and English coding agent session transcripts, reads up to 512 tokens per
+chunk, and downloads about 135 MB. You do not need to set anything up: the
+first `vg setup` or `vg index` downloads it.
 
-Two alternatives are available:
-
-| Name | Use it when | Dimensions | Max tokens | Download |
-| --- | --- | --- | --- | --- |
-| `arctic-l` | You want the best Korean scores and accept a slow, memory-heavy re-index | 1024 | 8192 | about 587 MB |
-| `minilm` | You want the previous default back | 384 | 128 | about 220 MB |
-
-Model files live in `~/llm/models`, outside every registered Vault. Your choice
-and the model folder are saved in `configs/embedding.json` under your Data Home
-(`~/.vault-graph/configs/embedding.json` by default).
-Change the folder with `--models-dir` on `vg embedding use`.
+Model files live in `~/llm/models`, outside every registered Vault. The model
+folder is saved in `configs/embedding.json` under your Data Home
+(`~/.vault-graph/configs/embedding.json` by default) once you change it.
 
 ```bash
 vg embedding list --graph-home ~/.vault-graph
-vg embedding use minilm --graph-home ~/.vault-graph
-vg embedding use arctic-l --models-dir /path/to/models --graph-home ~/.vault-graph
+vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph
 ```
 
-`vg embedding list` shows each model, which one is selected, whether it is
-already downloaded, and the model folder. It never downloads anything.
-`vg embedding use NAME` downloads the model if the folder does not have it, then
-saves the choice. If the download fails, the saved choice does not change.
+`vg embedding list` shows the model, whether it is already downloaded, and the
+model folder. It never downloads anything. `vg embedding use e5-small` downloads
+the model into the folder if it is not there, then saves the folder. If the
+download fails, the saved settings do not change.
 
-To pick a model before the first index, run the steps one by one instead of
-`vg setup`:
+Re-indexing cost was measured on six Vaults with 26,209 chunks on a computer
+with 36 GB of memory: a full re-index took about 14 minutes, used up to about
+21 GB of memory without swapping, and the whole index folder was about 496 MB.
 
-```bash
-vg init --vault /path/to/llm-wiki --graph-home ~/.vault-graph
-vg embedding use minilm --graph-home ~/.vault-graph
-vg index --graph-home ~/.vault-graph
-```
+Upgrading from a version that used MiniLM:
 
-What happens after you switch:
-
-1. `vg embedding use` does not re-embed anything. The next `vg index`, or the
-   background index at the next agent session start, re-embeds every chunk with
-   the new model.
+1. The next `vg index`, or the background index at the next agent session
+   start, re-embeds every chunk with `e5-small`.
 2. Search returns keyword results only until re-indexing finishes for that
    Vault, with a `vector_stale` warning. Vaults that finish first get semantic
    search back first.
-3. Re-indexing cost was measured on six Vaults with 26,209 chunks on a
-   computer with 36 GB of memory. `e5-small` re-indexed all six Vaults in about
-   14 minutes, used up to about 21 GB of memory without swapping, and the whole
-   index folder was about 496 MB. `arctic-l` took 192 seconds and
-   16.5 GB of memory for one Vault of 420 chunks. On all six Vaults it did not
-   finish in 1 hour 55 minutes, used more memory than the computer has, and made
-   the computer swap. Pick `arctic-l` only for a few small Vaults.
-4. After a successful re-index, `vg index` removes the old model's empty vector
+3. After a successful re-index, `vg index` removes the old model's empty vector
    collections and prints `removed_vector_collections: N`. The previous index
    generation keeps its copy until the next index replaces it, so disk space
    comes back one index later. When you re-index only some Vaults with
    `--vault-id`, the old collection stays until every Vault is re-indexed.
-5. A running MCP server does not need a restart. It reads the new choice when
+4. A running MCP server does not need a restart. It reads the new model when
    the re-index publishes a new index.
 
-Upgrading from a version that used MiniLM switches the model to `e5-small` and
-starts re-embedding at the next session start. To keep your current vectors,
-run `vg embedding use minilm` before that. If `configs/embedding.json` names an
-unknown model or is not valid, commands that need the model stop with an error.
-Vault Graph never switches to another model on its own.
+If `configs/embedding.json` names an unknown model or is not valid, commands
+that need the model stop with an error. Vault Graph never switches to another
+model on its own. To add another model later, add one entry to
+`EMBEDDING_PRESETS` in
+`src/vault_graph/interface/composition/adapters/text_embeddings.py`.
 
 ## Connect An Agent Through MCP
 

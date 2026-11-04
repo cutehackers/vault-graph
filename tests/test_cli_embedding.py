@@ -118,7 +118,7 @@ def test_use_downloads_the_preset_and_saves_an_absolute_models_dir(
 
 
 def test_use_expands_tilde_in_models_dir(hub: FakeHub, home: Path, tmp_path: Path) -> None:
-    result = runner.invoke(app, ["embedding", "use", "minilm", "--models-dir", "~/models", "--graph-home", str(home)])
+    result = runner.invoke(app, ["embedding", "use", "e5-small", "--models-dir", "~/models", "--graph-home", str(home)])
 
     assert result.exit_code == 0, result.output
     saved = json.loads(_settings(home).read_text(encoding="utf-8"))
@@ -128,7 +128,7 @@ def test_use_expands_tilde_in_models_dir(hub: FakeHub, home: Path, tmp_path: Pat
 def test_use_without_models_dir_keeps_the_current_folder(hub: FakeHub, home: Path, tmp_path: Path) -> None:
     current = tmp_path / "current-models"
     CatalogService(graph_home_path=home).save_embedding_selection(
-        EmbeddingSelection(model="arctic-l", models_dir=current)
+        EmbeddingSelection(model="e5-small", models_dir=current)
     )
 
     result = runner.invoke(app, ["embedding", "use", "e5-small", "--graph-home", str(home)])
@@ -165,7 +165,7 @@ def test_use_failures_exit_non_zero_and_leave_settings_bytes_unchanged(
 ) -> None:
     if existing_settings:
         CatalogService(graph_home_path=home).save_embedding_selection(
-            EmbeddingSelection(model="minilm", models_dir=tmp_path / "old-models")
+            EmbeddingSelection(model="e5-small", models_dir=tmp_path / "old-models")
         )
     before = _settings_bytes(home)
     args = ["embedding", "use", "e5-small", "--models-dir", str(tmp_path / "models"), "--graph-home", str(home)]
@@ -181,19 +181,19 @@ def test_use_failures_exit_non_zero_and_leave_settings_bytes_unchanged(
     assert result.exit_code != 0
     assert _settings_bytes(home) == before
     if case == "unknown-name":
-        assert "e5-small, arctic-l, minilm" in result.output
+        assert "available: e5-small" in result.output
         assert hub.calls == []
     if case == "models-dir-inside-vault":
         assert hub.calls == []
         assert not (vault_root / "models").exists()
 
 
-def test_list_json_shows_recommended_model_first_and_writes_nothing(hub: FakeHub, home: Path, tmp_path: Path) -> None:
+def test_list_json_shows_the_model_and_writes_nothing(hub: FakeHub, home: Path, tmp_path: Path) -> None:
     models_dir = tmp_path / "models"
     CatalogService(graph_home_path=home).save_embedding_selection(
-        EmbeddingSelection(model="arctic-l", models_dir=models_dir)
+        EmbeddingSelection(model="e5-small", models_dir=models_dir)
     )
-    hub.downloaded.add((EMBEDDING_PRESETS["arctic-l"].repo_id, str(models_dir)))
+    hub.downloaded.add((EMBEDDING_PRESETS["e5-small"].repo_id, str(models_dir)))
     before = _tree_digest(home)
 
     result = runner.invoke(app, ["embedding", "list", "--format", "json", "--graph-home", str(home)])
@@ -203,10 +203,10 @@ def test_list_json_shows_recommended_model_first_and_writes_nothing(hub: FakeHub
     assert payload["settings_path"] == str(_settings(home))
     assert payload["models_dir"] == str(models_dir)
     models = payload["models"]
-    assert [model["name"] for model in models] == ["e5-small", "arctic-l", "minilm"]
-    assert [model["role"] for model in models] == ["recommended", "alternative", "alternative"]
-    assert [model["selected"] for model in models] == [False, True, False]
-    assert [model["downloaded"] for model in models] == [False, True, False]
+    assert [model["name"] for model in models] == ["e5-small"]
+    assert [model["role"] for model in models] == ["recommended"]
+    assert [model["selected"] for model in models] == [True]
+    assert [model["downloaded"] for model in models] == [True]
     for model in models:
         preset = EMBEDDING_PRESETS[model["name"]]
         assert model["dimensions"] == preset.dimensions
@@ -226,12 +226,12 @@ def test_list_without_settings_file_selects_the_default_and_creates_nothing(
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["models_dir"] == str(tmp_path / "user-home" / "llm" / "models")
-    assert [model["selected"] for model in payload["models"]] == [True, False, False]
+    assert [model["selected"] for model in payload["models"]] == [True]
     assert not _settings(home).exists()
     assert not (tmp_path / "user-home").exists()
 
 
-def test_list_text_shows_settings_path_folder_and_recommended_model_first(hub: FakeHub, home: Path) -> None:
+def test_list_text_shows_settings_path_folder_and_the_model(hub: FakeHub, home: Path) -> None:
     result = runner.invoke(app, ["embedding", "list", "--graph-home", str(home)])
 
     assert result.exit_code == 0, result.output
@@ -239,9 +239,8 @@ def test_list_text_shows_settings_path_folder_and_recommended_model_first(hub: F
     assert lines[0] == f"embedding_settings: {_settings(home)}"
     assert lines[1].startswith("models_dir: ")
     model_lines = [line for line in lines if line.startswith("model: ")]
-    assert [line.split()[1] for line in model_lines] == ["e5-small", "arctic-l", "minilm"]
+    assert [line.split()[1] for line in model_lines] == ["e5-small"]
     assert "recommended" in model_lines[0] and "selected=yes" in model_lines[0]
-    assert all("alternative" in line and "selected=no" in line for line in model_lines[1:])
     assert all("downloaded=no" in line for line in model_lines)
 
 
