@@ -24,63 +24,77 @@ with Vault's `review resolve`. Session transcripts are written by Vault's
 
 ## Install
 
+Claude Code users start with the vault-builder install command. It installs
+`vg`, creates or registers your Vaults, installs the Vault hooks, links the
+current repository, registers the `vault-graph` MCP server in Claude Code, and
+runs the first index:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-builder/main/scripts/install.sh | bash
+```
+
+This URL works only after the vault-builder change that adds
+`scripts/install.sh` is merged into `main`. Until then the command fails with a
+404 from GitHub.
+
+Quit Claude Code before you run it. The command stops before it writes
+`~/.claude.json` while Claude Code is running. Start Claude Code again when the
+command finishes and check the servers with `/mcp`. The command installs both
+vault-builder and Vault Graph by default. Add `--without-vault-graph` (`| bash
+-s -- --without-vault-graph`) to install vault-builder only. See the
+vault-builder README for its other options.
+
+Installing Vault Graph needs read access to this GitHub repository over SSH.
+Vault Graph is not published on PyPI.
+
+### Install `vg` only
+
 Prerequisites:
 
 - Python 3.12+
 - [`uv`](https://docs.astral.sh/uv/)
-
-Install the current pre-release from a source checkout:
-
-```bash
-git clone git@me.github.com:cutehackers/vault-graph.git
-cd vault-graph
-uv sync
-uv run --python 3.12 vg --help
-```
-
-Optional editable command install from the source checkout:
+- SSH access to `github.com/cutehackers/vault-graph`
 
 ```bash
-uv tool install -e .
+uv tool install git+ssh://git@github.com/cutehackers/vault-graph.git
 vg --help
 ```
 
-The public PyPI install path is deferred until the first release:
-
-```bash
-uv tool install vault-graph
-vg --help
-```
+Then continue with Quick Start below.
 
 ## Quick Start
 
-Run one setup command after installation:
-
-```bash
-vg setup --vault /path/to/llm-wiki --agent codex --mcp
-```
-
-By default, setup uses `~/.vault-graph` for local Data Home, registers the Vault,
-runs indexing, and registers the `vault-graph` stdio MCP server in the Codex
-config at `$CODEX_HOME/config.toml` or `~/.codex/config.toml`. Existing Codex
-config is backed up before the `vault-graph` server entry is changed. Keep this
-Data Home directory outside your Vault.
-
-For Claude Code, use `--agent claude`:
+The vault-builder install command already runs this step for you. Run it
+yourself only when you installed `vg` alone. For Claude Code, use
+`--agent claude`:
 
 ```bash
 vg setup --vault /path/to/llm-wiki --agent claude --mcp --dry-run
 vg setup --vault /path/to/llm-wiki --agent claude --mcp
 ```
 
-This adds a user-scope `mcpServers.vault-graph` entry to `~/.claude.json`. The
-entry starts the absolute path of your `vg` command with `serve --mcp`, and adds
-`--graph-home` only when you use a Data Home other than `~/.vault-graph`. Other
-keys and MCP servers in the file are kept, the old file is backed up next to it
-as `~/.claude.json.bak`, and setup refuses to write when the file is not valid
-JSON. Use `--mcp-config-path` to choose another file, `--dry-run` to see the
-target without writing, or `--print-mcp-config` to print the entry and add it
-yourself.
+By default, setup uses `~/.vault-graph` for local Data Home, registers the Vault,
+and runs indexing. Keep this Data Home directory outside your Vault.
+
+With `--agent claude`, setup adds a user-scope `mcpServers.vault-graph` entry to
+`~/.claude.json`. The entry starts the absolute path of your `vg` command with
+`serve --mcp`, and adds `--graph-home` only when you use a Data Home other than
+`~/.vault-graph`. Other keys and MCP servers in the file are kept, the old file
+is backed up next to it as `~/.claude.json.bak`, and setup refuses to write when
+the file is not valid JSON. Use `--mcp-config-path` to choose another file,
+`--dry-run` to see the target without writing, or `--print-mcp-config` to print
+the entry and add it yourself.
+
+For Codex, use `--agent codex`. This is also the default when `--agent` is
+omitted:
+
+```bash
+vg setup --vault /path/to/llm-wiki --agent codex --mcp
+```
+
+This registers the `vault-graph` stdio MCP server in the Codex config at
+`$CODEX_HOME/config.toml` or `~/.codex/config.toml`. Existing Codex config is
+backed up before the `vault-graph` server entry is changed.
 
 If one file in a Vault has frontmatter that strict YAML rejects, indexing reads
 it with Vault's own frontmatter rules and prints a warning with the file path.
@@ -239,6 +253,28 @@ Vault Graph user-facing features preserve these guarantees:
 - Vault-scoped identity for multiple registered Vault roots
 - visible backend health and index freshness status
 - durable knowledge publication only through Vault
+
+## Develop From Source
+
+Clone the repository and run `vg` from the checkout:
+
+```bash
+git clone git@github.com:cutehackers/vault-graph.git
+cd vault-graph
+uv sync
+uv run --python 3.12 vg --help
+```
+
+To put the checkout's `vg` on your `PATH` as an editable install:
+
+```bash
+uv tool install -e .
+vg --help
+```
+
+The vault-builder install command reinstalls `vg` from the git URL with
+`--force` and replaces an editable install. Pass `--without-vault-graph` to it
+to keep your editable `vg`.
 
 ## Independent Modules
 

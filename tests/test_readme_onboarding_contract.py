@@ -14,9 +14,20 @@ def test_readme_promotes_setup_as_first_run_path() -> None:
     assert install_index < quick_start_index
     install_section = readme[install_index:quick_start_index]
     assert "Status: Pre-release development" in readme
-    assert "git clone git@me.github.com:cutehackers/vault-graph.git" in install_section
-    assert "uv sync" in install_section
-    assert "uv tool install vault-graph" in install_section
+    first_install_block = install_section.split("```bash", 1)[1].split("```", 1)[0].strip()
+    assert first_install_block == (
+        "curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-builder/main/scripts/install.sh | bash"
+    )
+    normalized_install = " ".join(install_section.split())
+    assert "merged into `main`" in normalized_install
+    assert "--without-vault-graph" in install_section
+    assert "uv tool install git+ssh://git@github.com/cutehackers/vault-graph.git" in install_section
+    assert "me.github.com" not in readme
+    assert "uv tool install vault-graph" not in readme
+    assert "uv tool install -e ." not in install_section
+    assert "uv tool install -e ." in readme[readme.index("## Develop From Source") :]
+    first_setup = quick_start.split("```bash", 1)[1].split("```", 1)[0]
+    assert "--agent claude" in first_setup.splitlines()[1]
     assert "vg setup --vault /path/to/llm-wiki --agent codex" in quick_start
     assert 'vg ask --graph-home ~/.vault-graph "What changed recently?"' in quick_start
     assert 'vg search --graph-home ~/.vault-graph "GraphRAG"' in quick_start

@@ -53,7 +53,7 @@ def choose_write_vault(vault: str | None, cwd: Path | None, vault_map: VaultMapR
         match.vaults,
         f"Project {match.project_id} links several Vaults and has no default_write_vault. "
         f"Pass vault as one of: {_names(match.vaults)}. "
-        f"To stop asking, a person can set the default once in the vault-builder folder: "
+        f"To stop asking, a person can set the default once from any folder: "
         f"`{set_default_write_command(match.project_id, match.vaults)}`.",
     )
 
@@ -64,7 +64,7 @@ def set_default_write_command(project_id: str, vaults: tuple[MappedVault, ...]) 
     vault-graph only reads ``vault-map.json``, so it names the command and never runs it.
     """
     choices = "|".join(vault.name for vault in vaults)
-    return f"python3 tools/vault_migration/cli.py set-default-write --project {project_id} --vault <{choices}>"
+    return f"vault-builder set-default-write --project {project_id} --vault <{choices}>"
 
 
 def choose_page_vault(

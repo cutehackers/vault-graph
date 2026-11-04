@@ -230,9 +230,11 @@ def test_cli_setup_claude_mcp_dry_run_targets_home_claude_json(home: Path, tmp_p
     assert json.loads((home / ".claude.json").read_text(encoding="utf-8")) == {"keep": 1}
 
 
-def test_cli_setup_claude_print_mcp_config(home: Path, tmp_path: Path) -> None:
+def test_cli_setup_claude_print_mcp_config(home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
+    # setup --agent claude reads <config dir>/vault-builder/vault-hooks.json. Keep it off the real ~/.claude.
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-config"))
 
     result = runner.invoke(
         app,

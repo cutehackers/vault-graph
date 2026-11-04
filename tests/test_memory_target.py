@@ -74,9 +74,10 @@ def test_vault_required_for_a_new_page_names_the_command_that_sets_a_default() -
 
     assert isinstance(chosen, VaultRequired)
     assert (
-        "python3 tools/vault_migration/cli.py set-default-write --project demo --vault <project|team>"
-        in chosen.message
+        "`vault-builder set-default-write --project demo --vault <project|team>`" in chosen.message
     )
+    assert "tools/vault_migration/cli.py" not in chosen.message
+    assert "vault-builder folder" not in chosen.message
 
 
 def test_vault_required_for_an_existing_page_has_no_default_command() -> None:
