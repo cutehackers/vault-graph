@@ -38,8 +38,11 @@ This URL works only after the vault-builder change that adds
 404 from GitHub.
 
 Quit Claude Code before you run it. The command stops before it writes
-`~/.claude.json` while Claude Code is running. Start Claude Code again when the
-command finishes and check the servers with `/mcp`. The command installs both
+`~/.claude.json` while Claude Code is running. The first index downloads the
+embedding model (about 135 MB) and embeds every Vault, so the command can run
+for several minutes. On six Vaults with 26,209 chunks it took about 14 minutes
+and up to about 21 GB of memory. Start Claude Code again when the command
+finishes and check the servers with `/mcp`. The command installs both
 vault-builder and Vault Graph by default. Add `--without-vault-graph` (`| bash
 -s -- --without-vault-graph`) to install vault-builder only. See the
 vault-builder README for its other options.
@@ -137,9 +140,9 @@ Vault.
 Vault Graph builds local metadata, keyword, vector, and graph projections. It
 uses local storage and local embeddings by default; it does not require hosted
 services for normal use. The first indexing run may download the pinned local
-embedding model and cache it outside your Vault, in `~/llm/models` by default.
-See [Embedding Model](#embedding-model) to choose another model. Restart your
-agent after MCP registration so it can load the new server.
+embedding model (`e5-small`, about 135 MB) and cache it outside your Vault, in
+`~/llm/models` by default. See [Embedding Model](#embedding-model). Restart
+your agent after MCP registration so it can load the new server.
 
 ## Common Commands
 
@@ -152,7 +155,7 @@ agent after MCP registration so it can load the new server.
 | Index one Vault | `vg index --vault-id work --graph-home ~/.vault-graph` |
 | Index all Vaults | `vg index --all-vaults --graph-home ~/.vault-graph` |
 | Check health | `vg status --graph-home ~/.vault-graph` |
-| List embedding models | `vg embedding list --graph-home ~/.vault-graph` |
+| Show embedding model | `vg embedding list --graph-home ~/.vault-graph` |
 | Change model folder | `vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph` |
 | Search evidence | `vg search --graph-home ~/.vault-graph "query"` |
 | Expand raw/source evidence | `vg search --mode evidence --graph-home ~/.vault-graph "query"` |

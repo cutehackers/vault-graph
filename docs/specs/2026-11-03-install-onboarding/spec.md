@@ -247,7 +247,7 @@ README(두 저장소) ─▶ 설치 명령: curl -fsSL .../vault-builder/main/sc
 | 위험6 | 다른 위치의 오래된 builder checkout으로 설치한 사용자가 새 checkout으로 `setup`을 실행할 때, 라우터와 skill 파일 내용이 version 차이로 달라 install이 교체하거나 "알 수 없는 내용"으로 남길 수 있다(`installing.py:493`). | 공유 파일이 섞인 version으로 남는다. doctor가 내용 차이를 보고한다. |
 | 위험7 | 이름 없는 `link`가 역할 목록에 없는 역할을 공유로 보는 규칙(결정7). 사용자가 저장소 하나에만 쓰려고 만든 새 역할의 Vault가 다른 저장소에도 연결될 수 있다. | 그 Vault 내용이 다른 저장소 세션의 검색과 recall에 보인다. |
 | 위험8 | `$HOME/.local/bin`이 macOS 기본 shell의 `PATH`에 없을 수 있다. uv 설치 스크립트가 이 폴더를 `PATH`에 더하는지 확인하지 않았다. | 다음 작업에서 `vault-builder` 명령을 찾지 못한다. 설치 명령이 `export` 한 줄을 안내한다. |
-| 위험9 | 첫 색인 시간. 임베딩 모델을 처음 내려받으므로 설치 명령 전체 시간이 길어질 수 있다(README "Quick Start" 끝 문단). 시간을 재지 않았다. | 사용자가 멈춘 줄 알고 중단할 수 있다. 단계마다 진행 줄을 출력해야 한다. |
+| 위험9 | 첫 색인 시간. 임베딩 모델을 처음 내려받으므로 설치 명령 전체 시간이 길어질 수 있다(README "Quick Start" 끝 문단). 2026-11-04 측정(spec `2026-11-04-embedding-model-selection` §7 4번): 모델 `e5-small` 다운로드 약 135MB, Vault 6개 26,209조각의 전체 색인 약 14분, 메모리 최대 약 21GB. 기준 사용자(Vault 2개)의 첫 색인 시간은 재지 않았다. | 사용자가 멈춘 줄 알고 중단할 수 있다. 단계마다 진행 줄을 출력해야 한다. |
 
 ## 8. Acceptance criteria
 

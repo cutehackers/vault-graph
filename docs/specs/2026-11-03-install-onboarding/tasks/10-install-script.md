@@ -70,5 +70,5 @@ worktree 루트에서 실행한다.
   - [ ] `vg mcp unregister --agent claude`를 실행한다.
   - [ ] `uv tool uninstall vault-graph`를 실행한다.
   - [ ] 명령 파일과 checkout이 남아 있으면 지운다.
-  - [ ] 남긴 Vault 경로와 `$HOME/.vault-graph` 경로를 출력한다.
+  - [ ] 남긴 Vault 경로, `$HOME/.vault-graph` 경로, 임베딩 모델 폴더(기본 `$HOME/llm/models`, `configs/embedding.json`에 다른 폴더가 있으면 그 폴더)를 출력한다.
 - [ ] 통합 테스트가 있다. 빈 `HOME`에서 `--repo <앱> --yes`를 `/dev/tty` 없이 실행하면 A-2~A-6이 성립한다.
