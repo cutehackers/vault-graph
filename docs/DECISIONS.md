@@ -526,6 +526,12 @@ local embedding implementation and model, pinned to FastEmbed artifact revision
 `faf4aa4225822f3bc6376869cb1164e8e3feedd0`. The source model provenance
 revision is `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
 
+**Current note:** The default model was replaced by `2026-11-04 - Default To
+Arctic-L And Let Users Pick An Embedding Preset`, and then by `2026-11-04 -
+Default To E5-Small After Measuring Arctic-L`. `2026-11-04 - Keep One Embedding
+Model` removed the `minilm` preset. The guardrails below still apply to
+`e5-small`.
+
 **Reason:** Vault Graph must stay local-first and useful for mixed Korean and
 English Vault content. A small 384-dimensional multilingual model keeps the
 default simple while preserving the `TextEmbeddings` and `EmbeddingModelSpec`
@@ -796,3 +802,50 @@ source of truth.
 **Reason:** The `verify` job already runs every module's tests. The wheel, build and release distribution checks run again in `publish-pypi.yml` and `publish-testpypi.yml` before upload.
 
 **Implications:** A module that starts importing a `vault-graph` dependency, or a break on the minimum rustworkx version, now shows up only in the release workflows, not on the pull request.
+
+## 2026-11-04 - Default To Arctic-L And Let Users Pick An Embedding Preset
+
+**Current note:** The default model was replaced by `2026-11-04 - Default To E5-Small After Measuring Arctic-L`. `2026-11-04 - Keep One Embedding Model` then removed the `arctic-l` and `minilm` presets. The preset list, settings file and commands below still apply.
+
+**Question:** The embedding model was one hard-coded constant (multilingual MiniLM, 128 tokens per chunk). Users search Korean-heavy coding agent session transcripts and could not change the model. Which model should be the default, and how should users switch (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`)?
+
+**Decision:** The user chose `arctic-l` (`Snowflake/snowflake-arctic-embed-l-v2.0`, int8 ONNX, 1024 dimensions, up to 8192 tokens) as the default and recommended model. Models are named presets in `EMBEDDING_PRESETS` (`interface/composition/adapters/text_embeddings.py`), each pinned to a fixed revision. The first list has `arctic-l` (recommended), `e5-small` (smaller and faster alternative) and `minilm` (the previous default, kept for rollback). `vg embedding use NAME` downloads the model into the model folder (default `~/llm/models`) and then writes `<graph-home>/configs/embedding.json`. `vg embedding list` shows the presets, the selection and the folder. A Graph Home without that file uses `arctic-l`. This replaces the default in `2026-06-08 - Use FastEmbed Multilingual MiniLM As Default Local Embeddings`.
+
+**Reason:** On a public Korean retrieval table `arctic-l` scores 0.724 against MiniLM's 0.410, it is Apache-2.0, and it downloads about 570 MB. The user accepted the cost: the first full re-index can take up to about 48 minutes and the vector store grows about 2.7 times. These figures are estimates and are not yet measured on the user's Vaults.
+
+**Implications:**
+
+- Switching models only changes the spec. Existing vectors become stale, and the next `vg index` or session-start background index re-embeds them. Until then, search in each Vault returns keyword results only.
+- A successful index removes empty `vault_graph_` vector collections of other specs from the new generation before publishing it. Read paths never remove collections.
+- A broken settings file or an unknown preset name stops commands that use the model. Vault Graph still never falls back to another model silently.
+- The `minilm` preset keeps the old spec, so a Graph Home that selects it before re-embedding with another model reuses its existing MiniLM vectors.
+- Measurement 1 (`docs/SPEC.md` n-4) still has to compare the models on the user's own data.
+
+## 2026-11-04 - Default To E5-Small After Measuring Arctic-L
+
+**Current note:** `2026-11-04 - Keep One Embedding Model` removed `arctic-l` and `minilm` from the list.
+
+**Question:** The previous decision made `arctic-l` the default on estimated costs. A measured full re-index on the user's six Vaults (26,209 chunks, a computer with 36 GB of memory) did not finish in 1 hour 55 minutes and used about 40 GB of memory, which made the computer swap. Should `arctic-l` stay the default (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`, 결정13)?
+
+**Decision:** The user chose `e5-small` (`Xenova/multilingual-e5-small`, int8 ONNX, 384 dimensions, up to 512 tokens) as the default and recommended model. `arctic-l` stays as an alternative. A Graph Home without `configs/embedding.json` uses `e5-small`. This replaces the default model in `2026-11-04 - Default To Arctic-L And Let Users Pick An Embedding Preset`. The preset list, the settings file and the commands from that decision stay.
+
+**Reason:** A Graph Home without a settings file starts a background full re-index at the first session after an upgrade. With `arctic-l` that run takes hours and uses more memory than the computer has. `e5-small` supports Korean, reads 512 tokens per chunk against MiniLM's 128, and downloads about 135 MB. The earlier estimate of about 48 minutes was wrong. The storage growth of about 2.7 times was not measured.
+
+**Implications:**
+
+- `README.md` lists `arctic-l` as an alternative with its measured cost.
+- Measurement 1 (`docs/SPEC.md` n-4) still has to compare the models on the user's own data.
+
+## 2026-11-04 - Keep One Embedding Model
+
+**Question:** After `e5-small` became the default, the list still had `arctic-l` and `minilm`. Should users keep choosing among three models (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`, 결정14)?
+
+**Decision:** The user chose to keep one model, `e5-small`. The `arctic-l` and `minilm` presets are removed. `EMBEDDING_PRESETS`, `configs/embedding.json`, `vg embedding list` and `vg embedding use` stay, so adding a model later is one new entry in `EMBEDDING_PRESETS`.
+
+**Reason:** On the public Korean table `arctic-l` scores only 0.05 above `e5-small`, and it could not finish a full re-index on the user's computer. The user wants one model now and more models only when needed.
+
+**Implications:**
+
+- A Graph Home that still has MiniLM vectors cannot keep them by selecting `minilm`. The next index re-embeds them with `e5-small`.
+- `vg embedding use e5-small --models-dir PATH` is how a user moves the model folder.
+- Measurement 1 (`docs/SPEC.md` n-4) still has to check `e5-small` on the user's own data.

@@ -29,6 +29,9 @@ class DeterministicTextEmbeddings:
             for item in inputs
         )
 
+    def embed_query(self, text: str) -> EmbeddingVector:
+        return self.embed((EmbeddingInput(input_id="query", text=text),))[0]
+
 
 def _values_for_text(*, text: str, dimensions: int) -> tuple[float, ...]:
     digest = hashlib.sha256(text.encode("utf-8")).digest()

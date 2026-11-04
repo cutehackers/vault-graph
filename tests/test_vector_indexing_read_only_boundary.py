@@ -54,17 +54,14 @@ def test_search_and_ask_are_exposed_commands() -> None:
     assert "ask" in result.output
 
 
-def test_embedding_cache_path_cannot_be_inside_vault_root(tmp_path: Path) -> None:
+def test_embedding_models_dir_cannot_be_inside_vault_root(tmp_path: Path) -> None:
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
-    config = CatalogService(
-        graph_home_path=tmp_path / "state",
-        embedding_cache_path=vault_root / ".cache" / "vault-graph" / "embeddings",
-    )
+    config = CatalogService(graph_home_path=tmp_path / "state")
     catalog = config.create_default_catalog(vault_root=vault_root)
 
     try:
-        config.assert_cache_target_safe(target_path=config.embedding_cache_path, catalog=catalog)
+        config.assert_cache_target_safe(target_path=vault_root.resolve() / "models", catalog=catalog)
     except ReadOnlyBoundaryError as exc:
         assert "must not be inside a registered Vault" in str(exc)
     else:

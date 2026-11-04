@@ -55,6 +55,10 @@ class _OfflineTextEmbeddings:
         self.embed_calls += 1
         raise AssertionError("offline search must not load or download embeddings")
 
+    def embed_query(self, text: str) -> EmbeddingVector:
+        self.embed_calls += 1
+        raise AssertionError("offline search must not load or download embeddings")
+
 
 def _fake_text_embeddings(_: object) -> _ConfiguredDeterministicTextEmbeddings:
     return _ConfiguredDeterministicTextEmbeddings(SPEC)

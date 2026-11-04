@@ -435,17 +435,9 @@ class ReadOnlyServiceFactory:
         return catalog_service, catalog
 
     def _search_text_embeddings(self, catalog_service: CatalogService) -> FastEmbedTextEmbeddings:
-        from vault_graph.interface.composition.adapters.text_embeddings import (
-            FastEmbedTextEmbeddings,
-            FastEmbedTextEmbeddingsConfig,
-        )
+        from vault_graph.interface.composition.adapters.text_embeddings import text_embeddings_for
 
-        return FastEmbedTextEmbeddings(
-            config=FastEmbedTextEmbeddingsConfig(
-                cache_dir=catalog_service.embedding_cache_path,
-                local_files_only=True,
-            )
-        )
+        return text_embeddings_for(catalog_service, local_files_only=True)
 
 
 class _ProjectRecallScope:

@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -45,6 +46,7 @@ from time import monotonic
 from typing import Literal
 
 from vault_graph.context.pack.recall import RecallPorts
+from vault_graph.errors import TextEmbeddingsError
 from vault_graph.indexing.change_scan import scan_changes
 from vault_graph.indexing.index_service import IndexService
 from vault_graph.indexing.publication.projection_generation import (
@@ -379,10 +381,16 @@ def vectors_need_catch_up(graph_home_path: Path, vault_id: str) -> bool:
         health = vector_store.health()
         if not health.ok or not health.schema_compatible:
             return False
+        try:
+            text_embeddings = _catch_up_text_embeddings(catalog_service)
+        except TextEmbeddingsError as exc:
+            # The catch-up process sends stderr to <graph home>/logs/session-start-index.log.
+            print(f"vector catch-up skipped: {exc}", file=sys.stderr)
+            return False
         counter = VectorIndexerStaleCounter(
             metadata_store=metadata_store,
             vector_store=vector_store,
-            text_embeddings=_catch_up_text_embeddings(catalog_service),
+            text_embeddings=text_embeddings,
         )
         return any(
             (counter.stale_count(scope=actual) or 0) > 0 for actual in actual_query_scopes(catalog=catalog, scope=scope)
@@ -395,14 +403,9 @@ def vectors_need_catch_up(graph_home_path: Path, vault_id: str) -> bool:
 
 def _catch_up_text_embeddings(catalog_service: CatalogService) -> TextEmbeddings:
     """The embedding model spec ``vg index`` uses. Only its spec is read, nothing is downloaded."""
-    from vault_graph.interface.composition.adapters.text_embeddings import (
-        FastEmbedTextEmbeddings,
-        FastEmbedTextEmbeddingsConfig,
-    )
+    from vault_graph.interface.composition.adapters.text_embeddings import text_embeddings_for
 
-    return FastEmbedTextEmbeddings(
-        config=FastEmbedTextEmbeddingsConfig(cache_dir=catalog_service.embedding_cache_path, local_files_only=True)
-    )
+    return text_embeddings_for(catalog_service, local_files_only=True)
 
 
 def _time_limit(budget_s: float) -> str:

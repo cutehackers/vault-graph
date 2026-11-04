@@ -22,16 +22,18 @@ from vault_graph.errors import CatalogError, VaultGraphError
 from vault_graph.indexing.index_service import IndexService, IndexStatusReport
 from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
 from vault_graph.interface.cli.code_commands import code_app
+from vault_graph.interface.cli.embedding_commands import embedding_app
 from vault_graph.interface.cli.harness_commands import harness_app
 from vault_graph.interface.cli.hook_commands import hook_app
 from vault_graph.interface.cli.project_commands import project_app
 from vault_graph.interface.composition.adapters.text_embeddings import (
     FastEmbedTextEmbeddings,
-    FastEmbedTextEmbeddingsConfig,
+    text_embeddings_for,
 )
 from vault_graph.interface.composition.graph_store_factory import GraphBackend, open_graph_store, selected_graph_backend
 from vault_graph.interface.composition.local_index_service_factory import (
     LocalIndexServiceFactory,
+    ProjectionCommitResult,
     open_projection_hygiene_service,
 )
 from vault_graph.interface.composition.query_scope_resolution import (
@@ -102,6 +104,7 @@ app.add_typer(code_app, name="code")
 app.add_typer(project_app, name="project")
 app.add_typer(harness_app, name="harness")
 app.add_typer(hook_app, name="hook")
+app.add_typer(embedding_app, name="embedding")
 
 
 def _catalog(state: Path) -> tuple[CatalogService, VaultCatalog]:
@@ -303,16 +306,11 @@ def _answer_service(
 
 
 def _text_embeddings(config: CatalogService) -> FastEmbedTextEmbeddings:
-    return FastEmbedTextEmbeddings(config=FastEmbedTextEmbeddingsConfig(cache_dir=config.embedding_cache_path))
+    return text_embeddings_for(config, local_files_only=False)
 
 
 def _search_text_embeddings(config: CatalogService) -> FastEmbedTextEmbeddings:
-    return FastEmbedTextEmbeddings(
-        config=FastEmbedTextEmbeddingsConfig(
-            cache_dir=config.embedding_cache_path,
-            local_files_only=True,
-        )
-    )
+    return text_embeddings_for(config, local_files_only=True)
 
 
 @app.command()
@@ -580,10 +578,11 @@ def index(
         )
     )
     _, catalog, service = bundle.catalog_service, bundle.catalog, bundle.index_service
+    committed: ProjectionCommitResult | None = None
     try:
         report = service.run_plan(scope=scope, full=full) if dry_run else service.run_apply(scope=scope, full=full)
         if not dry_run and report.exit_code == 0:
-            bundle.commit_projection(report)
+            committed = bundle.commit_projection(report)
     finally:
         bundle.close()
     metadata = report.metadata
@@ -595,6 +594,10 @@ def index(
     typer.echo(f"deleted: {len(metadata.deleted_paths)}")
     for warning in metadata.warnings:
         typer.echo(f"warning: {warning}")
+    if committed is not None and committed.removed_vector_collections:
+        typer.echo(f"removed_vector_collections: {len(committed.removed_vector_collections)}")
+    if committed is not None and committed.vector_cleanup_error is not None:
+        typer.echo(f"warning: vector collection cleanup failed: {committed.vector_cleanup_error}")
     if report.vector is not None:
         vector = report.vector
         typer.echo(f"vector_mode: {vector.mode}")
