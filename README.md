@@ -33,10 +33,6 @@ runs the first index:
 curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-builder/main/scripts/install.sh | bash
 ```
 
-This URL works only after the vault-builder change that adds
-`scripts/install.sh` is merged into `main`. Until then the command fails with a
-404 from GitHub.
-
 Quit Claude Code before you run it. The command stops before it writes
 `~/.claude.json` while Claude Code is running. The first index downloads the
 embedding model (about 135 MB) and embeds every Vault, so the command can run

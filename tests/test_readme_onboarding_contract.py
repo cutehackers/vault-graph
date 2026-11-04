@@ -19,7 +19,7 @@ def test_readme_promotes_setup_as_first_run_path() -> None:
         "curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-builder/main/scripts/install.sh | bash"
     )
     normalized_install = " ".join(install_section.split())
-    assert "merged into `main`" in normalized_install
+    assert "404" not in normalized_install
     assert "--without-vault-graph" in install_section
     assert "uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git" in install_section
     assert "git+ssh" not in readme
