@@ -37,7 +37,7 @@
 
 1. 사용자는 README 한 곳에서 쓸 수 있는 모델, 기본 모델, 모델 폴더, 모델을 바꾸는 명령, 바꾼 뒤 다시 색인되는 동안 검색이 어떻게 동작하는지 읽을 수 있다. 사람의 말로는 "사용자의 입장에서 이해하기 쉬운 설치 및 관리"다.
 2. 기본 모델은 snowflake-arctic-embed-l-v2.0 int8이다. 사람은 첫 전체 재색인이 최대 약 48분 걸리고 벡터 저장소가 약 2.7배 커지는 것을 알고 이 모델을 골랐다. 이미 쓰던 Graph Home도 업그레이드하면 바로 이 모델로 바뀐다(spec gate 질문1 답).
-3. 사용자에게는 "이런 유형의 작업에 가장 적합한 모델 하나"를 먼저 내세운다. 사람의 말은 "이런 유형에 작업에 가장 적합한 모델을 후보로 골라서 하나만으로 먼저 시작합니다. 위 세 개로 추가해도 무방할 듯 합니다"다. README와 `vg embedding list`는 arctic-l을 한국어와 coding agent 세션에 맞는 추천 모델 하나로 보여 주고, 나머지 둘은 대안으로 보여 준다(spec gate 질문3 답).
+3. 사용자에게는 "이런 유형의 작업에 가장 적합한 모델 하나"를 먼저 내세운다. 사람의 말은 "이런 유형에 작업에 가장 적합한 모델을 후보로 골라서 하나만으로 먼저 시작합니다. 위 세 개로 추가해도 무방할 듯 합니다"다. README와 `vg embedding list`는 arctic-l을 한국어와 coding agent 세션에 맞는 추천 모델 하나로 보여 주고, 나머지 둘은 대안으로 보여 준다(spec gate 질문3 답). 결정13 뒤로 그 추천 모델은 `e5-small`이다.
 4. 모델을 바꾼 뒤 예전 모델의 빈 벡터 컬렉션이 디스크에 계속 쌓이지 않는다(spec gate 질문2 답).
 5. 모델 파일은 `~/llm/models`에 둔다. 사람이 앞선 대화에서 정했고, 이미 받은 모델 파일도 그 폴더로 옮겨 두었다.
 6. 모델을 하나 더 쓰려면 모델 목록에 항목 하나를 더하면 되고, 다른 코드를 고칠 필요가 없다. 사람의 말 "임베딩이 용이하고 쉬운 구조"를 이렇게 해석했다. [가정]
@@ -74,14 +74,14 @@
   - `files`: 내려받을 파일 패턴 목록. `None`이면 저장소 전체를 받는다(지금 MiniLM 동작).
   - `fastembed_registration`: `"builtin"`(fastembed 기본 목록) 또는 `"custom"`(`add_custom_model`로 등록).
   - `model_file`, `pooling`, `normalization`: `"custom"`일 때 `add_custom_model`에 넘긴다.
-  - `max_tokens`, `download_mb`, `summary`: `vg embedding list`에 보여 줄 값. `summary`는 쓰임새 한 줄이다. `arctic-l`은 "추천: 한국어와 coding agent 세션", `e5-small`은 "대안: 작고 빠름", `minilm`은 "대안: 예전 기본 모델, 되돌리기용"이다.
+  - `max_tokens`, `download_mb`, `summary`: `vg embedding list`에 보여 줄 값. `summary`는 쓰임새 한 줄이다. `arctic-l`은 "추천: 한국어와 coding agent 세션", `e5-small`은 "대안: 작고 빠름", `minilm`은 "대안: 예전 기본 모델, 되돌리기용"이다. (결정13이 대신함: 지금 기본·추천은 `e5-small`이고 `arctic-l`은 대안이다).
   - `query_prefix`, `document_prefix`: 질의와 문서 앞에 붙일 문자열. 없으면 빈 문자열.
-- `EMBEDDING_PRESETS: Mapping[str, EmbeddingPreset]`와 `DEFAULT_EMBEDDING_PRESET = "arctic-l"`을 같은 파일에 둔다. 모델을 더하는 일은 이 표에 항목을 하나 더하는 것으로 끝난다.
+- `EMBEDDING_PRESETS: Mapping[str, EmbeddingPreset]`와 `DEFAULT_EMBEDDING_PRESET`을 같은 파일에 둔다. 값은 `"e5-small"`이다(결정13). 모델을 더하는 일은 이 표에 항목을 하나 더하는 것으로 끝난다.
 - 처음 목록:
 
 | 이름 | `model_name` | 차원 | 최대 토큰 | 등록 | pooling | 질의 접두어 | 문서 접두어 | 받는 크기 |
 |---|---|---|---|---|---|---|---|---|
-| `arctic-l` (기본, 추천) | `Snowflake/snowflake-arctic-embed-l-v2.0` (int8 ONNX) | 1024 | 8192 | custom | CLS, 정규화 | `query: ` | 없음 | 약 570MB |
+| `arctic-l` (대안, 결정13 전에는 기본) | `Snowflake/snowflake-arctic-embed-l-v2.0` (int8 ONNX) | 1024 | 8192 | custom | CLS, 정규화 | `query: ` | 없음 | 약 570MB |
 | `e5-small` (대안) | `Xenova/multilingual-e5-small` (int8 ONNX) | 384 | 512 | custom | MEAN, 정규화 | `query: ` | `passage: ` | 약 118MB |
 | `minilm` (대안) | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | 384 | 128 | builtin | fastembed 기본 | 없음 | 없음 | 약 220MB |
 
@@ -132,7 +132,7 @@
 `main.py`의 다른 그룹처럼 `embedding_app = typer.Typer(no_args_is_help=True)`를 `app.add_typer(embedding_app, name="embedding")`로 붙인다.
 
 - `vg embedding list [--graph-home PATH] [--format text|json]`
-  - `arctic-l`을 맨 위에 "추천"으로 보여 주고, 나머지 둘은 "대안"으로 그 아래에 보여 준다.
+  - 기본 모델(`DEFAULT_EMBEDDING_PRESET`, 지금 `e5-small`)을 맨 위에 "추천"으로 보여 주고, 나머지 둘은 "대안"으로 그 아래에 보여 준다(결정13).
   - 프리셋마다 이름, 추천/대안, 선택 여부, 차원, 최대 토큰, 받는 크기, 모델 폴더에 이미 받았는지, 한 줄 설명(`summary`)을 보여 준다.
   - 맨 위에 임베딩 설정 파일 경로와 모델 폴더를 보여 준다.
   - 받았는지는 `local_files_only=True`로만 확인한다. 네트워크를 쓰지 않고 아무것도 쓰지 않는다.
@@ -145,7 +145,7 @@
 
 ### 4.6 문서
 
-- README에 "Embedding model" 절을 더한다(영어, README의 언어). 먼저 추천 모델 `arctic-l` 하나를 한국어와 coding agent 세션에 맞는 기본 모델로 소개하고, 그 아래 대안 두 개(`e5-small` 작고 빠름, `minilm` 예전 기본 모델·되돌리기용)를 짧은 표로 적는다. 이어서 모델 폴더와 바꾸는 법, `vg embedding list`와 `vg embedding use`, 모델을 바꾼 뒤 다시 색인되는 동안 검색이 키워드 결과만 돌려준다는 것, 첫 전체 재색인 시간과 저장 공간 증가, 다시 색인이 끝나면 예전 모델의 빈 컬렉션이 지워진다는 것을 적는다. 첫 설치 순서는 `vg init` → (원하면) `vg embedding use` → `vg index`로 적는다. "Common Commands" 표에 두 명령을 더한다. `tests/test_readme_onboarding_contract.py:26`이 확인하는 문장은 유지한다.
+- README에 "Embedding model" 절을 더한다(영어, README의 언어). 먼저 추천 모델 `arctic-l` 하나를 한국어와 coding agent 세션에 맞는 기본 모델로 소개하고, 그 아래 대안 두 개(`e5-small` 작고 빠름, `minilm` 예전 기본 모델·되돌리기용)를 짧은 표로 적는다. 이어서 모델 폴더와 바꾸는 법, `vg embedding list`와 `vg embedding use`, 모델을 바꾼 뒤 다시 색인되는 동안 검색이 키워드 결과만 돌려준다는 것, 첫 전체 재색인 시간과 저장 공간 증가, 다시 색인이 끝나면 예전 모델의 빈 컬렉션이 지워진다는 것을 적는다. 첫 설치 순서는 `vg init` → (원하면) `vg embedding use` → `vg index`로 적는다. "Common Commands" 표에 두 명령을 더한다. `tests/test_readme_onboarding_contract.py:26`이 확인하는 문장은 유지한다. (결정13이 대신함: 지금 기본·추천은 `e5-small`이고 `arctic-l`은 대안이다).
 - `docs/ARCHITECTURE.md` §4(`:240-242`)에 `vg embedding use`를 모델을 내려받고 설정 파일을 쓸 수 있는 명시적 명령으로 더한다. 같은 곳에 "성공한 색인은 발행 전 새 세대에서 예전 모델의 빈 벡터 컬렉션을 지운다. 읽기 경로는 지우지 않는다"(4.7)를 한 문장으로 더한다. §2(`:182`)에 프리셋과 임베딩 설정 파일의 위치를 한 줄 더한다.
 - `docs/DECISIONS.md`에는 spec 승인 뒤 "기본 임베딩 모델을 arctic-l로 바꾸고 프리셋으로 고르게 한다" 결정을 더한다. 2026-06-08 MiniLM 결정(`:518-541`)은 지우지 않고 새 결정이 대신한다고 적는다.
 - `docs/SPEC.md:84`(가치2 "다국어 MiniLM 임베딩")와 `:366`(n차-4), `docs/TODO.md:54`를 "모델은 사람의 결정으로 정했고, 측정1 비교는 남아 있다"는 뜻으로 고친다.
@@ -180,15 +180,15 @@
 
 | 결정 | 내용 | 이유 | 누가 |
 |---|---|---|---|
-| 결정1 | 기본 프리셋은 `arctic-l`(snowflake-arctic-embed-l-v2.0 int8) | 공개 한국어 점수가 후보 중 가장 높은 쪽(0.724, bge-m3와 같음)이고, Apache-2.0이며, 받는 크기가 bge-m3의 약 4분의 1이다. 최대 8192토큰이라 128토큰에서 잘리던 긴 조각도 읽는다. 대가는 첫 전체 재색인 최대 약 48분과 벡터 저장소 약 2.7배다 | 사람(인터뷰 "arctic-l") |
-| 결정2 | 이 작업에 가장 맞는 모델 하나(`arctic-l`)를 추천 모델로 내세우고, 목록에는 대안 둘(`e5-small`, `minilm`)을 함께 둔다. README와 `vg embedding list`는 `arctic-l`을 한국어와 coding agent 세션용 추천 모델로, `e5-small`을 작고 빠른 대안으로, `minilm`을 예전 모델이자 되돌리기 경로로 보여 준다 | 사람의 답 "이런 유형에 작업에 가장 적합한 모델을 후보로 골라서 하나만으로 먼저 시작합니다. 위 세 개로 추가해도 무방할 듯 합니다"를 "추천은 하나, 목록은 세 개"로 해석했다. `minilm`은 지금 벡터를 그대로 쓰는 되돌리기 경로라 남길 이유가 있다. 더 큰 모델은 받는 크기가 2GB를 넘고 arctic-l보다 점수 이득이 없다 | 사람(spec gate 질문3, 해석은 coordinator) |
+| 결정1 | 기본 프리셋은 `arctic-l`(snowflake-arctic-embed-l-v2.0 int8). 결정13이 대신함 | 공개 한국어 점수가 후보 중 가장 높은 쪽(0.724, bge-m3와 같음)이고, Apache-2.0이며, 받는 크기가 bge-m3의 약 4분의 1이다. 최대 8192토큰이라 128토큰에서 잘리던 긴 조각도 읽는다. 대가는 첫 전체 재색인 최대 약 48분과 벡터 저장소 약 2.7배다 | 사람(인터뷰 "arctic-l") |
+| 결정2 | 이 작업에 가장 맞는 모델 하나(`arctic-l`, 결정13 뒤로는 `e5-small`)를 추천 모델로 내세우고, 목록에는 대안 둘(`e5-small`, `minilm`)을 함께 둔다. README와 `vg embedding list`는 `arctic-l`을 한국어와 coding agent 세션용 추천 모델로, `e5-small`을 작고 빠른 대안으로, `minilm`을 예전 모델이자 되돌리기 경로로 보여 준다 | 사람의 답 "이런 유형에 작업에 가장 적합한 모델을 후보로 골라서 하나만으로 먼저 시작합니다. 위 세 개로 추가해도 무방할 듯 합니다"를 "추천은 하나, 목록은 세 개"로 해석했다. `minilm`은 지금 벡터를 그대로 쓰는 되돌리기 경로라 남길 이유가 있다. 더 큰 모델은 받는 크기가 2GB를 넘고 arctic-l보다 점수 이득이 없다 | 사람(spec gate 질문3, 해석은 coordinator) |
 | 결정3 | 선택은 `<graph-home>/configs/embedding.json`에 둔다 | `configs/vaults.yaml`은 저장할 때 모르는 키를 지운다(`operation/scope/vault_catalog.py:89-127`). 작은 JSON을 원자적으로 쓰는 선례(`graph/backend.json`)가 있다 | [가정] brief 가정2 |
 | 결정4 | 질의는 새 메서드 `embed_query`, 문서는 기존 `embed` | 질의 임베딩을 부르는 곳은 `retrieval_service.py:261` 하나다. 메서드를 나누면 타입 검사가 잘못된 호출을 잡는다. 다른 안은 설정에 "질의용/문서용" 역할을 두고 객체를 두 개 만드는 것인데, 잘못 만든 객체를 넘겨도 아무 검사에 걸리지 않는다 | spec 작성자 |
 | 결정5 | `minilm` 프리셋의 스펙 네 필드는 지금 값과 같게 둔다 | `minilm`을 고르면 지금 벡터를 다시 임베딩하지 않고 그대로 쓴다 | spec 작성자 |
 | 결정6 | `vg embedding use`는 모델을 받고 설정만 쓴다. 다시 임베딩은 기존 `vg index`와 세션 시작 백그라운드 색인이 한다 | 다시 임베딩 경로가 이미 있다(`recall_index_refresh.py:354-393`, `hook_commands.py:161`). 같은 일을 두 번 만들지 않는다. 내려받기를 먼저 하고 설정을 나중에 써서, 내려받기가 실패하면 설정이 바뀌지 않는다 | [가정] brief 가정3 |
 | 결정7 | 임베딩 설정 파일이 깨졌거나 모르는 프리셋 이름이면, 모델을 쓰는 명령은 오류로 끝난다. 기본 모델로 바꿔 쓰지 않는다 | 다른 모델로 몰래 바꾸지 않는다는 기존 결정(`docs/DECISIONS.md:538-539`)을 따른다. 이 파일은 `vg embedding use`만 쓰므로 깨지는 경우는 손으로 고쳤을 때뿐이다 | spec 작성자 |
 | 결정8 | 비워진 예전 Chroma 컬렉션을 이번 작업에서 지운다. 성공한 색인이 아직 발행하지 않은 새 세대 안에서, `vault_graph_` 접두어를 가졌고 이번 실행의 스펙 컬렉션이 아니며 레코드가 0개인 컬렉션만 지운다(4.7). 일반 패키지는 바꾸지 않고 vault_graph 어댑터가 Chroma 클라이언트를 직접 연다 | 모델을 바꿀 때마다 빈 컬렉션이 세대마다 복사되며 쌓인다(1절 문제7). 발행 전 새 세대에서만 지우므로 읽는 쪽이 보는 활성 세대는 바뀌지 않고, 실패하면 그 세대가 통째로 버려진다(`local_index_service_factory.py:98-113`). 레코드 0개 조건은 일부 Vault만 다시 임베딩한 경우 다른 Vault의 데이터를 지키기 위해서다. 일반 패키지에 메서드를 더하는 안도 있지만, 어댑터 안에서 해결되므로 `packages/` 계약을 건드리지 않는다 | 사람(spec gate 질문2 "이번에 넣음"). 위치와 조건은 coordinator 지시 |
-| 결정9 | 임베딩 설정 파일이 없는 Graph Home은 `arctic-l`을 쓴다 | 결정1의 기본 모델이 설치 직후부터 적용된다. 대가로 이미 쓰던 Graph Home은 새 버전을 설치한 뒤 첫 세션에 다시 임베딩이 시작된다 | 사람(spec gate 질문1 "바로 arctic-l") |
+| 결정9 | 임베딩 설정 파일이 없는 Graph Home은 `arctic-l`을 쓴다. 결정13이 대신함: 지금은 `e5-small`을 쓴다 | 결정1의 기본 모델이 설치 직후부터 적용된다. 대가로 이미 쓰던 Graph Home은 새 버전을 설치한 뒤 첫 세션에 다시 임베딩이 시작된다 | 사람(spec gate 질문1 "바로 arctic-l") |
 | 결정10 | 내려받을 파일을 프리셋의 `files`로 제한한다 | Hugging Face 저장소에는 int8 외의 가중치 파일이 함께 있을 수 있다. 제한하지 않으면 570MB 대신 몇 GB를 받을 수 있다(7절 2번) | spec 작성자 |
 | 결정11 | `vg embedding status`는 만들지 않고, `vg embedding list`가 선택·폴더·받음 여부를 함께 보여 준다. `vg status`는 바꾸지 않는다 | 명령 두 개로 충분하다. 벡터가 오래되었는지는 이미 `vg status`가 보여 준다 | [가정] brief 가정3을 줄임 |
 | 결정12 | 모델 폴더 기본값 `~/llm/models` | 사람이 정했다 | 사람(앞선 대화) |
@@ -198,7 +198,7 @@
 
 | 상황 | 동작 |
 |---|---|
-| 임베딩 설정 파일이 없다 | 기본 프리셋 `arctic-l`과 `~/llm/models`를 쓴다. 파일을 만들지 않는다 |
+| 임베딩 설정 파일이 없다 | 기본 프리셋 `e5-small`(결정13)과 `~/llm/models`를 쓴다. 파일을 만들지 않는다 |
 | 임베딩 설정 파일이 JSON이 아니다, `version`이 1이 아니다, 모르는 키나 틀린 타입이 있다, 4 KiB를 넘는다 | `vg index`, `vg search`, MCP 도구 등 임베딩 객체를 만드는 명령은 파일 경로와 이유를 담은 오류로 끝난다. 파일을 고치지 않는다 |
 | 임베딩 설정 파일의 프리셋 이름을 모른다 | 위와 같이 오류로 끝나고, 쓸 수 있는 이름 목록을 함께 보여 준다 |
 | 설정 파일이 잘못된 상태에서 세션 시작 훅이 돈다 | 회상은 임베딩 모델을 열지 않으므로 그대로 나온다. 백그라운드 색인 판단(`vectors_need_catch_up`)은 오류를 로그(`<graph-home>/logs`)에 남기고 색인을 시작하지 않는다 |
@@ -234,6 +234,7 @@
 4. 재색인 시간 48분과 저장소 2.7배는 32개 조각(405토큰)으로 한 번 잰 속도와 차원 비율로 계산한 값이다. 실제 조각은 더 짧아 시간은 더 짧을 것으로 보지만 확인하지 않았다.
    - 측정(2026-11-04, 임시 Graph Home, 메모리 36GB 컴퓨터, 배치 크기 256): Vault 1개 420조각은 `vg index`에 192초, 최대 메모리 16.5GB, 벡터 폴더 6.5MB였다. Vault 6개 26,209조각은 `vg index --all-vaults --full`로 1시간 55분(6,898초)을 돌려도 끝나지 않아 멈췄다. 이때 최대 메모리는 20.2GB(상주), 메모리 사용량은 40GB로 RAM보다 커서 스왑이 일어났다. 끝까지 돌지 않아 전체 시간과 전체 벡터 폴더 크기는 재지 못했다. 420조각 속도로 계산하면 스왑이 없어도 약 3시간이므로 48분 추정은 맞지 않다. 저장소 배율은 재지 못했다. 5번의 메모리 위험이 실제로 일어났다.
    - 측정(2026-11-04, 같은 조건, 결정13 뒤): `e5-small`은 Vault 6개를 `vg index --all-vaults --full`로 830초(약 14분)에 끝냈다. 최대 메모리 21.2GB(상주), 스왑 0, `vector_stale_count: 0`, 색인 폴더(`projections/`) 전체 496MB였다. 벡터 폴더만의 크기는 따로 재지 않았다.
+   - A-29 (4) 확인(2026-11-04 14:4x): `$HOME/.vault-graph/configs/`에는 2026-11-03에 바뀐 `vaults.yaml`만 있고 `embedding.json`은 없다. `projections/active.json`은 14:01에 바뀌었지만, 활성 세대의 `vector/manifest.json`에는 `paraphrase-multilingual-MiniLM-L12-v2`만 있다. 실행 일정 4번대로 설치된 0.2.1의 세션 시작 훅이 바꾼 것이고, 측정 코드가 쓴 흔적은 없다. 전후 바이트 비교 기록은 없다.
 5. arctic-l을 배치 크기 256으로 돌릴 때 메모리 사용량을 재지 않았다. 최대 8192토큰을 읽으므로 긴 조각이 많은 배치에서 메모리가 크게 늘 수 있다.
 6. 떠 있는 MCP 서버가 언제 서비스를 다시 여는지 확인하지 않았다. `docs/ARCHITECTURE.md:242`는 활성 세대가 바뀌면 다시 연다고 적지만, 그때 임베딩 객체도 다시 만들어 설정 파일을 다시 읽는지는 코드로 확인하지 않았다. 아니라면 모델을 바꾼 뒤 MCP 서버를 다시 시작해야 하고, README에 그렇게 적어야 한다.
 7. fastembed 0.8.0에서 `add_custom_model`을 같은 이름으로 두 번 부르면 어떻게 되는지 확인하지 않았다. 4.2는 "이미 등록되었으면 건너뜀"으로 이를 피한다.
@@ -281,7 +282,7 @@
 일정과 실제 Graph Home 보호(9절 "실행 일정")
 
 - A-28 지금 구현 세션은 모델 파일을 내려받지 않는다. 구현 세션 전후로 `$HOME/.vault-graph/projections/active.json`과 `$HOME/.vault-graph/configs/`의 바이트가 같다.
-- A-29 2026-11-04 12:00 실행 세션의 결과로 다음이 남는다. (1) `~/llm/models`에 `arctic-l` 프리셋의 고정 revision 스냅샷이 있다. (2) 그 모델로 짧은 한국어 질의와 영어 코드 문장을 임베딩해 1024차원 벡터가 나온다. (3) 임시 Graph Home에서 사용자 Vault 전체를 `arctic-l`로 다시 임베딩한 시간과 벡터 폴더 크기가 기록된다. (4) 이 실행 전후로 `$HOME/.vault-graph`의 `projections/active.json`과 `configs/`의 바이트가 같다.
+- A-29 2026-11-04 12:00 실행 세션의 결과로 다음이 남는다. (1) `~/llm/models`에 `arctic-l` 프리셋의 고정 revision 스냅샷이 있다. (2) 그 모델로 짧은 한국어 질의와 영어 코드 문장을 임베딩해 1024차원 벡터가 나온다. (3) 임시 Graph Home에서 사용자 Vault 전체를 `arctic-l`로 다시 임베딩한 시간과 메모리가 기록된다. 끝나지 않으면 멈출 때까지의 시간과 메모리를 기록한다. 결정13으로 기본 모델이 바뀌어 `arctic-l` 전체 측정은 다시 하지 않는다. (4) 측정이 `$HOME/.vault-graph`에 쓰지 않는다. `configs/`는 바뀌지 않고, `projections/active.json`이 바뀌었다면 활성 세대의 벡터 manifest에는 설치된 0.2.1의 MiniLM만 있다.
 
 ## 9. Open decisions
 
@@ -304,5 +305,5 @@
    1. `arctic-l`(약 570MB)을 `~/llm/models`에 받는다.
    2. 실제 모델로 짧은 임베딩을 돌려 로드와 차원을 확인한다.
    3. 임시 Graph Home을 만들어 사용자 Vault를 등록하고, `arctic-l`로 전체를 다시 임베딩하는 시간과 벡터 폴더 크기를 잰다. 결과는 Vault 내용 없이 합계만 남긴다. 7절 4번의 추정값을 이 값으로 바꾼다.
-3. 지금 쓰이는 `vg`는 uv tool로 설치된 vault-graph 0.2.1이다(`$HOME/.local/share/uv/tools/vault-graph/lib/python3.12/site-packages/vault_graph-0.2.1.dist-info`로 확인). 그래서 사용자의 실제 Graph Home(`$HOME/.vault-graph`)은 새 버전을 릴리스해 설치한 뒤에야 `arctic-l`로 바뀐다.
+3. 지금 쓰이는 `vg`는 uv tool로 설치된 vault-graph 0.2.1이다(`$HOME/.local/share/uv/tools/vault-graph/lib/python3.12/site-packages/vault_graph-0.2.1.dist-info`로 확인). 그래서 사용자의 실제 Graph Home(`$HOME/.vault-graph`)은 새 버전을 릴리스해 설치한 뒤에야 기본 모델로 바뀐다. 그 기본 모델은 결정13에 따라 `e5-small`이다.
 4. 예약 세션은 작업 트리 코드로 `$HOME/.vault-graph`를 색인하지 않는다. 설치된 0.2.1의 세션 시작 훅이 MiniLM 스펙으로 벡터를 오래된 것으로 보고 다시 MiniLM으로 임베딩해 되돌리기 때문이다. 시간 측정은 임시 Graph Home에서만 한다(3절 9번, A-29).

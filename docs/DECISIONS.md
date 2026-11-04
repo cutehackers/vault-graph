@@ -527,7 +527,8 @@ local embedding implementation and model, pinned to FastEmbed artifact revision
 revision is `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`.
 
 **Current note:** The default model was replaced by `2026-11-04 - Default To
-Arctic-L And Let Users Pick An Embedding Preset`. This model stays available as
+Arctic-L And Let Users Pick An Embedding Preset`, and then by `2026-11-04 -
+Default To E5-Small After Measuring Arctic-L`. This model stays available as
 the `minilm` preset with the same spec, and the guardrails below still apply.
 
 **Reason:** Vault Graph must stay local-first and useful for mixed Korean and
@@ -803,6 +804,8 @@ source of truth.
 
 ## 2026-11-04 - Default To Arctic-L And Let Users Pick An Embedding Preset
 
+**Current note:** The default model was replaced by `2026-11-04 - Default To E5-Small After Measuring Arctic-L`. `arctic-l` stays as an alternative preset, and the preset list, settings file and commands below still apply.
+
 **Question:** The embedding model was one hard-coded constant (multilingual MiniLM, 128 tokens per chunk). Users search Korean-heavy coding agent session transcripts and could not change the model. Which model should be the default, and how should users switch (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`)?
 
 **Decision:** The user chose `arctic-l` (`Snowflake/snowflake-arctic-embed-l-v2.0`, int8 ONNX, 1024 dimensions, up to 8192 tokens) as the default and recommended model. Models are named presets in `EMBEDDING_PRESETS` (`interface/composition/adapters/text_embeddings.py`), each pinned to a fixed revision. The first list has `arctic-l` (recommended), `e5-small` (smaller and faster alternative) and `minilm` (the previous default, kept for rollback). `vg embedding use NAME` downloads the model into the model folder (default `~/llm/models`) and then writes `<graph-home>/configs/embedding.json`. `vg embedding list` shows the presets, the selection and the folder. A Graph Home without that file uses `arctic-l`. This replaces the default in `2026-06-08 - Use FastEmbed Multilingual MiniLM As Default Local Embeddings`.
@@ -823,7 +826,7 @@ source of truth.
 
 **Decision:** The user chose `e5-small` (`Xenova/multilingual-e5-small`, int8 ONNX, 384 dimensions, up to 512 tokens) as the default and recommended model. `arctic-l` stays as an alternative. A Graph Home without `configs/embedding.json` uses `e5-small`. This replaces the default model in `2026-11-04 - Default To Arctic-L And Let Users Pick An Embedding Preset`. The preset list, the settings file and the commands from that decision stay.
 
-**Reason:** A Graph Home without a settings file starts a background full re-index at the first session after an upgrade. With `arctic-l` that run takes hours and uses more memory than the computer has. `e5-small` supports Korean, reads 512 tokens per chunk against MiniLM's 128, and downloads about 135 MB. The earlier figures of about 48 minutes and 2.7 times the storage were wrong.
+**Reason:** A Graph Home without a settings file starts a background full re-index at the first session after an upgrade. With `arctic-l` that run takes hours and uses more memory than the computer has. `e5-small` supports Korean, reads 512 tokens per chunk against MiniLM's 128, and downloads about 135 MB. The earlier estimate of about 48 minutes was wrong. The storage growth of about 2.7 times was not measured.
 
 **Implications:**
 

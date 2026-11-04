@@ -139,7 +139,7 @@ agent after MCP registration so it can load the new server.
 | Index all Vaults | `vg index --all-vaults --graph-home ~/.vault-graph` |
 | Check health | `vg status --graph-home ~/.vault-graph` |
 | List embedding models | `vg embedding list --graph-home ~/.vault-graph` |
-| Switch embedding model | `vg embedding use e5-small --graph-home ~/.vault-graph` |
+| Switch embedding model | `vg embedding use minilm --graph-home ~/.vault-graph` |
 | Search evidence | `vg search --graph-home ~/.vault-graph "query"` |
 | Expand raw/source evidence | `vg search --mode evidence --graph-home ~/.vault-graph "query"` |
 | Audit projection duplication | `vg projection-audit --graph-home ~/.vault-graph` |
@@ -180,8 +180,8 @@ Change the folder with `--models-dir` on `vg embedding use`.
 
 ```bash
 vg embedding list --graph-home ~/.vault-graph
-vg embedding use e5-small --graph-home ~/.vault-graph
-vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph
+vg embedding use minilm --graph-home ~/.vault-graph
+vg embedding use arctic-l --models-dir /path/to/models --graph-home ~/.vault-graph
 ```
 
 `vg embedding list` shows each model, which one is selected, whether it is
@@ -194,7 +194,7 @@ To pick a model before the first index, run the steps one by one instead of
 
 ```bash
 vg init --vault /path/to/llm-wiki --graph-home ~/.vault-graph
-vg embedding use e5-small --graph-home ~/.vault-graph
+vg embedding use minilm --graph-home ~/.vault-graph
 vg index --graph-home ~/.vault-graph
 ```
 

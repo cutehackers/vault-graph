@@ -59,4 +59,4 @@ def test_readme_lists_embedding_commands_in_common_commands() -> None:
     common_commands = _readme_section(readme, "## Common Commands")
 
     assert "vg embedding list --graph-home ~/.vault-graph" in common_commands
-    assert "vg embedding use e5-small --graph-home ~/.vault-graph" in common_commands
+    assert "vg embedding use minilm --graph-home ~/.vault-graph" in common_commands
