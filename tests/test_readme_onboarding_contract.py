@@ -16,12 +16,15 @@ def test_readme_promotes_setup_as_first_run_path() -> None:
     assert "Status: Pre-release development" in readme
     first_install_block = install_section.split("```bash", 1)[1].split("```", 1)[0].strip()
     assert first_install_block == (
-        "curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-builder/main/scripts/install.sh | bash"
+        "curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-graph/main/scripts/install.sh | bash"
     )
+    assert Path("scripts/install.sh").is_file()
     normalized_install = " ".join(install_section.split())
     assert "404" not in normalized_install
-    assert "--without-vault-graph" in install_section
-    assert "uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git" in install_section
+    assert "--without-vault-graph" not in install_section
+    assert "VAULT_GRAPH_REF" in install_section
+    assert "--uninstall" in install_section
+    assert "uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git@vX.Y.Z" in install_section
     assert "git+ssh" not in readme
     assert "me.github.com" not in readme
     assert "uv tool install vault-graph" not in readme

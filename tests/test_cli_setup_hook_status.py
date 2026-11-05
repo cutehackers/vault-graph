@@ -236,3 +236,17 @@ def test_setup_does_not_write_hook_settings_or_claude_settings(
 def test_setup_agent_default_stays_codex() -> None:
     agent_default = inspect.signature(setup).parameters["agent"].default
     assert agent_default.default == "codex"
+
+
+def test_fix_command_names_the_running_vg_so_the_hooks_record_it(tmp_path: Path) -> None:
+    vg = tmp_path / "with space" / "vg"
+
+    assert hook_status.fix_command(vg) == f"VAULT_GRAPH_BIN='{vg}' vault-builder setup"
+    assert hook_status.fix_command(None) == "vault-builder setup"
+
+
+def test_a_hook_warning_names_the_running_vg(tmp_path: Path, config_dir: Path, running_vg: Path) -> None:
+    exit_code, warnings = _run_setup(tmp_path)
+
+    assert exit_code == 0
+    assert f"VAULT_GRAPH_BIN={running_vg} vault-builder setup" in warnings[0]

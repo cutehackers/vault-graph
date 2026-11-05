@@ -867,3 +867,18 @@ source of truth.
 - `2026-06-29 - Use MIT License For Public Distribution` still stands.
 - Making vault-builder install a release tag instead of `main` is a later, separate change.
 - A person decides what to do with the PyPI project and deletes the `pypi` and `testpypi` environments and the Trusted Publishers.
+
+## 2026-11-05 - Vault Graph Installs vault-builder, Not The Other Way Around
+
+**Question:** The vault-builder install command installed `vg` from `main`, registered the `vault-graph` MCP server and ran the first index. vault-builder works without Vault Graph, and Vault Graph needs vault-builder. Which side owns the Vault Graph install?
+
+**Decision:** Vault Graph. The user decided that vault-builder has no Vault Graph dependency and that Vault Graph owns installing and setting up both. `scripts/install.sh` installs the newest release tag of `vg`, runs the vault-builder install command with `VAULT_GRAPH_BIN` set to that `vg` (so the vault-builder hooks run it), then runs `vg setup --agent claude --mcp`. `--uninstall` removes the `vault-graph` MCP entry and `vg` and keeps vault-builder.
+
+**Reason:** The dependency runs one way. An install that starts from vault-builder had to know Vault Graph's repository, ref, Python version and setup command, and every Vault Graph release could break a vault-builder install. Installing a release tag instead of `main` also keeps unchecked commits away from new installs.
+
+**Implications:**
+
+- This resolves "Making vault-builder install a release tag instead of `main` is a later, separate change" in `2026-11-05 - Release With Git Tags And GitHub Releases Only`: vault-builder installs no Vault Graph at all.
+- The README install command is the Vault Graph one. vault-builder alone is installed with its own command.
+- `vg setup` hook warnings name `VAULT_GRAPH_BIN=<this vg> vault-builder setup` as the fix, because `vault-builder setup` no longer installs `vg`.
+- vault-builder must ship its change (no `vg` install, `--without-vault-graph` removed) before this install command is used. Otherwise vault-builder setup installs `vg` from `main` a second time.

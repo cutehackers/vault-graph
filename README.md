@@ -24,30 +24,44 @@ with Vault's `review resolve`. Session transcripts are written by Vault's
 
 ## Install
 
-Claude Code users start with the vault-builder install command. It installs
-`vg`, creates or registers your Vaults, installs the Vault hooks, links the
-current repository, registers the `vault-graph` MCP server in Claude Code, and
-runs the first index:
+Claude Code users install Vault Graph with one command. Vault Graph needs
+vault-builder, so the command installs both. It installs the newest release tag
+of `vg`, then runs the vault-builder install command, which creates or registers
+your Vaults, installs the Vault hooks (they run this `vg`), links the current
+repository and registers the `vault-wiki` MCP server. Last it runs
+`vg setup --agent claude --mcp`, which registers the `vault-graph` MCP server
+and runs the first index:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-builder/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-graph/main/scripts/install.sh | bash
 ```
 
-Quit Claude Code before you run it. The command stops before it writes
-`~/.claude.json` while Claude Code is running. The first index downloads the
-embedding model (about 135 MB) and embeds every Vault, so the command can run
-for several minutes. On six Vaults with 26,209 chunks it took about 14 minutes
-and up to about 21 GB of memory. Start Claude Code again when the command
-finishes and check the servers with `/mcp`. The command installs both
-vault-builder and Vault Graph by default. Add `--without-vault-graph` (`| bash
--s -- --without-vault-graph`) to install vault-builder only. See the
-vault-builder README for its other options.
+Quit Claude Code before you run it. The command stops before it changes
+anything while Claude Code is running. When uv is missing, it asks before it
+installs uv (`--install-uv` installs it without asking). The first index
+downloads the embedding model (about 135 MB) and embeds every Vault, so the
+command can run for several minutes. On six Vaults with 26,209 chunks it took
+about 14 minutes and up to about 21 GB of memory. Start Claude Code again when
+the command finishes and check the servers with `/mcp`.
 
-The install command installs the `main` branch of Vault Graph from this public
-GitHub repository over HTTPS. No SSH key is needed. To install a specific
-release, add its tag to the repository address as `@vX.Y.Z`. Do not install the
-`vault-graph` package from PyPI. It is no longer updated and lacks commands the
-install command uses, such as `vg mcp unregister`.
+Options after `bash -s --` go to the vault-builder install command, for example
+`--repo /path/to/app --yes` to run without questions or `--dry-run` to install
+nothing and show the plan. `--help` lists every option and environment variable.
+
+The command installs the newest release tag `vX.Y.Z` of this repository over
+HTTPS. The `release` workflow creates a tag only for a commit that passed every
+check, so `main` is never installed by default. Set `VAULT_GRAPH_REF` to install
+another tag or a branch, for example `VAULT_GRAPH_REF=main`. No SSH key is
+needed. Do not install the `vault-graph` package from PyPI. It is no longer
+updated and lacks commands the install command uses, such as
+`vg mcp unregister`.
+
+To remove Vault Graph, run the command with `--uninstall` (`| bash -s --
+--uninstall`). It removes the `vault-graph` MCP server and `vg`, and keeps
+vault-builder, your Vaults and `~/.vault-graph`.
+
+vault-builder installs and works without Vault Graph. To use only
+vault-builder, run its own install command (see the vault-builder README).
 
 ### Install `vg` only
 
@@ -57,18 +71,17 @@ Prerequisites:
 - [`uv`](https://docs.astral.sh/uv/)
 
 ```bash
-uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git
+uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git@vX.Y.Z
 vg --help
 ```
 
-To install a release tag instead of `main`, use
-`uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git@vX.Y.Z`.
+Replace `vX.Y.Z` with a release tag. Without `@vX.Y.Z` uv installs `main`.
 
 Then continue with Quick Start below.
 
 ## Quick Start
 
-The vault-builder install command already runs this step for you. Run it
+The install command already runs this step for you. Run it
 yourself only when you installed `vg` alone. For Claude Code, use
 `--agent claude`:
 
@@ -326,9 +339,15 @@ uv tool install --python 3.12 -e .
 vg --help
 ```
 
-The vault-builder install command reinstalls `vg` from the git URL with
-`--force` and replaces an editable install. Pass `--without-vault-graph` to it
-to keep your editable `vg`.
+The install command reinstalls `vg` from a release tag with `--force` and
+replaces an editable install. To keep your editable `vg`, install vault-builder
+with its own install command, then point its hooks at your `vg` and register
+the server yourself:
+
+```bash
+VAULT_GRAPH_BIN="$(command -v vg)" vault-builder setup
+vg setup --agent claude --mcp
+```
 
 ## Independent Modules
 
