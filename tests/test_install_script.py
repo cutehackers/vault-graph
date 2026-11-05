@@ -39,6 +39,9 @@ exit 0
 
 FAKE_BUILDER = """#!/bin/sh
 echo "vault-builder $* VAULT_GRAPH_BIN=${{VAULT_GRAPH_BIN:-}}" >> "{log}"
+case " $* " in
+  *" --dry-run "*) echo "builder dry run output"; exit {dry_code} ;;
+esac
 exit {code}
 """
 
@@ -93,8 +96,10 @@ class Installer:
     def set_uv(self, *, install_code: int) -> None:
         _write(self.stub / "uv", FAKE_UV.format(log=self.log, vg=self.fake_vg, install_code=install_code))
 
-    def set_builder(self, *, code: int) -> None:
-        self.builder = _write(self.sources / "vault-builder-install.sh", FAKE_BUILDER.format(log=self.log, code=code))
+    def set_builder(self, *, code: int, dry_code: int = 0) -> None:
+        self.builder = _write(
+            self.sources / "vault-builder-install.sh", FAKE_BUILDER.format(log=self.log, code=code, dry_code=dry_code)
+        )
 
     @property
     def vg(self) -> Path:
@@ -145,6 +150,7 @@ def test_installs_the_newest_release_tag_then_vault_builder_then_vg_setup(instal
     _ok(result)
     vg = installer.vg
     assert installer.calls() == [
+        "vault-builder --repo /path/app --yes --yes --dry-run VAULT_GRAPH_BIN=",
         f"uv tool install --force --python 3.12 git+{installer.repo}@v0.10.0",
         "uv tool dir --bin",
         f"vault-builder --repo /path/app --yes VAULT_GRAPH_BIN={vg}",
@@ -156,7 +162,7 @@ def test_installs_the_newest_release_tag_then_vault_builder_then_vg_setup(instal
 def test_vault_graph_ref_chooses_another_tag_or_branch(installer: Installer) -> None:
     _ok(installer.run("--yes", VAULT_GRAPH_REF="main"))
 
-    assert installer.calls()[0] == f"uv tool install --force --python 3.12 git+{installer.repo}@main"
+    assert installer.calls()[1] == f"uv tool install --force --python 3.12 git+{installer.repo}@main"
 
 
 def test_a_repository_without_a_release_tag_stops_before_installing(installer: Installer, tmp_path: Path) -> None:
@@ -167,7 +173,7 @@ def test_a_repository_without_a_release_tag_stops_before_installing(installer: I
 
     _ok(result, 1)
     assert "has no release tag" in result.stderr
-    assert installer.calls() == []
+    assert not any(call.startswith("uv tool install") for call in installer.calls())
 
 
 def test_dry_run_installs_nothing_and_passes_dry_run_to_vault_builder(installer: Installer) -> None:
@@ -194,7 +200,7 @@ def test_a_failed_uv_install_stops_before_vault_builder(installer: Installer) ->
     result = installer.run("--yes")
 
     _ok(result, 1)
-    assert not any(call.startswith("vault-builder") for call in installer.calls())
+    assert not any(call.startswith("vault-builder") and "--dry-run" not in call for call in installer.calls())
 
 
 def test_claude_code_running_exits_3_before_installing(installer: Installer) -> None:
@@ -256,3 +262,14 @@ def test_no_terminal_and_no_yes_stops_before_installing(installer: Installer) ->
     assert "No terminal for questions" in result.stderr
     assert "--yes" in result.stderr
     assert installer.calls() == []
+
+
+def test_a_failed_vault_builder_check_stops_before_installing_anything(installer: Installer) -> None:
+    installer.set_builder(code=0, dry_code=1)
+
+    result = installer.run("--yes")
+
+    _ok(result, 1)
+    assert "builder dry run output" in result.stderr
+    assert "Nothing of vault-graph was installed" in result.stderr
+    assert installer.calls() == ["vault-builder --yes --yes --dry-run VAULT_GRAPH_BIN="]
