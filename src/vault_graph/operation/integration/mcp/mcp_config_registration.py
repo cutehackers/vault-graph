@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import sys
 import tempfile
 import tomllib
 from collections.abc import Callable
@@ -12,6 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 from vault_graph.errors import McpConfigError
+from vault_graph.operation.integration.hook_status import running_vg_path
 
 McpAgent = Literal["codex", "claude"]
 SUPPORTED_MCP_AGENTS: tuple[str, ...] = ("codex", "claude")
@@ -258,11 +258,13 @@ def _validate_agent(agent: object) -> None:
 
 
 def _installed_vg_command() -> str | None:
+    # The vg running `vg setup` comes first. The install command runs a vg it just installed by its absolute path,
+    # and the hooks record that vg, so another vg earlier on PATH must not end up in the MCP entry.
+    running = running_vg_path()
+    if running is not None:
+        return str(running)
     found = shutil.which("vg")
-    if found:
-        return os.path.abspath(found)
-    beside_python = Path(sys.executable).parent / "vg"
-    return str(beside_python) if beside_python.is_file() else None
+    return os.path.abspath(found) if found else None
 
 
 def _replace_file(path: Path, text: str) -> None:

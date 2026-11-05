@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -282,3 +283,20 @@ def test_cli_mcp_register_claude_with_explicit_path(home: Path, tmp_path: Path) 
     servers = json.loads(config_path.read_text(encoding="utf-8"))["mcpServers"]
     assert set(servers) == {"other", "vault-graph"}
     assert not (home / ".claude.json").exists()
+
+
+def test_installed_vg_command_prefers_the_running_vg_over_another_vg_on_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from vault_graph.operation.integration.mcp import mcp_config_registration
+
+    running = tmp_path / "installed" / "vg"
+    other = tmp_path / "other" / "vg"
+    for path in (running, other):
+        path.parent.mkdir()
+        path.write_text("#!/bin/sh\n", encoding="utf-8")
+        path.chmod(0o755)
+    monkeypatch.setenv("PATH", str(other.parent))
+    monkeypatch.setattr(sys, "argv", [str(running), "setup"])
+
+    assert mcp_config_registration._installed_vg_command() == str(running)
