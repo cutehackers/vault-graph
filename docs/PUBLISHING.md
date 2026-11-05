@@ -6,98 +6,66 @@
    `./publish.sh -v 0.3.0`
    Run this from a clean `main` checkout or release worktree.
 2. Review and merge the release candidate PR into `main`.
-3. In GitHub Actions, run `prepare-release` manually:
+3. In GitHub Actions, run `release` manually:
    - `version`: `0.3.0`
    - `target_ref`: `main`
    - `release_notes`: leave empty for generated notes, or write a manual override
-4. Open the generated draft GitHub Release `v0.3.0`.
-5. Review the release notes and attached `dist/*` artifacts.
-6. Publish the draft GitHub Release.
-7. Open the `publish-pypi` workflow run.
-8. Approve the `pypi` environment deployment.
-9. After the workflow succeeds, verify the public install:
+4. Confirm the GitHub Release `v0.3.0` and its tag exist.
+5. Verify the tagged install:
 
 ```bash
-uv tool uninstall vault-graph || true
-uv tool install vault-graph
+uv tool install --force --python 3.12 git+https://github.com/cutehackers/vault-graph.git@v0.3.0
 vg --help
 vg setup --help
 vg ask --help
 ```
 
-Vault Graph uses GitHub Actions and PyPI Trusted Publishing for public package
-distribution. Do not publish release artifacts from a local machine.
-
 ## Safety Model
 
-- Pull requests run verification only.
-- Pushes to `main` run verification only.
-- Release preparation is manual and creates a draft GitHub Release only.
-- Empty release notes use GitHub generated release notes for the draft.
-- TestPyPI publishing is manual through `workflow_dispatch`.
-- PyPI publishing runs only when a GitHub Release is published.
-- PyPI upload jobs require GitHub environment approval.
-- PyPI and TestPyPI use OIDC Trusted Publishing, not API tokens or GitHub
-  secrets.
+- Pull requests and pushes to `main` run checks only.
+- Only the manual `release` workflow creates tags and GitHub Releases.
+- The tag is created only after every check in the `release` workflow passes.
+  If any check fails, no tag and no Release are created.
+- The workflow stops if the tag already exists on the remote.
+- The workflow stops if the target commit is not on `main`.
+- The workflow uses no API tokens or GitHub secrets beyond the default
+  `GITHUB_TOKEN`.
 
-## Published Package
+## Install Channels
 
-PyPI and TestPyPI receive only `vault-graph`. Its wheel bundles the five
-repository modules (`graph_search`, `graph_document`, `text_embeddings`,
-`vector_search`, `vector_index`) and declares their external dependencies
-directly, so it does not require any `nolemy-*` distribution.
+- `git+https://github.com/cutehackers/vault-graph.git` without a ref installs
+  `main`. The vault-builder install command uses this form.
+- `git+https://github.com/cutehackers/vault-graph.git@vX.Y.Z` installs a
+  released version.
+- The `vault-graph` package on PyPI stopped at 0.2.1 and is no longer updated.
 
-The `nolemy-*` module wheels are built only for checks in the release
-workflows and are not published. Pull request CI runs only lint, type check
-and tests. Release workflows build with `uv build` (root only) and run
-`tests/verify_release_dist.py dist` before upload. See the 2026-10-28 entry in
+## What The Release Builds
+
+The GitHub Release has no attached files. The `release` workflow still builds
+with `uv build` and runs `tests/verify_release_dist.py dist`, because a git
+install builds the same wheel from the same source.
+
+The `vault-graph` wheel bundles the five repository modules (`graph_search`,
+`graph_document`, `text_embeddings`, `vector_search`, `vector_index`) and
+declares their external dependencies directly, so it does not require any
+`nolemy-*` distribution.
+
+The `nolemy-*` module wheels are built only for checks in the `release`
+workflow (`tests/verify_graph_module_wheels.py`). Pull request CI runs only
+lint, type check and tests. See the 2026-10-28 entry in
 [DECISIONS.md](DECISIONS.md).
 
 ## Required GitHub Settings
 
-Create these environments in the GitHub repository:
-
-- `testpypi`
-- `pypi`
-
-For `pypi`, configure required reviewers. This keeps the upload job paused after
-a GitHub Release is published until an authorized maintainer approves it.
-
-Recommended repository protections:
-
 - protect `main`
 - require CI before merge
-- restrict who can publish releases
 - keep Actions permissions at read-only by default
 
-## Required PyPI Settings
-
-Register Trusted Publishers for both TestPyPI and PyPI.
-
-TestPyPI:
-
-- project name: `vault-graph`
-- owner: `cutehackers`
-- repository: `vault-graph`
-- workflow: `publish-testpypi.yml`
-- environment: `testpypi`
-
-PyPI:
-
-- project name: `vault-graph`
-- owner: `cutehackers`
-- repository: `vault-graph`
-- workflow: `publish-pypi.yml`
-- environment: `pypi`
-
-If the project does not exist yet, use PyPI's pending publisher flow.
-
-Do not register Trusted Publishers for the `nolemy-*` modules. They are not
-published.
+Anyone with write access to the repository can run the `release` workflow.
 
 ## Release Verification
 
-Before publishing a release, run:
+Before running the `release` workflow, run:
 
 ```bash
 uv run --python 3.12 ruff check src tests
@@ -106,46 +74,12 @@ uv run --python 3.12 pytest -q
 
 rm -rf dist
 uv build
-uv run --python 3.12 --with twine python -m twine check dist/*
-```
-
-## TestPyPI Flow
-
-Use TestPyPI before the first public release and before risky packaging changes.
-Use a version that has not already been uploaded to TestPyPI.
-
-1. Push the release candidate commit to `main`.
-2. Confirm the `ci` workflow passed.
-3. Run the `publish-testpypi` workflow manually.
-4. Approve the `testpypi` environment if approval is enabled.
-5. Install and smoke-test the package from TestPyPI.
-
-TestPyPI does not mirror all dependencies. If dependency resolution fails during
-manual installation, use PyPI as an extra index for dependencies.
-
-## PyPI Flow
-
-1. Confirm TestPyPI validation is acceptable.
-2. Confirm README installation instructions match the public PyPI state.
-3. Run the `prepare-release` workflow to create a draft GitHub Release such as
-   `vX.Y.Z`.
-4. Review and publish the draft GitHub Release.
-5. Wait for the `publish-pypi` workflow to reach the `pypi` environment gate.
-6. Review the release artifact, version, README, and workflow run.
-7. Approve the `pypi` environment.
-8. Verify public install:
-
-```bash
-uv tool uninstall vault-graph || true
-uv tool install vault-graph
-vg --help
-vg setup --help
-vg ask --help
 ```
 
 ## Non-Goals
 
-- Do not publish on plain `push`.
-- Do not publish on tag push alone.
-- Do not store PyPI API tokens in GitHub Secrets.
-- Do not rebuild or mutate Vault content during package publication.
+- Do not release on plain `push` or on tag push.
+- Do not push release tags from a local machine.
+- Do not attach files to GitHub Releases.
+- Do not upload to PyPI or TestPyPI.
+- Do not create or change Vault content during a release.

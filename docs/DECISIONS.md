@@ -849,3 +849,21 @@ source of truth.
 - A Graph Home that still has MiniLM vectors cannot keep them by selecting `minilm`. The next index re-embeds them with `e5-small`.
 - `vg embedding use e5-small --models-dir PATH` is how a user moves the model folder.
 - Measurement 1 (`docs/SPEC.md` n-4) still has to check `e5-small` on the user's own data.
+
+## 2026-11-05 - Release With Git Tags And GitHub Releases Only
+
+**Question:** Every install path uses git: the vault-builder install command and the README both install `git+https://github.com/cutehackers/vault-graph.git`. Release still went through a draft GitHub Release, `pypi` environment approval and a PyPI upload, so v0.3.0 had no tag or Release. Is PyPI still needed (spec `docs/specs/2026-11-05-git-tag-release/spec.md`)?
+
+**Decision:** No. The user approved removing PyPI and TestPyPI publishing. The manual `release` workflow (`.github/workflows/release.yml`) runs the version, tag, lint, type, test and wheel checks, then creates the tag `vX.Y.Z` and a published GitHub Release with no attached files. It fails without creating anything when a check fails or the target commit is not on `origin/main`.
+
+**Reason:** No supported install path reads PyPI. The last PyPI release, 0.2.1, lacks commands the install command uses, such as `vg mcp unregister`. The PyPI upload and its approval step only delayed releases.
+
+**Implications:**
+
+- This replaces `2026-06-29 - Use Trusted Publishing With Release Approval` in full.
+- It replaces the PyPI implications of `2026-06-24 - Use Setup And MCP Registration As Onboarding Target`. README now installs from git and tells users not to use the PyPI package.
+- It replaces the PyPI upload part of `2026-10-28 - Publish Only Vault Graph And Defer Module Distributions`. Bundling the five modules in the `vault-graph` wheel stays.
+- It replaces the reason in `2026-11-03 - Run Only Lint, Type Check And Tests In Pull Request CI` that wheel checks run again in `publish-pypi.yml` and `publish-testpypi.yml`. They now run in `release.yml`. The user kept `ci.yml` unchanged, so wheel problems on `main` still show up only at release time.
+- `2026-06-29 - Use MIT License For Public Distribution` still stands.
+- Making vault-builder install a release tag instead of `main` is a later, separate change.
+- A person decides what to do with the PyPI project and deletes the `pypi` and `testpypi` environments and the Trusted Publishers.

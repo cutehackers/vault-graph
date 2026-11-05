@@ -364,13 +364,22 @@ Required direction:
 
 Status: ongoing operations.
 
-Keep PyPI publishing behind GitHub Release, environment approval, and Trusted
-Publishing. Local `uv publish` remains outside the normal release path.
+A release is one git tag `vX.Y.Z` and its published GitHub Release. Users
+install a release with `git+https://github.com/cutehackers/vault-graph.git@vX.Y.Z`.
+Vault Graph no longer publishes to PyPI or TestPyPI. See `docs/PUBLISHING.md`.
 
 Required direction:
 
 - PR and push run verification only
-- TestPyPI is manual
-- PyPI runs only from a published GitHub Release
-- `pypi` environment approval is required
-- publishing uses OIDC, not API tokens or GitHub secrets
+- only the manual `release` workflow creates tags and GitHub Releases
+- `release` creates no tag until every check passes, and it releases only
+  commits already on `origin/main`
+- GitHub Releases have no attached files
+- no PyPI or TestPyPI upload
+
+Left for a person:
+
+- decide whether to keep, yank, or delete the `vault-graph` project on PyPI
+  (0.2.1 is the last upload)
+- delete the `pypi` and `testpypi` GitHub environments
+- delete the Trusted Publishers on PyPI and TestPyPI
