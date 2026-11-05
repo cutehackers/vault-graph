@@ -33,10 +33,16 @@ vg ask --help
 
 ## Install Channels
 
-- `git+https://github.com/cutehackers/vault-graph.git` without a ref installs
-  `main`. The vault-builder install command uses this form.
+- `scripts/install.sh` (the README install command) installs the newest
+  `vX.Y.Z` tag, read with `git ls-remote --tags`, so a new release reaches new
+  installs as soon as its tag exists. `VAULT_GRAPH_REF` picks another tag or a
+  branch. The command then runs the vault-builder install command with
+  `VAULT_GRAPH_BIN` set to the installed `vg`, and runs `vg setup`.
 - `git+https://github.com/cutehackers/vault-graph.git@vX.Y.Z` installs a
   released version.
+- `git+https://github.com/cutehackers/vault-graph.git` without a ref installs
+  `main`. No install command uses this form.
+- vault-builder does not install vault-graph.
 - The `vault-graph` package on PyPI stopped at 0.2.1 and is no longer updated.
 
 ## What The Release Builds

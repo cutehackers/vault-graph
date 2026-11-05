@@ -1,13 +1,15 @@
 """Read-only check of the vault-builder hook settings that ``vg setup`` reports on.
 
 vault-builder writes ``<config dir>/vault-builder/vault-hooks.json`` with the absolute ``vg`` path the
-hook launcher runs. vg only reads this file. Fixing it is ``vault-builder setup``'s job.
+hook launcher runs. vg only reads this file. ``vault-builder setup`` records the vg named in ``VAULT_GRAPH_BIN``
+(else the vg on PATH), so the fix command names this vg when it is known.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import sys
 from collections.abc import Mapping
@@ -17,6 +19,13 @@ from vault_graph.operation.integration.vault_map import CLAUDE_CONFIG_ENV
 
 VAULT_HOOKS_RELATIVE_PATH = Path("vault-builder/vault-hooks.json")
 FIX_COMMAND = "vault-builder setup"
+
+
+def fix_command(running_vg: Path | None) -> str:
+    """The command that makes the hooks run this vg: vault-builder setup with VAULT_GRAPH_BIN set to it."""
+    if running_vg is None:
+        return FIX_COMMAND
+    return f"VAULT_GRAPH_BIN={shlex.quote(str(running_vg))} {FIX_COMMAND}"
 
 
 def claude_config_dir(*, environ: Mapping[str, str] | None = None) -> Path:
@@ -47,21 +56,22 @@ def running_vg_path() -> Path | None:
 
 def hook_status_warning(hooks_path: Path, running_vg: Path | None) -> str | None:
     """Return one warning line body for a hook problem, or None when the hooks use this vg."""
+    fix = fix_command(running_vg)
     if not hooks_path.is_file():
-        return f"hook_not_installed: no hook settings at {hooks_path}. Run `{FIX_COMMAND}`."
+        return f"hook_not_installed: no hook settings at {hooks_path}. Run `{fix}`."
     try:
         data = json.loads(hooks_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         reason = " ".join(f"{type(exc).__name__}: {exc}".split())
-        return f"hook_settings_unreadable: cannot read {hooks_path} ({reason}). Run `{FIX_COMMAND}`."
+        return f"hook_settings_unreadable: cannot read {hooks_path} ({reason}). Run `{fix}`."
     value = data.get("vg") if isinstance(data, dict) else None
     if not isinstance(value, str) or not value:
-        return f"hook_vg_not_found: {hooks_path} has no vg path. Run `{FIX_COMMAND}`."
+        return f"hook_vg_not_found: {hooks_path} has no vg path. Run `{fix}`."
     recorded = Path(value)
     if not recorded.is_absolute() or not recorded.is_file() or not os.access(recorded, os.X_OK):
-        return f"hook_vg_not_found: hook vg {value} is not an executable file. Run `{FIX_COMMAND}`."
+        return f"hook_vg_not_found: hook vg {value} is not an executable file. Run `{fix}`."
     if running_vg is not None and not _same_file(recorded, running_vg):
-        return f"hook_vg_differs: hooks use vg {value}, but this vg is {running_vg}. Run `{FIX_COMMAND}`."
+        return f"hook_vg_differs: hooks use vg {value}, but this vg is {running_vg}. Run `{fix}`."
     return None
 
 
