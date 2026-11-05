@@ -13,7 +13,7 @@ Prepare a release candidate PR:
   - push the branch
   - open a GitHub PR
 
-This script does not publish to PyPI and does not create a GitHub Release.
+This script creates no git tag and no GitHub Release.
 EOF
 }
 
@@ -102,7 +102,7 @@ for path, (pattern, replacement) in replacements.items():
 publishing_path = Path("docs/PUBLISHING.md")
 publishing = publishing_path.read_text(encoding="utf-8")
 publishing = re.sub(r"\./publish\.sh -v [0-9]+\.[0-9]+\.[0-9]+", f"./publish.sh -v {version}", publishing, count=1)
-publishing = re.sub(r"v[0-9]+\.[0-9]+\.[0-9]+", f"v{version}", publishing, count=1)
+publishing = re.sub(r"v[0-9]+\.[0-9]+\.[0-9]+", f"v{version}", publishing)
 publishing_path.write_text(publishing, encoding="utf-8")
 PY
 
@@ -129,7 +129,8 @@ cat <<EOF
 Release candidate PR is ready for v${VERSION}.
 
 After merge:
-1. Run the prepare-release workflow with version ${VERSION}.
-2. Review and publish the generated draft GitHub Release.
-3. Approve the pypi environment deployment.
+1. In GitHub Actions, run the release workflow with version ${VERSION}.
+2. Verify the tagged install:
+   uv tool install --force --python 3.12 git+https://github.com/cutehackers/vault-graph.git@v${VERSION}
+   vg --help
 EOF

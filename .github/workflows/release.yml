@@ -1,4 +1,4 @@
-name: prepare-release
+name: release
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       target_ref:
-        description: Branch, tag, or commit to release.
+        description: Branch, tag, or commit on main to release.
         required: true
         default: main
         type: string
@@ -22,11 +22,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: prepare-release-${{ inputs.version }}
+  group: release-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  release:
     if: github.repository == 'cutehackers/vault-graph'
     runs-on: ubuntu-latest
     steps:
@@ -46,6 +46,8 @@ jobs:
           from pathlib import Path
 
           requested = os.environ["RELEASE_VERSION"]
+          if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", requested) is None:
+              raise SystemExit(f"version {requested!r} must be X.Y.Z without a v prefix")
           pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
           package_version = pyproject["project"]["version"]
           init_text = Path("src/vault_graph/__init__.py").read_text(encoding="utf-8")
@@ -60,15 +62,22 @@ jobs:
           PY
         env:
           RELEASE_VERSION: ${{ inputs.version }}
-      - name: Confirm release tag is unused
+      - name: Confirm release tag is unused on the remote
         run: |
           tag="v${RELEASE_VERSION}"
-          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+          if [ -n "$(git ls-remote --tags origin "refs/tags/${tag}")" ]; then
             echo "Tag ${tag} already exists."
             exit 1
           fi
         env:
           RELEASE_VERSION: ${{ inputs.version }}
+      - name: Confirm target commit is on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Target commit $(git rev-parse HEAD) is not on origin/main."
+            exit 1
+          fi
       - name: Lint
         run: uv run --python 3.12 ruff check src tests packages
       - name: Type check
@@ -78,9 +87,9 @@ jobs:
       - name: Verify independently installed module wheels and Vault integration
         run: uv run --python 3.12 python tests/verify_graph_module_wheels.py
       - name: Build distributions
-        run: uv build
-      - name: Check distributions
-        run: uv run --python 3.12 --with twine python -m twine check dist/*
+        run: |
+          rm -rf dist
+          uv build
       - name: Verify release distributions
         run: uv run --python 3.12 python tests/verify_release_dist.py dist
       - name: Write manual release notes
@@ -89,22 +98,20 @@ jobs:
           printf '%s\n' "${RELEASE_NOTES}" > release-notes.md
         env:
           RELEASE_NOTES: ${{ inputs.release_notes }}
-      - name: Create draft GitHub Release with manual notes
+      - name: Create tag and GitHub Release with manual notes
         if: ${{ inputs.release_notes != '' }}
         run: |
-          gh release create "v${RELEASE_VERSION}" dist/* \
-            --draft \
+          gh release create "v${RELEASE_VERSION}" \
             --target "$(git rev-parse HEAD)" \
             --title "v${RELEASE_VERSION}" \
             --notes-file release-notes.md
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ inputs.version }}
-      - name: Create draft GitHub Release with generated notes
+      - name: Create tag and GitHub Release with generated notes
         if: ${{ inputs.release_notes == '' }}
         run: |
-          gh release create "v${RELEASE_VERSION}" dist/* \
-            --draft \
+          gh release create "v${RELEASE_VERSION}" \
             --generate-notes \
             --target "$(git rev-parse HEAD)" \
             --title "v${RELEASE_VERSION}"

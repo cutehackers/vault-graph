@@ -43,10 +43,11 @@ vault-builder and Vault Graph by default. Add `--without-vault-graph` (`| bash
 -s -- --without-vault-graph`) to install vault-builder only. See the
 vault-builder README for its other options.
 
-The install command installs Vault Graph from this public GitHub repository
-over HTTPS. No SSH key is needed. Vault Graph also has releases on
-PyPI, but the latest one (0.2.1) does not have commands the install command
-uses, such as `vg mcp unregister`.
+The install command installs the `main` branch of Vault Graph from this public
+GitHub repository over HTTPS. No SSH key is needed. To install a specific
+release, add its tag to the repository address as `@vX.Y.Z`. Do not install the
+`vault-graph` package from PyPI. It is no longer updated and lacks commands the
+install command uses, such as `vg mcp unregister`.
 
 ### Install `vg` only
 
@@ -59,6 +60,9 @@ Prerequisites:
 uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git
 vg --help
 ```
+
+To install a release tag instead of `main`, use
+`uv tool install --python 3.12 git+https://github.com/cutehackers/vault-graph.git@vX.Y.Z`.
 
 Then continue with Quick Start below.
 
@@ -368,7 +372,7 @@ Switching back to the document backend rebuilds its staging cache. For an incomp
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): accepted architectural and product decisions (ADR)
 - [`docs/FEATURES.md`](docs/FEATURES.md): user-facing feature catalog (Phase 1 coexistence)
 - [`docs/TODO.md`](docs/TODO.md): active Invariant Engine roadmap and deferred work
-- [`docs/PUBLISHING.md`](docs/PUBLISHING.md): PyPI release workflow and permissions
+- [`docs/PUBLISHING.md`](docs/PUBLISHING.md): release process with git tags and GitHub Releases, and its permissions
 - [`docs/archive/`](docs/archive/): archived historical specifications (`SPEC-v1.2.md`, `DESIGN-v1.2.md`)
 
 ## License
