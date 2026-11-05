@@ -229,7 +229,8 @@ fetch_builder_installer() {
 precheck_vault_builder() {
   local output status=0
   echo "Checking that vault-builder can set up this machine (dry run)."
-  output="$(bash "${BUILDER_INSTALLER}" "$@" --yes --dry-run </dev/null 2>&1)" || status=$?
+  # PYTHONUNBUFFERED keeps the stdout and stderr lines of setup in the order it printed them.
+  output="$(PYTHONUNBUFFERED=1 bash "${BUILDER_INSTALLER}" "$@" --yes --dry-run </dev/null 2>&1)" || status=$?
   if [[ "${status}" -ne 0 ]]; then
     printf '%s\n' "${output}" >&2
     echo "The vault-builder check exited ${status}. Nothing of vault-graph was installed." >&2
