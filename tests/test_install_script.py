@@ -34,8 +34,14 @@ exit 2
 
 FAKE_VG = """#!/bin/sh
 echo "vg $*" >> "{log}"
+if [ "$1 $2" = "setup --help" ]; then
+  echo "Usage: vg setup [OPTIONS]"
+  echo "  {index_option}"
+fi
 exit 0
 """
+NEW_SETUP_HELP = "--index / --no-index  Index every Vault, or skip it."
+OLD_SETUP_HELP = "--dry-run  Write nothing."
 
 FAKE_BUILDER = """#!/bin/sh
 echo "vault-builder $* VAULT_GRAPH_BIN=${{VAULT_GRAPH_BIN:-}}" >> "{log}"
@@ -73,7 +79,7 @@ class Installer:
         self.sources = tmp / "sources"
         self.sources.mkdir()
         self.claude_flag = tmp / "claude-running"
-        self.fake_vg = _write(self.sources / "vg", FAKE_VG.format(log=self.log))
+        self.set_vg(help_text=NEW_SETUP_HELP)
         self.set_uv(install_code=0)
         self.set_builder(code=0)
         _write(self.stub / "pgrep", FAKE_PGREP.format(flag=self.claude_flag))
@@ -92,6 +98,9 @@ class Installer:
         _git("commit", "-q", "--allow-empty", "-m", "first", cwd=self.repo, env=git_env)
         for tag in TAGS:
             _git("tag", tag, cwd=self.repo, env=git_env)
+
+    def set_vg(self, *, help_text: str) -> None:
+        self.fake_vg = _write(self.sources / "vg", FAKE_VG.format(log=self.log, index_option=help_text))
 
     def set_uv(self, *, install_code: int) -> None:
         _write(self.stub / "uv", FAKE_UV.format(log=self.log, vg=self.fake_vg, install_code=install_code))
@@ -154,9 +163,56 @@ def test_installs_the_newest_release_tag_then_vault_builder_then_vg_setup(instal
         f"uv tool install --force --python 3.12 git+{installer.repo}@v0.10.0",
         "uv tool dir --bin",
         f"vault-builder --repo /path/app --yes VAULT_GRAPH_BIN={vg}",
-        "vg setup --agent claude --mcp",
+        "vg setup --help",
+        "vg setup --agent claude --mcp --no-index",
     ]
     assert "vault-graph are listed as connected" in result.stdout
+
+
+def _last_lines(result: subprocess.CompletedProcess[str], count: int) -> list[str]:
+    return [line.strip() for line in result.stdout.rstrip().splitlines()[-count:]]
+
+
+def test_install_does_not_index_and_ends_with_the_index_command(installer: Installer) -> None:
+    result = installer.run("--yes")
+
+    _ok(result)
+    calls = installer.calls()
+    assert calls[-1] == "vg setup --agent claude --mcp --no-index"
+    assert not any(call.startswith("vg index") for call in calls)
+    assert "indexes every Vault" not in result.stdout
+    last = _last_lines(result, 5)
+    assert "/mcp" in last[0]
+    assert "vault-graph are listed as connected" in last[1]
+    assert "did not index" in last[2]
+    assert last[3] == f"{installer.vg} index --all-vaults"
+    assert "135 MB" in last[4]
+    assert "tens of minutes" in last[4]
+
+
+def test_the_index_command_is_short_when_vg_is_on_path(installer: Installer) -> None:
+    path = os.pathsep.join([str(installer.home / ".local" / "bin"), str(installer.stub), "/usr/bin", "/bin"])
+
+    result = installer.run("--yes", PATH=path)
+
+    _ok(result)
+    assert _last_lines(result, 2)[0] == "vg index --all-vaults"
+
+
+def test_an_old_vg_without_no_index_stops_before_vg_setup(installer: Installer) -> None:
+    installer.set_vg(help_text=OLD_SETUP_HELP)
+
+    result = installer.run("--yes")
+
+    _ok(result, 1)
+    calls = installer.calls()
+    assert calls[-1] == "vg setup --help"
+    assert not any(call.startswith("vg setup --agent") for call in calls)
+    assert str(installer.vg) in result.stderr
+    assert "older" in result.stderr
+    assert "VAULT_GRAPH_REF" in result.stderr
+    assert "setup --agent claude --mcp" in result.stderr
+    assert "also indexes every Vault" in result.stderr
 
 
 def test_vault_graph_ref_chooses_another_tag_or_branch(installer: Installer) -> None:
@@ -181,6 +237,7 @@ def test_dry_run_installs_nothing_and_passes_dry_run_to_vault_builder(installer:
 
     _ok(result)
     assert "would install vault-graph v0.10.0" in result.stdout
+    assert "vg setup --agent claude --mcp --no-index" in result.stdout
     assert installer.calls() == ["vault-builder --yes --dry-run VAULT_GRAPH_BIN="]
 
 

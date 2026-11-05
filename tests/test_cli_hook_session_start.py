@@ -18,6 +18,7 @@ import sys
 from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner, Result
@@ -391,14 +392,55 @@ def test_missing_graph_home_hands_off_and_is_not_created(base: Path) -> None:
     assert not home.exists()
 
 
-def test_registered_but_unindexed_vault_hands_off(base: Path) -> None:
+@pytest.fixture
+def real_catch_up(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    """The real catch-up starter, so a started catch-up writes its pid file.
+
+    Only the catch-up process is recorded instead of started. Other commands, such as ``git``, run.
+    """
+    started: list[list[str]] = []
+    real_popen = subprocess.Popen
+
+    def catch_up_recording_popen(command: list[str], **kwargs: object) -> object:
+        if hook_commands._CATCH_UP_SCRIPT not in command:
+            return real_popen(command, **kwargs)  # type: ignore[call-overload]
+        started.append(command)
+        return SimpleNamespace(pid=4242)
+
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.start_catch_up_index", REAL_START_CATCH_UP_INDEX)
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.subprocess.Popen", catch_up_recording_popen)
+    return started
+
+
+def test_registered_but_unindexed_vault_hands_off_with_all_vaults_hint_and_no_catch_up(
+    base: Path, real_catch_up: list[list[str]]
+) -> None:
     home = base / "graph-home"
     invoke("init", "--vault", str(base / "vaults" / "main"), "--vault-id", "main", "--graph-home", str(home))
 
     result = hook(home, base)
 
     assert_handoff(result, home)
-    assert "vg index" in result.stderr
+    assert "Run `vg index --all-vaults`." in result.stderr
+    assert real_catch_up == []
+    assert not (home / "logs" / "session-start-index.pid").exists()
+
+
+def test_partly_indexed_vaults_warn_with_all_vaults_hint_and_start_no_catch_up_for_the_unindexed_one(
+    base: Path, real_catch_up: list[list[str]]
+) -> None:
+    home = base / "graph-home"
+    invoke("init", "--vault", str(base / "vaults" / "main"), "--vault-id", "main", "--graph-home", str(home))
+    invoke("vault", "add", "other", "--path", str(base / "vaults" / "other"), "--graph-home", str(home))
+    invoke("index", "--vault-id", "main", "--graph-home", str(home))
+
+    result = hook(home, base, repo="both")
+
+    assert result.exit_code == 0, result.output
+    warnings = [line for line in result.stderr.splitlines() if "other" in line]
+    assert warnings == ["vg hook session-start: warning: Vault other has no index. Run `vg index --all-vaults`."]
+    # The indexed Vault still gets its vector check. The unindexed one is never indexed in the background.
+    assert [json.loads(command[-1]) for command in real_catch_up] == [{"index": [], "check": ["main"]}]
 
 
 def test_startup_with_nothing_to_recall_hands_off(base: Path, graph_home: Path) -> None:

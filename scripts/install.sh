@@ -15,7 +15,9 @@
 # 4. Run the vault-builder install command with VAULT_GRAPH_BIN=<vg> and every option this script does not use.
 #    It installs vault-builder, the Vaults, the hooks (which record this vg), the repository links and the
 #    vault-wiki MCP server, then runs vault-builder doctor.
-# 5. <vg> setup --agent claude --mcp: index every Vault of the vault map and register the vault-graph MCP server.
+# 5. <vg> setup --agent claude --mcp --no-index: register every Vault of the vault map and the vault-graph MCP
+#    server without indexing. It stops first when <vg> setup --help has no --no-index (a vg older than this
+#    script). The last lines print the index command, vg index --all-vaults, for the person to run.
 #
 # --uninstall runs vg mcp unregister --agent claude and uv tool uninstall vault-graph. vault-builder stays.
 #
@@ -299,6 +301,20 @@ run_uninstall() {
   echo "  the removed vg from the hook settings, or remove vault-builder with its install command and --uninstall."
 }
 
+# Stops when the installed vg is older than this script: its setup has no --no-index option.
+require_vg_no_index() {
+  local help
+  help="$("${VG}" setup --help 2>&1 || true)"
+  if [[ "${help}" == *"--no-index"* ]]; then
+    return 0
+  fi
+  echo "The installed vg (${VG}) is older than this install command: its setup has no --no-index option." >&2
+  echo "vg setup did not run, so the vault-graph MCP server is not registered." >&2
+  echo "Unset VAULT_GRAPH_REF to install the newest release tag, or set it to a newer tag, then run this command again." >&2
+  echo "Or run ${VG} setup --agent claude --mcp yourself: it also indexes every Vault, which can take tens of minutes." >&2
+  exit 1
+}
+
 main() {
   local install_uv_flag=0 uninstall=0 yes=0 dry_run=0 arg
   local builder_args=()
@@ -349,7 +365,7 @@ main() {
   local ref
   ref="$(choose_ref)"
   if [[ "${dry_run}" -eq 1 ]]; then
-    echo "Dry run: would install vault-graph ${ref} from ${VG_REPO}, then run vg setup --agent claude --mcp."
+    echo "Dry run: would install vault-graph ${ref} from ${VG_REPO}, then run vg setup --agent claude --mcp --no-index."
     run_vault_builder "" ${builder_args[@]+"${builder_args[@]}"}
     return $?
   fi
@@ -364,17 +380,24 @@ main() {
     return "${status}"
   fi
 
+  require_vg_no_index
   echo
-  echo "Running ${VG} setup --agent claude --mcp. It indexes every Vault; the first run downloads the embedding"
-  echo "model (about 135 MB) and can take several minutes. Do not stop it."
-  if ! "${VG}" setup --agent claude --mcp; then
+  echo "Running ${VG} setup --agent claude --mcp --no-index."
+  if ! "${VG}" setup --agent claude --mcp --no-index; then
     echo "vg setup failed. Run ${VG} setup --vault-id <id> for the Vault named in its setup_failed: line," >&2
     echo "or run this command again." >&2
     return 1
   fi
+  local index_command="${VG} index --all-vaults"
+  if [[ "$(command -v vg 2>/dev/null || true)" -ef "${VG}" ]]; then
+    index_command="vg index --all-vaults"
+  fi
   echo
   echo "Restart Claude Code (every terminal, IDE and app session), then run /mcp and check that vault-wiki and"
   echo "vault-graph are listed as connected."
+  echo "The Vaults were registered, but this command did not index them. Run this to index every Vault:"
+  echo "  ${index_command}"
+  echo "The first run downloads the embedding model (about 135 MB) and can take tens of minutes for Vaults with many session transcripts."
 }
 
 main "$@"
