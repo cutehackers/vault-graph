@@ -307,6 +307,13 @@ main() {
     return 0
   fi
 
+  # vault-builder setup stops without a terminal or --yes. Stop here too, before vg is installed.
+  if [[ "${INTERACTIVE}" -eq 0 && "${yes}" -eq 0 && "${dry_run}" -eq 0 ]]; then
+    echo "No terminal for questions: give --yes to run without questions, or run this command in a terminal." >&2
+    echo "  curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-graph/main/scripts/install.sh | bash -s -- --yes" >&2
+    exit 2
+  fi
+
   check_tools git curl
   ensure_uv "${install_uv_flag}"
   local ref

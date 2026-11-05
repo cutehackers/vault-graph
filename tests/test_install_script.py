@@ -247,3 +247,12 @@ def test_the_script_parses_and_reads_questions_only_from_dev_tty() -> None:
     for line in text.splitlines():
         if re.search(r"\bread -r\b", line) and not line.lstrip().startswith("while "):
             assert "</dev/tty" in line, line
+
+
+def test_no_terminal_and_no_yes_stops_before_installing(installer: Installer) -> None:
+    result = installer.run("--repo", "/path/app")
+
+    _ok(result, 2)
+    assert "No terminal for questions" in result.stderr
+    assert "--yes" in result.stderr
+    assert installer.calls() == []
