@@ -34,6 +34,8 @@ class SetupRequest:
     mcp_config_path: Path | None = None
     print_mcp_config: bool = False
     dry_run: bool = False
+    # False registers the Vault and MCP only. `vg index --all-vaults` builds the index later.
+    run_index: bool = True
 
 
 @dataclass(frozen=True)
@@ -105,7 +107,7 @@ class SetupService:
         )
         scope = catalog.scope_for_vault_ids([request.vault_id])
         index_report = None
-        if not request.dry_run:
+        if not request.dry_run and request.run_index:
             bundle = self._index_factory.open(
                 graph_home_path=request.graph_home_path,
                 initialize_store=True,
@@ -198,6 +200,8 @@ def _setup_recovery_hint(
         return "run setup without --dry-run to initialize the Data Home and publish the baseline projection"
     if index_report is not None and index_report.exit_code != 0:
         return f"run `vg status --graph-home {request.graph_home_path}` and retry `vg index --full`"
+    if not request.run_index:
+        return "setup skipped indexing; run `vg index --all-vaults` to index every registered Vault"
     if request.register_mcp and mcp_registration is None:
         return "provide --mcp-config-path or use --print-mcp-config to complete MCP registration"
     return None
