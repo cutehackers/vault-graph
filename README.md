@@ -36,9 +36,13 @@ and runs the first index:
 curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-graph/main/scripts/install.sh | bash
 ```
 
-Quit Claude Code before you run it. The command stops before it changes
-anything while Claude Code is running. When uv is missing, it asks before it
-installs uv (`--install-uv` installs it without asking). The first index
+Quit Claude Code and run it in a terminal. The command stops before it changes
+anything while Claude Code is running. Before it installs anything, it runs the
+vault-builder setup as a dry run, so a problem vault-builder would stop on
+stops the command first. Vaults made by an older vault-builder are upgraded in
+the same run. Without a terminal for questions, add `--yes`
+(`| bash -s -- --yes`). When uv is missing, it asks before it installs uv
+(`--install-uv` installs it without asking). The first index
 downloads the embedding model (about 135 MB) and embeds every Vault, so the
 command can run for several minutes. On six Vaults with 26,209 chunks it took
 about 14 minutes and up to about 21 GB of memory. Start Claude Code again when

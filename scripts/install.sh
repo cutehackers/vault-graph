@@ -5,7 +5,10 @@
 #
 # vault-graph needs vault-builder, so this command installs both. vault-builder does not install vault-graph.
 #
-# 1. Check git, curl and uv (asks before it installs uv, or --install-uv), and that Claude Code is not running.
+# 1. Check git and curl, then run vault-builder setup as a dry run, so a cause vault-builder stops on stops this
+#    command before anything is installed. Claude Code must not be running. Then check uv (asks before it
+#    installs uv, or --install-uv). Without a terminal and without --yes it stops first, as vault-builder setup
+#    would.
 # 2. Pick the vault-graph ref: VAULT_GRAPH_REF, else the newest release tag vX.Y.Z of the repository. The release
 #    workflow creates a tag only for a commit that passed every check, so main is never installed by default.
 # 3. uv tool install --force --python 3.12 git+<repository>@<ref>. vg is <uv tool dir --bin>/vg.
@@ -203,26 +206,47 @@ install_vg() {
   echo "vg: ${VG}"
 }
 
+# Sets BUILDER_INSTALLER to a local copy of the vault-builder install command: VAULT_BUILDER_INSTALLER, else the
+# one downloaded for VAULT_BUILDER_REF (removed when this script exits).
+BUILDER_INSTALLER=""
+fetch_builder_installer() {
+  if [[ -n "${VAULT_BUILDER_INSTALLER:-}" ]]; then
+    BUILDER_INSTALLER="${VAULT_BUILDER_INSTALLER}"
+    return 0
+  fi
+  BUILDER_INSTALLER="$(mktemp "${TMPDIR:-/tmp}/vault-builder-install.XXXXXX")"
+  # shellcheck disable=SC2064 # expand now: the path is fixed for the whole run
+  trap "rm -f '${BUILDER_INSTALLER}'" EXIT
+  if ! curl -fsSL "${BUILDER_INSTALLER_URL}" -o "${BUILDER_INSTALLER}"; then
+    echo "Could not download the vault-builder install command from ${BUILDER_INSTALLER_URL}." >&2
+    exit 1
+  fi
+}
+
+# Runs vault-builder setup as a dry run before anything is installed, so a cause vault-builder would stop on
+# (a vault a person must review, settings that are not JSON, a bad option) stops this command first.
+# The dry run uses --yes so it asks nothing; the real run asks the questions. Its output shows only on failure.
+precheck_vault_builder() {
+  local output status=0
+  echo "Checking that vault-builder can set up this machine (dry run)."
+  output="$(bash "${BUILDER_INSTALLER}" "$@" --yes --dry-run </dev/null 2>&1)" || status=$?
+  if [[ "${status}" -ne 0 ]]; then
+    printf '%s\n' "${output}" >&2
+    echo "The vault-builder check exited ${status}. Nothing of vault-graph was installed." >&2
+    echo "Fix the cause shown above, then run this command again." >&2
+    exit "${status}"
+  fi
+}
+
 # Runs the vault-builder install command with the given arguments and VAULT_GRAPH_BIN (empty for a dry run).
 run_vault_builder() {
-  local vg="$1" status=0 installer
+  local vg="$1" status=0
   shift
-  if [[ -n "${VAULT_BUILDER_INSTALLER:-}" ]]; then
-    installer="${VAULT_BUILDER_INSTALLER}"
-  else
-    installer="$(mktemp "${TMPDIR:-/tmp}/vault-builder-install.XXXXXX")"
-    # shellcheck disable=SC2064 # expand now: the path is local to this function
-    trap "rm -f '${installer}'" EXIT
-    if ! curl -fsSL "${BUILDER_INSTALLER_URL}" -o "${installer}"; then
-      echo "Could not download the vault-builder install command from ${BUILDER_INSTALLER_URL}." >&2
-      exit 1
-    fi
-  fi
   echo "Running the vault-builder install command (${VAULT_BUILDER_INSTALLER:-${BUILDER_INSTALLER_URL}})"
   if [[ -n "${vg}" ]]; then
-    VAULT_GRAPH_BIN="${vg}" bash "${installer}" "$@" </dev/null || status=$?
+    VAULT_GRAPH_BIN="${vg}" bash "${BUILDER_INSTALLER}" "$@" </dev/null || status=$?
   else
-    bash "${installer}" "$@" </dev/null || status=$?
+    bash "${BUILDER_INSTALLER}" "$@" </dev/null || status=$?
   fi
   return "${status}"
 }
@@ -315,6 +339,11 @@ main() {
   fi
 
   check_tools git curl
+  fetch_builder_installer
+  if [[ "${dry_run}" -eq 0 ]]; then
+    require_claude_closed
+    precheck_vault_builder ${builder_args[@]+"${builder_args[@]}"}
+  fi
   ensure_uv "${install_uv_flag}"
   local ref
   ref="$(choose_ref)"
@@ -323,7 +352,6 @@ main() {
     run_vault_builder "" ${builder_args[@]+"${builder_args[@]}"}
     return $?
   fi
-  require_claude_closed
 
   VG=""
   install_vg "${ref}"
