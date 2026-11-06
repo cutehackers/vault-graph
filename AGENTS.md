@@ -6,7 +6,7 @@ Vault Graph is a local search and recall layer over Vault. Its indexes are
 rebuildable derived data, not a durable knowledge source. Vault Graph never
 creates, edits, renames, rewrites, or deletes Vault files directly. It changes
 Vault only by running the Vault's own tools, so every change passes Vault's
-validation. There are three such paths:
+validation. There are four such paths:
 
 1. `publish-draft`: `remember`, `update_memory`, and `retire_memory` with
    `basis` `stated` (code in `src/vault_graph/operation/memory/`).
@@ -14,10 +14,21 @@ validation. There are three such paths:
    waits in the Vault review queue until a person runs `review resolve`.
 3. The capture launcher: `vg hook capture` runs the Vault hook launcher
    `vault_hooks.py capture --direct`, which runs the Vault's `sessions capture`.
-   Vault Graph decides only when it runs, not which Vault or what content.
+   Vault Graph decides when it runs and which normalized file it passes. The
+   Vault tool renders and writes; Vault Graph does not choose the Vault.
+4. `import-source`: to keep a Claude Code auto-memory note as evidence, Vault
+   Graph runs the Vault's `import-source`. The Vault command copies the file.
+   Vault Graph never edits, moves, or deletes auto-memory files.
 
-Search, indexing, watch, and recall never run these commands. Vault Graph never
-writes to `raw/` itself.
+Search, indexing, watch, and recall never run write paths. Indexing may run
+read-only Vault commands such as `memory-scan --json` and `review list --json`
+and keep their results in Graph Home. Vault Graph never writes to `raw/` itself.
+
+Vault Graph never writes machine-made content (summaries, lists, scores) to a
+Vault. Only content an agent or a person decided goes in, through paths 1, 2,
+and 4. In memory management Vault Graph builds the decision material
+deterministically; the calling agent decides what to remember, update, or
+retire.
 
 ## Source Documents
 
