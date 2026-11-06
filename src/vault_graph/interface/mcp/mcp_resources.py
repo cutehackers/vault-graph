@@ -6,6 +6,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, Protocol
 
 from vault_graph.context.memory.memory_models import MemoryWarning, ProjectMemoryProjection
@@ -20,6 +21,7 @@ from vault_graph.operation.scope.vault_catalog import VaultCatalog
 
 if TYPE_CHECKING:
     from vault_graph.context.pack.recall import UsageLogPort
+    from vault_graph.interface.composition.read_only_service_factory import ProjectMemoryScope
     from vault_graph.interface.mcp.graph_resource_reader import GraphResourceReader
     from vault_graph.interface.mcp.metadata_resource_reader import MetadataResourceReader
 
@@ -161,6 +163,14 @@ class McpResourceRegistry:
         )
 
 
+def _server_project_memory_scope(catalog: VaultCatalog) -> ProjectMemoryScope | None:
+    """Project memory scope of the server working folder. Resources take no ``cwd`` (spec 2026-11-05 §4.4.2)."""
+    from vault_graph.interface.composition.read_only_service_factory import project_memory_scope
+    from vault_graph.operation.integration.vault_map import vault_map_path
+
+    return project_memory_scope(Path.cwd(), vault_map_file=vault_map_path(), catalog=catalog)
+
+
 class CurrentContextResourceReader:
     def __init__(
         self,
@@ -176,9 +186,12 @@ class CurrentContextResourceReader:
     def read_current_context(self, uri: McpResourceUri) -> McpResourceBody:
         vault_id = _required_value(uri.vault_id)
         try:
+            memory_scope = _server_project_memory_scope(self._catalog)
             projection = self._service_factory.open_project_memory_service().summarize(
                 requested_scope=self._catalog.scope_for_vault_ids((vault_id,)),
                 limit=10,
+                project_id=memory_scope.project_id if memory_scope is not None else None,
+                vault_scopes=memory_scope.vault_scopes if memory_scope is not None else None,
             )
         except MemoryProjectionError as exc:
             raise McpProtocolError(

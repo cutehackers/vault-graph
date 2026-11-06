@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
     from vault_graph.interface.composition.adapters.text_embeddings import FastEmbedTextEmbeddings
     from vault_graph.operation.diagnostics.health_explorer import HealthExplorerService
+    from vault_graph.operation.integration.vault_map import MappedVaultScope, VaultMap
     from vault_graph.operation.readiness.search_readiness import SearchReadiness
     from vault_graph.project.context.project_binding_reader import ProjectBindingReader
     from vault_graph.retrieval.evidence.evidence_linking import EvidenceLinker
@@ -440,6 +442,40 @@ class ReadOnlyServiceFactory:
         return text_embeddings_for(catalog_service, local_files_only=True)
 
 
+@dataclass(frozen=True)
+class ProjectMemoryScope:
+    """The map project of a folder and the project scope of each registered map Vault (spec 2026-11-05 §4.4.2)."""
+
+    project_id: str
+    vault_scopes: Mapping[str, MappedVaultScope]
+
+
+def map_vault_scopes(vault_map: VaultMap, catalog: VaultCatalog) -> dict[str, MappedVaultScope]:
+    """Linked projects and ``sharable`` of every registered Vault found in the map, by Vault id."""
+    from vault_graph.interface.composition.vault_labels import vault_labels
+
+    return {
+        vault_id: vault_map.project_scope(label.name) for vault_id, label in vault_labels(vault_map, catalog).items()
+    }
+
+
+def project_memory_scope(cwd: Path, *, vault_map_file: Path, catalog: VaultCatalog) -> ProjectMemoryScope | None:
+    """The memory scope of the ``cwd`` map project, or None when the map does not choose one.
+
+    None means project memory is not narrowed: every page of the requested scope counts.
+    """
+    from vault_graph.interface.composition.query_scope_resolution import resolve_project_vaults
+    from vault_graph.operation.integration.vault_map import open_vault_map
+
+    vault_map = open_vault_map(vault_map_file).vault_map
+    if vault_map is None:
+        return None
+    resolution = resolve_project_vaults(cwd, vault_map=vault_map, vault_catalog=catalog)
+    if resolution.source != "vault-map" or resolution.project_id is None:
+        return None
+    return ProjectMemoryScope(project_id=resolution.project_id, vault_scopes=map_vault_scopes(vault_map, catalog))
+
+
 class _ProjectRecallScope:
     """Find the registered Vaults of a folder: ``vault-map.json`` first, then project bindings."""
 
@@ -484,6 +520,10 @@ class _ProjectRecallScope:
             vault_names={
                 vault_id: label.name for vault_id, label in vault_labels(opening.vault_map, self._catalog).items()
             },
+            # Map links name map projects, so they apply only when the map chose the project.
+            vault_scopes=map_vault_scopes(opening.vault_map, self._catalog)
+            if resolution.source == "vault-map" and opening.vault_map is not None
+            else {},
         )
 
     @property

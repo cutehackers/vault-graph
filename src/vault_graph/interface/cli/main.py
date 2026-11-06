@@ -1130,6 +1130,9 @@ def status(
         payload["vault_map"] = _vault_map_status(map_opening, catalog)
         payload["vault_map_default_write_vaults"] = _vault_map_default_write_vaults(map_opening)
         payload["vault_map_field_warnings"] = list(map_opening.vault_map.warnings if map_opening.vault_map else ())
+        payload["vault_map_sharable_notices"] = list(
+            map_opening.vault_map.sharable_notices() if map_opening.vault_map else ()
+        )
         typer.echo(json.dumps(payload, sort_keys=True, indent=2))
         return
     typer.echo(f"graph_home: {config.graph_home_path}")
@@ -1195,6 +1198,9 @@ def status(
         typer.echo(f"vault_map_default_write_vault: {default_row['project']} {default_row['vault']}")
     for warning in map_opening.vault_map.warnings if map_opening.vault_map else ():
         typer.echo(f"vault_map_field_warning: {warning}")
+    # Vaults linked to several projects without `sharable` (spec 2026-11-05 §4.4.2).
+    for notice in map_opening.vault_map.sharable_notices() if map_opening.vault_map else ():
+        typer.echo(f"vault_map_sharable_notice: {notice}")
 
 
 def _vault_map_default_write_vaults(opening: VaultMapOpening) -> list[dict[str, str | None]]:

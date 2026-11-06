@@ -24,6 +24,7 @@ from typing import Literal, Protocol
 from vault_graph.context.memory.issue_memory import EXCLUDED_STATUSES as CLOSED_ISSUE_STATUSES
 from vault_graph.context.memory.issue_memory import ISSUE_TYPES
 from vault_graph.context.memory.project_memory import STALE_STATUSES
+from vault_graph.context.memory.project_scope import UNMAPPED_VAULT_SCOPE, VaultProjectScope, page_in_project
 from vault_graph.context.pack.recall_pins import (
     PIN_BLOCK_MAX_TOKENS,
     PinBlock,
@@ -70,6 +71,9 @@ class RecallScope:
 
     ``vault_names`` maps a Vault id to its ``vault-map.json`` name. With two or more Vaults the
     name replaces the id in page locations. Ids without a name keep the id.
+
+    ``vault_scopes`` maps a Vault id to its linked projects and ``sharable`` value for the project
+    scope rule (spec 2026-11-05 §4.4.2). A Vault without one is treated as linked to this project only.
     """
 
     project_id: str | None
@@ -77,6 +81,7 @@ class RecallScope:
     reason: str | None = None
     warnings: tuple[str, ...] = ()
     vault_names: Mapping[str, str] = field(default_factory=dict)
+    vault_scopes: Mapping[str, VaultProjectScope] = field(default_factory=dict)
 
 
 class RecallScopeResolver(Protocol):
@@ -183,6 +188,7 @@ def recall(
         project_id=scope.project_id,
         many_vaults=len(indexed) > 1,
         vault_names=scope.vault_names,
+        vault_scopes=scope.vault_scopes,
     )
     warnings.extend(_schema_warnings(library))
     history: _History | None
@@ -289,9 +295,14 @@ class _Library:
         project_id: str | None,
         many_vaults: bool,
         vault_names: Mapping[str, str],
+        vault_scopes: Mapping[str, VaultProjectScope],
     ) -> _Library:
         entries = tuple(
-            _entry(document, project_id=project_id)
+            _entry(
+                document,
+                project_id=project_id,
+                vault_scope=vault_scopes.get(vault_id, UNMAPPED_VAULT_SCOPE),
+            )
             for vault_id in vault_ids
             for document in reader.documents(vault_id)
             if document.path.startswith("wiki/")
@@ -322,7 +333,7 @@ class _Library:
         return self.vault_names.get(vault_id) or vault_id
 
 
-def _entry(document: DocumentSnapshot, *, project_id: str | None) -> _Entry:
+def _entry(document: DocumentSnapshot, *, project_id: str | None, vault_scope: VaultProjectScope) -> _Entry:
     frontmatter = document.frontmatter
     status = _text(frontmatter.get("status")).casefold() or None
     doc_type = _text(frontmatter.get("type"))
@@ -336,7 +347,7 @@ def _entry(document: DocumentSnapshot, *, project_id: str | None) -> _Entry:
         status=status,
         day=_day(frontmatter.get("updated")) or (document.last_indexed_at or document.last_seen_at)[:10],
         content_hash=document.content_hash,
-        in_scope=_in_project(frontmatter.get("project"), project_id),
+        in_scope=page_in_project(frontmatter, project_id, vault_scope=vault_scope),
         supersedes=_targets(frontmatter.get("supersedes")),
         superseded_by=_targets(frontmatter.get("superseded_by")),
         category=_category(document.path, doc_type.casefold(), status),
@@ -355,14 +366,6 @@ def _category(path: str, doc_type: str, status: str | None) -> Category:
     if path.startswith("wiki/decisions/") or doc_type == "decision":
         return "decision"
     return "change"
-
-
-def _in_project(value: object, project_id: str | None) -> bool:
-    """A page without ``project`` belongs to every project of its Vault."""
-    if value is None or value == "" or value == []:
-        return True
-    values = value if isinstance(value, list) else [value]
-    return project_id is not None and project_id in {str(item).strip() for item in values}
 
 
 def _title(document: DocumentSnapshot) -> str:

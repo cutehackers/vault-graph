@@ -191,9 +191,15 @@ def create_http_app(
     @app.get("/memory/project")
     def project_memory(limit: int = 10) -> dict[str, object]:
         services = services_factory.open_read_only()
+        from vault_graph.interface.composition.read_only_service_factory import project_memory_scope
+
+        # The HTTP request has no folder, so the server working folder picks the project.
+        memory_scope = project_memory_scope(Path.cwd(), vault_map_file=vault_map_path(), catalog=services.catalog)
         projection = services_factory.open_project_memory_service().summarize(
             requested_scope=services.catalog.default_scope(),
             limit=_limit(limit, default=10),
+            project_id=memory_scope.project_id if memory_scope is not None else None,
+            vault_scopes=memory_scope.vault_scopes if memory_scope is not None else None,
         )
         return domain_to_json_dict(projection)
 

@@ -564,9 +564,18 @@ class McpToolRegistry:
             services = self._current_services()
             _validate_summarize_project_memory_request(request)
             selected_scope, selection = self._project_scope(services, request.scope, request.cwd)
+            from vault_graph.interface.composition.read_only_service_factory import project_memory_scope
+
+            memory_scope = project_memory_scope(
+                Path(request.cwd) if request.cwd is not None else Path.cwd(),
+                vault_map_file=vault_map_path(),
+                catalog=services.catalog,
+            )
             projection = self._service_factory.open_project_memory_service().summarize(
                 requested_scope=selected_scope,
                 limit=request.limit,
+                project_id=memory_scope.project_id if memory_scope is not None else None,
+                vault_scopes=memory_scope.vault_scopes if memory_scope is not None else None,
             )
             from vault_graph.interface.mcp.mcp_memory_serialization import (
                 memory_warning_to_mcp_error,
