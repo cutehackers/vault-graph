@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import replace
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import datetime
 
+from vault_graph.context.memory.claims import ClaimRow, claim_table_warning, current_claims
 from vault_graph.context.memory.decision_memory import DecisionMemoryService
-from vault_graph.context.memory.issue_memory import IssueMemoryService
+from vault_graph.context.memory.issue_memory import EXCLUDED_STATUSES as CLOSED_ISSUE_STATUSES
+from vault_graph.context.memory.issue_memory import ISSUE_TYPES, IssueMemoryService
 from vault_graph.context.memory.memory_models import (
     MemoryBackendRevision,
     MemoryClaimStatus,
@@ -41,6 +43,103 @@ PRIORITY_TERMS = ("next", "priorities", "roadmap", "implementation order", "todo
 PRIORITY_FRONTMATTER_TERMS = ("priority", "next", "roadmap", "phase")
 STALE_STATUSES = ("stale", "deprecated", "superseded", "retired")
 STALE_PATH_TERMS = ("deprecated", "superseded")
+# A page is a correction or rule when its ``tags`` or ``memory_kind`` says so, as in the Vault
+# project summary (vault-builder tools/wiki/lib/maps.py PROJECT_CORRECTION_TAGS).
+CORRECTION_KINDS = frozenset({"correction", "rule"})
+
+BodyReader = Callable[[str, str], str]
+"""Indexed body of a page as Markdown, from ``(vault_id, document_id)``."""
+
+
+@dataclass(frozen=True)
+class L3Entry:
+    vault_id: str
+    path: str
+    title: str
+    day: str
+    status: str | None
+    claims: tuple[ClaimRow, ...]
+    """Current claim rows: ``superseded`` rows are left out. Empty without a readable claim table."""
+
+
+@dataclass(frozen=True)
+class ProjectL3List:
+    """The L3 list of one project (spec 2026-11-05 §4.4.7). Computed when asked and never stored."""
+
+    open_work: tuple[L3Entry, ...]
+    decisions: tuple[L3Entry, ...]
+    corrections_and_rules: tuple[L3Entry, ...]
+    warnings: tuple[str, ...]
+
+
+def project_l3_list(
+    documents_by_vault: Mapping[str, Sequence[DocumentSnapshot]],
+    *,
+    project_id: str | None,
+    vault_scopes: Mapping[str, VaultProjectScope],
+    body_reader: BodyReader,
+    limit: int = 10,
+) -> ProjectL3List:
+    """Open work, current decisions, corrections and rules of a project, newest ``updated`` first.
+
+    Recall and ``ProjectMemoryService.l3_list`` both call this function, so they give the same list.
+    Only ``wiki/`` pages count. Pages are chosen by ``page_in_project`` (§4.4.2). Pages whose status is
+    ``superseded``, ``deprecated``, ``retired`` or ``stale`` are left out, and so are ``superseded``
+    claim rows (§4.4.6). A page whose claim table cannot be read stays in the list without claim rows,
+    with one warning line. At most ``limit`` pages per list, and only those pages' bodies are read.
+    """
+    _validate_limit(limit)
+    open_work: list[DocumentSnapshot] = []
+    decisions: list[DocumentSnapshot] = []
+    corrections: list[DocumentSnapshot] = []
+    for vault_id, documents in documents_by_vault.items():
+        vault_scope = vault_scopes.get(vault_id, UNMAPPED_VAULT_SCOPE)
+        for document in documents:
+            if not document.path.startswith("wiki/") or _status(document) in STALE_STATUSES:
+                continue
+            if not page_in_project(document.frontmatter, project_id, vault_scope=vault_scope):
+                continue
+            if _is_open_work(document):
+                open_work.append(document)
+            if _is_decision_page(document):
+                decisions.append(document)
+            if _is_correction_or_rule(document):
+                corrections.append(document)
+    warnings: dict[str, None] = {}
+    bodies: dict[tuple[str, str], str] = {}
+
+    def entries(documents: list[DocumentSnapshot]) -> tuple[L3Entry, ...]:
+        chosen = sorted(
+            sorted(documents, key=lambda document: (document.vault_id, document.path)),
+            key=_l3_day,
+            reverse=True,
+        )[:limit]
+        result: list[L3Entry] = []
+        for document in chosen:
+            key = (document.vault_id, document.document_id)
+            if key not in bodies:
+                bodies[key] = body_reader(document.vault_id, document.document_id)
+                warning = claim_table_warning(f"{document.vault_id}:{document.path}", bodies[key])
+                if warning is not None:
+                    warnings[warning] = None
+            result.append(
+                L3Entry(
+                    vault_id=document.vault_id,
+                    path=document.path,
+                    title=_title(document),
+                    day=_l3_day(document),
+                    status=_status(document),
+                    claims=current_claims(bodies[key]),
+                )
+            )
+        return tuple(result)
+
+    return ProjectL3List(
+        open_work=entries(open_work),
+        decisions=entries(decisions),
+        corrections_and_rules=entries(corrections),
+        warnings=tuple(warnings),
+    )
 
 
 class ProjectMemoryService:
@@ -149,6 +248,32 @@ class ProjectMemoryService:
             vaults=tuple(vaults),
             warnings=(*decisions.warnings, *questions.warnings),
             generated_at=context.generated_at,
+        )
+
+    def l3_list(
+        self,
+        *,
+        requested_scope: QueryScope,
+        project_id: str | None,
+        vault_scopes: Mapping[str, VaultProjectScope],
+        body_reader: BodyReader,
+        limit: int = 10,
+    ) -> ProjectL3List:
+        """The L3 list of ``project_id`` over the indexed pages of ``requested_scope`` (``project_l3_list``)."""
+        _validate_limit(limit)
+        context = build_memory_request_context(
+            catalog=self._catalog,
+            source_reader=self._source_reader,
+            status_service=self._status_service,
+            requested_scope=requested_scope,
+            clock=self._clock,
+        )
+        return project_l3_list(
+            {group.vault_id: group.documents for group in context.documents_by_vault},
+            project_id=project_id,
+            vault_scopes=vault_scopes,
+            body_reader=body_reader,
+            limit=limit,
         )
 
     def _project_groups_for_vault(
@@ -284,6 +409,36 @@ def _project_matches(document: DocumentSnapshot) -> dict[MemoryItemKind, MemoryC
     if status in STALE_STATUSES or any(term in path for term in STALE_PATH_TERMS):
         matches["stale_area"] = "metadata_derived"
     return matches
+
+
+def _is_open_work(document: DocumentSnapshot) -> bool:
+    """An issue page that is not closed: the same rule as recall's question category."""
+    is_issue = document.path.startswith("wiki/issues/") or _frontmatter_value(document, "type") in ISSUE_TYPES
+    return is_issue and _status(document) not in CLOSED_ISSUE_STATUSES
+
+
+def _is_decision_page(document: DocumentSnapshot) -> bool:
+    return (
+        document.path.startswith("wiki/decisions/")
+        or _frontmatter_value(document, "type") == "decision"
+        or _frontmatter_value(document, "memory_kind") == "decision"
+    )
+
+
+def _is_correction_or_rule(document: DocumentSnapshot) -> bool:
+    if _frontmatter_value(document, "memory_kind") in CORRECTION_KINDS:
+        return True
+    tags = document.frontmatter.get("tags")
+    values = tags if isinstance(tags, list) else [tags]
+    return any(str(tag).strip().casefold() in CORRECTION_KINDS for tag in values if tag is not None)
+
+
+def _l3_day(document: DocumentSnapshot) -> str:
+    """The page's ``updated`` day, or the day it was indexed when ``updated`` is missing."""
+    updated = document.frontmatter.get("updated")
+    if updated is not None and str(updated).strip():
+        return str(updated).strip()[:10]
+    return (document.last_indexed_at or document.last_seen_at)[:10]
 
 
 def _group_name_for_kind(kind: MemoryItemKind) -> str:
