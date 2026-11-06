@@ -123,6 +123,19 @@ def read_memory_notes(folder: Path) -> tuple[MemoryNote, ...]:
     return tuple(notes)
 
 
+def memory_folder_problem(folder: Path) -> str | None:
+    """Why the L1 folder cannot be read, or None when it can. A missing folder counts (spec 2026-11-05 §6)."""
+
+    try:
+        if not folder.is_dir():
+            return f"The L1 memory folder {folder} does not exist."
+        with os.scandir(folder):
+            pass
+    except OSError as exc:
+        return f"The L1 memory folder {folder} cannot be read: {exc.strerror or exc}."
+    return None
+
+
 def imported_raw_hashes(vault_root: Path) -> dict[str, tuple[str, ...]]:
     """Map each ``raw_sha256`` of ``wiki/sources/*.md`` to its pages, as the Vault ``memory-scan`` does."""
 
@@ -189,5 +202,6 @@ __all__ = [
     "imported_raw_hashes",
     "locate_memory_folder",
     "memory_folder_key",
+    "memory_folder_problem",
     "read_memory_notes",
 ]

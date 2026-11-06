@@ -3,7 +3,8 @@
 ``recall`` reads only document metadata through injected ports. It never searches and never
 opens embeddings or a vector store. Blocks print in order A (pinned memory, ``recall_pins``),
 L3 (project summary), B (memory list), C (change notices), D (how to open a page and, on startup,
-how many inferred facts wait in the Vault review queues, F11). Block A takes current in-scope pages
+how many inferred facts wait in the Vault review queues, F11, and the cleanup backlog line,
+``recall_backlog``). Block A takes current in-scope pages
 with ``pin: true`` from every linked Vault, has its own 400-token budget, and its pages are not
 repeated in block B (spec 2026-11-02 V4, 결정14).
 
@@ -33,6 +34,7 @@ from vault_graph.context.memory.issue_memory import EXCLUDED_STATUSES as CLOSED_
 from vault_graph.context.memory.issue_memory import ISSUE_TYPES
 from vault_graph.context.memory.project_memory import STALE_STATUSES, L3Entry, ProjectL3List, project_l3_list
 from vault_graph.context.memory.project_scope import UNMAPPED_VAULT_SCOPE, VaultProjectScope, page_in_project
+from vault_graph.context.pack.recall_backlog import BACKLOG_BUDGET_S, BacklogCounter, backlog_lines
 from vault_graph.context.pack.recall_pins import (
     PIN_BLOCK_MAX_TOKENS,
     PinBlock,
@@ -48,6 +50,8 @@ from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 DEFAULT_RECALL_MAX_TOKENS = 1500
 DEFAULT_RECALL_MAX_CHARS = 9000
 BLOCK_C_MAX_TOKENS = 150
+# Blocks C and D share 150 + 30 tokens. A longer block D takes its extra room from block C.
+BLOCK_D_MAX_TOKENS = 30
 L3_BLOCK_MAX_TOKENS = 500
 L3_LIST_LIMIT = 10
 L3_CLAIMS_PER_PAGE = 3
@@ -136,6 +140,8 @@ class RecallPorts:
     documents: RecallDocumentReader
     usage: UsageLogPort
     proposals: ProposalCounter | None = None
+    backlog: BacklogCounter | None = None
+    backlog_budget_s: float = BACKLOG_BUDGET_S
 
 
 @dataclass(frozen=True)
@@ -245,6 +251,7 @@ def recall(
         items = _block_b_items(library)
         if not items and not notices and not pins.text and not project_summary:
             return _handoff("No memory to recall for this project.", warnings)
+        backlog = backlog_lines(ports.backlog, cwd, warnings, budget_s=ports.backlog_budget_s)
         layout = _layout(
             library,
             pins=pins,
@@ -255,6 +262,7 @@ def recall(
             max_tokens=max_tokens,
             max_chars=max_chars,
             proposals=_pending_proposals(ports.proposals, indexed, warnings),
+            backlog=backlog,
         )
 
     events = [
@@ -689,6 +697,7 @@ def _layout(
     max_chars: int,
     proposals: Mapping[str, int] | None = None,
     project_summary: str = "",
+    backlog: Sequence[str] = (),
 ) -> _Layout:
     def fits(text: str) -> bool:
         return estimate_recall_tokens(text) <= max_tokens and len(text) <= max_chars
@@ -698,14 +707,22 @@ def _layout(
         if full
         else (BLOCK_C_MAX_TOKENS, max_chars)
     )
+    block_d = (
+        _block(BLOCK_D_TITLE, [_how_to_open(library), *_proposal_lines(library, proposals or {}), *backlog])
+        if full
+        else ""
+    )
+    # Block C gives block D the room block D needs beyond its own 30 tokens, so C and D stay inside
+    # 150 + 30. Block B still reserves block C's whole share (``b_fits``).
+    d_max_tokens, _ = _block_share(BLOCK_D_MAX_TOKENS, max_tokens=max_tokens, max_chars=max_chars)
+    notice_max_tokens = c_max_tokens - max(0, estimate_recall_tokens(block_d) - d_max_tokens)
     notice_lines: list[str] = []
     for notice in notices:
         candidate = [*notice_lines, _notice_line(notice)]
         block_c = _block(BLOCK_C_TITLE, candidate)
-        if estimate_recall_tokens(block_c) > c_max_tokens or len(block_c) > c_max_chars:
+        if estimate_recall_tokens(block_c) > notice_max_tokens or len(block_c) > c_max_chars:
             break
         notice_lines = candidate
-    block_d = _block(BLOCK_D_TITLE, [_how_to_open(library), *_proposal_lines(library, proposals or {})]) if full else ""
     item_lines = [_item_line(library, entry) for entry in items]
 
     def render(shown_items: int, shown_notices: int) -> str:
@@ -833,6 +850,7 @@ def _one_line(text: str) -> str:
 
 __all__ = [
     "BLOCK_C_MAX_TOKENS",
+    "BLOCK_D_MAX_TOKENS",
     "DEFAULT_RECALL_MAX_CHARS",
     "DEFAULT_RECALL_MAX_TOKENS",
     "L3_BLOCK_MAX_TOKENS",

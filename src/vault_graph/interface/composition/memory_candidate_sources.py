@@ -58,6 +58,7 @@ from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
 
 if TYPE_CHECKING:
+    from vault_graph.context.pack.recall_backlog import MemoryBacklog
     from vault_graph.indexing.ingestion.document_snapshots import ChunkSnapshot, DocumentSnapshot
     from vault_graph.operation.scope.vault_catalog import QueryScope
     from vault_graph.retrieval.search.search_response import SearchMode, SearchOutputFormat, SearchResponse
@@ -71,6 +72,8 @@ USAGE_MONTH_FILES = 4
 COMPARISON_QUERY_WORDS = 64
 SESSION_CHUNKER_VERSIONS = frozenset({SESSION_EXCHANGE_V1_VERSION, SESSION_EXCHANGE_V2_VERSION})
 NO_PROJECT_REASON = "프로젝트를 찾지 못함"
+# The kinds the session start backlog line counts (spec 2026-11-05 §4.4.6).
+BACKLOG_KINDS: tuple[CandidateKind, ...] = ("l1_note", "session_exchange")
 
 _CODE_SPAN_RE = re.compile(r"`([^`\n]+)`")
 _CODE_REF_RE = re.compile(
@@ -91,6 +94,8 @@ class MemoryCandidatePackage:
     candidates: tuple[MemoryCandidate, ...]
     reason: str | None = None
     warnings: tuple[str, ...] = ()
+    # True when L1 notes were asked for and the L1 folder is missing or unreadable (one warning says why).
+    l1_unavailable: bool = False
 
     def count(self, kind: CandidateKind) -> int:
         return sum(1 for candidate in self.candidates if candidate.kind == kind)
@@ -139,12 +144,15 @@ def memory_candidate_package(
     environ: Mapping[str, str] | None = None,
     now: datetime | None = None,
     merge_threshold: float = DEFAULT_MERGE_SIMILARITY,
+    with_comparison: bool = True,
 ) -> MemoryCandidatePackage:
     """The cleanup bundle of the ``cwd`` map project, in table order, cut to ``limit``.
 
     ``kinds`` keeps only those kinds and skips reading what the others need (the backlog line asks
     for ``l1_note`` and ``session_exchange`` only, so it embeds nothing and opens no search).
     A folder the map does not link to a project gives an empty bundle and ``NO_PROJECT_REASON``.
+    ``with_comparison=False`` gives the same candidates without comparison material and never opens
+    search (merge candidates still need page embeddings).
     """
     from vault_graph.interface.composition.query_scope_resolution import resolve_project_vaults
     from vault_graph.interface.composition.read_only_service_factory import map_vault_scopes
@@ -188,14 +196,17 @@ def memory_candidate_package(
 
     l1_notes: tuple[L1Note, ...] = ()
     imported: frozenset[str] = frozenset()
+    l1_problem: str | None = None
     if "l1_note" in wanted:
-        l1_notes, imported = l1_inputs(
+        l1_notes, imported, l1_problem = l1_inputs(
             project_id=project_id,
             project_root=_project_root(map_file, project_id),
             vault_roots=tuple(roots.values()),
             scan_reports=tuple(_scan_report(descriptor.root_path, vault_id) for vault_id in vault_ids),
             environ=environ,
         )
+        if l1_problem is not None:
+            warnings.append(f"{l1_problem} No L1 note candidates.")
 
     exchanges: list[SessionExchange] = []
     wiki_pages: list[WikiPageText] = []
@@ -250,8 +261,41 @@ def memory_candidate_package(
         usage_events=usage_events,
         kinds=wanted,
         merge_threshold=merge_threshold,
+        with_comparison=with_comparison,
     )
-    return MemoryCandidatePackage(project_id, candidates, warnings=(*warnings, *finder.warnings))
+    return MemoryCandidatePackage(
+        project_id, candidates, warnings=(*warnings, *finder.warnings), l1_unavailable=l1_problem is not None
+    )
+
+
+class CandidateBacklogCounter:
+    """The session start backlog count (spec 2026-11-05 §4.4.6): L1 notes and session exchanges,
+    counted by ``memory_candidate_package`` like ``list_memory_candidates``, without comparison material.
+
+    It never searches, embeds or writes. ``l1_notes`` is None when the L1 folder is missing or unreadable.
+    """
+
+    def __init__(self, *, graph_home: Path, vault_map_path: Path, environ: Mapping[str, str] | None = None) -> None:
+        self._graph_home = graph_home
+        self._vault_map_path = vault_map_path
+        self._environ = environ
+
+    def count(self, cwd: Path) -> MemoryBacklog:
+        from vault_graph.context.pack.recall_backlog import MemoryBacklog
+
+        package = memory_candidate_package(
+            self._graph_home,
+            cwd,
+            kinds=BACKLOG_KINDS,
+            vault_map_file=self._vault_map_path,
+            environ=self._environ,
+            with_comparison=False,
+        )
+        return MemoryBacklog(
+            l1_notes=None if package.l1_unavailable else package.count("l1_note"),
+            session_exchanges=package.count("session_exchange"),
+            warnings=package.warnings,
+        )
 
 
 # L1 notes ---------------------------------------------------------------------------------------
@@ -264,8 +308,9 @@ def l1_inputs(
     vault_roots: Iterable[Path],
     scan_reports: Iterable[Mapping[str, object] | None],
     environ: Mapping[str, str] | None = None,
-) -> tuple[tuple[L1Note, ...], frozenset[str]]:
-    """L1 notes of the project folder and the sha256 values already kept in a linked Vault.
+) -> tuple[tuple[L1Note, ...], frozenset[str], str | None]:
+    """L1 notes of the project folder, the sha256 values already kept in a linked Vault, and why the
+    L1 folder could not be read (None when it could). An unreadable folder gives no notes.
 
     The vg check (``raw_sha256`` of Vault source pages) is corrected by the saved ``memory-scan``
     reports: a note a report marks imported is kept, one it marks not imported is not.
@@ -273,15 +318,23 @@ def l1_inputs(
     from vault_graph.interface.composition.adapters.auto_memory_reader import (
         imported_raw_hashes,
         locate_memory_folder,
+        memory_folder_problem,
         read_memory_notes,
     )
 
     if project_root is None:
-        return (), frozenset()
+        return (), frozenset(), None
     folder = locate_memory_folder(project_root, environ=environ)
-    notes = tuple(
-        L1Note(path=str(note.path), sha256=note.sha256, text=note.text) for note in read_memory_notes(folder.path)
-    )
+    problem = memory_folder_problem(folder.path)
+    notes: tuple[L1Note, ...] = ()
+    if problem is None:
+        try:
+            notes = tuple(
+                L1Note(path=str(note.path), sha256=note.sha256, text=note.text)
+                for note in read_memory_notes(folder.path)
+            )
+        except OSError as exc:
+            problem = f"The L1 memory folder {folder.path} cannot be read: {_one_line(str(exc))}."
     imported: set[str] = set()
     for root in vault_roots:
         imported.update(imported_raw_hashes(root))
@@ -290,7 +343,7 @@ def l1_inputs(
     for report in scan_reports:
         for sha256, flag in _report_flags(report, project_id):
             (marked_imported if flag else marked_not).add(sha256)
-    return notes, frozenset((imported - marked_not) | marked_imported)
+    return notes, frozenset((imported - marked_not) | marked_imported), problem
 
 
 def _report_flags(report: Mapping[str, object] | None, project_id: str) -> Iterable[tuple[str, bool]]:
@@ -717,7 +770,9 @@ def _one_line(text: str) -> str:
 
 
 __all__ = [
+    "BACKLOG_KINDS",
     "NO_PROJECT_REASON",
+    "CandidateBacklogCounter",
     "CodeReference",
     "MemoryCandidatePackage",
     "ProjectedCode",

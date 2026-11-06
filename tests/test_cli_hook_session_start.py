@@ -26,6 +26,7 @@ from tests.test_cli_setup import _deterministic_text_embeddings
 from vault_graph.context.pack.recall import estimate_recall_tokens, memory_item_id
 from vault_graph.interface.cli import hook_commands
 from vault_graph.interface.cli.main import app
+from vault_graph.interface.composition.adapters.auto_memory_reader import memory_folder_key
 from vault_graph.interface.composition.local_index_service_factory import LocalIndexServiceBundle
 from vault_graph.interface.composition.recall_index_refresh import vectors_need_catch_up
 
@@ -87,6 +88,18 @@ def catch_up(monkeypatch: pytest.MonkeyPatch) -> CatchUps:
 
 
 @pytest.fixture(autouse=True)
+def claude_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Claude Code config folder of the test, so the cleanup backlog never reads the real L1 folders."""
+    folder = tmp_path.resolve() / "claude"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(folder))
+    return folder
+
+
+def l1_folder(base: Path, repo: str) -> Path:
+    return base / "claude" / "projects" / memory_folder_key(str(base / "repos" / repo)) / "memory"
+
+
+@pytest.fixture(autouse=True)
 def fixture_files_stay_unchanged() -> Iterator[None]:
     before = tree(FIXTURES)
     yield
@@ -107,6 +120,8 @@ def base(tmp_path: Path) -> Path:
     for repo in ("alpha", "both", "unregistered", "loose"):
         (root / "repos" / repo).mkdir(parents=True)
         subprocess.run(["git", "-C", str(root / "repos" / repo), "init", "-q"], check=True)
+        # An empty L1 folder: no L1 candidates and no "folder missing" warning.
+        l1_folder(root, repo).mkdir(parents=True)
     return root
 
 
@@ -501,6 +516,53 @@ def test_pending_memory_proposals_of_the_vault_are_counted(base: Path, graph_hom
 
     assert result.exit_code == 0, result.output
     assert "- 승인을 기다리는 추론 제안: main 2개." in section(result.stdout, "## 가져오는 방법")[1]
+
+
+def test_l1_notes_waiting_for_cleanup_give_one_backlog_line_and_change_no_file(base: Path, graph_home: Path) -> None:
+    """Spec 2026-11-05 §4.4.6, A-26: the count is the one ``list_memory_candidates`` gives. The hook only counts."""
+    from vault_graph.interface.composition.memory_candidate_sources import memory_candidate_package
+
+    folder = l1_folder(base, "alpha")
+    (folder / "MEMORY.md").write_text("- [a](feedback_a.md)\n", encoding="utf-8")
+    (folder / "feedback_a.md").write_text("pytest는 -q로 돌린다\n", encoding="utf-8")
+    (folder / "feedback_b.md").write_text("커밋 전에 ruff를 돌린다\n", encoding="utf-8")
+    package = memory_candidate_package(
+        graph_home, base / "repos" / "alpha", vault_map_file=base / "map" / "vault-map.json"
+    )
+    vaults_before, l1_before = tree(base / "vaults"), tree(folder)
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert package.count("l1_note") == 2
+    expected = (
+        f"- 정리 대기: L1 노트 2개, 근거로 쓰이지 않은 세션 교환 {package.count('session_exchange')}개. "
+        '정리하려면 "기억 정리해"라고 말하세요.'
+    )
+    assert section(result.stdout, "## 가져오는 방법")[-1] == expected
+    assert result.stdout.count("정리 대기") == 1
+    assert result.stderr == ""
+    assert tree(base / "vaults") == vaults_before
+    assert tree(folder) == l1_before
+
+
+def test_no_backlog_line_without_candidates(base: Path, graph_home: Path) -> None:
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "정리 대기" not in result.stdout
+
+
+def test_missing_l1_folder_leaves_the_l1_count_out_with_one_warning(base: Path, graph_home: Path) -> None:
+    shutil.rmtree(l1_folder(base, "alpha"))
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert "L1 노트" not in result.stdout
+    warnings = [line for line in result.stderr.splitlines() if "L1 memory folder" in line]
+    assert len(warnings) == 1
+    assert "does not exist" in warnings[0]
 
 
 def test_unknown_memory_schema_warns_once_on_stderr(base: Path, graph_home: Path) -> None:
@@ -1271,7 +1333,11 @@ def test_only_vg_index_runs_memory_scan_not_the_session_start_refresh(
     from vault_graph.interface.composition import local_index_service_factory
 
     calls: list[object] = []
-    monkeypatch.setattr(local_index_service_factory, "scan_linked_vaults", lambda *a, **k: calls.append(a) or ())
+    def record_scan(*args: object, **_: object) -> tuple[()]:
+        calls.append(args)
+        return ()
+
+    monkeypatch.setattr(local_index_service_factory, "scan_linked_vaults", record_scan)
 
     reindex(graph_home)
     assert len(calls) == 1
