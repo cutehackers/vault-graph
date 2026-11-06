@@ -1,10 +1,15 @@
-"""Build the Vault drafts for add, update and retire from the agent's fields and the run date only.
+"""Build the Vault drafts for add, update, retire, claim supersede and restore from the agent's fields and the run date.
 
 spec 2026-11-02 V3 draft table, 결정7, 결정S6, 결정S8. The formats follow Vault ``tools/wiki``:
 
 - add and update: ``upsert-page`` (``tools/wiki/lib/draft.py``, ``templates/draft-upsert-page.json``).
 - retire: frontmatter-only ``patch-page`` (계약3, ``tools/wiki/lib/draft_patch.py``), so the Vault
   reads the current page when it applies the draft and the body is never sent again.
+- supersede one claim: ``patch-page`` with one ``supersede-claim`` edit (spec 2026-11-05 §4.4.4, 결정43,
+  ``docs/agent/DRAFTS.md`` patch table).
+- restore: frontmatter-only ``patch-page`` that sets ``status: active``, ``restored_at`` and
+  ``restored_reason`` and leaves ``retired_reason``, ``retired_at`` and ``superseded_by`` as history
+  (spec 2026-11-05 §4.4.13-3, Vault request S12).
 - memory fields and status ``retired``: 계약2 (``tools/wiki/lib/memory_fields.py``).
 
 Every function here is pure: no file, no clock. Nothing the agent wrote is rewritten or summarized.
@@ -22,7 +27,9 @@ from vault_graph.operation.memory.memory_ports import PageText
 from vault_graph.operation.memory.memory_requests import (
     TAGGED_MEMORY_KINDS,
     RememberRequest,
+    RestoreRequest,
     RetireRequest,
+    SupersedeClaimRequest,
     UpdateRequest,
 )
 from vault_graph.operation.scope.vault_frontmatter import parse_vault_frontmatter, split_frontmatter
@@ -33,6 +40,9 @@ _KIND_FOLDERS = {"decision": "decisions", "system": "systems"}
 _KIND_INDEX_SECTIONS = {"decision": "Decisions", "system": "Systems"}
 _KIND_LOG_EVENTS = {"decision": "decision", "system": "manual-note"}
 _MAX_SLUG_CHARS = 80
+# The page statuses a page leaves recall with, and so the ones restore accepts
+# (context/memory/project_memory.py STALE_STATUSES, spec 2026-11-05 §4.4.13).
+RESTORABLE_STATUSES: tuple[str, ...] = ("superseded", "deprecated", "retired")
 
 
 def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, object]:
@@ -138,6 +148,58 @@ def build_retire_draft(request: RetireRequest, *, today: date) -> dict[str, obje
     }
 
 
+def build_supersede_claim_draft(request: SupersedeClaimRequest) -> dict[str, object]:
+    """Build the ``patch-page`` draft whose one ``supersede-claim`` edit replaces one claim row.
+
+    The Vault marks the matching row ``superseded``, adds ``Superseded by:`` to its evidence and inserts
+    the new row below it. The new row's status is the basis. The Vault sets ``updated`` itself.
+    """
+    target = _link_target(request.path)
+    claim = request.claim.strip()
+    return {
+        "version": 1,
+        "operation": "patch-page",
+        "path": request.path,
+        "edits": [
+            {
+                "op": "supersede-claim",
+                "claim": claim,
+                "by": request.new_claim.strip(),
+                "status": request.basis,
+                "evidence": request.evidence.strip(),
+            }
+        ],
+        "log": {
+            "event_type": "manual-note",
+            "title": f"Supersede claim: {target}",
+            "items": [f"Superseded a claim in [[{target}]]: {claim}"],
+        },
+    }
+
+
+def build_restore_draft(request: RestoreRequest, current: PageText, *, today: date) -> dict[str, object]:
+    """Build the frontmatter-only ``patch-page`` draft that makes a retired page current again.
+
+    Raises ``ValueError`` when the current page is not retired, deprecated or superseded.
+    """
+    status = (parse_frontmatter(current.text) or {}).get("status")
+    if status not in RESTORABLE_STATUSES:
+        raise ValueError(f"{request.path} is not a retired page (status: {status}), so there is nothing to restore.")
+    target = _link_target(request.path)
+    reason = request.reason.strip()
+    return {
+        "version": 1,
+        "operation": "patch-page",
+        "path": request.path,
+        "frontmatter": {"status": "active", "restored_at": today.isoformat(), "restored_reason": reason},
+        "log": {
+            "event_type": "manual-note",
+            "title": f"Restore memory: {target}",
+            "items": [f"Restored [[{target}]]: {reason}"],
+        },
+    }
+
+
 def page_slug(title: str) -> str:
     """Turn a title into a file name: lowercase word characters joined by ``-``."""
     text = unicodedata.normalize("NFC", title).lower()
@@ -183,8 +245,11 @@ def _link_target(path: str) -> str:
 
 __all__ = [
     "MEMORY_SCHEMA",
+    "RESTORABLE_STATUSES",
     "build_remember_draft",
+    "build_restore_draft",
     "build_retire_draft",
+    "build_supersede_claim_draft",
     "build_update_draft",
     "page_slug",
     "parse_frontmatter",

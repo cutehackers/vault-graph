@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import PurePath, PurePosixPath
 from typing import Literal
 
 Basis = Literal["stated", "inferred"]
@@ -38,6 +38,8 @@ class RememberRequest:
     memory_kind: str | None = None
     # The ``cwd`` project id the MCP write tool found, or None outside a project (spec 2026-11-05 §4.4.3).
     project_id: str | None = None
+    # The cleanup candidate this write handles, recorded when the write is published or proposed (§4.4.4).
+    candidate_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,7 @@ class UpdateRequest:
     title: str | None = None
     pin: bool | None = None
     memory_kind: str | None = None
+    candidate_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -63,6 +66,49 @@ class RetireRequest:
     vault: str | None = None
     cwd: str | None = None
     replaced_by: str | None = None
+    candidate_key: str | None = None
+
+
+@dataclass(frozen=True)
+class SupersedeClaimRequest:
+    """Replace one claim row of a claim page (spec 2026-11-05 §4.4.4, 결정43).
+
+    ``claim`` is the current row text, ``new_claim`` and ``evidence`` are the cells of the new row.
+    """
+
+    path: str
+    claim: str
+    new_claim: str
+    evidence: str
+    basis: Basis
+    vault: str | None = None
+    cwd: str | None = None
+    candidate_key: str | None = None
+
+
+@dataclass(frozen=True)
+class RestoreRequest:
+    """Bring a retired, deprecated or superseded page back to ``status: active`` (spec 2026-11-05 §4.4.13-3)."""
+
+    path: str
+    reason: str
+    basis: Basis
+    vault: str | None = None
+    cwd: str | None = None
+    candidate_key: str | None = None
+
+
+@dataclass(frozen=True)
+class ImportRequest:
+    """Keep a copy of one Claude Code auto-memory note with Vault ``import-source`` (spec 2026-11-05 §4.4.5).
+
+    ``note`` is the absolute path of the note file. vault-graph only passes it to the Vault command.
+    """
+
+    note: str
+    cwd: str | None = None
+    vault: str | None = None
+    candidate_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -80,6 +126,9 @@ class MemoryWriteResult:
     vault_role: str | None = None
     review_path: str | None = None
     candidates: tuple[VaultCandidate, ...] = ()
+    # Set by import_auto_memory: the Vault copy under raw/imports/ and its source page.
+    raw_path: str | None = None
+    source_page: str | None = None
 
 
 def validate_remember(request: RememberRequest) -> tuple[str, ...]:
@@ -96,6 +145,7 @@ def validate_remember(request: RememberRequest) -> tuple[str, ...]:
     if not isinstance(request.pin, bool):
         problems.append("pin must be true or false.")
     problems.extend(_memory_kind_problems(request.memory_kind))
+    problems.extend(_candidate_key_problems(request.candidate_key))
     return tuple(problems)
 
 
@@ -111,6 +161,7 @@ def validate_update(request: UpdateRequest) -> tuple[str, ...]:
     if request.pin is not None and not isinstance(request.pin, bool):
         problems.append("pin must be true or false when given.")
     problems.extend(_memory_kind_problems(request.memory_kind))
+    problems.extend(_candidate_key_problems(request.candidate_key))
     return tuple(problems)
 
 
@@ -123,7 +174,45 @@ def validate_retire(request: RetireRequest) -> tuple[str, ...]:
         problems.extend(_page_path_problems(request.replaced_by, "replaced_by"))
         if request.replaced_by == request.path:
             problems.append("replaced_by must name a different page than path.")
+    problems.extend(_candidate_key_problems(request.candidate_key))
     return tuple(problems)
+
+
+def validate_supersede_claim(request: SupersedeClaimRequest) -> tuple[str, ...]:
+    """Each text becomes one cell of the Vault claim table, so none may hold ``|`` or a line break."""
+    problems: list[str] = list(_page_path_problems(request.path, "path"))
+    for field, value in (("claim", request.claim), ("new_claim", request.new_claim), ("evidence", request.evidence)):
+        if not _is_cell(value):
+            problems.append(f"{field} must be a non-empty single-line string without '|'.")
+    if _is_cell(request.claim) and _is_cell(request.new_claim) and request.claim.strip() == request.new_claim.strip():
+        problems.append("new_claim must differ from claim.")
+    problems.extend(_basis_problems(request.basis))
+    problems.extend(_candidate_key_problems(request.candidate_key))
+    return tuple(problems)
+
+
+def validate_restore(request: RestoreRequest) -> tuple[str, ...]:
+    problems: list[str] = list(_page_path_problems(request.path, "path"))
+    if not _is_single_line(request.reason):
+        problems.append("reason must be a non-empty single-line string.")
+    problems.extend(_basis_problems(request.basis))
+    problems.extend(_candidate_key_problems(request.candidate_key))
+    return tuple(problems)
+
+
+def validate_import(request: ImportRequest) -> tuple[str, ...]:
+    """The Vault command runs in the Vault folder, so a relative note path would point into the Vault."""
+    problems: list[str] = []
+    if not _is_single_line(request.note) or not PurePath(request.note.strip()).is_absolute():
+        problems.append("note must be the absolute path of an auto-memory note file.")
+    problems.extend(_candidate_key_problems(request.candidate_key))
+    return tuple(problems)
+
+
+def _candidate_key_problems(candidate_key: object) -> tuple[str, ...]:
+    if candidate_key is None or _is_single_line(candidate_key):
+        return ()
+    return ("candidate_key must be a non-empty single-line string when given.",)
 
 
 def _basis_problems(basis: object) -> tuple[str, ...]:
@@ -158,6 +247,14 @@ def _non_empty(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _is_single_line(value: object) -> bool:
+    return _non_empty(value) and "\n" not in str(value) and "\r" not in str(value)
+
+
+def _is_cell(value: object) -> bool:
+    return _is_single_line(value) and "|" not in str(value)
+
+
 def _is_evidence(value: object) -> bool:
     if isinstance(value, str) or not isinstance(value, Sequence):
         return False
@@ -170,13 +267,19 @@ __all__ = [
     "REMEMBER_KINDS",
     "TAGGED_MEMORY_KINDS",
     "Basis",
+    "ImportRequest",
     "MemoryWriteResult",
     "MemoryWriteStatus",
     "RememberRequest",
+    "RestoreRequest",
     "RetireRequest",
+    "SupersedeClaimRequest",
     "UpdateRequest",
     "VaultCandidate",
+    "validate_import",
     "validate_remember",
+    "validate_restore",
     "validate_retire",
+    "validate_supersede_claim",
     "validate_update",
 ]
