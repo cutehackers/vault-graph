@@ -18,9 +18,14 @@ ChunkResultT = TypeVar("ChunkResultT", covariant=True)
 class DocumentChunker(Protocol[ChunkResultT]):
     """Stable boundary for chunk planners independent of source format."""
 
-    version: str
+    @property
+    def version(self) -> str: ...
 
     def chunk(self, document: ExtractedDocument) -> tuple[ChunkResultT, ...]: ...
+
+    def embedding_input(self, section_path: tuple[str, ...], text: str) -> str:
+        """The model input for one chunk this planner made (spec 2026-11-05 §4.2.6-2)."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -35,6 +40,10 @@ class ChunkDraft:
     source_locators: tuple[SourceLocator, ...]
     document_order: int
     boundary_key: str
+    # Session exchange chunkers fill these (spec 2026-11-05 §4.2.6-6·8). Generic chunks keep the defaults.
+    parent_key: str | None = None
+    parent_locators: tuple[SourceLocator, ...] = ()
+    keyword_metadata: str | None = None
 
     def __post_init__(self) -> None:
         if self.token_count < 0:
@@ -47,6 +56,8 @@ class ChunkDraft:
             raise ValueError("document_order must not be negative")
         if not self.boundary_key:
             raise ValueError("boundary_key is required")
+        if not isinstance(self.parent_locators, tuple):
+            raise ValueError("parent_locators must be a tuple")
 
 
 @dataclass(frozen=True)
@@ -64,6 +75,9 @@ class DocumentWindowChunker:
 
     def chunk(self, document: ExtractedDocument) -> tuple[ChunkDraft, ...]:
         return chunk_document(document, max_tokens=self.max_tokens)
+
+    def embedding_input(self, section_path: tuple[str, ...], text: str) -> str:
+        return contextual_embedding_text(section_path=section_path, text=text)
 
 
 @dataclass(frozen=True)

@@ -5,8 +5,8 @@ import os
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
+from vault_graph.indexing.ingestion.chunker_selection import CHUNKER_VERSIONS
 from vault_graph.indexing.ingestion.document_authority import assign_provenance_families, provenance_paths
-from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION
 from vault_graph.indexing.ingestion.document_normalizer import (
     ChunkSnapshot,
     DocumentNormalizer,
@@ -22,8 +22,9 @@ from vault_graph.storage.interfaces.metadata_store import DocumentState, Metadat
 
 # Versions of the code that turns a file into documents and chunks. A file read by other code is read
 # again even when its size and mtime are unchanged (spec 2026-11-05 §4.3.3). Add any new reader,
-# parser or chunker version here.
-INDEX_CODE_PARTS: tuple[str, ...] = (PARSER_VERSION, CHUNKER_VERSION, MarkdownDocumentReader.version)
+# parser version here. Chunker versions come from chunker_selection.CHUNKER_VERSIONS, so a newly
+# registered chunker makes every file read again once.
+INDEX_CODE_PARTS: tuple[str, ...] = (PARSER_VERSION, *CHUNKER_VERSIONS, MarkdownDocumentReader.version)
 
 Key = tuple[str, str]
 

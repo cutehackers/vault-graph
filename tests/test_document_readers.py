@@ -120,6 +120,9 @@ def test_document_chunker_protocol_is_independent_of_chunk_result_shape() -> Non
         def chunk(self, document: ExtractedDocument) -> tuple[str, ...]:
             return (document.source.path,)
 
+        def embedding_input(self, section_path: tuple[str, ...], text: str) -> str:
+            return text
+
     chunker = FakeChunker()
     assert isinstance(chunker, DocumentChunker)
     assert chunker.chunk(_source_document()) == ("notes/example.md",)

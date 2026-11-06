@@ -15,7 +15,8 @@ from vector_index import IndexedItem, IndexItem, VectorIndexError, model_space_i
 from vector_index.indexing import DEFAULT_TOKEN_BUDGET, EmbeddingBatch, iter_embedding_batches
 
 from vault_graph.errors import TextEmbeddingsError, VectorStoreError
-from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION, contextual_embedding_text
+from vault_graph.indexing.ingestion.chunker_selection import embedding_input_for
+from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, stable_id
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.text_embeddings import (
@@ -154,7 +155,7 @@ class VectorIndexer:
                 chunk.vault_id,
                 chunk.chunk_id,
                 stable_vector_id(vault_id=chunk.vault_id, chunk_id=chunk.chunk_id, embedding_spec=embedding_spec),
-                contextual_embedding_text(section_path=chunk.section_path, text=chunk.text),
+                embedding_input_for(chunk),
                 embedding_key(chunk, embedding_spec),
                 metadata_fingerprint=_chunk_metadata_fingerprint(chunk, backend_schema_version),
             )
@@ -326,7 +327,7 @@ class VectorIndexer:
                 chunk.vault_id,
                 chunk.chunk_id,
                 chunk.chunk_id,
-                contextual_embedding_text(section_path=chunk.section_path, text=chunk.text),
+                embedding_input_for(chunk),
                 chunk.content_hash,
             )
             for chunk in chunks
@@ -393,9 +394,7 @@ def stable_vector_id(*, vault_id: str, chunk_id: str, embedding_spec: EmbeddingM
 
 def embedding_key(chunk: ChunkSnapshot, embedding_spec: EmbeddingModelSpec) -> str:
     """Spec 4.3.2: equal keys mean an equal model input, so the stored vector stays valid."""
-    return embedding_key_for_text(
-        embedding_spec, contextual_embedding_text(section_path=chunk.section_path, text=chunk.text)
-    )
+    return embedding_key_for_text(embedding_spec, embedding_input_for(chunk))
 
 
 def embedding_key_for_text(embedding_spec: EmbeddingModelSpec, embedding_input: str) -> str:

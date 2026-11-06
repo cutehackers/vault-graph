@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 from datetime import UTC, datetime
 
+from vault_graph.indexing.ingestion.chunker_selection import chunker_selection
 from vault_graph.indexing.ingestion.document_authority import classify_document_role
-from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION, chunk_document
 from vault_graph.indexing.ingestion.document_models import ExtractedDocument, SourceDocument
 from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
 from vault_graph.indexing.ingestion.document_snapshots import ChunkSnapshot as ChunkSnapshot
@@ -27,6 +27,8 @@ class DocumentNormalizer:
         document_id = stable_id("document", source.vault_id, source.path)
         source_role = classify_document_role(path=source.path, frontmatter=extracted.frontmatter.data)
         provenance_family_id = stable_id("provenance-family", source.vault_id, source.path)
+        selection = chunker_selection(extracted)
+        chunker_version = selection.chunker.version
         document = DocumentSnapshot(
             vault_id=source.vault_id,
             document_id=document_id,
@@ -53,7 +55,7 @@ class DocumentNormalizer:
                 vault_id=source.vault_id,
                 chunk_id=stable_id(
                     "chunk",
-                    CHUNKER_VERSION,
+                    chunker_version,
                     source.vault_id,
                     source.path,
                     draft.boundary_key,
@@ -65,17 +67,22 @@ class DocumentNormalizer:
                 text=draft.text,
                 token_count=draft.token_count,
                 content_hash=stable_id("chunk-content", draft.text),
-                chunker_version=CHUNKER_VERSION,
+                chunker_version=chunker_version,
                 index_revision=None,
                 source_role=source_role,
                 provenance_family_id=provenance_family_id,
                 section_path=draft.section_path,
                 source_locators=draft.source_locators,
                 document_order=draft.document_order,
+                parent_key=draft.parent_key,
+                parent_locators=draft.parent_locators,
+                keyword_metadata=draft.keyword_metadata,
             )
-            for draft in chunk_document(extracted)
+            for draft in selection.chunker.chunk(extracted)
         )
         warnings = tuple(f"{warning.code}: {warning.message}" for warning in extracted.warnings)
+        if selection.warning is not None:
+            warnings = (*warnings, selection.warning)
         return NormalizedDocument(document=document, chunks=chunks, warnings=warnings)
 
 

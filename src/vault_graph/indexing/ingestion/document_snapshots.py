@@ -69,6 +69,11 @@ class ChunkSnapshot:
     section_path: tuple[str, ...] = ()
     source_locators: tuple[SourceLocator, ...] = ()
     document_order: int = 0
+    # Parent unit and exchange keywords of a session window (spec 2026-11-05 §4.2.6-6·8).
+    # Generic documents keep None and an empty tuple.
+    parent_key: str | None = None
+    parent_locators: tuple[SourceLocator, ...] = ()
+    keyword_metadata: str | None = None
 
 
 @dataclass(frozen=True)
