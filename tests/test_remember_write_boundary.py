@@ -56,8 +56,17 @@ def test_mcp_server_registers_the_memory_write_tools_as_the_only_new_tools(tmp_p
 
     registered = create_mcp_server(McpServerConfig(graph_home_path=graph_home_path))
 
-    assert len(registered.tool_registry.tool_names) == 14
-    assert registered.tool_registry.tool_names[-3:] == ("remember", "update_memory", "retire_memory")
+    # Spec 2026-11-05 §4.4.12: 19 tools. The six Vault write tools come last; the two new cleanup read
+    # tools (list_memory_candidates, mark_candidates_reviewed) write only to the Graph Home.
+    assert len(registered.tool_registry.tool_names) == 19
+    assert registered.tool_registry.tool_names[-6:] == (
+        "remember",
+        "update_memory",
+        "retire_memory",
+        "import_auto_memory",
+        "supersede_claim",
+        "restore_memory",
+    )
 
 
 def test_watch_one_iteration_does_not_run_the_publisher(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

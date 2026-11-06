@@ -255,11 +255,17 @@ def test_register_mcp_tools_registers_exact_phase_6c_tools(tmp_path: Path) -> No
         "get_open_questions",
         "get_recent_changes",
         "explore_project",
+        "list_memory_candidates",
+        "mark_candidates_reviewed",
         "remember",
         "update_memory",
         "retire_memory",
+        "import_auto_memory",
+        "supersede_claim",
+        "restore_memory",
     )
-    assert len(registry.tool_names) == 14
+    # Spec 2026-11-05 §4.4.12: 14 tools become 19 (A-32).
+    assert len(registry.tool_names) == 19
     assert tuple(server.tools) == registry.tool_names
     assert all(server.structured_output[name] is True for name in registry.tool_names)
 
@@ -286,7 +292,7 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
         result_explanation_cache=ResultExplanationCache(),
     )
     tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
-    read_tools = sorted(name for name in registry.tool_names if name not in WRITE_TOOLS)
+    read_tools = sorted(name for name in registry.tool_names if name not in (*WRITE_TOOLS, *CURATION_TOOLS))
     schemas = {name: {"input": tools[name].inputSchema, "output": tools[name].outputSchema} for name in read_tools}
     # V2 adds one optional input `cwd` to eight query tools (docs/SPEC.md §5 allows optional fields).
     # Remove it before hashing so the hash still proves every existing field is unchanged.
@@ -307,13 +313,25 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
     digest = hashlib.sha256(json.dumps(schemas, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     assert digest == SCHEMAS_AT_28F1C96
     for name, required, optional in WRITE_TOOL_INPUTS:
-        schema = tools[name].inputSchema
+        schema = copy.deepcopy(tools[name].inputSchema)
+        # Spec 2026-11-05 §4.4.4 adds one optional input `candidate_key` to the write tools (A-32).
+        key_schema = schema["properties"].pop("candidate_key")
+        assert key_schema["default"] is None
+        assert "candidate_key" not in schema["required"]
         assert set(schema["properties"]) == set(required) | set(optional)
         assert schema["required"] == list(required)
         assert "default" not in schema["properties"]["basis"]
 
 
 WRITE_TOOLS = ("remember", "update_memory", "retire_memory")
+# Spec 2026-11-05 §4.4.12: the five cleanup tools added after the frozen 14 (tests/test_mcp_curation_tools.py).
+CURATION_TOOLS = (
+    "list_memory_candidates",
+    "mark_candidates_reviewed",
+    "import_auto_memory",
+    "supersede_claim",
+    "restore_memory",
+)
 CWD_READ_TOOLS: tuple[McpToolName, ...] = (
     "ask_vault",
     "search_vault",

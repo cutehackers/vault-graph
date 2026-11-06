@@ -5,7 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from vault_graph.interface.mcp.mcp_errors import McpProtocolError
-from vault_graph.interface.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES, McpPromptRegistry, register_mcp_prompts
+from vault_graph.interface.mcp.mcp_prompts import MCP_PROMPT_NAMES, McpPromptRegistry, register_mcp_prompts
 
 
 class RecordingPromptServer:
@@ -34,8 +34,8 @@ def test_register_mcp_prompts_registers_exact_phase_5c_prompts() -> None:
 
     registry = register_mcp_prompts(server)
 
-    assert registry.prompt_names == PHASE_5C_PROMPT_NAMES
-    assert tuple(server.prompts) == PHASE_5C_PROMPT_NAMES
+    assert registry.prompt_names == MCP_PROMPT_NAMES
+    assert tuple(server.prompts) == MCP_PROMPT_NAMES
 
 
 def test_prompt_text_mentions_registered_phase_6c_memory_tools() -> None:

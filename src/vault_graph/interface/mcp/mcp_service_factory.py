@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -16,12 +16,14 @@ if TYPE_CHECKING:
     from vault_graph.context.answer.answer_service import AnswerService
     from vault_graph.context.memory.decision_memory import DecisionMemoryService
     from vault_graph.context.memory.issue_memory import IssueMemoryService
+    from vault_graph.context.memory.memory_candidates import CandidateKind
     from vault_graph.context.memory.memory_source_reader import MemorySourceReader
     from vault_graph.context.memory.project_memory import ProjectMemoryService
     from vault_graph.context.memory.timeline_memory import TimelineMemoryService
     from vault_graph.context.pack.context_pack_builder import ContextPackBuilder
     from vault_graph.context.pack.context_pack_renderer import ContextPackRenderer
     from vault_graph.indexing.index_service import IndexService
+    from vault_graph.interface.composition.memory_candidate_sources import MemoryCandidatePackage
     from vault_graph.operation.diagnostics.health_explorer import HealthExplorerService
     from vault_graph.operation.memory.memory_write_service import MemoryWriteService
     from vault_graph.project.context.project_context_service import ProjectContextService
@@ -29,6 +31,7 @@ if TYPE_CHECKING:
     from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
     from vault_graph.retrieval.search.graph_candidates import GraphSearchCandidateProvider
     from vault_graph.retrieval.search.retrieval_service import RetrievalService
+    from vault_graph.storage.local.reviewed_log import JsonlReviewedLog
     from vault_graph.storage.local.usage_log import JsonlUsageLog
 
 
@@ -101,6 +104,11 @@ class McpServiceFactory:
         self._index_runner = index_runner or index_one_vault
         self._read_only_factory = ReadOnlyServiceFactory(graph_home_path=graph_home_path)
         self._active_manifest = graph_home_path.expanduser().resolve() / "projections" / "active.json"
+        from vault_graph.operation.memory.memory_write_service import InferredProposalBudget
+
+        # One budget per server process: a cleanup runs from one list_memory_candidates call to the next
+        # (spec 2026-11-05 §6 "한 정리"), while each write tool call opens a new write service.
+        self._proposal_budget = InferredProposalBudget()
 
     def active_generation_id(self) -> str | None:
         """Read the active generation id from ``projections/active.json``. None when nothing was published.
@@ -180,11 +188,36 @@ class McpServiceFactory:
 
         return JsonlUsageLog(GraphHomeResolver().resolve(self._graph_home_path).root_path)
 
+    def open_reviewed_log(self) -> JsonlReviewedLog:
+        """Open the Graph Home ``memory/reviewed.jsonl`` cleanup record. Nothing is created until a record is added."""
+
+        from vault_graph.operation.scope.graph_home import GraphHomeResolver
+        from vault_graph.storage.local.reviewed_log import JsonlReviewedLog
+
+        return JsonlReviewedLog(GraphHomeResolver().resolve(self._graph_home_path).root_path)
+
+    def memory_candidate_package(
+        self, cwd: Path, *, kinds: Collection[CandidateKind] | None = None, limit: int | None = None
+    ) -> MemoryCandidatePackage:
+        """The cleanup bundle of the ``cwd`` map project (spec 2026-11-05 §4.4.4). Reads only."""
+
+        from vault_graph.interface.composition.memory_candidate_sources import memory_candidate_package
+
+        return memory_candidate_package(
+            self._graph_home_path, cwd, kinds=kinds, limit=limit, vault_map_file=self._vault_map_path
+        )
+
+    def start_curation(self) -> None:
+        """Start a new cleanup: the inferred proposal count of this server process goes back to zero."""
+        self._proposal_budget.start_curation()
+
     def open_memory_write_service(self) -> MemoryWriteService:
         """Open memory writes with the read-only ``vault-map.json``, the page reader, the temporary draft
-        files and the publish-draft adapter."""
+        files, the publish-draft and import-source adapters, the Graph Home review log and the shared
+        inferred proposal budget."""
 
         from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
+        from vault_graph.interface.composition.adapters.vault_import_cli import VaultImportCli
         from vault_graph.interface.composition.adapters.vault_page_reader import VaultPageFileReader
         from vault_graph.interface.composition.adapters.vault_publish_cli import VaultPublishCli
         from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
@@ -197,6 +230,9 @@ class McpServiceFactory:
             page_reader=VaultPageFileReader(),
             drafts=TemporaryDraftFiles(),
             vault_map_problem=None if opening.vault_map else opening.warning or f"no vault-map.json at {opening.path}.",
+            importer=VaultImportCli(),
+            reviewed_log=self.open_reviewed_log(),
+            proposal_budget=self._proposal_budget,
         )
 
     def start_background_index(self, vault_name: str, *, on_finished: Callable[[bool], None]) -> str | None:

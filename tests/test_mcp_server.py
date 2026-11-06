@@ -7,7 +7,7 @@ from typer.testing import CliRunner
 
 from vault_graph.errors import CatalogError
 from vault_graph.interface.cli.main import app
-from vault_graph.interface.mcp.mcp_prompts import PHASE_5C_PROMPT_NAMES
+from vault_graph.interface.mcp.mcp_prompts import MCP_PROMPT_NAMES
 from vault_graph.interface.mcp.mcp_server import McpServerConfig, create_mcp_server
 
 runner = CliRunner()
@@ -60,11 +60,16 @@ def test_create_mcp_server_registers_resources_tools_prompts_and_explanation_cac
         "get_open_questions",
         "get_recent_changes",
         "explore_project",
+        "list_memory_candidates",
+        "mark_candidates_reviewed",
         "remember",
         "update_memory",
         "retire_memory",
+        "import_auto_memory",
+        "supersede_claim",
+        "restore_memory",
     )
-    assert registered.prompt_registry.prompt_names == PHASE_5C_PROMPT_NAMES
+    assert registered.prompt_registry.prompt_names == MCP_PROMPT_NAMES
 
 
 def test_create_mcp_server_missing_catalog_fails_before_server_object(tmp_path: Path) -> None:
