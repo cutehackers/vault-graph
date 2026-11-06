@@ -282,6 +282,7 @@ def test_help_adds_only_the_embedding_group() -> None:
         "hook",
         "mcp",
         "project",
+        "session",
         "vault",
         "embedding",
     }
