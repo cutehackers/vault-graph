@@ -348,9 +348,13 @@ def _open_staged_vector_store(catalog_service: CatalogService) -> VectorStore | 
     """The staged generation's vector store, opened without an embedding model. None when it has none."""
     if not catalog_service.vector_path.exists():
         return None
+    from vault_graph.interface.composition.local_index_service_factory import manifest_tracked
     from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
 
-    return ChromaVectorStore(catalog_service.vector_path, initialize=False)
+    # Drops go through the manifest table too, so the next `vg index` does not rebuild it.
+    return manifest_tracked(
+        ChromaVectorStore(catalog_service.vector_path, initialize=False), catalog_service.vector_path
+    )
 
 
 def vectors_need_catch_up(graph_home_path: Path, vault_id: str) -> bool:
