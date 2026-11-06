@@ -1,15 +1,29 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, replace
 
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.retrieval.evidence.evidence_linking import EvidenceLinker
 from vault_graph.retrieval.search.candidate_ranking import FusedCandidate, rank_resolved_candidates
-from vault_graph.retrieval.search.retrieval_result import RetrievalResult, StoreRevision
+from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalWarning, StoreRevision
 from vault_graph.retrieval.search.search_response import SearchMode, SearchWarning
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
 
 RETIRED_STATUS = "retired"
+PARENT_GROUPED_WARNING = "parent_grouped"
+
+ResolvedCandidate = tuple[FusedCandidate, EvidenceReference, str]
+
+
+@dataclass(frozen=True)
+class _ParentGroup:
+    """The best-ranked window of one parent unit and how many ranked windows it stands for."""
+
+    item: ResolvedCandidate
+    chunk: ChunkSnapshot
+    window_count: int = 1
 
 
 class EvidenceResultAssembly:
@@ -26,7 +40,8 @@ class EvidenceResultAssembly:
     ) -> tuple[tuple[RetrievalResult, ...], int, tuple[SearchWarning, ...]]:
         dropped = 0
         warnings: list[SearchWarning] = []
-        resolved: list[tuple[FusedCandidate, EvidenceReference, str]] = []
+        resolved: list[ResolvedCandidate] = []
+        chunks: dict[tuple[str, str], ChunkSnapshot] = {}
         retired_by_document: dict[str, bool] = {}
         for candidate in candidates:
             if self._is_retired(candidate.document_id, retired_by_document):
@@ -51,12 +66,11 @@ class EvidenceResultAssembly:
             if evidence.source_role not in allowed_roles:
                 continue
             resolved.append((candidate, evidence, _excerpt(chunk.text)))
+            chunks[(candidate.vault_id, candidate.chunk_id)] = chunk
 
         ranked = rank_resolved_candidates(resolved, mode=mode)
-        results = tuple(
-            self._result_for_candidate(candidate=candidate, evidence=evidence, summary=summary, rank=rank)
-            for rank, (candidate, evidence, summary) in enumerate(ranked, start=1)
-        )
+        groups = _group_by_parent(ranked, chunks)
+        results = tuple(self._result_for_group(group=group, rank=rank) for rank, group in enumerate(groups, start=1))
         return results, dropped, tuple(warnings)
 
     def _is_retired(self, document_id: str, cache: dict[str, bool]) -> bool:
@@ -66,6 +80,28 @@ class EvidenceResultAssembly:
             document = self._metadata_store.resolve_document(document_id)
             cache[document_id] = document is not None and document.frontmatter.get("status") == RETIRED_STATUS
         return cache[document_id]
+
+    def _result_for_group(self, *, group: _ParentGroup, rank: int) -> RetrievalResult:
+        candidate, evidence, summary = group.item
+        if group.chunk.parent_key is None:
+            return self._result_for_candidate(candidate=candidate, evidence=evidence, summary=summary, rank=rank)
+        # Spec 2026-11-05 §4.2.6-6: a session result points at the whole exchange and quotes its best window.
+        if group.chunk.parent_locators:
+            evidence = replace(evidence, source_locators=group.chunk.parent_locators)
+        warnings: tuple[RetrievalWarning, ...] = ()
+        if group.window_count > 1:
+            warnings = (
+                RetrievalWarning(
+                    code=PARENT_GROUPED_WARNING,
+                    message=(
+                        f"{group.window_count} windows of {group.chunk.parent_key} matched; "
+                        f"shown once as the best-ranked window {candidate.chunk_id}."
+                    ),
+                    severity="info",
+                ),
+            )
+        result = self._result_for_candidate(candidate=candidate, evidence=evidence, summary=summary, rank=rank)
+        return replace(result, warnings=warnings)
 
     def _result_for_candidate(
         self, *, candidate: FusedCandidate, evidence: EvidenceReference, summary: str, rank: int
@@ -97,6 +133,27 @@ class EvidenceResultAssembly:
             supporting_evidence=supporting,
             audit_records=audit,
         )
+
+
+def _group_by_parent(
+    ranked: list[ResolvedCandidate], chunks: dict[tuple[str, str], ChunkSnapshot]
+) -> tuple[_ParentGroup, ...]:
+    """Keep ranked order. Windows sharing a `parent_key` fold into the first (best-ranked) one."""
+    groups: list[_ParentGroup] = []
+    position_by_parent: dict[tuple[str, str], int] = {}
+    for item in ranked:
+        chunk = chunks[(item[0].vault_id, item[0].chunk_id)]
+        if chunk.parent_key is None:
+            groups.append(_ParentGroup(item=item, chunk=chunk))
+            continue
+        parent = (item[0].vault_id, chunk.parent_key)
+        position = position_by_parent.get(parent)
+        if position is None:
+            position_by_parent[parent] = len(groups)
+            groups.append(_ParentGroup(item=item, chunk=chunk))
+        else:
+            groups[position] = replace(groups[position], window_count=groups[position].window_count + 1)
+    return tuple(groups)
 
 
 def _one_reference_per_document(evidence: tuple[EvidenceReference, ...]) -> tuple[EvidenceReference, ...]:

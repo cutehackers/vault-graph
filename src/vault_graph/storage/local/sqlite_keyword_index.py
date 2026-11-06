@@ -231,10 +231,22 @@ def apply_keyword_revision(
                 chunk.path,
                 " > ".join(chunk.section_path) or chunk.section or "",
                 _title_for_document(document),
-                json.dumps(document.frontmatter, sort_keys=True),
+                keyword_frontmatter(document, chunk),
                 chunk.text,
             ),
         )
+
+
+def keyword_frontmatter(document: DocumentSnapshot, chunk: ChunkSnapshot) -> str:
+    """The `frontmatter` column value: document frontmatter, then the chunk's keyword metadata line if any.
+
+    Session windows carry exchange metadata (files, commands, tools, errors, outcome) here and not in
+    `text`, so it is searchable without reaching window text or embedding input (spec 2026-11-05 §4.2.6-8).
+    """
+    frontmatter = json.dumps(document.frontmatter, sort_keys=True)
+    if not chunk.keyword_metadata:
+        return frontmatter
+    return f"{frontmatter}\n{chunk.keyword_metadata}"
 
 
 def ensure_keyword_schema(connection: sqlite3.Connection) -> None:

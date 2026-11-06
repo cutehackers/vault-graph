@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS chunks (
   section_path_json TEXT NOT NULL DEFAULT '[]',
   source_locators_json TEXT NOT NULL DEFAULT '[]',
   document_order INTEGER NOT NULL DEFAULT 0,
+  parent_key TEXT,
+  parent_locators_json TEXT NOT NULL DEFAULT '[]',
+  keyword_metadata TEXT,
   PRIMARY KEY (vault_id, chunk_id)
 );
 
@@ -135,6 +138,13 @@ _REQUIRED_CHUNK_COLUMNS = frozenset(
         "source_locators_json",
         "document_order",
     }
+)
+# Session window columns (spec 2026-11-05 §4.2.6-6·8). Not in _REQUIRED_CHUNK_COLUMNS: a store written
+# before them stays healthy, and its read-only open reads them as None and an empty tuple.
+_OPTIONAL_CHUNK_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("parent_key", "TEXT", "NULL"),
+    ("parent_locators_json", "TEXT NOT NULL DEFAULT '[]'", "'[]'"),
+    ("keyword_metadata", "TEXT", "NULL"),
 )
 
 
@@ -243,9 +253,10 @@ class SQLiteMetadataStore:
                     INSERT OR REPLACE INTO chunks (
                       vault_id, chunk_id, document_id, path, section, anchor, blob_hash,
                       token_count, content_hash, chunker_version, index_revision, source_role,
-                      provenance_family_id, section_path_json, source_locators_json, document_order
+                      provenance_family_id, section_path_json, source_locators_json, document_order,
+                      parent_key, parent_locators_json, keyword_metadata
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         chunk.vault_id,
@@ -264,6 +275,9 @@ class SQLiteMetadataStore:
                         _section_path_json(chunk.section_path),
                         _source_locators_json(chunk.source_locators),
                         chunk.document_order,
+                        chunk.parent_key,
+                        _source_locators_json(chunk.parent_locators),
+                        chunk.keyword_metadata,
                     ),
                 )
             for vault_id, path in tombstones:
@@ -411,7 +425,7 @@ class SQLiteMetadataStore:
                 SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
                        b.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision,
                        c.source_role, c.provenance_family_id, c.section_path_json,
-                       c.source_locators_json, c.document_order
+                       c.source_locators_json, c.document_order, {_optional_chunk_select(connection)}
                 FROM chunks c
                 INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
                 INNER JOIN documents d
@@ -440,11 +454,11 @@ class SQLiteMetadataStore:
             return ()
         with self._connect() as connection:
             rows = connection.execute(
-                """
+                f"""
                 SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
                        b.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision,
                        c.source_role, c.provenance_family_id, c.section_path_json,
-                       c.source_locators_json, c.document_order
+                       c.source_locators_json, c.document_order, {_optional_chunk_select(connection)}
                 FROM chunks c
                 INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
                 INNER JOIN documents d
@@ -484,11 +498,11 @@ class SQLiteMetadataStore:
             return None
         with self._connect() as connection:
             row = connection.execute(
-                """
+                f"""
                 SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor, b.text,
                        c.token_count, c.content_hash, c.chunker_version, c.index_revision,
                        c.source_role, c.provenance_family_id, c.section_path_json,
-                       c.source_locators_json, c.document_order
+                       c.source_locators_json, c.document_order, {_optional_chunk_select(connection)}
                 FROM chunks c
                 INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
                 WHERE c.vault_id = ? AND c.chunk_id = ?
@@ -767,6 +781,7 @@ def _upgrade_schema(connection: sqlite3.Connection) -> None:
         ("section_path_json", "TEXT NOT NULL DEFAULT '[]'"),
         ("source_locators_json", "TEXT NOT NULL DEFAULT '[]'"),
         ("document_order", "INTEGER NOT NULL DEFAULT 0"),
+        *((column, definition) for column, definition, _ in _OPTIONAL_CHUNK_COLUMNS),
     ):
         if column not in chunk_columns:
             connection.execute(f"ALTER TABLE chunks ADD COLUMN {column} {definition}")
@@ -777,6 +792,15 @@ def _upgrade_schema(connection: sqlite3.Connection) -> None:
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
         """,
         (SCHEMA_VERSION,),
+    )
+
+
+def _optional_chunk_select(connection: sqlite3.Connection) -> str:
+    """Select list for the session window columns of `chunks c`. A missing column reads as its empty value."""
+    chunk_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
+    return ", ".join(
+        f"c.{column}" if column in chunk_columns else f"{empty_value} AS {column}"
+        for column, _, empty_value in _OPTIONAL_CHUNK_COLUMNS
     )
 
 
@@ -905,6 +929,9 @@ def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
         section_path=section_path,
         source_locators=source_locators,
         document_order=int(row["document_order"]),
+        parent_key=str(row["parent_key"]) if row["parent_key"] is not None else None,
+        parent_locators=_decode_source_locators(row["parent_locators_json"]),
+        keyword_metadata=str(row["keyword_metadata"]) if row["keyword_metadata"] is not None else None,
     )
 
 
