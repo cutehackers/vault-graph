@@ -42,6 +42,10 @@ if "--normalized" in argv:
         sys.exit(2)
     if normalized_mode == "crash":
         sys.exit(1)
+    if normalized_mode == "old-launcher":
+        # vault_hooks.py from before 요청S10: any unknown argument prints usage and exits 0.
+        sys.stderr.write("usage: vault_hooks.py session-start | capture [--direct]\\n")
+        sys.exit(0)
     if normalized_mode == "sleep":
         time.sleep(30)
 else:
@@ -197,6 +201,23 @@ def test_exit_code_2_reruns_capture_direct_with_the_same_hook_json(
     assert "status=written" in summary(result)[0]
     assert "input=transcript" in summary(result)[0]
     assert list(world["temp"].iterdir()) == []
+
+
+def test_an_installed_launcher_from_before_s10_falls_back_to_capture_direct(
+    world: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The installed launcher answers an unknown argument with usage and exit 0, capturing nothing."""
+    monkeypatch.setenv("FAKE_NORMALIZED_MODE", "old-launcher")
+    payload = hook_json(world, "SessionEnd", ENDED_ID)
+
+    result = capture(world, payload)
+
+    assert result.exit_code == 0, result.output
+    first, second = calls(world)
+    assert first["argv"][:3] == ["capture", "--direct", "--normalized"]
+    assert second == {"argv": ["capture", "--direct"], "stdin": payload.decode("utf-8")}
+    assert "status=written" in summary(result)[0]
+    assert "input=transcript" in summary(result)[0]
 
 
 def test_exit_code_2_then_failed_direct_run_hands_off_with_3(

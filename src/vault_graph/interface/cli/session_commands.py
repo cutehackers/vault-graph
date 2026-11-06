@@ -18,7 +18,7 @@ import typer
 
 from vault_graph.errors import VaultGraphError
 from vault_graph.interface.composition.adapters.session_capture_runner import (
-    UNKNOWN_OPTION_EXIT_CODE,
+    launcher_rejected_normalized,
     recapture_session,
 )
 from vault_graph.interface.composition.adapters.session_export_files import (
@@ -124,10 +124,15 @@ def _recapture(session: ClaudeCodeSession, normalized: Path, launcher: Path) -> 
     outcome = recapture_session(session, normalized, launcher=launcher)
     if outcome.stderr:
         typer.echo(outcome.stderr, err=True, nl=not outcome.stderr.endswith("\n"))
+    if launcher_rejected_normalized(outcome):
+        typer.echo(
+            f"recapture_failed: {session.session_id}: the launcher or Vault tool does not support --normalized yet. "
+            "Run vault-builder setup to update the hook launcher.",
+            err=True,
+        )
+        return False
     if not outcome.finished:
         reason = outcome.problem or "launcher did not finish."
-        if outcome.exit_code == UNKNOWN_OPTION_EXIT_CODE:
-            reason = f"{reason} The launcher or Vault tool does not support --normalized yet."
         typer.echo(f"recapture_failed: {session.session_id}: {reason}", err=True)
         return False
     typer.echo(

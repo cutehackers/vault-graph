@@ -86,10 +86,21 @@ def capture_hook(
             normalized = _normalize(session, export, cleanup, warnings)
         if normalized is not None:
             outcome = _run(hook_json, launcher, deadline, timeout_s, ("--normalized", str(normalized)))
-            if outcome.exit_code != UNKNOWN_OPTION_EXIT_CODE:
+            if not launcher_rejected_normalized(outcome):
                 return HookCapture(outcome=outcome, normalized=True, warnings=tuple(warnings))
         outcome = _run(hook_json, launcher, deadline, timeout_s, ())
     return HookCapture(outcome=outcome, normalized=False, warnings=tuple(warnings))
+
+
+def launcher_rejected_normalized(outcome: CaptureOutcome) -> bool:
+    """True when the launcher or Vault tool does not know ``--normalized``, so nothing was captured.
+
+    A current launcher exits 2. A launcher installed before 요청S10 prints its usage line and exits 0
+    without a capture result, so that answer counts as a rejection too.
+    """
+    if outcome.exit_code == UNKNOWN_OPTION_EXIT_CODE:
+        return True
+    return outcome.exit_code == 0 and outcome.status in (None, "unknown") and "usage: vault_hooks.py" in outcome.stderr
 
 
 def recapture_session(
@@ -227,6 +238,7 @@ __all__ = [
     "RECAPTURE_TIMEOUT_S",
     "SESSION_END_EVENT",
     "UNKNOWN_OPTION_EXIT_CODE",
+    "launcher_rejected_normalized",
     "HookCapture",
     "capture_hook",
     "recapture_session",
