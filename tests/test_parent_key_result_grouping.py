@@ -290,3 +290,21 @@ def test_mcp_document_resource_at_grouped_location_has_human_turn_and_answer(tmp
 
     assert HUMAN_TURN in body.text
     assert ANSWER_TURN in body.text
+
+
+def test_store_without_session_group_column_stays_readable(tmp_path: Path) -> None:
+    """A Graph Home from before spec 2026-11-05 §4.2.13 has no documents.session_group_key."""
+    database_path = tmp_path / "metadata.sqlite3"
+    indexed_store(tmp_path)
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("ALTER TABLE documents DROP COLUMN session_group_key")
+        connection.execute("DROP TABLE IF EXISTS document_source_stats")
+
+    reader = SQLiteMetadataStore(database_path, initialize=False)
+    states = reader.list_document_states(("default",))
+    one = reader.document_state("default", SESSION_PATH)
+
+    assert reader.health().ok is True
+    assert states and all(state.session_group_key is None for state in states)
+    assert one.document_id is not None and one.session_group_key is None
+    assert reader.list_source_stats(("default",)) == {}
