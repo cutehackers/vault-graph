@@ -394,40 +394,67 @@ def model_limit_warning(count: int, *, limit: int = MODEL_TOKEN_LIMIT) -> str | 
 def drop_duplicate_exchanges(
     documents: Sequence[NormalizedDocument],
 ) -> tuple[tuple[NormalizedDocument, ...], tuple[str, ...]]:
-    """Keep each v2 exchange only in the path-sorted first file that has it (spec §4.2.6-9, §6).
+    """Keep each v2 exchange only in one file of the session (spec §4.2.6-9, §6).
 
-    Give it the files of one session. Returns the documents in path order and one warning line per
-    exchange left out of a later file. A document with nothing left out is returned as it is.
+    The kept copy is the first file, in part order, that holds the whole exchange. Only when every
+    copy is a continued one (`continued=1`, the part starts inside the exchange) is it the first file
+    in part order. Part order is the frontmatter `part` number, then the path, so part10 comes after
+    part3 (a plain path sort would put it first). A whole copy wins because a v1 exchange that
+    overlaps it is left out of the index (§4.2.7): keeping a continued copy then would lose the
+    turns before the cut. This happens after
+    `vg session export --recapture` writes part N+1 next to a continued part N (A-37).
+
+    Give it the files of one session. Returns the documents in part order and one warning line per
+    exchange left out of a file. A document with nothing left out is returned as it is.
     """
-    first_path: dict[str, str] = {}
+    ordered = sorted(documents, key=_part_order)
+    owners: dict[str, tuple[str, bool]] = {}
+    for document in ordered:
+        path = document.document.path
+        whole: dict[str, bool] = {}
+        for chunk in document.chunks:
+            if chunk.chunker_version != SESSION_EXCHANGE_V2_VERSION or chunk.parent_key is None:
+                continue
+            whole[chunk.parent_key] = whole.get(chunk.parent_key, True) and not _continued(chunk.section_path)
+        for key, is_whole in whole.items():
+            owner = owners.get(key)
+            if owner is None or (is_whole and not owner[1]):
+                owners[key] = (path, is_whole)
     kept: list[NormalizedDocument] = []
     warnings: list[str] = []
-    for document in sorted(documents, key=lambda item: item.document.path):
+    for document in ordered:
         path = document.document.path
         chunks = []
         dropped: list[str] = []
         for chunk in document.chunks:
-            key = chunk.parent_key
-            if chunk.chunker_version != SESSION_EXCHANGE_V2_VERSION or key is None:
+            parent = chunk.parent_key
+            if chunk.chunker_version != SESSION_EXCHANGE_V2_VERSION or parent is None or owners[parent][0] == path:
                 chunks.append(chunk)
                 continue
-            owner = first_path.get(key)
-            if owner is not None and owner != path:
-                if key not in dropped:
-                    dropped.append(key)
-                continue
-            chunks.append(chunk)
-        for chunk in chunks:
-            if chunk.chunker_version == SESSION_EXCHANGE_V2_VERSION and chunk.parent_key is not None:
-                first_path.setdefault(chunk.parent_key, path)
-        for key in dropped:
-            session_id, _, exchange_id = key.partition(":")
+            if parent not in dropped:
+                dropped.append(parent)
+        for parent in dropped:
+            session_id, _, exchange_id = parent.partition(":")
+            owner_path = owners[parent][0]
             warnings.append(
                 f"session_exchange_duplicate: exchange {exchange_id} of session {session_id} is in "
-                f"{first_path[key]} and {path}; indexed only from {first_path[key]}"
+                f"{owner_path} and {path}; indexed only from {owner_path}"
             )
         kept.append(replace(document, chunks=tuple(chunks)) if dropped else document)
     return tuple(kept), tuple(warnings)
+
+
+def _part_order(item: NormalizedDocument) -> tuple[int, str]:
+    part = item.document.frontmatter.get("part")
+    number = part if isinstance(part, int) and not isinstance(part, bool) else None
+    if isinstance(part, str) and part.isdigit():
+        number = int(part)
+    return (number if number is not None else 1_000_000, item.document.path)
+
+
+def _continued(section_path: tuple[str, ...]) -> bool:
+    """True for a window of a continued exchange: the chunker sets its question to `CONTINUED_QUESTION`."""
+    return len(section_path) > 1 and section_path[1] == f"Q: {CONTINUED_QUESTION}"
 
 
 def exchange_time_ranges(document: ExtractedDocument) -> dict[str, tuple[str, str] | None]:

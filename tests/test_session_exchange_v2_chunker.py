@@ -14,6 +14,7 @@ from vault_graph.indexing.ingestion.document_models import ExtractedDocument, So
 from vault_graph.indexing.ingestion.document_normalizer import DocumentNormalizer, NormalizedDocument
 from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
 from vault_graph.indexing.ingestion.session_exchange_v2_chunker import (
+    CONTINUED_QUESTION,
     SESSION_EXCHANGE_V2_VERSION,
     SESSION_WINDOW_MAX_TOKENS,
     SessionExchangeV2Chunker,
@@ -265,6 +266,45 @@ def test_same_exchange_id_in_two_files_keeps_the_path_sorted_first_with_one_warn
     assert len(warnings) == 2
     assert all("\n" not in warning and warning.startswith("session_exchange_duplicate: ") for warning in warnings)
     assert any("u-410" in warning and LONG_PART3 in warning and LONG_PART1 in warning for warning in warnings)
+
+
+def test_same_whole_exchange_in_part2_and_part10_keeps_part2_by_part_number() -> None:
+    """A plain path sort puts part10 before part2; the rule orders by the frontmatter part number."""
+    text = (FIXTURES / LONG_PART1).read_text(encoding="utf-8")
+    part2_path = LONG_PART1.replace("-part1.md", "-part2.md")
+    part10_path = LONG_PART1.replace("-part1.md", "-part10.md")
+    part2 = _normalized(part2_path, text.replace("\npart: 1\n", "\npart: 2\n", 1))
+    part10 = _normalized(part10_path, text.replace("\npart: 1\n", "\npart: 10\n", 1))
+    assert part10_path < part2_path
+
+    kept, warnings = drop_duplicate_exchanges((part10, part2))
+
+    assert [document.document.path for document in kept] == [part2_path, part10_path]
+    assert kept[0] == part2
+    assert kept[1].chunks == ()
+    assert warnings and all(part2_path in warning for warning in warnings)
+
+
+def test_a_whole_copy_in_a_later_part_wins_over_a_continued_copy() -> None:
+    """After `vg session export --recapture` the whole exchange sits in a later part (A-37)."""
+    part1 = _normalized(LONG_PART1)
+    part3 = _normalized(LONG_PART3)
+    continued = {chunk.parent_key for chunk in part3.chunks if chunk.section_path[1:2] == (f"Q: {CONTINUED_QUESTION}",)}
+    assert continued, "fixture part3 must start inside an exchange"
+    whole_later = _normalized(
+        LONG_PART3.replace("-part3.md", "-part5.md"),
+        (FIXTURES / LONG_PART1).read_text(encoding="utf-8").replace("\npart: 1\n", "\npart: 5\n", 1),
+    )
+
+    kept, _ = drop_duplicate_exchanges((part3, whole_later))
+
+    by_path = {document.document.path: document for document in kept}
+    owners_of_continued = {
+        path for path, document in by_path.items() for chunk in document.chunks if chunk.parent_key in continued
+    }
+    assert continued <= {chunk.parent_key for chunk in whole_later.chunks}
+    assert owners_of_continued == {whole_later.document.path}
+    assert part1.chunks
 
 
 def test_files_without_shared_exchanges_pass_through_unchanged() -> None:
