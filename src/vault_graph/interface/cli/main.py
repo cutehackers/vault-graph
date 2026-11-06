@@ -684,6 +684,9 @@ def index(
         typer.echo(f"embedding_batch_size: {vector.embedding_batch_size}")
         typer.echo(f"embedding_parallelism: {vector.embedding_parallelism}")
         typer.echo(f"embedding_lazy_load: {vector.embedding_lazy_load}")
+        # Vector plan warnings: model-limit windows, manifest rebuilds, backend health (spec 2026-11-05).
+        for vector_warning in getattr(vector, "warnings", ()):
+            typer.echo(f"vector_warning: {vector_warning}")
         if getattr(vector, "failed", False):
             typer.echo("vector_failed: True")
             typer.echo(f"vector_last_error: {getattr(vector, 'error', None)}")

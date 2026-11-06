@@ -154,6 +154,8 @@ class FastEmbedTextEmbeddings:
         self._backend_factory = backend_factory or _default_backend_factory
         self._snapshot_resolver = snapshot_resolver or _resolve_snapshot
         self._backend: FastEmbedBackend | None = None
+        self._tokenizer: Any | None = None
+        self._tokenizer_loaded = False
         if not config.embedding_lazy_load:
             self._backend = self._load_backend()
         spec = config.model_spec()
@@ -182,6 +184,32 @@ class FastEmbedTextEmbeddings:
         except Exception:
             return False
         return True
+
+    def count_model_tokens(self, text: str) -> int:
+        """Model tokens of a document text as the model reads it (prefix included), without truncation.
+
+        Used for the 512-token warning of session windows (spec 2026-11-05 §4.2.6-11). Falls back to the
+        byte estimate when the model's `tokenizer.json` is not on disk.
+        """
+        tokenizer = self._model_tokenizer()
+        if tokenizer is None:
+            return max(1, -(-len(text.encode("utf-8")) // 3))
+        return len(tokenizer.encode(self._config.preset.document_prefix + text).ids)
+
+    def _model_tokenizer(self) -> Any | None:
+        if self._tokenizer_loaded:
+            return self._tokenizer
+        self._tokenizer_loaded = True
+        try:
+            from tokenizers import Tokenizer
+
+            snapshot = self._snapshot_resolver(self._config_for_local_files_only())
+            tokenizer = Tokenizer.from_file(str(snapshot / "tokenizer.json"))
+            tokenizer.no_truncation()
+            self._tokenizer = tokenizer
+        except Exception:  # noqa: BLE001 - counting falls back to the byte estimate
+            self._tokenizer = None
+        return self._tokenizer
 
     def embed(self, inputs: tuple[EmbeddingInput, ...]) -> tuple[EmbeddingVector, ...]:
         """Embed documents. The preset's document prefix goes in front of each text."""
