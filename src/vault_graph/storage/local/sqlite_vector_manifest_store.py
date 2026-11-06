@@ -330,8 +330,10 @@ class ManifestTrackedVectorStore(VectorStore, VectorMetadataUpdater):
         if stale:
             rebuilt = tuple(VectorManifestRow.from_record(row) for row in self._listing.rows(stale))
             self._manifest.replace_vault_rows(stale, rebuilt)
-            reason = "table missing" if not present else "row count differs from the vector store"
-            warnings = (f"vector manifest table rebuilt from the vector store for {', '.join(stale)}: {reason}",)
+            # A first index has no table and an empty store: creating the table is not worth a warning.
+            if rebuilt or present:
+                reason = "table missing" if not present else "row count differs from the vector store"
+                warnings = (f"vector manifest table rebuilt from the vector store for {', '.join(stale)}: {reason}",)
         return VectorManifestRead(rows=self._manifest.rows(vault_ids), warnings=warnings)
 
     def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:

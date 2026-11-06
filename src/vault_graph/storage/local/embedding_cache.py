@@ -179,6 +179,13 @@ class CachedTextEmbeddings:
     def can_embed_without_download(self) -> bool:
         return self._inner.can_embed_without_download()
 
+    def count_model_tokens(self, text: str) -> int:
+        """The wrapped provider's model token count, or the byte estimate when it has none."""
+        count = getattr(self._inner, "count_model_tokens", None)
+        if callable(count):
+            return int(count(text))
+        return max(1, -(-len(text.encode("utf-8")) // 3))
+
     def embed_query(self, text: str) -> EmbeddingVector:
         return self._inner.embed_query(text)
 
