@@ -227,3 +227,38 @@ def test_repeated_planning_is_stable_and_does_not_use_document_order_in_boundary
         ("A", "stable-block", "stable-unit", "0", "stable-block", "stable-unit", "0", "1")
     )
     assert CHUNKER_VERSION == "document-block-window-v2"
+
+
+def test_window_chunker_drafts_have_no_parent_unit_or_keyword_metadata() -> None:
+    document = _document(
+        (
+            ContentBlock(
+                kind="paragraph",
+                section_path=("A",),
+                units=(_unit("body", key="unit"),),
+                stable_key="block",
+            ),
+        )
+    )
+
+    (draft,) = chunk_document(document)
+
+    assert draft.parent_key is None
+    assert draft.parent_locators == ()
+    assert draft.keyword_metadata is None
+
+
+def test_chunk_draft_rejects_non_tuple_parent_locators() -> None:
+    locator = SourceLocator(scheme="markdown", coordinates=(("line", "1"),))
+    with pytest.raises(ValueError, match="parent_locators"):
+        ChunkDraft(
+            text="body",
+            token_count=1,
+            section=None,
+            anchor=None,
+            section_path=(),
+            source_locators=(locator,),
+            document_order=0,
+            boundary_key="key",
+            parent_locators=[locator],  # type: ignore[arg-type]
+        )
