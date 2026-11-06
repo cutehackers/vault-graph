@@ -624,7 +624,7 @@ def test_refresh_reads_metadata_only_and_never_embeds(
     monkeypatch.setattr(
         "vault_graph.interface.composition.adapters.text_embeddings.FastEmbedTextEmbeddings.__init__", fail
     )
-    monkeypatch.setattr("vault_graph.indexing.vector_index_adapter.VectorIndexer._embed_chunks", fail)
+    monkeypatch.setattr("vault_graph.indexing.vector_index_adapter.VectorIndexer._embedding_batches", fail)
     monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", fail)
     write_page(
         base / "vaults" / "main", "wiki/notes/fresh.md", f'type: note\nstatus: active\nupdated: "{day(0)}"\n', "Fresh"

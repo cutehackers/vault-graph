@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
@@ -10,7 +11,8 @@ from typing import Protocol
 from text_embeddings import EmbeddingInput as GenericEmbeddingInput
 from text_embeddings import EmbeddingModelSpec as GenericEmbeddingModelSpec
 from text_embeddings import EmbeddingVector as GenericEmbeddingVector
-from vector_index import IndexedItem, IndexItem, VectorIndexError, embed_items, model_space_id, plan_index
+from vector_index import IndexedItem, IndexItem, VectorIndexError, model_space_id, plan_index
+from vector_index.indexing import DEFAULT_TOKEN_BUDGET, EmbeddingBatch, iter_embedding_batches
 
 from vault_graph.errors import TextEmbeddingsError, VectorStoreError
 from vault_graph.indexing.ingestion.document_chunking import contextual_embedding_text
@@ -114,11 +116,14 @@ class VectorIndexer:
         embedding_batch_size: int = 256,
         embedding_parallelism: int | None = None,
         embedding_lazy_load: bool = True,
+        embedding_token_budget: int = DEFAULT_TOKEN_BUDGET,
     ) -> None:
         self._chunk_store = chunk_store
         self._vector_store = vector_store
         self._text_embeddings = text_embeddings
+        # Item cap per embedding batch. The token budget caps items x largest estimated tokens.
         self._embedding_batch_size = embedding_batch_size
+        self._embedding_token_budget = embedding_token_budget
         self._embedding_parallelism = embedding_parallelism
         self._embedding_lazy_load = embedding_lazy_load
 
@@ -187,20 +192,28 @@ class VectorIndexer:
         except Exception as exc:
             return self.plan_failure(scopes=scopes, full=full, error=str(exc))
         try:
-            embeddings = self._embed_chunks(plan.upsert_chunks)
-            records = tuple(
-                self._record_for_chunk(
-                    plan=plan,
-                    chunk=chunk,
-                    embedding=embeddings[_embedding_input_id(chunk)],
+            # One store write per embedding batch bounds memory to one batch of vectors.
+            # Tombstones go with the first write: stores delete before they upsert, so a
+            # replaced record is removed before any batch writes it again.
+            tombstones = plan.tombstones
+            wrote = False
+            for batch in self._embedding_batches(plan.upsert_chunks):
+                self._vector_store.apply_vector_revision(
+                    vector_index_revision=plan.vector_index_revision,
+                    records=tuple(
+                        self._record_for_chunk(plan=plan, chunk=chunk, embedding=embedding)
+                        for chunk, embedding in batch
+                    ),
+                    tombstones=tombstones,
                 )
-                for chunk in plan.upsert_chunks
-            )
-            self._vector_store.apply_vector_revision(
-                vector_index_revision=plan.vector_index_revision,
-                records=records,
-                tombstones=plan.tombstones,
-            )
+                tombstones = ()
+                wrote = True
+            if not wrote:
+                self._vector_store.apply_vector_revision(
+                    vector_index_revision=plan.vector_index_revision,
+                    records=(),
+                    tombstones=tombstones,
+                )
             return VectorApplyResult.from_plan(plan, failed=False, error=None)
         except Exception as exc:
             return VectorApplyResult.from_plan(plan, failed=True, error=str(exc), failed_stage="apply")
@@ -225,8 +238,11 @@ class VectorIndexer:
             failed_stage="plan",
         )
 
-    def _embed_chunks(self, chunks: tuple[ChunkSnapshot, ...]) -> dict[str, EmbeddingVector]:
+    def _embedding_batches(
+        self, chunks: tuple[ChunkSnapshot, ...]
+    ) -> Iterator[tuple[tuple[ChunkSnapshot, EmbeddingVector], ...]]:
         _validate_unique_chunk_ids(chunks)
+        chunk_by_key = {(chunk.vault_id, chunk.chunk_id): chunk for chunk in chunks}
         items = tuple(
             IndexItem(
                 chunk.vault_id,
@@ -237,21 +253,30 @@ class VectorIndexer:
             )
             for chunk in chunks
         )
-        try:
-            vectors = embed_items(
-                items, _EmbeddingProvider(self._text_embeddings), batch_size=self._embedding_batch_size
+        batches = iter_embedding_batches(
+            items,
+            _EmbeddingProvider(self._text_embeddings),
+            token_budget=self._embedding_token_budget,
+            max_batch_items=self._embedding_batch_size,
+        )
+        spec = self._text_embeddings.model_spec()
+        while True:
+            try:
+                batch: EmbeddingBatch = next(batches)
+            except StopIteration:
+                return
+            except VectorIndexError as exc:
+                message = str(exc).replace("input item IDs", "input chunk IDs")
+                raise TextEmbeddingsError(message) from exc
+            yield tuple(
+                (
+                    chunk_by_key[(item.collection_id, item.item_id)],
+                    EmbeddingVector(
+                        _embedding_input_id(chunk_by_key[(item.collection_id, item.item_id)]), vector.values, spec
+                    ),
+                )
+                for item, vector in zip(batch.items, batch.vectors, strict=True)
             )
-        except VectorIndexError as exc:
-            message = str(exc).replace("input item IDs", "input chunk IDs")
-            raise TextEmbeddingsError(message) from exc
-        return {
-            _embedding_input_id(chunk): EmbeddingVector(
-                _embedding_input_id(chunk),
-                vectors[(chunk.vault_id, chunk.chunk_id)].values,
-                self._text_embeddings.model_spec(),
-            )
-            for chunk in chunks
-        }
 
     def _record_for_chunk(
         self,

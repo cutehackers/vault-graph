@@ -5,6 +5,8 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from vector_index.indexing import DEFAULT_TOKEN_BUDGET
+
 from vault_graph.errors import GraphStoreError, VectorStoreError
 from vault_graph.indexing.index_service import IndexRunReport, IndexService
 from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION
@@ -203,6 +205,9 @@ class LocalIndexServiceFactory:
                     embedding_batch_size=text_embeddings.config.embedding_batch_size,
                     embedding_parallelism=text_embeddings.config.embedding_parallelism,
                     embedding_lazy_load=text_embeddings.config.embedding_lazy_load,
+                    embedding_token_budget=getattr(
+                        text_embeddings.config, "embedding_token_budget", DEFAULT_TOKEN_BUDGET
+                    ),
                     graph_store=graph_store,
                     graph_extraction_spec=current_graph_extraction_spec(),
                     graph_status_store=graph_status_store,
