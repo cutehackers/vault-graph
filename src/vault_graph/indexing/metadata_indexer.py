@@ -15,7 +15,14 @@ from vault_graph.indexing.ingestion.document_normalizer import (
 )
 from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
 from vault_graph.indexing.ingestion.markdown_parser import PARSER_VERSION
-from vault_graph.indexing.ingestion.vault_loader import VaultLoader
+from vault_graph.indexing.ingestion.session_group import (
+    SESSION_GROUP_VERSION,
+    ExchangeRanges,
+    exchange_ranges,
+    reprocess_session_groups,
+    session_group_key,
+)
+from vault_graph.indexing.ingestion.vault_loader import LoadedVaultDocument, VaultLoader
 from vault_graph.indexing.revision_planner import MetadataIndexPreview, MetadataRevisionPlan
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.storage.interfaces.metadata_store import DocumentState, MetadataStore, SourceStat, SourceStatStore
@@ -23,8 +30,14 @@ from vault_graph.storage.interfaces.metadata_store import DocumentState, Metadat
 # Versions of the code that turns a file into documents and chunks. A file read by other code is read
 # again even when its size and mtime are unchanged (spec 2026-11-05 §4.3.3). Add any new reader,
 # parser version here. Chunker versions come from chunker_selection.CHUNKER_VERSIONS, so a newly
-# registered chunker makes every file read again once.
-INDEX_CODE_PARTS: tuple[str, ...] = (PARSER_VERSION, *CHUNKER_VERSIONS, MarkdownDocumentReader.version)
+# registered chunker makes every file read again once. SESSION_GROUP_VERSION makes a store written before
+# session groups read every file once, so each session file gets its stored group key (§4.2.13).
+INDEX_CODE_PARTS: tuple[str, ...] = (
+    PARSER_VERSION,
+    *CHUNKER_VERSIONS,
+    MarkdownDocumentReader.version,
+    SESSION_GROUP_VERSION,
+)
 
 Key = tuple[str, str]
 
@@ -60,6 +73,19 @@ class _Plan:
     # Size and mtime of each file read in this run, taken before it was read.
     read_stats: dict[Key, tuple[int, int]]
     lineages: dict[Key, tuple[str | None, ...]]
+
+
+@dataclass(frozen=True)
+class _Loaded:
+    """Documents read in one run, after provenance families and session group rules."""
+
+    normalized: tuple[NormalizedDocument, ...]
+    # Keys whose file is gone.
+    gone: tuple[Key, ...]
+    # Size and mtime of each file read, taken before the read.
+    read_stats: dict[Key, tuple[int, int]]
+    # Session group warning lines (spec 2026-11-05 §4.2.13, §6).
+    warnings: tuple[str, ...]
 
 
 class MetadataIndexer:
@@ -147,15 +173,16 @@ class MetadataIndexer:
         (2026-11-03 발견13). Family members whose result is the same are reported unchanged.
         """
         index_revision = f"metadata-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
-        normalized, gone, read_stats = self._load_with_families(
+        loaded = self._load_with_families(
             scope, sorted(key for key in set(changed_paths) if _key_in_scope(vault_id=key[0], path=key[1], scope=scope))
         )
+        normalized, gone, read_stats = loaded.normalized, loaded.gone, loaded.read_stats
         changed: list[tuple[str, str]] = []
         unchanged: list[tuple[str, str]] = []
         for item in normalized:
             key = (item.document.vault_id, item.document.path)
             current = self._metadata_store.document_state(*key)
-            if current.document_id is None or _document_changed(current=current, item=item):
+            if current.document_id is None or self._changed(current=current, item=item):
                 changed.append(key)
             else:
                 unchanged.append(key)
@@ -186,7 +213,7 @@ class MetadataIndexer:
             changed_paths=tuple(sorted(changed)),
             unchanged_paths=tuple(sorted(unchanged)),
             deleted_paths=tuple(deleted),
-            warnings=tuple(f"{item.document.path}: {warning}" for item in normalized for warning in item.warnings),
+            warnings=_plan_warnings(loaded),
         )
 
     def _build_plan(self, *, scope: QueryScope, full: bool) -> _Plan:
@@ -200,7 +227,8 @@ class MetadataIndexer:
         stat_store = self._metadata_store if isinstance(self._metadata_store, SourceStatStore) else None
         skipped: set[Key] = set()
         if full or stat_store is None:
-            normalized = self._load_normalized(scope)
+            loaded = self._load_normalized(scope)
+            normalized = loaded.normalized
             read_stats = {
                 key: on_disk[key]
                 for item in normalized
@@ -208,7 +236,8 @@ class MetadataIndexer:
             }
         else:
             # Spec 2026-11-05 §4.3.3: read only files whose size, mtime or index code changed, plus
-            # the provenance family of each, so families stay whole (as apply_paths does).
+            # the provenance family and session group of each, so both stay whole (§4.2.13, as
+            # apply_paths does). Skipped files join a group through their stored group key.
             recorded = stat_store.list_source_stats(scope.vault_ids)
             for key, (size, mtime_ns) in on_disk.items():
                 state = current_by_key.get(key)
@@ -222,15 +251,14 @@ class MetadataIndexer:
                 ):
                     skipped.add(key)
             missing = [key for key, state in current_by_key.items() if key not in on_disk and not state.is_tombstoned]
-            normalized, _, read_stats = self._load_with_families(
-                scope, sorted(set(on_disk) - skipped) + sorted(missing)
-            )
+            loaded = self._load_with_families(scope, sorted(set(on_disk) - skipped) + sorted(missing))
+            normalized, read_stats = loaded.normalized, loaded.read_stats
         loaded_by_key = {(item.document.vault_id, item.document.path): item for item in normalized}
         changed: list[tuple[str, str]] = []
         unchanged: list[tuple[str, str]] = [key for key in skipped if key not in loaded_by_key]
         for key, item in loaded_by_key.items():
             current = current_by_key.get(key)
-            if full or current is None or _document_changed(current=current, item=item):
+            if full or current is None or self._changed(current=current, item=item):
                 changed.append(key)
             else:
                 unchanged.append(key)
@@ -246,7 +274,7 @@ class MetadataIndexer:
             changed_paths=tuple(sorted(changed)),
             unchanged_paths=tuple(sorted(unchanged)),
             deleted_paths=tuple(sorted(deleted)),
-            warnings=tuple(f"{item.document.path}: {warning}" for item in normalized for warning in item.warnings),
+            warnings=_plan_warnings(loaded),
         )
         return _Plan(
             plan=plan,
@@ -267,20 +295,26 @@ class MetadataIndexer:
                 found[(vault_id, path)] = (stat.st_size, stat.st_mtime_ns)
         return found
 
-    def _load_with_families(
-        self, scope: QueryScope, keys: list[Key]
-    ) -> tuple[tuple[NormalizedDocument, ...], list[Key], dict[Key, tuple[int, int]]]:
-        """Load ``keys`` and every page their provenance links or indexed families reach.
+    def _load_with_families(self, scope: QueryScope, keys: list[Key]) -> _Loaded:
+        """Load ``keys``, every page their provenance links or indexed families reach, and every file of
+        their session groups (spec 2026-11-05 §4.2.13).
 
-        Returns the normalized documents with families assigned, the keys whose file is gone, and the
-        size and mtime of each file read, taken before the read.
+        A session group is found from the read frontmatter and from the stored group key, so a deleted
+        file and a file skipped by the precheck both open their group. A group member that is read only
+        because of its group and cannot be read leaves the group incomplete: the session rules keep
+        every v1 exchange and warn (§6), and the file's stored rows stay.
         """
         loaded: list[NormalizedDocument] = []
         gone: list[Key] = []
         read_stats: dict[Key, tuple[int, int]] = {}
+        ranges: dict[Key, ExchangeRanges] = {}
+        incomplete: dict[Key, list[str]] = {}
         members: dict[str, list[Key]] | None = None
+        groups: dict[Key, list[Key]] | None = None
         pending = list(dict.fromkeys(keys))
         seen = set(pending)
+        # Keys read only because a session group named them, with that group.
+        pulled_by_group: dict[Key, Key] = {}
         while pending:
             vault_id, path = pending.pop(0)
             entry = self._catalog.resolve(vault_id)
@@ -288,8 +322,16 @@ class MetadataIndexer:
                 stat = os.stat(entry.root_path / path)
             except OSError:
                 stat = None
-            document = self._loader.load_path(entry=entry, path=path)
+            try:
+                document = self._loader.load_path(entry=entry, path=path)
+            except (OSError, UnicodeDecodeError):
+                group_id = pulled_by_group.get((vault_id, path))
+                if group_id is None:
+                    raise
+                incomplete.setdefault(group_id, []).append(path)
+                continue
             linked: list[Key] = []
+            group_ids: list[Key] = []
             if document is None:
                 gone.append((vault_id, path))
             else:
@@ -297,17 +339,34 @@ class MetadataIndexer:
                     read_stats[(vault_id, path)] = (stat.st_size, stat.st_mtime_ns)
                 item = self._normalizer.normalize(document)
                 loaded.append(item)
+                _add_ranges(ranges, document)
                 linked.extend((vault_id, target) for target in provenance_paths(item.document.frontmatter))
-            family_id = self._metadata_store.document_state(vault_id, path).provenance_family_id
+                if (group := session_group_key(item.document.frontmatter)) is not None:
+                    group_ids.append((vault_id, group))
+            state = self._metadata_store.document_state(vault_id, path)
+            family_id = state.provenance_family_id
             if family_id:
                 if members is None:
                     members = _family_members(self._metadata_store.list_document_states(scope.vault_ids))
                 linked.extend(members.get(family_id, ()))
+            if state.session_group_key and not state.is_tombstoned:
+                group_ids.append((vault_id, state.session_group_key))
             for key in linked:
                 if key not in seen and _key_in_scope(vault_id=key[0], path=key[1], scope=scope):
                     seen.add(key)
                     pending.append(key)
-        return assign_provenance_families(tuple(loaded)), gone, read_stats
+            if group_ids and groups is None:
+                groups = _group_members(self._metadata_store.list_document_states(scope.vault_ids))
+            for group_id in dict.fromkeys(group_ids):
+                for key in (groups or {}).get(group_id, ()):
+                    if key not in seen and _key_in_scope(vault_id=key[0], path=key[1], scope=scope):
+                        seen.add(key)
+                        pending.append(key)
+                        pulled_by_group[key] = group_id
+        normalized, warnings = reprocess_session_groups(
+            assign_provenance_families(tuple(loaded)), ranges, incomplete_groups=incomplete
+        )
+        return _Loaded(normalized=normalized, gone=tuple(gone), read_stats=read_stats, warnings=warnings)
 
     def _record_stats(
         self,
@@ -329,13 +388,31 @@ class MetadataIndexer:
             removed=tuple(removed),
         )
 
-    def _load_normalized(self, scope: QueryScope) -> tuple[NormalizedDocument, ...]:
+    def _load_normalized(self, scope: QueryScope) -> _Loaded:
         normalized: list[NormalizedDocument] = []
+        ranges: dict[Key, ExchangeRanges] = {}
         for vault_id in scope.vault_ids:
             entry = self._catalog.resolve(vault_id)
             for loaded in self._loader.load_documents(entry=entry, scope=scope):
                 normalized.append(self._normalizer.normalize(loaded))
-        return assign_provenance_families(tuple(normalized))
+                _add_ranges(ranges, loaded)
+        documents, warnings = reprocess_session_groups(assign_provenance_families(tuple(normalized)), ranges)
+        return _Loaded(normalized=documents, gone=(), read_stats={}, warnings=warnings)
+
+    def _changed(self, *, current: DocumentState, item: NormalizedDocument) -> bool:
+        """Whether ``item`` differs from its stored row, chunks of a session file included.
+
+        Session group rules can remove chunks of a file whose bytes did not change, so a session file
+        also compares its chunk ids with the stored ones.
+        """
+        if _document_changed(current=current, item=item):
+            return True
+        if session_group_key(item.document.frontmatter) is None:
+            return False
+        stored = self._metadata_store.list_document_chunks(
+            vault_id=item.document.vault_id, document_id=item.document.document_id
+        )
+        return sorted(chunk.chunk_id for chunk in stored) != sorted(chunk.chunk_id for chunk in item.chunks)
 
 
 def _document_changed(*, current: DocumentState, item: NormalizedDocument) -> bool:
@@ -352,6 +429,7 @@ def _document_changed(*, current: DocumentState, item: NormalizedDocument) -> bo
         or current.chunker_version != _document_chunker_version(item)
         or current.source_role != item.document.source_role
         or current.provenance_family_id != item.document.provenance_family_id
+        or current.session_group_key != session_group_key(item.document.frontmatter)
     )
 
 
@@ -365,6 +443,28 @@ def _chunk_sort_key(chunk: ChunkSnapshot) -> tuple[str, str, str]:
 
 def _document_sort_key(document: DocumentSnapshot) -> tuple[str, str, str]:
     return (document.vault_id, document.path, document.document_id)
+
+
+def _plan_warnings(loaded: _Loaded) -> tuple[str, ...]:
+    return (
+        *(f"{item.document.path}: {warning}" for item in loaded.normalized for warning in item.warnings),
+        *loaded.warnings,
+    )
+
+
+def _add_ranges(ranges: dict[Key, ExchangeRanges], loaded: LoadedVaultDocument) -> None:
+    """Exchange time ranges of a session file, for the session group rules. Other files add nothing."""
+    if loaded.extracted_document is not None and session_group_key(loaded.frontmatter.data) is not None:
+        ranges[(loaded.vault_id, loaded.path)] = exchange_ranges(loaded.extracted_document)
+
+
+def _group_members(states: tuple[DocumentState, ...]) -> dict[Key, list[Key]]:
+    """Indexed ``(vault_id, path)`` keys by ``(vault_id, session group key)``."""
+    members: dict[Key, list[Key]] = {}
+    for state in states:
+        if state.session_group_key and state.document_id is not None and not state.is_tombstoned:
+            members.setdefault((state.vault_id, state.session_group_key), []).append((state.vault_id, state.path))
+    return members
 
 
 def _family_members(states: tuple[DocumentState, ...]) -> dict[str, list[tuple[str, str]]]:

@@ -6,18 +6,29 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from text_embeddings import EmbeddingInput as GenericEmbeddingInput
 from text_embeddings import EmbeddingModelSpec as GenericEmbeddingModelSpec
 from text_embeddings import EmbeddingVector as GenericEmbeddingVector
 from vector_index import IndexedItem, IndexItem, VectorIndexError, model_space_id, plan_index
-from vector_index.indexing import DEFAULT_TOKEN_BUDGET, EmbeddingBatch, iter_embedding_batches
+from vector_index.indexing import (
+    DEFAULT_TOKEN_BUDGET,
+    EmbeddingBatch,
+    estimate_tokens_from_bytes,
+    iter_embedding_batches,
+)
 
 from vault_graph.errors import TextEmbeddingsError, VectorStoreError
 from vault_graph.indexing.ingestion.chunker_selection import embedding_input_for
 from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, stable_id
+from vault_graph.indexing.ingestion.session_exchange_v1_chunker import SESSION_EXCHANGE_V1_VERSION
+from vault_graph.indexing.ingestion.session_exchange_v2_chunker import (
+    SESSION_EXCHANGE_V2_VERSION,
+    count_over_model_limit,
+    model_limit_warning,
+)
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.text_embeddings import (
     EmbeddingInput,
@@ -39,8 +50,18 @@ from vault_graph.storage.interfaces.vector_store import (
 METADATA_UPDATE_BATCH_SIZE = 1000
 
 
+SESSION_WINDOW_CHUNKER_VERSIONS = frozenset({SESSION_EXCHANGE_V1_VERSION, SESSION_EXCHANGE_V2_VERSION})
+
+
 class ChunkListingStore(Protocol):
     def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]: ...
+
+
+@runtime_checkable
+class ModelTokenCounter(Protocol):
+    """Optional embedding provider part: the number of model tokens the model's tokenizer makes of a text."""
+
+    def count_model_tokens(self, text: str) -> int: ...
 
 
 @dataclass(frozen=True)
@@ -214,7 +235,7 @@ class VectorIndexer:
         unchanged_count = generic_plan.unchanged_count
 
         health_warnings = () if backend_health.ok and backend_health.schema_compatible else (backend_health.message,)
-        warnings = health_warnings + manifest_warnings
+        warnings = health_warnings + manifest_warnings + _model_limit_warnings(upsert_chunks, self._text_embeddings)
         return VectorRevisionPlan(
             vector_index_revision=f"vector-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}",
             mode="full" if full else "incremental",
@@ -386,6 +407,26 @@ class VectorIndexer:
             embedding_key=embedding_key(chunk, plan.embedding_spec),
             metadata_fingerprint=_chunk_metadata_fingerprint(chunk, backend_schema_version),
         )
+
+
+def _model_limit_warnings(chunks: list[ChunkSnapshot], text_embeddings: TextEmbeddings) -> tuple[str, ...]:
+    """One line when session windows embedded in this run have a model input over 512 tokens (spec §4.2.6-11).
+
+    Counts with the provider's tokenizer when it has one, else with the byte estimate the embedding
+    batches use. The line says which.
+    """
+    if isinstance(text_embeddings, ModelTokenCounter):
+        count_tokens = text_embeddings.count_model_tokens
+        method = "the model tokenizer"
+    else:
+        count_tokens = estimate_tokens_from_bytes
+        method = "a byte estimate (UTF-8 bytes / 3)"
+    count = count_over_model_limit(
+        (embedding_input_for(chunk) for chunk in chunks if chunk.chunker_version in SESSION_WINDOW_CHUNKER_VERSIONS),
+        count_tokens,
+    )
+    warning = model_limit_warning(count)
+    return () if warning is None else (f"{warning}; counted with {method}",)
 
 
 def stable_vector_id(*, vault_id: str, chunk_id: str, embedding_spec: EmbeddingModelSpec) -> str:

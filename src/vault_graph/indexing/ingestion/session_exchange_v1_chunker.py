@@ -140,6 +140,24 @@ def chunk_session_v1(document: ExtractedDocument) -> tuple[ChunkDraft, ...]:
     return tuple(drafts)
 
 
+def exchange_time_ranges(document: ExtractedDocument) -> dict[str, tuple[str, str]]:
+    """First and last turn time of each exchange by its chunk `parent_key` (spec §4.2.7 last bullet)."""
+
+    path = document.source.path
+    ranges: dict[str, tuple[str, str]] = {}
+    occurrences: dict[str, int] = {}
+    for exchange in _exchanges(_read_turns(document)):
+        occurrence = occurrences.get(exchange.first.heading, 0) + 1
+        occurrences[exchange.first.heading] = occurrence
+        times = sorted((turn.heading.split(" ", 1)[0] for turn in exchange.turns), key=_heading_time)
+        ranges[f"{path}:{exchange.first.heading}:{occurrence}"] = (times[0], times[-1])
+    return ranges
+
+
+def _heading_time(value: str) -> datetime:
+    return datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+
+
 def _read_turns(document: ExtractedDocument) -> tuple[_Turn, ...]:
     text = document.source.raw_bytes.decode("utf-8")
     body = document.frontmatter.body

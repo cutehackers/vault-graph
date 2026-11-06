@@ -18,7 +18,8 @@ always an exchange heading and a `### ` line a turn heading.
 Shared window helpers for other session chunkers: `SourceLine`, `source_lines`, `WindowLine`,
 `ExchangeWindow`, `pack_exchange_windows`, `window_locator`, `line_range_locator`, `action_line_without_target`,
 `session_embedding_input`, `exchange_keyword_metadata`, `count_over_model_limit`,
-`model_limit_warning`. Cross-file duplicate exchanges: `drop_duplicate_exchanges`.
+`model_limit_warning`. Cross-file duplicate exchanges: `drop_duplicate_exchanges`. Exchange time ranges
+for the v1·v2 overlap pass: `exchange_time_ranges`.
 """
 
 from __future__ import annotations
@@ -102,6 +103,8 @@ class _ExchangeMeta:
     outcome: str
     files: tuple[str, ...]
     continued: bool
+    started: str = ""
+    ended: str = ""
 
 
 @dataclass(frozen=True)
@@ -427,6 +430,28 @@ def drop_duplicate_exchanges(
     return tuple(kept), tuple(warnings)
 
 
+def exchange_time_ranges(document: ExtractedDocument) -> dict[str, tuple[str, str] | None]:
+    """`started`·`ended` of each exchange by its chunk `parent_key` (spec §4.2.7 last bullet).
+
+    None when the meta line lacks either time or is broken (§6: the overlap pass then removes no v1
+    exchange). Keys follow `SessionExchangeV2Chunker.plan`; an exchange id seen again keeps its first range.
+    """
+    path = document.source.path
+    session_id = _text(document.frontmatter.data.get("session_id"))
+    ranges: dict[str, tuple[str, str] | None] = {}
+    heading_counts: dict[str, int] = {}
+    for exchange in _exchanges(source_lines(document)):
+        occurrence = heading_counts.get(exchange.title, 0)
+        heading_counts[exchange.title] = occurrence + 1
+        meta, _ = _parse_meta(exchange.meta_line)
+        if meta is None or not session_id:
+            ranges.setdefault(f"{path}:{exchange.title}:{occurrence}", None)
+            continue
+        times = (meta.started, meta.ended) if meta.started and meta.ended else None
+        ranges.setdefault(f"{session_id}:{meta.exchange_id}", times)
+    return ranges
+
+
 def _exchanges(lines: tuple[SourceLine, ...]) -> list[_Exchange]:
     starts = [index for index, line in enumerate(lines) if _EXCHANGE_HEADING_RE.match(line.text)]
     exchanges: list[_Exchange] = []
@@ -577,6 +602,8 @@ def _parse_meta(line: SourceLine | None) -> tuple[_ExchangeMeta | None, str]:
             outcome=unquote(fields.get("outcome", "")),
             files=tuple(unquote(item) for item in fields.get("files", "").split(",") if item),
             continued=fields.get("continued") == "1",
+            started=unquote(fields.get("started", "")),
+            ended=unquote(fields.get("ended", "")),
         ),
         "",
     )

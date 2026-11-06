@@ -11,6 +11,7 @@ from vault_graph.errors import MetadataStoreError
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
 from vault_graph.indexing.ingestion.document_models import DocumentModelError, SourceLocator
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.indexing.ingestion.session_group import session_group_key
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import (
     DocumentState,
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS documents (
   source_role TEXT NOT NULL,
   provenance_family_id TEXT NOT NULL,
   is_tombstoned INTEGER NOT NULL DEFAULT 0,
+  session_group_key TEXT,
   PRIMARY KEY (vault_id, path),
   UNIQUE (document_id)
 );
@@ -148,6 +150,11 @@ _OPTIONAL_CHUNK_COLUMNS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+# Session group column of `documents` (spec 2026-11-05 §4.2.13). Not in _REQUIRED_DOCUMENT_COLUMNS for the
+# same reason as the optional chunk columns: a read-only open of an older store reads it as NULL.
+_OPTIONAL_DOCUMENT_COLUMNS: tuple[tuple[str, str], ...] = (("session_group_key", "TEXT"),)
+
+
 # Not in SCHEMA's required tables: an older store without it is still compatible and is read in full once.
 _SOURCE_STATS_TABLE = """
 CREATE TABLE IF NOT EXISTS document_source_stats (
@@ -194,9 +201,9 @@ class SQLiteMetadataStore:
                       vault_id, document_id, path, kind, frontmatter_json, frontmatter_hash,
                       content_hash, raw_sha256, parser_version, format, reader_name, reader_version,
                       extraction_options_digest, last_seen_at, last_indexed_at, vault_revision,
-                      index_revision, source_role, provenance_family_id, is_tombstoned
+                      index_revision, source_role, provenance_family_id, is_tombstoned, session_group_key
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                     ON CONFLICT(vault_id, path) DO UPDATE SET
                       document_id=excluded.document_id,
                       kind=excluded.kind,
@@ -215,7 +222,8 @@ class SQLiteMetadataStore:
                       index_revision=excluded.index_revision,
                       source_role=excluded.source_role,
                       provenance_family_id=excluded.provenance_family_id,
-                      is_tombstoned=0
+                      is_tombstoned=0,
+                      session_group_key=excluded.session_group_key
                     """,
                     (
                         document.vault_id,
@@ -237,6 +245,7 @@ class SQLiteMetadataStore:
                         index_revision,
                         document.source_role,
                         document.provenance_family_id,
+                        session_group_key(document.frontmatter),
                     ),
                 )
                 connection.execute(
@@ -303,11 +312,11 @@ class SQLiteMetadataStore:
             return _missing_document_state(vault_id=vault_id, path=path)
         with self._connect() as connection:
             row = connection.execute(
-                """
+                f"""
                 SELECT d.vault_id, d.path, d.document_id, d.frontmatter_hash, d.content_hash,
                        d.raw_sha256, d.parser_version, d.format, d.reader_name, d.reader_version,
                        d.extraction_options_digest, c.chunker_version, d.is_tombstoned,
-                       d.source_role, d.provenance_family_id
+                       d.source_role, d.provenance_family_id, {_optional_document_select(connection)}
                 FROM documents d
                 LEFT JOIN chunks c ON c.vault_id = d.vault_id AND c.document_id = d.document_id
                 WHERE d.vault_id = ? AND d.path = ?
@@ -337,7 +346,7 @@ class SQLiteMetadataStore:
                 SELECT d.vault_id, d.path, d.document_id, d.frontmatter_hash, d.content_hash,
                        d.raw_sha256, d.parser_version, d.format, d.reader_name, d.reader_version,
                        d.extraction_options_digest, c.chunker_version, d.is_tombstoned,
-                       d.source_role, d.provenance_family_id
+                       d.source_role, d.provenance_family_id, {_optional_document_select(connection)}
                 FROM documents d
                 LEFT JOIN first_chunks c
                   ON c.vault_id = d.vault_id AND c.document_id = d.document_id AND c.position = 1
@@ -776,6 +785,10 @@ def _upgrade_schema(connection: sqlite3.Connection) -> None:
         if column not in document_columns:
             connection.execute(f"ALTER TABLE documents ADD COLUMN {column} {definition}")
 
+    for column, definition in _OPTIONAL_DOCUMENT_COLUMNS:
+        if column not in document_columns:
+            connection.execute(f"ALTER TABLE documents ADD COLUMN {column} {definition}")
+
     chunk_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
     for column, definition in (
         ("section_path_json", "TEXT NOT NULL DEFAULT '[]'"),
@@ -792,6 +805,14 @@ def _upgrade_schema(connection: sqlite3.Connection) -> None:
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
         """,
         (SCHEMA_VERSION,),
+    )
+
+
+def _optional_document_select(connection: sqlite3.Connection) -> str:
+    """Select list for the optional columns of `documents d`. A missing column reads as NULL."""
+    document_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(documents)").fetchall()}
+    return ", ".join(
+        f"d.{column}" if column in document_columns else f"NULL AS {column}" for column, _ in _OPTIONAL_DOCUMENT_COLUMNS
     )
 
 
@@ -882,6 +903,7 @@ def _document_state_from_row(row: sqlite3.Row) -> DocumentState:
         is_tombstoned=bool(row["is_tombstoned"]),
         source_role=cast(DocumentRole, str(row["source_role"])),
         provenance_family_id=str(row["provenance_family_id"]),
+        session_group_key=str(row["session_group_key"]) if row["session_group_key"] is not None else None,
     )
 
 
