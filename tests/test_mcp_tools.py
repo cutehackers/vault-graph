@@ -12,6 +12,7 @@ from tests.test_graph_retrieval_contract import make_metadata_evidence_from_grap
 from tests.test_graph_store_contract import make_entity, make_relationship
 from tests.test_mcp_memory_tools import make_open_questions_projection, make_project_projection
 from tests.test_mcp_tool_serialization import make_search_response
+from vault_graph.context.memory.project_memory import ProjectL3List
 from vault_graph.context.pack.context_pack import ContextPack, ContextPackRequest
 from vault_graph.context.pack.context_pack_renderer import DefaultContextPackRenderer
 from vault_graph.errors import MemoryProjectionError
@@ -137,6 +138,10 @@ class RecordingProjectMemoryService:
     def summarize(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
         return self.response
+
+    def l3_list(self, **kwargs: object) -> ProjectL3List:
+        del kwargs
+        return ProjectL3List(open_work=(), decisions=(), corrections_and_rules=(), warnings=())
 
 
 class RecordingIssueMemoryService:

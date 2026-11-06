@@ -175,7 +175,7 @@ def test_startup_prints_blocks_b_and_d_without_empty_a_or_c_within_limits() -> N
 
     assert bundle.exit_code == 0
     headings = [line for line in bundle.text.splitlines() if line.startswith("## ")]
-    assert headings == ["## 기억 목록", "## 가져오는 방법"]
+    assert headings == ["## 프로젝트 요약", "## 기억 목록", "## 가져오는 방법"]
     assert estimate_recall_tokens(bundle.text) <= DEFAULT_RECALL_MAX_TOKENS
     assert len(bundle.text) <= DEFAULT_RECALL_MAX_CHARS
     assert "vault://{vault_id}/pages/{path}" in bundle.text
@@ -276,7 +276,7 @@ def test_block_c_reports_an_injected_item_that_became_superseded_once() -> None:
     assert section(second.text, "## 변경 알림") == [
         f"- [{memory_item_id('main', 'wiki/decisions/use-sqlite.md')}] Use SQLite → Use DuckDB ({day(0)})"
     ]
-    assert [line.startswith("## ") for line in second.text.splitlines()].count(True) == 3
+    assert [line.startswith("## ") for line in second.text.splitlines()].count(True) == 4
     assert "## 변경 알림" not in third.text
 
 
@@ -601,7 +601,7 @@ def test_pinned_page_comes_first_as_two_lines_and_leaves_block_b() -> None:
 
     bundle = run(ports((*BASE_DOCS, page)))
 
-    assert headings(bundle.text) == ["## 고정 기억", "## 기억 목록", "## 가져오는 방법"]
+    assert headings(bundle.text) == ["## 고정 기억", "## 프로젝트 요약", "## 기억 목록", "## 가져오는 방법"]
     assert section(bundle.text, "## 고정 기억") == [
         f"- [{memory_item_id('main', 'wiki/rules/use-uv.md')}] rule · Use uv run (wiki/rules/use-uv.md)",
         "  Summary of Use uv run",

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from vault_graph.context.memory.memory_models import MemoryWarning, OpenQuestionsProjection, ProjectMemoryProjection
 from vault_graph.context.pack.context_pack import (
@@ -66,6 +66,9 @@ from vault_graph.retrieval.graph.projection.graph_projection import (
     MAX_GRAPH_PROJECTION_DEPTH,
 )
 from vault_graph.retrieval.search.search_response import SearchMode
+
+if TYPE_CHECKING:
+    from vault_graph.context.memory.project_memory import L3Entry, ProjectL3List
 
 MAX_MCP_TOOL_LIMIT = 50
 MAX_MCP_PROJECT_TASK_CHARS = 4096
@@ -571,11 +574,23 @@ class McpToolRegistry:
                 vault_map_file=vault_map_path(),
                 catalog=services.catalog,
             )
-            projection = self._service_factory.open_project_memory_service().summarize(
+            from vault_graph.interface.composition.read_only_service_factory import metadata_body_reader
+
+            project_memory = self._service_factory.open_project_memory_service()
+            project_id = memory_scope.project_id if memory_scope is not None else None
+            projection = project_memory.summarize(
                 requested_scope=selected_scope,
                 limit=request.limit,
-                project_id=memory_scope.project_id if memory_scope is not None else None,
+                project_id=project_id,
                 vault_scopes=memory_scope.vault_scopes if memory_scope is not None else None,
+            )
+            # The same L3 list as session start recall block L3 (spec 2026-11-05 §4.4.7, A-27).
+            l3_list = project_memory.l3_list(
+                requested_scope=selected_scope,
+                project_id=project_id,
+                vault_scopes=memory_scope.vault_scopes if memory_scope is not None else {},
+                body_reader=metadata_body_reader(services.metadata_store),
+                limit=request.limit,
             )
             from vault_graph.interface.mcp.mcp_memory_serialization import (
                 memory_warning_to_mcp_error,
@@ -589,7 +604,10 @@ class McpToolRegistry:
             )
             return _tool_body(
                 tool_name="summarize_project_memory",
-                payload=_labeled(project_memory_projection_to_payload(projection), selection),
+                payload=_labeled(
+                    {**project_memory_projection_to_payload(projection), "l3_list": _l3_list_payload(l3_list)},
+                    selection,
+                ),
                 resource_links=resource_links_for_memory_projection(projection),
                 warnings=warnings,
             )
@@ -1227,6 +1245,32 @@ def _scope_warnings(selection: ProjectQuerySelection) -> tuple[McpErrorPayload, 
         McpErrorPayload(code=PROJECT_SCOPE_WARNING_CODE, message=message, severity="warning", affected_vault_ids=())
         for message in selection.warnings
     )
+
+
+def _l3_list_payload(l3_list: ProjectL3List) -> dict[str, object]:
+    """Open work, current decisions, corrections and rules of the project; ``superseded`` claim rows are left out."""
+
+    def entries(items: tuple[L3Entry, ...]) -> list[dict[str, object]]:
+        return [
+            {
+                "vault_id": entry.vault_id,
+                "path": entry.path,
+                "title": entry.title,
+                "day": entry.day,
+                "status": entry.status,
+                "claims": [
+                    {"claim": row.claim, "status": row.status, "evidence": row.evidence} for row in entry.claims
+                ],
+            }
+            for entry in items
+        ]
+
+    return {
+        "open_work": entries(l3_list.open_work),
+        "decisions": entries(l3_list.decisions),
+        "corrections_and_rules": entries(l3_list.corrections_and_rules),
+        "warnings": list(l3_list.warnings),
+    }
 
 
 def _labeled(payload: dict[str, object], selection: ProjectQuerySelection) -> dict[str, object]:
