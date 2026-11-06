@@ -216,7 +216,21 @@ def _metadata_for_record(record: VectorEmbeddingRecord) -> dict[str, str | int]:
         "backend_schema_version": CHROMA_VECTOR_SCHEMA_VERSION,
         "source_role": record.source_role,
         "provenance_family_id": record.provenance_family_id,
+        **key_metadata(record.embedding_key, record.metadata_fingerprint),
     }
+
+
+def key_metadata(embedding_key: str, metadata_fingerprint: str) -> dict[str, str | int]:
+    """Spec 2026-11-05 §4.3.2 keys, written only when the writer computed them.
+
+    Chroma keeps them so a vector manifest table rebuilt from Chroma keeps them too.
+    """
+    values: dict[str, str | int] = {}
+    if embedding_key:
+        values["embedding_key"] = embedding_key
+    if metadata_fingerprint:
+        values["metadata_fingerprint"] = metadata_fingerprint
+    return values
 
 
 def _manifest_record_from_metadata(record_id: str, metadata: Mapping[str, Any]) -> VectorManifestRecord:

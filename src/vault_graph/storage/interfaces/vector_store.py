@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from vault_graph.errors import CatalogError, VectorStoreError
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
@@ -25,6 +25,47 @@ class VectorEmbeddingRecord:
     backend_schema_version: str
     source_role: DocumentRole = "canonical_knowledge"
     provenance_family_id: str = "legacy"
+    # Spec 4.3.2. Empty when the writer did not compute them. The vector manifest table keeps them.
+    embedding_key: str = ""
+    metadata_fingerprint: str = ""
+
+    def __post_init__(self) -> None:
+        _require_non_empty(self.vector_id, "vector_id")
+        _require_non_empty(self.vault_id, "vault_id")
+        _require_non_empty(self.document_id, "document_id")
+        _require_non_empty(self.chunk_id, "chunk_id")
+        _require_non_empty(self.content_scope, "content_scope")
+        _require_non_empty(self.source_chunk_hash, "source_chunk_hash")
+        _require_non_empty(self.chunker_version, "chunker_version")
+        _require_non_empty(self.metadata_index_revision, "metadata_index_revision")
+        _require_non_empty(self.vector_index_revision, "vector_index_revision")
+        _require_non_empty(self.backend_schema_version, "backend_schema_version")
+        _require_non_empty(self.provenance_family_id, "provenance_family_id")
+        _validate_content_scope(vault_id=self.vault_id, content_scope=self.content_scope)
+
+
+@dataclass(frozen=True)
+class VectorMetadataRecord:
+    """New metadata for a stored vector whose embedding input did not change (spec 4.3.2).
+
+    The vector values stay as stored. Only the metadata of `vector_id` is replaced.
+    """
+
+    vector_id: str
+    vault_id: str
+    document_id: str
+    chunk_id: str
+    content_scope: str
+    embedding_spec: EmbeddingModelSpec
+    source_chunk_hash: str
+    chunker_version: str
+    metadata_index_revision: str
+    vector_index_revision: str
+    backend_schema_version: str
+    source_role: DocumentRole = "canonical_knowledge"
+    provenance_family_id: str = "legacy"
+    embedding_key: str = ""
+    metadata_fingerprint: str = ""
 
     def __post_init__(self) -> None:
         _require_non_empty(self.vector_id, "vector_id")
@@ -147,6 +188,19 @@ class VectorStore(Protocol):
     def health(self) -> StoreHealth: ...
 
     def export_manifest(self, scope: QueryScope) -> tuple[VectorManifestRecord, ...]: ...
+
+
+@runtime_checkable
+class VectorMetadataUpdater(Protocol):
+    """A vector store that replaces metadata without touching stored vectors (spec 4.3.2).
+
+    A separate protocol so stores without this ability stay valid `VectorStore`s. The vector
+    indexer re-embeds metadata-only changes for them, as before.
+    """
+
+    def supports_metadata_update(self) -> bool: ...
+
+    def update_metadata(self, records: tuple[VectorMetadataRecord, ...]) -> None: ...
 
 
 def _require_non_empty(value: str, field_name: str) -> None:

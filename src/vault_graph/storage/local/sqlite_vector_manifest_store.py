@@ -23,6 +23,8 @@ from vault_graph.storage.interfaces.vector_store import (
     VectorEmbeddingRecord,
     VectorHit,
     VectorManifestRecord,
+    VectorMetadataRecord,
+    VectorMetadataUpdater,
     VectorQuery,
     VectorStore,
     VectorTombstone,
@@ -50,6 +52,13 @@ _COLUMNS = (
     "backend_schema_version",
     "source_role",
     "provenance_family_id",
+    "embedding_key",
+    "metadata_fingerprint",
+)
+# Columns added after the first table version, with the SQL that adds them to an existing table.
+_ADDED_COLUMNS = (
+    ("embedding_key", "ALTER TABLE vector_manifest ADD COLUMN embedding_key TEXT NOT NULL DEFAULT ''"),
+    ("metadata_fingerprint", "ALTER TABLE vector_manifest ADD COLUMN metadata_fingerprint TEXT NOT NULL DEFAULT ''"),
 )
 
 _SCHEMA = """
@@ -70,7 +79,9 @@ CREATE TABLE IF NOT EXISTS vector_manifest (
     backend TEXT NOT NULL,
     backend_schema_version TEXT NOT NULL,
     source_role TEXT NOT NULL,
-    provenance_family_id TEXT NOT NULL
+    provenance_family_id TEXT NOT NULL,
+    embedding_key TEXT NOT NULL DEFAULT '',
+    metadata_fingerprint TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS vector_manifest_vault ON vector_manifest (vault_id);
 """
@@ -157,11 +168,22 @@ class SQLiteVectorManifestStore(VectorManifestStore):
             with connection:
                 if create:
                     connection.executescript(_SCHEMA)
+                _add_missing_columns(connection)
                 yield connection
         except sqlite3.Error as exc:
             raise VectorStoreError(f"vector manifest failed: {exc}") from exc
         finally:
             connection.close()
+
+
+def _add_missing_columns(connection: sqlite3.Connection) -> None:
+    """Bring a table written before `embedding_key` and `metadata_fingerprint` to the current columns."""
+    present = {str(row[1]) for row in connection.execute("PRAGMA table_info(vector_manifest)")}
+    if not present:
+        return
+    for name, statement in _ADDED_COLUMNS:
+        if name not in present:
+            connection.execute(statement)
 
 
 class ChromaSQLiteListing(VectorBackendListing):
@@ -254,7 +276,7 @@ class ChromaSQLiteListing(VectorBackendListing):
             connection.close()
 
 
-class ManifestTrackedVectorStore(VectorStore):
+class ManifestTrackedVectorStore(VectorStore, VectorMetadataUpdater):
     """A vector store whose manifest table follows every successful write.
 
     The table is written only after the wrapped store accepted the batch. The plan reads
@@ -286,6 +308,16 @@ class ManifestTrackedVectorStore(VectorStore):
             vector_index_revision=vector_index_revision, records=records, tombstones=tombstones
         )
         self._manifest.apply(tuple(self._row_for_record(record) for record in records), (), tombstones)
+
+    def supports_metadata_update(self) -> bool:
+        return isinstance(self._inner, VectorMetadataUpdater) and self._inner.supports_metadata_update()
+
+    def update_metadata(self, records: tuple[VectorMetadataRecord, ...]) -> None:
+        """Update the wrapped store's metadata, then the table rows. Vectors stay as stored."""
+        if not isinstance(self._inner, VectorMetadataUpdater) or not self._inner.supports_metadata_update():
+            raise VectorStoreError("the wrapped vector store cannot update metadata")
+        self._inner.update_metadata(records)
+        self._manifest.apply((), tuple(self._row_for_metadata(record) for record in records), ())
 
     def manifest_rows(self, vault_ids: tuple[str, ...]) -> VectorManifestRead:
         vault_ids = tuple(dict.fromkeys(vault_ids))
@@ -332,6 +364,28 @@ class ManifestTrackedVectorStore(VectorStore):
             backend_schema_version=record.backend_schema_version,
             source_role=record.source_role,
             provenance_family_id=record.provenance_family_id,
+            embedding_key=record.embedding_key,
+            metadata_fingerprint=record.metadata_fingerprint,
+        )
+
+    def _row_for_metadata(self, record: VectorMetadataRecord) -> VectorManifestRow:
+        return VectorManifestRow(
+            vector_id=record.vector_id,
+            vault_id=record.vault_id,
+            document_id=record.document_id,
+            chunk_id=record.chunk_id,
+            content_scope=record.content_scope,
+            embedding_spec=record.embedding_spec,
+            source_chunk_hash=record.source_chunk_hash,
+            chunker_version=record.chunker_version,
+            metadata_index_revision=record.metadata_index_revision,
+            vector_index_revision=record.vector_index_revision,
+            backend=self._backend,
+            backend_schema_version=record.backend_schema_version,
+            source_role=record.source_role,
+            provenance_family_id=record.provenance_family_id,
+            embedding_key=record.embedding_key,
+            metadata_fingerprint=record.metadata_fingerprint,
         )
 
 
@@ -361,6 +415,8 @@ def _row_to_sql(row: VectorManifestRow) -> tuple[str | int, ...]:
         row.backend_schema_version,
         row.source_role,
         row.provenance_family_id,
+        row.embedding_key,
+        row.metadata_fingerprint,
     )
 
 
@@ -386,11 +442,13 @@ def _row_from_sql(row: tuple[Any, ...]) -> VectorManifestRow:
         backend_schema_version=str(values["backend_schema_version"]),
         source_role=cast(DocumentRole, str(values["source_role"])),
         provenance_family_id=str(values["provenance_family_id"]),
+        embedding_key=str(values["embedding_key"]),
+        metadata_fingerprint=str(values["metadata_fingerprint"]),
     )
 
 
-def _record_from_metadata(record_id: str, metadata: Mapping[str, Any], backend: str) -> VectorManifestRecord:
-    return VectorManifestRecord(
+def _record_from_metadata(record_id: str, metadata: Mapping[str, Any], backend: str) -> VectorManifestRow:
+    return VectorManifestRow(
         vector_id=record_id,
         vault_id=str(metadata["vault_id"]),
         document_id=str(metadata["document_id"]),
@@ -410,6 +468,9 @@ def _record_from_metadata(record_id: str, metadata: Mapping[str, Any], backend: 
         backend_schema_version=str(metadata["backend_schema_version"]),
         source_role=cast(DocumentRole, str(metadata["source_role"])),
         provenance_family_id=str(metadata["provenance_family_id"]),
+        # Absent in metadata written before spec 4.3.2. The plan's first transition rule fills them.
+        embedding_key=str(metadata.get("embedding_key") or ""),
+        metadata_fingerprint=str(metadata.get("metadata_fingerprint") or ""),
     )
 
 
