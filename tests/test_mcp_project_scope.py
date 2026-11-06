@@ -603,7 +603,9 @@ def test_write_tool_schemas_show_enums(tmp_path: Path) -> None:
 
     remember = tools["remember"].inputSchema["properties"]
     assert _enum(remember["basis"]) == ["stated", "inferred"]
-    assert _enum(remember["kind"]) == ["decision", "system"]
+    # docs/SPEC.md §5: S12 adds ``project`` at the end; the earlier values keep their place.
+    assert _enum(remember["kind"])[:2] == ["decision", "system"]
+    assert _enum(remember["kind"]) == ["decision", "system", "project"]
     assert _enum(remember["memory_kind"]) == ["rule", "correction", "decision", "preference"]
     update = tools["update_memory"].inputSchema["properties"]
     assert _enum(update["basis"]) == ["stated", "inferred"]
