@@ -77,9 +77,14 @@ class VectorApplyResult:
     warnings: tuple[str, ...]
     failed: bool
     error: str | None
+    # "plan" when the plan could not be made: nothing was written to the vector store.
+    # "apply" when embedding or writing failed: the staged vector store may be partly written.
+    failed_stage: str | None = None
 
     @classmethod
-    def from_plan(cls, plan: VectorRevisionPlan, *, failed: bool, error: str | None) -> VectorApplyResult:
+    def from_plan(
+        cls, plan: VectorRevisionPlan, *, failed: bool, error: str | None, failed_stage: str | None = None
+    ) -> VectorApplyResult:
         return cls(
             vector_index_revision=plan.vector_index_revision,
             mode=plan.mode,
@@ -95,6 +100,7 @@ class VectorApplyResult:
             warnings=plan.warnings,
             failed=failed,
             error=error,
+            failed_stage=failed_stage if failed else None,
         )
 
 
@@ -176,7 +182,10 @@ class VectorIndexer:
         )
 
     def apply(self, *, scopes: tuple[QueryScope, ...], full: bool = False) -> VectorApplyResult:
-        plan = self.plan(scopes=scopes, full=full)
+        try:
+            plan = self.plan(scopes=scopes, full=full)
+        except Exception as exc:
+            return self.plan_failure(scopes=scopes, full=full, error=str(exc))
         try:
             embeddings = self._embed_chunks(plan.upsert_chunks)
             records = tuple(
@@ -194,7 +203,27 @@ class VectorIndexer:
             )
             return VectorApplyResult.from_plan(plan, failed=False, error=None)
         except Exception as exc:
-            return VectorApplyResult.from_plan(plan, failed=True, error=str(exc))
+            return VectorApplyResult.from_plan(plan, failed=True, error=str(exc), failed_stage="apply")
+
+    def plan_failure(self, *, scopes: tuple[QueryScope, ...], full: bool, error: str) -> VectorApplyResult:
+        """A failed result for a run whose plan could not be made. Nothing was written."""
+        return VectorApplyResult(
+            vector_index_revision="",
+            mode="full" if full else "incremental",
+            scopes=scopes,
+            embedding_spec=self._text_embeddings.model_spec(),
+            embedding_batch_size=self._embedding_batch_size,
+            embedding_parallelism=self._embedding_parallelism,
+            embedding_lazy_load=self._embedding_lazy_load,
+            upsert_count=0,
+            tombstone_count=0,
+            unchanged_count=0,
+            embedding_count=0,
+            warnings=(),
+            failed=True,
+            error=error,
+            failed_stage="plan",
+        )
 
     def _embed_chunks(self, chunks: tuple[ChunkSnapshot, ...]) -> dict[str, EmbeddingVector]:
         _validate_unique_chunk_ids(chunks)

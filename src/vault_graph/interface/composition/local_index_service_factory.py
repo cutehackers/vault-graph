@@ -408,7 +408,8 @@ def _write_projection_component_manifests(
         revision=metadata_revision,
     )
     enabled_components = ["metadata"]
-    if report.vector is not None:
+    # A failed vector run publishes no vector component, like a metadata-only refresh.
+    if report.vector is not None and not getattr(report.vector, "failed", False):
         vector = report.vector
         embedding_spec = getattr(vector, "embedding_spec", None)
         vector_revision = str(getattr(vector, "vector_index_revision", f"vector-{metadata_revision}"))

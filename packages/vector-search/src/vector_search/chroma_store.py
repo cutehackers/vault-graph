@@ -292,15 +292,23 @@ class ChromaVectorStore:
         except Exception:
             return ()
         rows: list[ManifestRecord] = []
+        # One unpaged get binds every record id as a SQL variable and fails above SQLite's limit (32,766).
+        page_size = _max_batch_size(client)
         for collection in client.list_collections():
             if not collection.name.startswith(f"{self._prefix}_"):
                 continue
-            loaded = collection.get(include=["metadatas"])
-            rows.extend(
-                ManifestRecord(collection.name, str(record_id), metadata)
-                for record_id, metadata in zip(loaded.get("ids") or [], loaded.get("metadatas") or [], strict=True)
-                if predicate is None or predicate(metadata)
-            )
+            offset = 0
+            while True:
+                loaded = collection.get(include=["metadatas"], limit=page_size, offset=offset)
+                ids = loaded.get("ids") or []
+                rows.extend(
+                    ManifestRecord(collection.name, str(record_id), metadata)
+                    for record_id, metadata in zip(ids, loaded.get("metadatas") or [], strict=True)
+                    if predicate is None or predicate(metadata)
+                )
+                if len(ids) < page_size:
+                    break
+                offset += len(ids)
         return tuple(sorted(rows, key=lambda row: (row.collection_name, row.record_id)))
 
     def health(self) -> StoreHealth:

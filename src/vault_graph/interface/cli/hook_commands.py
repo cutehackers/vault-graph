@@ -29,6 +29,7 @@ import os
 import select
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
 from typing import NoReturn
@@ -42,6 +43,7 @@ from vault_graph.context.pack.recall import (
     RecallUnavailable,
     recall,
 )
+from vault_graph.indexing.vector_failure_log import failure_warning, read_vector_failures, vector_retry_pending
 from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME, run_capture
 from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
 from vault_graph.interface.composition.recall_index_refresh import (
@@ -144,6 +146,15 @@ def session_start(
         _handoff(bundle.reason or "Recall is not possible.")
     if bundle.text:
         typer.echo(bundle.text, nl=False)
+    _warn_vector_failures(state)
+
+
+def _warn_vector_failures(graph_home: Path) -> None:
+    """One stderr line per Vault whose vectors keep failing (spec 2026-11-05 §4.3.1). Stdout is untouched."""
+
+    now = datetime.now(UTC)
+    for _, failure in sorted(read_vector_failures(graph_home).items()):
+        typer.echo(f"{COMMAND}: warning: {failure_warning(failure, now=now)}", err=True)
 
 
 class CatchUp:
@@ -221,6 +232,9 @@ def run_catch_up_index() -> None:
         for vault_id in plan["index"]:
             _run_vg_index(graph_home, vault_id)
         for vault_id in plan["check"]:
+            # A check only ever leads to a vector run, which the retry interval holds back.
+            if vector_retry_pending(Path(graph_home), vault_id, now=datetime.now(UTC)):
+                continue
             if vectors_need_catch_up(Path(graph_home), vault_id):
                 _run_vg_index(graph_home, vault_id)
     finally:
@@ -229,12 +243,13 @@ def run_catch_up_index() -> None:
             pid_path.unlink(missing_ok=True)
 
 
-def _run_vg_index(graph_home: str, vault_id: str) -> None:
-    subprocess.run(
-        [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id],
-        stdin=subprocess.DEVNULL,
-        check=False,
-    )
+def _run_vg_index(graph_home: str, vault_id: str, *, now: datetime | None = None) -> None:
+    """Run ``vg index`` for one Vault. During its vector retry interval, metadata and graph only."""
+
+    arguments = [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id]
+    if vector_retry_pending(Path(graph_home), vault_id, now=now or datetime.now(UTC)):
+        arguments.append("--no-vector")
+    subprocess.run(arguments, stdin=subprocess.DEVNULL, check=False)
 
 
 def _wait_for_gate(descriptor: int, *, timeout_s: float) -> bool:
