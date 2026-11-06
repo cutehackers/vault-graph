@@ -172,6 +172,7 @@ def test_startup_prints_blocks_b_and_d_in_order_within_both_limits(base: Path, g
 
     assert result.exit_code == 0, result.output
     assert [line for line in result.stdout.splitlines() if line.startswith("## ")] == [
+        "## 프로젝트 요약",
         "## 기억 목록",
         "## 가져오는 방법",
     ]
@@ -235,6 +236,7 @@ def test_block_c_reports_the_superseded_injected_item_then_falls_back_without_us
     expected = f"- [{memory_item_id('main', 'wiki/decisions/use-sqlite.md')}] Use SQLite → Use DuckDB ({day(0)})"
     assert section(after_change.stdout, "## 변경 알림") == [expected]
     assert [line for line in after_change.stdout.splitlines() if line.startswith("## ")] == [
+        "## 프로젝트 요약",
         "## 기억 목록",
         "## 변경 알림",
         "## 가져오는 방법",

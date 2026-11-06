@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -450,6 +450,20 @@ class ProjectMemoryScope:
     vault_scopes: Mapping[str, MappedVaultScope]
 
 
+def metadata_body_reader(metadata_store: MetadataStore) -> Callable[[str, str], str]:
+    """Read the indexed body of a page as Markdown, section headings included, by ``(vault_id, document_id)``.
+
+    Recall and ``summarize_project_memory`` read claim tables through this one reader. Empty when
+    nothing is indexed.
+    """
+
+    def body_text(vault_id: str, document_id: str) -> str:
+        chunks = metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
+        return "\n\n".join(f"## {chunk.section}\n\n{chunk.text}" if chunk.section else chunk.text for chunk in chunks)
+
+    return body_text
+
+
 def map_vault_scopes(vault_map: VaultMap, catalog: VaultCatalog) -> dict[str, MappedVaultScope]:
     """Linked projects and ``sharable`` of every registered Vault found in the map, by Vault id."""
     from vault_graph.interface.composition.vault_labels import vault_labels
@@ -564,5 +578,4 @@ class _MetadataRecallDocuments:
         return sum(chunk.token_count for chunk in chunks)
 
     def body_text(self, vault_id: str, document_id: str) -> str:
-        chunks = self._metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
-        return "\n\n".join(f"## {chunk.section}\n\n{chunk.text}" if chunk.section else chunk.text for chunk in chunks)
+        return metadata_body_reader(self._metadata_store)(vault_id, document_id)

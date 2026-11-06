@@ -2,10 +2,17 @@
 
 ``recall`` reads only document metadata through injected ports. It never searches and never
 opens embeddings or a vector store. Blocks print in order A (pinned memory, ``recall_pins``),
-B (memory list), C (change notices), D (how to open a page and, on startup, how many inferred
-facts wait in the Vault review queues, F11). Block A takes current in-scope pages
+L3 (project summary), B (memory list), C (change notices), D (how to open a page and, on startup,
+how many inferred facts wait in the Vault review queues, F11). Block A takes current in-scope pages
 with ``pin: true`` from every linked Vault, has its own 400-token budget, and its pages are not
 repeated in block B (spec 2026-11-02 V4, 결정14).
+
+Block L3 (spec 2026-11-05 §4.4.6, §4.4.7) is the start of the project brief
+(``wiki/projects/<project>.md``, ``type: project``) and the L3 list from ``project_l3_list``, the
+function ``summarize_project_memory`` uses too. It has its own 500-token budget. When it cannot be
+built (no brief and an empty list, or an error) it is left out and block B gets its room. Block B
+does not depend on block L3: it lists the same pages either way, only its length changes.
+Excerpts leave out ``superseded`` claim rows (``without_superseded_claims``).
 
 The usage log port stores plain JSON objects. ``injected`` events from one run share the same
 ``at`` value, which is how a run is told apart from the next one. Usage events never change the
@@ -16,19 +23,21 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
 
+from vault_graph.context.memory.claims import without_superseded_claims
 from vault_graph.context.memory.issue_memory import EXCLUDED_STATUSES as CLOSED_ISSUE_STATUSES
 from vault_graph.context.memory.issue_memory import ISSUE_TYPES
-from vault_graph.context.memory.project_memory import STALE_STATUSES
+from vault_graph.context.memory.project_memory import STALE_STATUSES, L3Entry, ProjectL3List, project_l3_list
 from vault_graph.context.memory.project_scope import UNMAPPED_VAULT_SCOPE, VaultProjectScope, page_in_project
 from vault_graph.context.pack.recall_pins import (
     PIN_BLOCK_MAX_TOKENS,
     PinBlock,
     PinEntry,
+    body_excerpt,
     is_pinned,
     pin_block,
     pin_line,
@@ -39,6 +48,11 @@ from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 DEFAULT_RECALL_MAX_TOKENS = 1500
 DEFAULT_RECALL_MAX_CHARS = 9000
 BLOCK_C_MAX_TOKENS = 150
+L3_BLOCK_MAX_TOKENS = 500
+L3_LIST_LIMIT = 10
+L3_CLAIMS_PER_PAGE = 3
+BRIEF_EXCERPT_MAX_TOKENS = 120
+BRIEF_PAGE_TYPE = "project"
 RECALL_HANDOFF_EXIT_CODE = 3
 NOTICE_ONLY_SOURCES = frozenset({"resume", "fork"})
 NOTICE_STATUSES = ("superseded", "deprecated", "retired")
@@ -54,6 +68,8 @@ UNKNOWN_TYPE = "기타"
 # Vault ``tools/wiki/cli.py`` lists review items by status; ``memory-proposal`` items are the inferred facts.
 PENDING_PROPOSALS_COMMAND = "python3 tools/wiki/cli.py review list --status pending"
 
+L3_BLOCK_TITLE = "## 프로젝트 요약"
+L3_LIST_TITLES = ("### 열린 일", "### 현재 결정", "### 교정·규칙")
 BLOCK_B_TITLE = "## 기억 목록"
 BLOCK_C_TITLE = "## 변경 알림"
 BLOCK_D_TITLE = "## 가져오는 방법"
@@ -137,6 +153,17 @@ class RecallBundle:
         return RECALL_HANDOFF_EXIT_CODE if self.handoff else 0
 
 
+def _block_share(budget: int, *, max_tokens: int, max_chars: int) -> tuple[int, int]:
+    """Token and character limits of a block whose budget is ``budget`` of the default 1,500 tokens.
+
+    At the default limits a block gets exactly its budget and six characters per token
+    (9,000 / 1,500). Smaller limits shrink the share in the same proportion; larger ones never grow it.
+    """
+    tokens = min(budget * DEFAULT_RECALL_MAX_TOKENS, budget * max_tokens) // DEFAULT_RECALL_MAX_TOKENS
+    chars = min(budget * DEFAULT_RECALL_MAX_CHARS, budget * max_chars) // DEFAULT_RECALL_MAX_TOKENS
+    return tokens, chars
+
+
 def estimate_recall_tokens(text: str) -> int:
     """Whitespace token count, the same estimate the context pack uses for excerpts."""
     return len(text.split())
@@ -207,12 +234,23 @@ def recall(
         )
     else:
         pins = _block_a(library, max_tokens=min(PIN_BLOCK_MAX_TOKENS, max_tokens))
+        l3_max_tokens, l3_max_chars = _block_share(L3_BLOCK_MAX_TOKENS, max_tokens=max_tokens, max_chars=max_chars)
+        project_summary = _block_l3(
+            library,
+            ports.documents,
+            scope,
+            warnings,
+            in_block_a=frozenset(pin.item_id for pin in pins.shown),
+            max_tokens=l3_max_tokens,
+            max_chars=l3_max_chars,
+        )
         items = _block_b_items(library)
-        if not items and not notices and not pins.text:
+        if not items and not notices and not pins.text and not project_summary:
             return _handoff("No memory to recall for this project.", warnings)
         layout = _layout(
             library,
             pins=pins,
+            project_summary=project_summary,
             notices=notices,
             items=items,
             full=True,
@@ -321,6 +359,9 @@ class _Library:
 
     def by_id(self, item_id: str) -> _Entry | None:
         return self._by_id.get(item_id)
+
+    def by_path(self, vault_id: str, path: str) -> _Entry | None:
+        return self._by_path.get((vault_id, path))
 
     def by_target(self, vault_id: str, target: str) -> _Entry | None:
         return self._by_path.get((vault_id, _target_path(target)))
@@ -496,7 +537,7 @@ def _block_a(library: _Library, *, max_tokens: int) -> PinBlock:
             summary=pin_line(
                 title=entry.title,
                 summary=entry.summary,
-                body=library.body_reader(entry.vault_id, entry.document_id),
+                body=without_superseded_claims(library.body_reader(entry.vault_id, entry.document_id)),
             ),
             location=library.location(entry),
             day=entry.day,
@@ -506,6 +547,105 @@ def _block_a(library: _Library, *, max_tokens: int) -> PinBlock:
         if entry.is_pinned_current
     )
     return pin_block(pins, max_tokens=max_tokens)
+
+
+def _block_l3(
+    library: _Library,
+    reader: RecallDocumentReader,
+    scope: RecallScope,
+    warnings: list[str],
+    *,
+    in_block_a: frozenset[str],
+    max_tokens: int,
+    max_chars: int,
+) -> str:
+    """Block L3 text, or "" when there is no brief and no list. An error leaves the block out with a warning.
+
+    Pages that block A shows are not repeated: block A already prints them with their summary.
+
+    Recall is the boundary of this block (spec §6): any failure while reading the index for it must
+    leave out only this block, so the error is caught here and reported as one warning line.
+    """
+    try:
+        listing = project_l3_list(
+            {vault_id: reader.documents(vault_id) for vault_id in library.vault_ids},
+            project_id=scope.project_id,
+            vault_scopes=scope.vault_scopes,
+            body_reader=reader.body_text,
+            limit=L3_LIST_LIMIT,
+        )
+        brief = _brief_line(library, scope.project_id)
+    except Exception as exc:
+        warnings.append(_one_line(f"Project summary was left out of recall: {exc}"))
+        return ""
+    warnings.extend(listing.warnings)
+    listing = replace(
+        listing,
+        open_work=_not_in(listing.open_work, in_block_a),
+        decisions=_not_in(listing.decisions, in_block_a),
+        corrections_and_rules=_not_in(listing.corrections_and_rules, in_block_a),
+    )
+    return _l3_text(library, brief, listing, max_tokens=max_tokens, max_chars=max_chars)
+
+
+def _not_in(entries: tuple[L3Entry, ...], item_ids: frozenset[str]) -> tuple[L3Entry, ...]:
+    return tuple(entry for entry in entries if memory_item_id(entry.vault_id, entry.path) not in item_ids)
+
+
+def _brief_line(library: _Library, project_id: str | None) -> str | None:
+    """The start of the project brief ``wiki/projects/<project>.md`` with its location, or None."""
+    if project_id is None:
+        return None
+    path = f"wiki/projects/{project_id}.md"
+    for vault_id in library.vault_ids:
+        entry = library.by_path(vault_id, path)
+        if entry is None or not entry.in_scope or not entry.is_current or entry.type.casefold() != BRIEF_PAGE_TYPE:
+            continue
+        body = without_superseded_claims(library.body_reader(entry.vault_id, entry.document_id))
+        excerpt = body_excerpt(body, max_tokens=BRIEF_EXCERPT_MAX_TOKENS) or entry.title
+        return f"{excerpt} ({library.location(entry)})"
+    return None
+
+
+def _l3_text(library: _Library, brief: str | None, listing: ProjectL3List, *, max_tokens: int, max_chars: int) -> str:
+    """Render block L3, dropping list pages to fit: always from the longest list, ties the later list."""
+    lists = [
+        [_l3_entry_lines(library, entry) for entry in entries]
+        for entries in (listing.open_work, listing.decisions, listing.corrections_and_rules)
+    ]
+    if brief is None and not any(lists):
+        return ""
+    omitted = 0
+
+    def render() -> str:
+        lines = [brief] if brief is not None else []
+        for title, entries in zip(L3_LIST_TITLES, lists, strict=True):
+            if entries:
+                lines.extend([title, *(line for entry in entries for line in entry)])
+        if omitted:
+            lines.append(f"- {omitted}개 생략")
+        return _block(L3_BLOCK_TITLE, lines)
+
+    def fits(text: str) -> bool:
+        return estimate_recall_tokens(text) <= max_tokens and len(text) <= max_chars
+
+    text = render()
+    while not fits(text) and any(lists):
+        longest = max(range(len(lists)), key=lambda index: (len(lists[index]), index))
+        lists[longest].pop()
+        omitted += 1
+        text = render()
+    return text if fits(text) else ""
+
+
+def _l3_entry_lines(library: _Library, entry: L3Entry) -> list[str]:
+    found = library.by_path(entry.vault_id, entry.path)
+    location = library.location(found) if found is not None else entry.path
+    claims = [
+        f"  - {row.claim}" + (f" ({STATUS_MARKS[row.status]})" if row.status in STATUS_MARKS else "")
+        for row in entry.claims[:L3_CLAIMS_PER_PAGE]
+    ]
+    return [f"- {entry.title} ({location}, {entry.day})", *claims]
 
 
 def _block_b_items(library: _Library) -> tuple[_Entry, ...]:
@@ -550,14 +690,21 @@ def _layout(
     max_tokens: int,
     max_chars: int,
     proposals: Mapping[str, int] | None = None,
+    project_summary: str = "",
 ) -> _Layout:
     def fits(text: str) -> bool:
         return estimate_recall_tokens(text) <= max_tokens and len(text) <= max_chars
 
+    c_max_tokens, c_max_chars = (
+        _block_share(BLOCK_C_MAX_TOKENS, max_tokens=max_tokens, max_chars=max_chars)
+        if full
+        else (BLOCK_C_MAX_TOKENS, max_chars)
+    )
     notice_lines: list[str] = []
     for notice in notices:
         candidate = [*notice_lines, _notice_line(notice)]
-        if estimate_recall_tokens(_block(BLOCK_C_TITLE, candidate)) > BLOCK_C_MAX_TOKENS:
+        block_c = _block(BLOCK_C_TITLE, candidate)
+        if estimate_recall_tokens(block_c) > c_max_tokens or len(block_c) > c_max_chars:
             break
         notice_lines = candidate
     block_d = _block(BLOCK_D_TITLE, [_how_to_open(library), *_proposal_lines(library, proposals or {})]) if full else ""
@@ -565,6 +712,8 @@ def _layout(
 
     def render(shown_items: int, shown_notices: int) -> str:
         blocks: list[str] = [pins.text] if pins is not None and pins.text else []
+        if project_summary:
+            blocks.append(project_summary)
         if items:
             omitted = len(items) - shown_items
             lines = item_lines[:shown_items] + ([f"- {omitted}개 생략"] if omitted else [])
@@ -575,10 +724,17 @@ def _layout(
             blocks.append(block_d)
         return "\n".join(blocks)
 
-    shown_notices = len(notice_lines)
-    while shown_notices and not fits(render(0, shown_notices)):
-        shown_notices -= 1
+    def b_fits(shown_items: int) -> bool:
+        """Block B leaves block C its whole share, so usage history (which only shapes C) never changes B."""
+        text = render(shown_items, 0)
+        return estimate_recall_tokens(text) + c_max_tokens <= max_tokens and len(text) + 1 + c_max_chars <= max_chars
+
     shown_items = len(items)
+    while shown_items and not b_fits(shown_items):
+        shown_items -= 1
+    shown_notices = len(notice_lines)
+    while shown_notices and not fits(render(shown_items, shown_notices)):
+        shown_notices -= 1
     while shown_items and not fits(render(shown_items, shown_notices)):
         shown_items -= 1
     text = render(shown_items, shown_notices)
@@ -681,6 +837,9 @@ __all__ = [
     "BLOCK_C_MAX_TOKENS",
     "DEFAULT_RECALL_MAX_CHARS",
     "DEFAULT_RECALL_MAX_TOKENS",
+    "L3_BLOCK_MAX_TOKENS",
+    "L3_BLOCK_TITLE",
+    "L3_LIST_TITLES",
     "NAVIGATION_PAGE_TYPES",
     "PENDING_PROPOSALS_COMMAND",
     "RECALL_HANDOFF_EXIT_CODE",
