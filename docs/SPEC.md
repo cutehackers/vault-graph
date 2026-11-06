@@ -26,10 +26,10 @@
 vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
 
 1. 기억이 사는 곳: 기억은 Vault에만 저장한다. vault-graph는 여러 Vault를 함께 다루며, Vault마다 종류가 있다. 기본 종류는 개인(personal)과 프로젝트(project)이고, 소유자가 팀(team) Vault를 더할 수 있으며, 다른 종류가 더 생길 수 있다. 프로젝트가 쓰는 Vault와 각 Vault의 종류는 `vault-map.json`이 정한다.
-2. vault-graph가 쓰는 것: Vault의 기억 페이지를 추가, 수정, 폐기한다. 사용자가 직접 말한 사실은 Vault 검증을 통과하면 확정한다. 에이전트가 추론한 사실은 승인될 때까지 Vault 검토 대기열에 둔다.
-3. 쓰는 방법: 모든 쓰기는 Vault 자체 도구를 거친다. vault-graph는 Vault 파일을 직접 고치지 않는다. 세션 원문 저장도 같다. 저장은 Vault의 `sessions capture`가 하고, vault-graph가 없으면 사용자가 직접 실행하며, vault-graph가 있으면 vault-graph가 실행 시점을 정한다.
+2. vault-graph가 쓰는 것: Vault의 기억 페이지를 추가, 수정, 폐기, 되살린다. Claude Code 자동 기억 노트를 근거로 쓸 때는 Vault 도구로 그 사본을 남긴다. 사용자가 직접 말한 사실은 Vault 검증을 통과하면 확정한다. 에이전트가 추론한 사실은 승인될 때까지 Vault 검토 대기열에 둔다.
+3. 쓰는 방법: 모든 쓰기는 Vault 자체 도구를 거친다. vault-graph는 Vault 파일을 직접 고치지 않는다. 세션 원문 저장도 같다. 저장은 Vault의 `sessions capture`가 하고, vault-graph가 없으면 사용자가 직접 실행하며, vault-graph가 있으면 vault-graph가 실행 시점과 넘길 정규화 세션 파일을 정한다. 렌더링과 저장은 Vault 도구가 한다.
 4. 에이전트에 기억을 주는 방법: 세션 시작 때 정해진 토큰 예산 안에서 짧은 회상을 넣는다. 작업 중에는 의미, 코드, 페이지 간 연결로 검색하고, 모든 결과에 출처를 붙인다.
-5. vault-graph 쪽에 남기는 것: 다시 만들거나 버려도 되는 데이터(검색 색인, 사용 기록)만 둔다. 사용 기록이 순위나 정리에 영향을 주기 시작하면 그 값은 Vault로 옮긴다. vault-graph 저장소를 지워도 기억은 사라지지 않는다.
+5. vault-graph 쪽에 남기는 것: 다시 만들거나 버려도 되는 데이터(검색 색인, 사용 기록)만 둔다. 사용 기록이 순위나 정리에 영향을 주기 시작하면 그 값은 Vault로 옮긴다. 예외: 사용 기록과 정리 건너뜀 기록은 Graph Home에 두고 정리 후보 제안에만 쓸 수 있다. 회상과 검색 순위에는 쓰지 않는다. 기억을 쓸지는 에이전트가 정하고 Vault 검증을 거친다(2026-11-06 사용자 결정). vault-graph 저장소를 지워도 기억은 사라지지 않는다.
 
 이유: Claude Code 기본 기억은 매 세션 통째로 읽는 평평한 파일 몇 개이고, 대화 기록은 기본 30일 뒤 지워진다. vault-graph는 기억을 Vault에 영구히 두고, 지금 작업에 필요한 부분을 찾아 정해진 예산 안에 넣는다.
 
@@ -52,15 +52,15 @@ vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
 
 ## 1. 제품 정의와 원칙
 
-vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault 원문, wiki, 코드를 읽어 색인하고, 에이전트가 필요한 기억을 출처와 함께 토큰 예산 안에 돌려주며, 기억 기록은 Vault 도구에 맡긴다. Vault는 vault-graph 없이도 동작한다.
+vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault 원문, wiki, 코드를 읽어 색인하고, 에이전트가 필요한 기억을 출처와 함께 토큰 예산 안에 돌려주며, 기억 기록은 Vault 도구에 맡긴다. Vault는 저장소로서(ingest, update, query와 검증) vault-graph 없이도 동작한다. 기억 관리는 vault-graph가 맡는다.
 
 방향 이름은 Local-Graph다. 핵심은 Local이고, Graph(관계 추적)는 보조 가치다.
 
-1. 원칙1 Local: 모든 처리가 이 컴퓨터 안에서 끝난다. 호스팅 서비스, API 키, LLM 호출이 없다(결정7). 질의 답변, 요약, 사실 추출을 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다.
+1. 원칙1 Local: 모든 처리가 이 컴퓨터 안에서 끝난다. 호스팅 서비스, API 키, LLM 호출이 없다(결정7). 질의 답변, 요약, 사실 추출을 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다. 기억 관리에서 vg는 판단 재료를 결정적으로 만들고, 무엇을 기억·수정·폐기할지는 호출한 에이전트가 정한다.
 2. 원칙2 원본은 Vault: 기억의 원본은 Vault의 Markdown 파일이다. vault-graph 색인은 지워도 다시 만들 수 있는 파생 데이터이며 지식 원본이 아니다.
 3. 원칙3 `wiki/`는 검증 경로로만 바뀐다: Vault `wiki/`는 Vault 도구의 검증 경로(publish-draft 등)를 거쳐서만 바뀐다.
-4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 세 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 `review resolve`로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`다(§4).
-5. 원칙5 `raw/`에 직접 쓰지 않는다: vault-graph는 Vault `raw/`에 직접 쓰지 않는다. 세션 원문은 Vault의 `sessions capture`가 쓰고, vault-graph는 그 실행 시점만 정할 수 있다(§0 규칙3).
+4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 네 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 `review resolve`로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`, Claude Code 자동 기억 노트의 근거 사본은 Vault `import-source`다(§4). vg는 자동 기억 파일을 고치거나 옮기거나 지우지 않는다.
+5. 원칙5 `raw/`에 직접 쓰지 않는다: vault-graph는 Vault `raw/`에 직접 쓰지 않는다. 세션 원문은 Vault의 `sessions capture`가 쓰고, vault-graph는 그 실행 시점과 넘길 정규화 파일을 정한다. 자동 기억 노트의 사본도 Vault `import-source`가 쓴다(§0 규칙3).
 6. 원칙6 연결 정보는 `vault-map.json` 하나: 프로젝트와 Vault의 연결 정보는 사용자 범위의 `vault-map.json`이 원본이고, vault-graph는 이 파일을 읽기만 한다(결정9).
 
 ## 2. 역할 분담
@@ -102,6 +102,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 - Vault의 `raw/`, `wiki/`, `docs/`, `scratch/reports/` (기본 색인 범위 `DEFAULT_CONTENT_SCOPES`). 검토 대기열 `scratch/review/`는 색인하지 않는다(결정6).
 - 등록한 코드 저장소의 소스.
 - 사용자 범위의 `vault-map.json`.
+- Claude Code 자동 기억 폴더(`<key>/memory/`). 읽기만 한다.
 
 쓰는 대상:
 
@@ -112,11 +113,13 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
   3. 같은 훅은 바뀐 파일 찾기가 끝나면 분리된 백그라운드 프로세스 하나를 띄운다. 이 프로세스는 훅의 갱신이 끝나기를 기다린 뒤, 바뀐 파일이 있는 연결 Vault와 벡터가 오래됐거나 없는 연결 Vault마다 일반 `vg index --vault-id`(임베딩 포함)를 실행한다. 새 조각의 벡터는 이 색인이 만들고, 중간에 죽은 색인은 다음 세션 시작에서 다시 실행된다. 훅은 기다리지 않는다. 이 프로세스는 살아 있는 동안 Graph Home `logs/session-start-index.lock`에 flock을 쥐고, 잠금이 잡혀 있으면 다음 세션 시작은 새로 띄우지 않는다. 출력은 `logs/session-start-index.log`에 쓴다(2026-11-02 재검수 발견1·3, 3차 검수 발견10).
 - `vg watch`는 메타데이터·벡터·그래프에 바뀐 것이 있을 때만 새 세대를 발행한다(2026-11-02 3차 검수 발견11).
 - 세대 발행은 프로세스 간 파일 잠금(`projections/.publish.lock`)으로 한 번에 하나만 한다. 발행 뒤에는 현재 세대와 바로 이전 세대만 남기고 나머지 세대 폴더를 지운다. 중단된 실행이 남긴 스테이징 폴더는 1시간이 지나면 다음 스테이징을 시작할 때 지운다(2026-11-02 재검수 발견4·5).
-- Vault에는 Vault 도구를 실행하는 세 경로로만 쓴다.
+- Vault에는 Vault 도구를 실행하는 네 경로로만 쓴다.
   1. publish-draft: `remember`(추가), `update_memory`(수정), `retire_memory`(폐기)에 `basis: stated`를 주면 Vault 검증을 통과하는 순간 확정된다.
   2. `review propose`: 같은 세 도구에 `basis: inferred`를 주면 검토 항목을 만들고 `proposed`와 `review_path`를 돌려준다. 사람이 `review resolve <review_path> --status accepted`로 승인하면 Vault가 발행한다. 승인 전에는 회상과 검색에 나오지 않는다. 사람이 `--status rejected`로 거부하면 기억 페이지는 만들어지거나 바뀌지 않고, `wiki/log.md`에 "Review rejected" 한 줄만 더해진다(2026-11-02 사용자 결정).
-  3. 수집 실행기: `vg hook capture`가 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 세션 원문을 쓴다. vault-graph는 실행 시점만 정한다.
-- 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 세 경로를 실행하지 않는다.
+  3. 수집 실행기: `vg hook capture`가 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 세션 원문을 쓴다. vault-graph는 실행 시점과 넘길 정규화 파일을 정한다. 렌더링과 저장은 Vault 도구가 하고, Vault는 vault-graph가 고르지 않는다.
+  4. `import-source`: L1 노트를 근거로 남길 때 vg가 Vault `import-source`를 실행한다. 복사는 Vault 명령이 한다.
+- 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 네 쓰기 경로를 실행하지 않는다. 색인은 `memory-scan --json`, `review list --json` 같은 읽기 전용 Vault 명령을 실행하고 결과를 Graph Home에 둘 수 있다.
+- vg는 기계가 만든 내용(요약, 목록, 점수)을 Vault에 쓰지 않는다. 에이전트나 사람이 판단한 내용만 경로 1, 2, 4로 들어간다.
 쓰지 않는 대상:
 
 - Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다.
