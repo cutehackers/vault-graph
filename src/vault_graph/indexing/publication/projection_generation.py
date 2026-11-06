@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from vault_graph.indexing.publication.tree_clone import clone_tree
 from vault_graph.operation.scope.active_projection import ProjectionGenerationError as ProjectionGenerationError
 from vault_graph.operation.scope.active_projection import ProjectionLayout as ProjectionLayout
 from vault_graph.operation.scope.active_projection import active_projection_layout, validated_generation_path
@@ -93,8 +94,8 @@ class ProjectionGenerationManager:
                 root_path.mkdir(parents=True, exist_ok=False)
             else:
                 root_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(active.root_path, root_path, symlinks=False)
-                # copytree copies the source timestamps; mark the staged folder as new.
+                clone_tree(active.root_path, root_path)
+                # Clone and copy both keep the source timestamps; mark the staged folder as new.
                 os.utime(root_path)
         except BaseException:
             self._release_lock(generation_id)
