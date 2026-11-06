@@ -243,3 +243,31 @@ def test_source_sha256_changes_when_the_source_grows() -> None:
 
     assert isinstance(before, SessionLine) and isinstance(after, SessionLine)
     assert before.source_sha256 != after.source_sha256
+
+
+def test_a_resumed_session_takes_its_file_name_as_id_and_keeps_the_original_as_parent() -> None:
+    """A resumed transcript keeps the records' original sessionId; the hook and Vault use the file name."""
+    original = _records("with_origin")
+    main_name = next(record.source_path for record in original if "/" not in record.source_path)
+    record_id = main_name.removesuffix(".jsonl")
+    resumed = [
+        SourceRecord(
+            source_path=record.source_path.replace(record_id, "resumed-file-id"),
+            line_no=record.line_no,
+            text=record.text,
+        )
+        for record in original
+    ]
+
+    session = ClaudeCodeAdapter(session_ended=True).normalize_session(resumed).lines[0]
+
+    assert isinstance(session, SessionLine)
+    assert session.session_id == "resumed-file-id"
+    assert session.parent_session_id == record_id
+
+
+def test_a_session_whose_file_name_matches_its_records_has_no_parent() -> None:
+    session = ClaudeCodeAdapter(session_ended=True).normalize_session(_records("with_origin")).lines[0]
+
+    assert isinstance(session, SessionLine)
+    assert session.parent_session_id is None

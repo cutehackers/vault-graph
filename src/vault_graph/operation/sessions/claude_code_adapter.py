@@ -536,10 +536,16 @@ def _session_line(
     source_sha256: str,
     first_path: str | None,
 ) -> SessionLine:
-    session_id = next(
+    # The session id is the main transcript's file name: Claude Code names the file after the session
+    # its hooks report, and the Vault's v1 capture, its cursor and part file names all use that id. A
+    # resumed session keeps the records' original `sessionId`, which then differs; it is kept as the
+    # parent session id. Without a file name, the records' id is used.
+    record_session_id = next(
         (value for record in (*main_records, *subagent_records) if (value := _text(record.get("sessionId")))),
-        PurePosixPath(first_path).stem if first_path else "unknown",
+        None,
     )
+    session_id = PurePosixPath(first_path).stem if first_path else (record_session_id or "unknown")
+    parent_session_id = record_session_id if record_session_id not in (None, session_id) else None
     titles = [
         title for record in main_records if record.get("type") == "ai-title" and (title := _text(record.get("aiTitle")))
     ]
@@ -554,7 +560,7 @@ def _session_line(
         cwd=cwd,
         git_branch=next((turn.git_branch for turn in reversed(main_turns) if turn.git_branch), None),
         git_commit=None,  # Claude Code transcripts do not record the commit
-        parent_session_id=None,  # no Claude Code record names the session this one continues
+        parent_session_id=parent_session_id,
         title=SessionTitle(text=redact(titles[-1]).text, source="ai-title") if titles else None,
         started_at=min(times) if times else None,
         ended_at=max(times) if times else None,
