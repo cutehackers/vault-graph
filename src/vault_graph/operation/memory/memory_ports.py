@@ -4,11 +4,13 @@
 ``propose`` for ``inferred`` memories, which wait in the Vault review queue (계약4). ``VaultPageReader``
 reads a current page and never writes. ``DraftFiles`` turns a draft into the file the Vault tool reads,
 outside every Vault, and removes it afterwards, so the M18 service writes no file itself.
+``VaultImporter`` runs Vault ``import-source`` to keep a copy of an auto-memory note (path 4, spec
+2026-11-05 §4.4.5). ``ReviewedLog`` records processed cleanup candidates in the Graph Home (§4.4.4).
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +32,9 @@ class WriteOutcome:
     messages: tuple[str, ...] = ()
     reason: str | None = None
     review_path: str | None = None
+    # Set by ``VaultImporter``: the copy under ``raw/imports/`` and its source page, also when it already existed.
+    raw_path: str | None = None
+    source_page: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,4 +63,28 @@ class DraftFiles(Protocol):
         ...
 
 
-__all__ = ["DraftFiles", "PageText", "VaultPageReader", "VaultWriter", "WriteOutcome", "WriteStatus"]
+class VaultImporter(Protocol):
+    def import_source(self, vault_root: Path, note_path: Path, *, timeout_s: float) -> WriteOutcome:
+        """Have the Vault copy ``note_path`` under ``raw/imports/claude-memory/`` and make its source page.
+
+        ``published`` means the copy exists now, made by this call or found by its sha256.
+        """
+        ...
+
+
+class ReviewedLog(Protocol):
+    def append(self, candidate_keys: Sequence[str], *, outcome: str) -> None:
+        """Record the keys as processed with ``outcome``. Raises ``OSError`` when the record cannot be written."""
+        ...
+
+
+__all__ = [
+    "DraftFiles",
+    "PageText",
+    "ReviewedLog",
+    "VaultImporter",
+    "VaultPageReader",
+    "VaultWriter",
+    "WriteOutcome",
+    "WriteStatus",
+]
