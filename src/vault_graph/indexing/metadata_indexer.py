@@ -1,19 +1,64 @@
 from __future__ import annotations
 
-from dataclasses import replace
+import hashlib
+import os
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
 from vault_graph.indexing.ingestion.document_authority import assign_provenance_families, provenance_paths
+from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION
 from vault_graph.indexing.ingestion.document_normalizer import (
     ChunkSnapshot,
     DocumentNormalizer,
     DocumentSnapshot,
     NormalizedDocument,
 )
+from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
+from vault_graph.indexing.ingestion.markdown_parser import PARSER_VERSION
 from vault_graph.indexing.ingestion.vault_loader import VaultLoader
 from vault_graph.indexing.revision_planner import MetadataIndexPreview, MetadataRevisionPlan
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
-from vault_graph.storage.interfaces.metadata_store import DocumentState, MetadataStore
+from vault_graph.storage.interfaces.metadata_store import DocumentState, MetadataStore, SourceStat, SourceStatStore
+
+# Versions of the code that turns a file into documents and chunks. A file read by other code is read
+# again even when its size and mtime are unchanged (spec 2026-11-05 §4.3.3). Add any new reader,
+# parser or chunker version here.
+INDEX_CODE_PARTS: tuple[str, ...] = (PARSER_VERSION, CHUNKER_VERSION, MarkdownDocumentReader.version)
+
+Key = tuple[str, str]
+
+
+def index_code(lineage: tuple[str | None, ...]) -> str:
+    """Current index code plus the stored lineage of one document (parser, reader, options, chunker).
+
+    A lineage that no longer matches what was recorded (another reader or chunker wrote the row)
+    makes the file read again.
+    """
+    parts = (*INDEX_CODE_PARTS, *(part or "" for part in lineage))
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def _state_lineage(state: DocumentState) -> tuple[str | None, ...]:
+    return (state.parser_version, state.reader_version, state.extraction_options_digest, state.chunker_version)
+
+
+def _item_lineage(item: NormalizedDocument) -> tuple[str | None, ...]:
+    document = item.document
+    return (
+        document.parser_version,
+        document.reader_version,
+        document.extraction_options_digest,
+        _document_chunker_version(item),
+    )
+
+
+@dataclass(frozen=True)
+class _Plan:
+    plan: MetadataRevisionPlan
+    normalized: tuple[NormalizedDocument, ...]
+    # Size and mtime of each file read in this run, taken before it was read.
+    read_stats: dict[Key, tuple[int, int]]
+    lineages: dict[Key, tuple[str | None, ...]]
 
 
 class MetadataIndexer:
@@ -24,11 +69,11 @@ class MetadataIndexer:
         self._normalizer = DocumentNormalizer()
 
     def plan(self, *, scope: QueryScope, full: bool = False) -> MetadataRevisionPlan:
-        plan, _ = self._build_plan(scope=scope, full=full)
-        return plan
+        return self._build_plan(scope=scope, full=full).plan
 
     def preview(self, *, scope: QueryScope, full: bool = False) -> MetadataIndexPreview:
-        plan, normalized = self._build_plan(scope=scope, full=full)
+        built = self._build_plan(scope=scope, full=full)
+        plan, normalized = built.plan, built.normalized
         changed_keys = set(plan.changed_paths)
         unchanged_keys = set(plan.unchanged_paths)
         changed_documents = tuple(
@@ -62,7 +107,8 @@ class MetadataIndexer:
         )
 
     def apply(self, *, scope: QueryScope, full: bool = False) -> MetadataRevisionPlan:
-        plan, normalized = self._build_plan(scope=scope, full=full)
+        built = self._build_plan(scope=scope, full=full)
+        plan, normalized = built.plan, built.normalized
         changed_keys = set(plan.changed_paths)
         changed_documents = [
             item.document for item in normalized if (item.document.vault_id, item.document.path) in changed_keys
@@ -79,6 +125,7 @@ class MetadataIndexer:
             chunks=changed_chunks,
             tombstones=list(plan.deleted_paths),
         )
+        self._record_stats(built.read_stats, built.lineages, removed=plan.deleted_paths)
         return plan
 
     def apply_paths(
@@ -99,31 +146,9 @@ class MetadataIndexer:
         (2026-11-03 발견13). Family members whose result is the same are reported unchanged.
         """
         index_revision = f"metadata-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
-        loaded: list[NormalizedDocument] = []
-        gone: list[tuple[str, str]] = []
-        members: dict[str, list[tuple[str, str]]] | None = None
-        pending = sorted(key for key in set(changed_paths) if _key_in_scope(vault_id=key[0], path=key[1], scope=scope))
-        seen = set(pending)
-        while pending:
-            vault_id, path = pending.pop(0)
-            document = self._loader.load_path(entry=self._catalog.resolve(vault_id), path=path)
-            linked: list[tuple[str, str]] = []
-            if document is None:
-                gone.append((vault_id, path))
-            else:
-                item = self._normalizer.normalize(document)
-                loaded.append(item)
-                linked.extend((vault_id, target) for target in provenance_paths(item.document.frontmatter))
-            family_id = self._metadata_store.document_state(vault_id, path).provenance_family_id
-            if family_id:
-                if members is None:
-                    members = _family_members(self._metadata_store.list_document_states(scope.vault_ids))
-                linked.extend(members.get(family_id, ()))
-            for key in linked:
-                if key not in seen and _key_in_scope(vault_id=key[0], path=key[1], scope=scope):
-                    seen.add(key)
-                    pending.append(key)
-        normalized = assign_provenance_families(tuple(loaded))
+        normalized, gone, read_stats = self._load_with_families(
+            scope, sorted(key for key in set(changed_paths) if _key_in_scope(vault_id=key[0], path=key[1], scope=scope))
+        )
         changed: list[tuple[str, str]] = []
         unchanged: list[tuple[str, str]] = []
         for item in normalized:
@@ -148,6 +173,11 @@ class MetadataIndexer:
             chunks=[chunk for item in changed_items for chunk in item.chunks],
             tombstones=deleted,
         )
+        self._record_stats(
+            read_stats,
+            {(item.document.vault_id, item.document.path): _item_lineage(item) for item in normalized},
+            removed=tuple(deleted),
+        )
         return MetadataRevisionPlan(
             index_revision=index_revision,
             mode="paths",
@@ -158,29 +188,56 @@ class MetadataIndexer:
             warnings=tuple(f"{item.document.path}: {warning}" for item in normalized for warning in item.warnings),
         )
 
-    def _build_plan(
-        self,
-        *,
-        scope: QueryScope,
-        full: bool,
-    ) -> tuple[MetadataRevisionPlan, tuple[NormalizedDocument, ...]]:
+    def _build_plan(self, *, scope: QueryScope, full: bool) -> _Plan:
         index_revision = f"metadata-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
-        normalized = self._load_normalized(scope)
         current_by_key = {
             (state.vault_id, state.path): state
             for state in self._metadata_store.list_document_states(scope.vault_ids)
             if _state_in_scope(state=state, scope=scope)
         }
+        on_disk = self._stat_files(scope)
+        stat_store = self._metadata_store if isinstance(self._metadata_store, SourceStatStore) else None
+        skipped: set[Key] = set()
+        if full or stat_store is None:
+            normalized = self._load_normalized(scope)
+            read_stats = {
+                key: on_disk[key]
+                for item in normalized
+                if (key := (item.document.vault_id, item.document.path)) in on_disk
+            }
+        else:
+            # Spec 2026-11-05 §4.3.3: read only files whose size, mtime or index code changed, plus
+            # the provenance family of each, so families stay whole (as apply_paths does).
+            recorded = stat_store.list_source_stats(scope.vault_ids)
+            for key, (size, mtime_ns) in on_disk.items():
+                state = current_by_key.get(key)
+                stat = recorded.get(key)
+                if (
+                    state is not None
+                    and not state.is_tombstoned
+                    and stat is not None
+                    and (stat.size, stat.mtime_ns) == (size, mtime_ns)
+                    and stat.index_code == index_code(_state_lineage(state))
+                ):
+                    skipped.add(key)
+            missing = [key for key, state in current_by_key.items() if key not in on_disk and not state.is_tombstoned]
+            normalized, _, read_stats = self._load_with_families(
+                scope, sorted(set(on_disk) - skipped) + sorted(missing)
+            )
         loaded_by_key = {(item.document.vault_id, item.document.path): item for item in normalized}
         changed: list[tuple[str, str]] = []
-        unchanged: list[tuple[str, str]] = []
+        unchanged: list[tuple[str, str]] = [key for key in skipped if key not in loaded_by_key]
         for key, item in loaded_by_key.items():
             current = current_by_key.get(key)
             if full or current is None or _document_changed(current=current, item=item):
                 changed.append(key)
             else:
                 unchanged.append(key)
-        deleted = [key for key, state in current_by_key.items() if key not in loaded_by_key and not state.is_tombstoned]
+        deleted = [
+            key
+            for key, state in current_by_key.items()
+            if key not in loaded_by_key and key not in skipped and not state.is_tombstoned
+        ]
         plan = MetadataRevisionPlan(
             index_revision=index_revision,
             mode="full" if full else "incremental",
@@ -190,7 +247,86 @@ class MetadataIndexer:
             deleted_paths=tuple(sorted(deleted)),
             warnings=tuple(f"{item.document.path}: {warning}" for item in normalized for warning in item.warnings),
         )
-        return plan, normalized
+        return _Plan(
+            plan=plan,
+            normalized=normalized,
+            read_stats=read_stats,
+            lineages={(item.document.vault_id, item.document.path): _item_lineage(item) for item in normalized},
+        )
+
+    def _stat_files(self, scope: QueryScope) -> dict[Key, tuple[int, int]]:
+        found: dict[Key, tuple[int, int]] = {}
+        for vault_id in scope.vault_ids:
+            entry = self._catalog.resolve(vault_id)
+            for path in self._loader.list_paths(entry=entry, scope=scope):
+                try:
+                    stat = os.stat(entry.root_path / path)
+                except OSError:
+                    continue
+                found[(vault_id, path)] = (stat.st_size, stat.st_mtime_ns)
+        return found
+
+    def _load_with_families(
+        self, scope: QueryScope, keys: list[Key]
+    ) -> tuple[tuple[NormalizedDocument, ...], list[Key], dict[Key, tuple[int, int]]]:
+        """Load ``keys`` and every page their provenance links or indexed families reach.
+
+        Returns the normalized documents with families assigned, the keys whose file is gone, and the
+        size and mtime of each file read, taken before the read.
+        """
+        loaded: list[NormalizedDocument] = []
+        gone: list[Key] = []
+        read_stats: dict[Key, tuple[int, int]] = {}
+        members: dict[str, list[Key]] | None = None
+        pending = list(dict.fromkeys(keys))
+        seen = set(pending)
+        while pending:
+            vault_id, path = pending.pop(0)
+            entry = self._catalog.resolve(vault_id)
+            try:
+                stat = os.stat(entry.root_path / path)
+            except OSError:
+                stat = None
+            document = self._loader.load_path(entry=entry, path=path)
+            linked: list[Key] = []
+            if document is None:
+                gone.append((vault_id, path))
+            else:
+                if stat is not None:
+                    read_stats[(vault_id, path)] = (stat.st_size, stat.st_mtime_ns)
+                item = self._normalizer.normalize(document)
+                loaded.append(item)
+                linked.extend((vault_id, target) for target in provenance_paths(item.document.frontmatter))
+            family_id = self._metadata_store.document_state(vault_id, path).provenance_family_id
+            if family_id:
+                if members is None:
+                    members = _family_members(self._metadata_store.list_document_states(scope.vault_ids))
+                linked.extend(members.get(family_id, ()))
+            for key in linked:
+                if key not in seen and _key_in_scope(vault_id=key[0], path=key[1], scope=scope):
+                    seen.add(key)
+                    pending.append(key)
+        return assign_provenance_families(tuple(loaded)), gone, read_stats
+
+    def _record_stats(
+        self,
+        read_stats: dict[Key, tuple[int, int]],
+        lineages: dict[Key, tuple[str | None, ...]],
+        *,
+        removed: tuple[Key, ...],
+    ) -> None:
+        if not isinstance(self._metadata_store, SourceStatStore):
+            return
+        self._metadata_store.record_source_stats(
+            tuple(
+                SourceStat(
+                    vault_id=key[0], path=key[1], size=size, mtime_ns=mtime_ns, index_code=index_code(lineages[key])
+                )
+                for key, (size, mtime_ns) in sorted(read_stats.items())
+                if key in lineages
+            ),
+            removed=tuple(removed),
+        )
 
     def _load_normalized(self, scope: QueryScope) -> tuple[NormalizedDocument, ...]:
         normalized: list[NormalizedDocument] = []

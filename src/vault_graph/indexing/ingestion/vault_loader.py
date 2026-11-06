@@ -42,6 +42,21 @@ class VaultLoader:
                 documents.append(self._load(entry, markdown_path))
         return tuple(documents)
 
+    def list_paths(self, *, entry: VaultCatalogEntry, scope: QueryScope) -> tuple[str, ...]:
+        """Vault-relative paths ``load_documents`` would load, without reading them."""
+        if entry.vault_id not in scope.vault_ids:
+            raise CatalogError(f"entry vault_id is not included in QueryScope: {entry.vault_id}")
+        paths: list[str] = []
+        for content_scope in _actual_content_scopes(entry=entry, scope=scope):
+            scope_root = entry.root_path / content_scope
+            if not scope_root.exists():
+                continue
+            for markdown_path in sorted(scope_root.rglob("*.md")):
+                if markdown_path.is_symlink() or not markdown_path.is_file():
+                    continue
+                paths.append(markdown_path.relative_to(entry.root_path).as_posix())
+        return tuple(dict.fromkeys(paths))
+
     def load_path(self, *, entry: VaultCatalogEntry, path: str) -> LoadedVaultDocument | None:
         """Load one Vault-relative ``*.md`` file. None when it is gone, a symlink or not a file."""
         markdown_path = entry.root_path / path
