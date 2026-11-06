@@ -45,6 +45,9 @@ class DocumentState:
     reader_name: str | None = None
     reader_version: str | None = None
     extraction_options_digest: str | None = None
+    # `<agent>:<session_id>` of a session file (spec 2026-11-05 §4.2.13). None for other files and for
+    # rows written before the column existed.
+    session_group_key: str | None = None
 
 
 @dataclass(frozen=True)
