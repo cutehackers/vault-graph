@@ -3,8 +3,8 @@
 ``recall`` reads only document metadata through injected ports. It never searches and never
 opens embeddings or a vector store. Blocks print in order A (pinned memory, ``recall_pins``),
 L3 (project summary), B (memory list), C (change notices), D (how to open a page and, on startup,
-how many inferred facts wait in the Vault review queues, F11, and the cleanup backlog line,
-``recall_backlog``). Block A takes current in-scope pages
+how many inferred facts wait in the Vault review queues, F11, the cleanup backlog line,
+``recall_backlog``, and the brief update line, spec 2026-11-05 §4.4.7). Block A takes current in-scope pages
 with ``pin: true`` from every linked Vault, has its own 400-token budget, and its pages are not
 repeated in block B (spec 2026-11-02 V4, 결정14).
 
@@ -29,12 +29,18 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Literal, Protocol
 
+from vault_graph.context.memory.brief import project_brief_staleness
 from vault_graph.context.memory.claims import without_superseded_claims
 from vault_graph.context.memory.issue_memory import EXCLUDED_STATUSES as CLOSED_ISSUE_STATUSES
 from vault_graph.context.memory.issue_memory import ISSUE_TYPES
 from vault_graph.context.memory.project_memory import STALE_STATUSES, L3Entry, ProjectL3List, project_l3_list
 from vault_graph.context.memory.project_scope import UNMAPPED_VAULT_SCOPE, VaultProjectScope, page_in_project
-from vault_graph.context.pack.recall_backlog import BACKLOG_BUDGET_S, BacklogCounter, backlog_lines
+from vault_graph.context.pack.recall_backlog import (
+    BACKLOG_BUDGET_S,
+    BacklogCounter,
+    backlog_lines,
+    brief_staleness_line,
+)
 from vault_graph.context.pack.recall_pins import (
     PIN_BLOCK_MAX_TOKENS,
     PinBlock,
@@ -252,6 +258,7 @@ def recall(
         if not items and not notices and not pins.text and not project_summary:
             return _handoff("No memory to recall for this project.", warnings)
         backlog = backlog_lines(ports.backlog, cwd, warnings, budget_s=ports.backlog_budget_s)
+        backlog.extend(_brief_lines(ports.documents, indexed, scope, warnings))
         layout = _layout(
             library,
             pins=pins,
@@ -592,6 +599,29 @@ def _block_l3(
         corrections_and_rules=_not_in(listing.corrections_and_rules, in_block_a),
     )
     return _l3_text(library, brief, listing, max_tokens=max_tokens, max_chars=max_chars)
+
+
+def _brief_lines(
+    reader: RecallDocumentReader, vault_ids: Sequence[str], scope: RecallScope, warnings: list[str]
+) -> list[str]:
+    """Zero or one block D line saying the project brief needs an update (§4.4.7). Never writes the brief.
+
+    Like block L3, a failure while reading the index leaves out only this line, with one warning line.
+    """
+    if scope.project_id is None:
+        return []
+    try:
+        result = project_brief_staleness(
+            {vault_id: reader.documents(vault_id) for vault_id in vault_ids},
+            project_id=scope.project_id,
+            vault_scopes=scope.vault_scopes,
+        )
+    except Exception as exc:
+        warnings.append(_one_line(f"Brief update line was left out of recall: {exc}"))
+        return []
+    warnings.extend(result.warnings)
+    line = brief_staleness_line(result.staleness)
+    return [line] if line is not None else []
 
 
 def _not_in(entries: tuple[L3Entry, ...], item_ids: frozenset[str]) -> tuple[L3Entry, ...]:

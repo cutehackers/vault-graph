@@ -15,6 +15,8 @@ and never writes:
 - page embeddings (merge), the Graph Home ``usage/`` log (retire, ``unused``), and the active code
   projection of the registered repositories (retire, ``code_gone``; M10 cannot import M11),
 - ``memory/reviewed.jsonl``,
+- indexed document metadata for the brief rule (``brief.project_brief_staleness``, §4.4.7): the
+  brief candidate needs no search and no file read, and vg never writes the brief,
 - comparison material from the search service with ``include_retired`` (§4.4.13-2).
 
 Code references (``code_gone``). A page cites code as a backticked repository path, optionally with
@@ -36,6 +38,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Protocol
 from urllib.parse import unquote
 
+from vault_graph.context.memory.brief import ProjectBriefStaleness, project_brief_staleness
 from vault_graph.context.memory.memory_candidates import (
     CANDIDATE_KINDS,
     DEFAULT_MERGE_SIMILARITY,
@@ -233,6 +236,11 @@ def memory_candidate_package(
                     if gone:
                         missing_code[page.key] = gone
 
+    brief: ProjectBriefStaleness | None = None
+    if "brief" in wanted and metadata is not None:
+        brief = project_brief_staleness(documents, project_id=project_id, vault_scopes=vault_scopes)
+        warnings.extend(brief.warnings)
+
     try:
         reviewed = JsonlReviewedLog(descriptor.root_path).reviewed_keys()
     except OSError as exc:
@@ -262,6 +270,7 @@ def memory_candidate_package(
         kinds=wanted,
         merge_threshold=merge_threshold,
         with_comparison=with_comparison,
+        brief=brief,
     )
     return MemoryCandidatePackage(
         project_id, candidates, warnings=(*warnings, *finder.warnings), l1_unavailable=l1_problem is not None

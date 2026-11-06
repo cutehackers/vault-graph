@@ -1,6 +1,7 @@
-"""Cleanup candidates: L1 notes, session exchanges, merge pairs and retire pages (spec 2026-11-05 §4.4.4).
+"""Cleanup candidates: L1 notes, session exchanges, merge pairs, retire pages and the project brief
+(spec 2026-11-05 §4.4.4, §4.4.7).
 
-Acceptance A-22, A-38, A-39, A-25.
+Acceptance A-22, A-38, A-39, A-25, A-35.
 
 The cleanup bundle is deterministic: the same index, the same L1 notes, the same Vault pages and
 the same review records give the same result. No LLM runs here. The calling agent decides what
@@ -16,6 +17,7 @@ to remember. Callers (composition) read the inputs and pass them in:
 - Indexed ``wiki/`` pages as ``MemoryPage`` for the merge and retire rules, their embedding vectors,
   the code references composition found gone from the registered repositories (M11 lives outside
   M10, §4.4.12), and the Graph Home usage events.
+- The project brief rule result (``brief.project_brief_staleness``, §4.4.7).
 
 Merge (§4.4.4): two current pages in the project scope whose embedding cosine similarity is at least
 ``merge_threshold``. The §4.4.10 evaluation (task #40) sets the value. Until then
@@ -26,6 +28,11 @@ Retire (§4.4.4, risk D10): a current, not pinned page in the project scope whos
 ``unused`` signal needs a usage log that reaches back over the whole window: a log younger than 90
 days, for example after the Graph Home was deleted, gives no ``unused`` candidate. Nothing here
 changes a page. The calling agent decides, and only Vault tools write (A-25).
+
+Brief (§4.4.7, rule 4): one candidate when the brief rule says the brief needs an update. Its key is
+``brief:<project>:<12 hex>`` of the counted decision pages, ``location`` is the brief path (the page
+may not exist yet), ``targets`` is the brief when it exists, and the comparison material is the new
+decision pages, not a similarity search. vg never writes the brief (A-27).
 
 Exchange citation (rule 2, risk D2 and D11). The Vault cites a session file as a ``raw/sessions/...``
 path with an optional ``#sha256=<hash>`` (vault-builder OPERATING-SCHEMA §16.1 "Claim evidence").
@@ -41,10 +48,14 @@ import re
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
+from vault_graph.context.memory.brief import ProjectBriefStaleness
 from vault_graph.context.memory.project_memory import STALE_STATUSES
 from vault_graph.context.memory.project_scope import VaultProjectScope, page_in_project
+
+if TYPE_CHECKING:
+    from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 
 SESSION_CANDIDATE_MAX_AGE = timedelta(days=180)
 COMPARISON_PAGE_LIMIT = 5
@@ -99,8 +110,8 @@ DIRECTION_CHANGE_WORDS: tuple[str, ...] = (
     "different approach",
 )
 
-CandidateKind = Literal["l1_note", "session_exchange", "merge", "retire"]
-CANDIDATE_KINDS: tuple[CandidateKind, ...] = ("l1_note", "session_exchange", "merge", "retire")
+CandidateKind = Literal["l1_note", "session_exchange", "merge", "retire", "brief"]
+CANDIDATE_KINDS: tuple[CandidateKind, ...] = ("l1_note", "session_exchange", "merge", "retire", "brief")
 SessionSignal = Literal["correction", "decision", "unresolved_error_direction_change", "none"]
 RetireSignal = Literal["code_gone", "unused"]
 PageKey = tuple[str, str]
@@ -239,6 +250,8 @@ class _Pending:
     retire_signals: tuple[RetireSignal, ...] = ()
     reasons: tuple[str, ...] = ()
     excluded: frozenset[PageKey] = frozenset()
+    # Fixed comparison material (the brief candidate's new decisions); None means a similarity search.
+    material: tuple[ComparisonPage, ...] | None = None
 
 
 def build_memory_candidates(
@@ -259,8 +272,9 @@ def build_memory_candidates(
     kinds: Collection[CandidateKind] | None = None,
     merge_threshold: float = DEFAULT_MERGE_SIMILARITY,
     with_comparison: bool = True,
+    brief: ProjectBriefStaleness | None = None,
 ) -> tuple[MemoryCandidate, ...]:
-    """Candidates in table order (L1 notes, session exchanges, merge pairs, retire pages), cut to ``limit``.
+    """Candidates in table order (L1 notes, session exchanges, merge pairs, retire pages, brief), cut to ``limit``.
 
     L1 notes are ordered by path, session exchanges by signal, merge pairs by similarity and retire
     pages by signal. ``kinds`` keeps only those kinds; None keeps all. Comparison material is looked
@@ -279,6 +293,8 @@ def build_memory_candidates(
         pending.extend(_merge_candidates(pages, page_vectors or {}, project_id, reviewed_keys, merge_threshold))
     if "retire" in wanted:
         pending.extend(_retire_candidates(pages, missing_code or {}, usage_events, project_id, reviewed_keys, now))
+    if "brief" in wanted and brief is not None:
+        pending.extend(_brief_candidates(brief, reviewed_keys))
     if limit is not None:
         pending = pending[: max(limit, 0)]
     return tuple(
@@ -286,9 +302,7 @@ def build_memory_candidates(
             key=item.key,
             kind=item.kind,
             location=item.location,
-            comparison=(
-                _comparison(similar_pages, item.query, project_id, excluded=item.excluded) if with_comparison else ()
-            ),
+            comparison=_material(item, similar_pages, project_id) if with_comparison else (),
             signal=item.signal,
             started_at=item.started_at,
             targets=item.targets,
@@ -529,6 +543,48 @@ def _retire_candidates(
         )
     pending.sort(key=lambda item: item.retire_signals[0] != "code_gone")
     return pending
+
+
+def _brief_candidates(brief: ProjectBriefStaleness, reviewed: Collection[str]) -> list[_Pending]:
+    staleness = brief.staleness
+    if not staleness.stale or brief.key in reviewed:
+        return []
+    current = staleness.brief
+    count = staleness.count
+    reason = f"brief 이후 새 결정 {count}개" if current is not None else f"brief 없음, 결정 {count}개"
+    return [
+        _Pending(
+            key=brief.key,
+            kind="brief",
+            location=brief.brief_path,
+            query="",
+            targets=(_document_comparison_page(current),) if current is not None else (),
+            reasons=(reason,),
+            material=tuple(_document_comparison_page(document) for document in staleness.new_decisions),
+        )
+    ]
+
+
+def _document_comparison_page(document: DocumentSnapshot) -> ComparisonPage:
+    frontmatter = document.frontmatter
+    title = _text(frontmatter.get("title")) or document.path.rsplit("/", 1)[-1].removesuffix(".md")
+    return ComparisonPage(
+        vault_id=document.vault_id,
+        path=document.path,
+        title=title,
+        status=_text(frontmatter.get("status")),
+        superseded_by=_text(frontmatter.get("superseded_by")),
+        retired_reason=_text(frontmatter.get("retired_reason")),
+        evidence_date=next(
+            (text for name in ("updated", "created", "date") if (text := _text(frontmatter.get(name)))), None
+        ),
+    )
+
+
+def _material(item: _Pending, finder: SimilarPageFinder, project_id: str | None) -> tuple[ComparisonPage, ...]:
+    if item.material is not None:
+        return item.material
+    return _comparison(finder, item.query, project_id, excluded=item.excluded)
 
 
 def _unused_injections(events: Iterable[Mapping[str, object]], now: datetime) -> dict[PageKey, int]:

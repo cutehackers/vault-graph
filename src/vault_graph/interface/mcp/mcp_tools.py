@@ -1020,7 +1020,10 @@ def register_mcp_tools(
         Kinds: ``l1_note`` (a Claude Code auto-memory note no linked Vault keeps yet; ``location`` is the note
         path), ``session_exchange`` (an indexed session exchange no wiki page cites yet; ``location`` is
         ``<path> L<a>-L<b>``, cite it as is), ``merge`` (two very similar current pages) and ``retire`` (a page
-        whose cited code is gone or that recall injected for 90 days and nobody opened). Each candidate has a
+        whose cited code is gone or that recall injected for 90 days and nobody opened) and ``brief`` (five or
+        more decision pages since the project brief; ``location`` is the brief path, ``comparison`` the new
+        decision pages; write the brief last, with remember kind project when it does not exist yet, else
+        update_memory). Each candidate has a
         ``key``; pass it as ``candidate_key`` to the write tool that handles it, or to mark_candidates_reviewed
         to skip it. ``comparison`` lists similar existing pages with ``status`` and ``superseded_by``; a
         retired page has ``label`` "폐기됨: <reason>": use restore_memory instead of writing it again.

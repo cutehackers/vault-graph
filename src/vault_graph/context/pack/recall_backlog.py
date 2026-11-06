@@ -5,6 +5,9 @@ Session start shows how much cleanup waits, in one line, and never cleans up its
 counts the way ``list_memory_candidates`` does (L1 notes and session exchanges only). The count
 runs on a worker thread with a time limit. Over the limit, or on any error, the line is left out
 and recall gets one warning line. The thread is a daemon, so a slow count never holds the hook.
+
+The brief line (§4.4.7, A-35) comes from ``brief.project_brief_staleness`` over the documents recall
+already read, so it needs no port and no time limit. vg only says the brief needs an update.
 """
 
 from __future__ import annotations
@@ -12,7 +15,10 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from vault_graph.context.memory.brief import BriefStaleness
 
 BACKLOG_BUDGET_S = 1.5
 
@@ -40,6 +46,13 @@ def backlog_line(backlog: MemoryBacklog) -> str | None:
     sessions = f"근거로 쓰이지 않은 세션 교환 {backlog.session_exchanges}개"
     counts = sessions if backlog.l1_notes is None else f"L1 노트 {backlog.l1_notes}개, {sessions}"
     return f'- 정리 대기: {counts}. 정리하려면 "기억 정리해"라고 말하세요.'
+
+
+def brief_staleness_line(staleness: BriefStaleness) -> str | None:
+    """The block D brief line, or None when the brief does not need an update."""
+    if not staleness.stale:
+        return None
+    return f'- brief 갱신 필요: brief 이후 새 결정 {staleness.count}개. "기억 정리해"로 갱신하세요.'
 
 
 def backlog_lines(counter: BacklogCounter | None, cwd: Path, warnings: list[str], *, budget_s: float) -> list[str]:
@@ -73,4 +86,11 @@ def _one_line(text: str) -> str:
     return " ".join(text.split())
 
 
-__all__ = ["BACKLOG_BUDGET_S", "BacklogCounter", "MemoryBacklog", "backlog_line", "backlog_lines"]
+__all__ = [
+    "BACKLOG_BUDGET_S",
+    "BacklogCounter",
+    "MemoryBacklog",
+    "backlog_line",
+    "backlog_lines",
+    "brief_staleness_line",
+]
