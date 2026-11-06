@@ -53,6 +53,16 @@ class RetrievalWarning:
 
 
 @dataclass(frozen=True)
+class ResultLifecycle:
+    """Page lifecycle frontmatter, attached only when a search asks for `include_retired` (spec §4.4.13-1)."""
+
+    status: str | None
+    retired_reason: str | None
+    retired_at: str | None
+    superseded_by: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class RetrievalResult:
     result_id: str
     vault_id: str
@@ -71,6 +81,7 @@ class RetrievalResult:
     matched_chunk_id: str = ""
     context_chunk_ids: tuple[str, ...] = ()
     context_policy_version: str = "none"
+    lifecycle: ResultLifecycle | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty(self.result_id, "result_id")

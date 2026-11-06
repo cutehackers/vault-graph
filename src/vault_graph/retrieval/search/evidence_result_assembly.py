@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, replace
+from datetime import date
 
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
-from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.retrieval.evidence.evidence_linking import EvidenceLinker
 from vault_graph.retrieval.search.candidate_ranking import FusedCandidate, rank_resolved_candidates
-from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalWarning, StoreRevision
+from vault_graph.retrieval.search.retrieval_result import (
+    ResultLifecycle,
+    RetrievalResult,
+    RetrievalWarning,
+    StoreRevision,
+)
 from vault_graph.retrieval.search.search_response import SearchMode, SearchWarning
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
 
@@ -37,14 +43,15 @@ class EvidenceResultAssembly:
         candidates: tuple[FusedCandidate, ...],
         mode: SearchMode,
         allowed_roles: tuple[DocumentRole, ...],
+        include_retired: bool = False,
     ) -> tuple[tuple[RetrievalResult, ...], int, tuple[SearchWarning, ...]]:
         dropped = 0
         warnings: list[SearchWarning] = []
         resolved: list[ResolvedCandidate] = []
         chunks: dict[tuple[str, str], ChunkSnapshot] = {}
-        retired_by_document: dict[str, bool] = {}
+        documents: dict[str, DocumentSnapshot | None] = {}
         for candidate in candidates:
-            if self._is_retired(candidate.document_id, retired_by_document):
+            if not include_retired and _is_retired(self._document(candidate.document_id, documents)):
                 continue
             evidence = self._evidence_linker.resolve_evidence(
                 ((candidate.vault_id, candidate.document_id, candidate.chunk_id),)
@@ -71,14 +78,17 @@ class EvidenceResultAssembly:
         ranked = rank_resolved_candidates(resolved, mode=mode)
         groups = _group_by_parent(ranked, chunks)
         results = tuple(self._result_for_group(group=group, rank=rank) for rank, group in enumerate(groups, start=1))
+        if include_retired:
+            # Spec 2026-11-05 §4.4.13-1: with `include_retired`, every result carries its page lifecycle.
+            results = tuple(
+                replace(result, lifecycle=_lifecycle(self._document(result.evidence[0].document_id, documents)))
+                for result in results
+            )
         return results, dropped, tuple(warnings)
 
-    def _is_retired(self, document_id: str, cache: dict[str, bool]) -> bool:
-        # 결정S14: status `retired` pages are left out of default search (INV-05 exception, docs/DECISIONS.md).
-        # `deprecated` pages stay. A missing document falls through to the missing-evidence path.
+    def _document(self, document_id: str, cache: dict[str, DocumentSnapshot | None]) -> DocumentSnapshot | None:
         if document_id not in cache:
-            document = self._metadata_store.resolve_document(document_id)
-            cache[document_id] = document is not None and document.frontmatter.get("status") == RETIRED_STATUS
+            cache[document_id] = self._metadata_store.resolve_document(document_id)
         return cache[document_id]
 
     def _result_for_group(self, *, group: _ParentGroup, rank: int) -> RetrievalResult:
@@ -133,6 +143,31 @@ class EvidenceResultAssembly:
             supporting_evidence=supporting,
             audit_records=audit,
         )
+
+
+def _is_retired(document: DocumentSnapshot | None) -> bool:
+    # 결정S14: status `retired` pages are left out of default search (INV-05 exception, docs/DECISIONS.md).
+    # `deprecated` pages stay. A missing document falls through to the missing-evidence path.
+    return document is not None and document.frontmatter.get("status") == RETIRED_STATUS
+
+
+def _lifecycle(document: DocumentSnapshot | None) -> ResultLifecycle:
+    frontmatter = document.frontmatter if document is not None else {}
+    superseded_by = frontmatter.get("superseded_by")
+    targets = superseded_by if isinstance(superseded_by, list | tuple) else [superseded_by]
+    return ResultLifecycle(
+        status=_frontmatter_text(frontmatter.get("status")),
+        retired_reason=_frontmatter_text(frontmatter.get("retired_reason")),
+        retired_at=_frontmatter_text(frontmatter.get("retired_at")),
+        superseded_by=tuple(text for text in (_frontmatter_text(target) for target in targets) if text is not None),
+    )
+
+
+def _frontmatter_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = value.isoformat() if isinstance(value, date) else str(value).strip()
+    return text or None
 
 
 def _group_by_parent(

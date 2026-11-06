@@ -296,6 +296,12 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
         assert cwd_schema["default"] is None
         assert "cwd" not in input_schema.get("required", [])
         schemas[cwd_tool]["input"] = input_schema
+    # Spec 2026-11-05 §4.4.13-1 adds one optional input `include_retired` to `search_vault` (A-32).
+    search_input = schemas["search_vault"]["input"]
+    assert search_input is not None
+    retired_schema = search_input["properties"].pop("include_retired")
+    assert retired_schema["default"] is False
+    assert "include_retired" not in search_input.get("required", [])
 
     assert len(read_tools) == 11
     digest = hashlib.sha256(json.dumps(schemas, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

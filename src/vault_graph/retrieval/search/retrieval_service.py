@@ -98,6 +98,7 @@ class RetrievalService:
         include_graph: bool = False,
         include_cross_vault: bool = False,
         mode: SearchMode = "knowledge",
+        include_retired: bool = False,
     ) -> SearchResponse:
         normalized_query = query_text.strip()
         graph_requested_scope = _requested_scope_for_search(
@@ -114,6 +115,7 @@ class RetrievalService:
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
             mode=mode,
+            include_retired=include_retired,
         )
         return self._search_request(request)
 
@@ -136,7 +138,10 @@ class RetrievalService:
         signal_candidates = keyword_candidates + vector_candidates + graph_result.candidates
         candidates = fuse_candidates(candidates=signal_candidates)
         results, dropped, missing_warnings = self._evidence_results.resolve_results(
-            candidates=candidates, mode=request.mode, allowed_roles=SEARCH_MODE_ROLES[request.mode]
+            candidates=candidates,
+            mode=request.mode,
+            allowed_roles=SEARCH_MODE_ROLES[request.mode],
+            include_retired=request.include_retired,
         )
         warnings.extend(missing_warnings)
         limited_results = self._expand_context(

@@ -9,6 +9,7 @@ from vault_graph.errors import VaultGraphError
 from vault_graph.interface.composition.query_scope_resolution import project_scope_warning_json
 from vault_graph.interface.composition.vault_labels import VaultLabel, label_fields
 from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.search.retrieval_result import RetrievalResult
 from vault_graph.retrieval.search.search_response import SearchResponse
 
 
@@ -50,7 +51,11 @@ def domain_to_json_value(value: object) -> object:
             "include_cross_vault": value.include_cross_vault,
         }
     if dataclasses.is_dataclass(value):
-        return {field.name: domain_to_json_value(getattr(value, field.name)) for field in dataclasses.fields(value)}
+        return {
+            field.name: domain_to_json_value(getattr(value, field.name))
+            for field in dataclasses.fields(value)
+            if not _omitted_field(value, field.name)
+        }
     if isinstance(value, tuple | list):
         return [domain_to_json_value(item) for item in value]
     if isinstance(value, dict):
@@ -66,6 +71,11 @@ def domain_to_json_value(value: object) -> object:
     if isinstance(value, set | bytes | bytearray):
         raise VaultGraphError(f"http serialization does not support {type(value).__name__}")
     return _public_attrs(value)
+
+
+def _omitted_field(value: object, name: str) -> bool:
+    # Spec 2026-11-05 A-32: `lifecycle` exists only for `include_retired` searches, so existing bytes stay.
+    return isinstance(value, RetrievalResult) and name == "lifecycle" and value.lifecycle is None
 
 
 def _public_attrs(value: object) -> dict[str, object]:
