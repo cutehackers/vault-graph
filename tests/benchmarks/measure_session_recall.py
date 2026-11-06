@@ -187,14 +187,19 @@ def summarize(scores: Sequence[QuestionScore], *, stage: str, commit: str) -> di
 
 
 def main(
-    questions: Path, graph_home: Path, out_dir: Path, stage: str, vault_id: str | None = None
+    questions: Path,
+    graph_home: Path,
+    out_dir: Path,
+    stage: str,
+    vault_id: str | None = None,
+    mode: str = "evidence",
 ) -> dict[str, object]:
     _require_outside_repository(questions, "questions")
     _require_outside_repository(out_dir, "out_dir")
     if stage not in STAGES:
         raise ValueError(f"stage must be one of {', '.join(STAGES)}")
     loaded = load_questions(questions)
-    scores = [_score(question, graph_home=graph_home, vault_id=vault_id) for question in loaded]
+    scores = [_score(question, graph_home=graph_home, vault_id=vault_id, mode=mode) for question in loaded]
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "results.jsonl").write_text(
         "".join(json.dumps(score.to_json(), sort_keys=True) + "\n" for score in scores), encoding="utf-8"
@@ -204,7 +209,7 @@ def main(
     return summary
 
 
-def _score(question: Question, *, graph_home: Path, vault_id: str | None) -> QuestionScore:
+def _score(question: Question, *, graph_home: Path, vault_id: str | None, mode: str = "evidence") -> QuestionScore:
     command = [
         sys.executable,
         "-c",
@@ -218,7 +223,7 @@ def _score(question: Question, *, graph_home: Path, vault_id: str | None) -> Que
         str(RESULT_LIMIT),
         # Session files are raw evidence; the default knowledge mode searches wiki pages only.
         "--mode",
-        "evidence",
+        mode,
     ]
     if vault_id is not None:
         command += ["--vault-id", vault_id]
@@ -276,6 +281,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--stage", choices=STAGES, required=True)
     parser.add_argument("--vault-id")
+    parser.add_argument("--mode", default="evidence", help="vg search mode; evidence finds session files.")
     return parser.parse_args(argv)
 
 
@@ -283,7 +289,14 @@ if __name__ == "__main__":
     arguments = _parse_args(sys.argv[1:])
     print(
         json.dumps(
-            main(arguments.questions, arguments.graph_home, arguments.out_dir, arguments.stage, arguments.vault_id),
+            main(
+                arguments.questions,
+                arguments.graph_home,
+                arguments.out_dir,
+                arguments.stage,
+                arguments.vault_id,
+                arguments.mode,
+            ),
             sort_keys=True,
             indent=2,
         )
