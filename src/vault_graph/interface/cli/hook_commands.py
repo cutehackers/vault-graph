@@ -15,10 +15,14 @@ are stale or missing. A catch-up that was killed is therefore run again at the n
 The process holds an flock on ``logs/session-start-index.lock`` while it lives. A hook that finds
 the lock taken starts nothing, so session starts never pile up background runs.
 
-capture: runs ``vault_hooks.py capture --direct`` from the ``vault-map.json`` folder with the hook
-JSON unchanged. Exit code 0 means the launcher finished (written, no-new-turns and skipped alike).
-Exit code 3 means the launcher was missing, failed or ran out of time, so the hook launcher
-captures directly. vg never chooses the Vault, never indexes after capture and writes nothing.
+capture: normalizes the hook's ``transcript_path`` and runs ``vault_hooks.py capture --direct
+--normalized <file>`` from the ``vault-map.json`` folder with the hook JSON unchanged (spec 2026-11-05
+§4.2.5). When normalization fails or the launcher exits 2 (no ``--normalized``), it runs
+``capture --direct`` so the Vault writes a v1 file. With Graph Home ``configs/session-export.json``
+the same run exports the session. Exit code 0 means the launcher finished (written, no-new-turns and
+skipped alike). Exit code 3 means the launcher was missing, failed or ran out of time, so the hook
+launcher captures directly. vg never chooses the Vault, never indexes after capture and writes only
+the normalized file and the export folder, outside every Vault.
 """
 
 from __future__ import annotations
@@ -44,7 +48,8 @@ from vault_graph.context.pack.recall import (
     recall,
 )
 from vault_graph.indexing.vector_failure_log import failure_warning, read_vector_failures, vector_retry_pending
-from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME, run_capture
+from vault_graph.interface.composition.adapters.session_capture_runner import capture_hook
+from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME
 from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
 from vault_graph.interface.composition.recall_index_refresh import (
     DEFAULT_REFRESH_BUDGET_S,
@@ -309,18 +314,31 @@ def capture(
         DEFAULT_CAPTURE_TIMEOUT_S, "--timeout", min=0.1, help="Seconds before the launcher is stopped."
     ),
 ) -> None:
-    """Hand the PreCompact or SessionEnd hook JSON on stdin to the Vault hook launcher."""
+    """Hand the PreCompact or SessionEnd hook JSON on stdin and its normalized session to the Vault hook launcher.
+
+    The export settings are read from the default Graph Home, ``$HOME/.vault-graph``.
+    """
 
     hook_json = sys.stdin.buffer.read()
-    launcher = vault_map_path(vault_map).parent / LAUNCHER_NAME
-    outcome = run_capture(hook_json, launcher=launcher, timeout_s=timeout)
+    map_path = vault_map_path(vault_map)
+    result = capture_hook(
+        hook_json,
+        launcher=map_path.parent / LAUNCHER_NAME,
+        vault_map=map_path,
+        graph_home=Path.home() / ".vault-graph",
+        timeout_s=timeout,
+    )
+    for warning in result.warnings:
+        typer.echo(f"{CAPTURE_COMMAND}: warning: {warning}", err=True)
+    outcome = result.outcome
     if outcome.stderr:
         typer.echo(outcome.stderr, err=True, nl=not outcome.stderr.endswith("\n"))
     if not outcome.finished:
         typer.echo(f"{CAPTURE_COMMAND}: {outcome.problem}", err=True)
         raise typer.Exit(CAPTURE_HANDOFF_EXIT_CODE)
     typer.echo(
-        f"{CAPTURE_COMMAND}: status={outcome.status} vault={outcome.vault or '-'} path={outcome.path or '-'}",
+        f"{CAPTURE_COMMAND}: status={outcome.status} vault={outcome.vault or '-'} path={outcome.path or '-'} "
+        f"input={'normalized' if result.normalized else 'transcript'}",
         err=True,
     )
 

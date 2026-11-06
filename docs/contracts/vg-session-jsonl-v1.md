@@ -61,7 +61,8 @@ vg session export --agent {claude-code,codex} --out PATH (--session ID | --since
   - 파일마다 쓸 바이트가 기존 파일과 같으면 다시 쓰지 않는다. 그래서 같은 세션을 다시 export하면 mtime이 그대로다. 원본이 자랐으면 정규화 파일을 새로 쓰고 원본 사본을 덮어쓴다. 쓰기는 임시 파일과 `os.replace`로 한다.
   - `--agent codex`는 Codex adapter가 없다는 오류(`codex_adapter_missing`)로 끝난다(backlog B-1).
 - 출력: 세션마다 한 줄. `normalized=written|unchanged`, 복사한 원본 파일 수, 건너뛴 원본 수, JSON이 아닌 줄 수, 모르는 레코드 종류별 수(spec §6).
-- `--recapture`는 S6에서 더한다.
+- `--recapture`: export한 각 세션의 정규화 파일로 훅 실행기 `capture --direct --normalized <파일> --rerender`를 실행한다. 실행기에 주는 훅 JSON은 `session_id`, `transcript_path`, 정규화 파일 첫 줄의 `cwd`, `hook_event_name`(끝난 세션은 `SessionEnd`, 가장 최근 세션은 `PreCompact`)이다. 세션마다 시간 제한은 120초다. 실행기가 `--normalized`를 모르면(종료 코드 2) v1로 돌아가지 않고 종료 코드 1로 끝난다.
+- 수집 훅(`vg hook capture`)은 SessionEnd에서 `session_ended=True`, 그 밖의 이벤트에서 `False`로 정규화한다. export 설정은 `$HOME/.vault-graph/configs/session-export.json`에서만 읽는다.
 
 ## 5. export 설정 `configs/session-export.json`
 
