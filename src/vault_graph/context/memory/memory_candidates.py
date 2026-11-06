@@ -258,12 +258,15 @@ def build_memory_candidates(
     usage_events: Iterable[Mapping[str, object]] = (),
     kinds: Collection[CandidateKind] | None = None,
     merge_threshold: float = DEFAULT_MERGE_SIMILARITY,
+    with_comparison: bool = True,
 ) -> tuple[MemoryCandidate, ...]:
     """Candidates in table order (L1 notes, session exchanges, merge pairs, retire pages), cut to ``limit``.
 
     L1 notes are ordered by path, session exchanges by signal, merge pairs by similarity and retire
     pages by signal. ``kinds`` keeps only those kinds; None keeps all. Comparison material is looked
-    up only for the candidates returned.
+    up only for the candidates returned. ``with_comparison=False`` never calls ``similar_pages`` and
+    leaves every ``comparison`` empty: the candidates and their order stay the same (the session start
+    backlog line only counts them).
     """
     wanted = frozenset(CANDIDATE_KINDS if kinds is None else kinds)
     pages = tuple(memory_pages)
@@ -283,7 +286,9 @@ def build_memory_candidates(
             key=item.key,
             kind=item.kind,
             location=item.location,
-            comparison=_comparison(similar_pages, item.query, project_id, excluded=item.excluded),
+            comparison=(
+                _comparison(similar_pages, item.query, project_id, excluded=item.excluded) if with_comparison else ()
+            ),
             signal=item.signal,
             started_at=item.started_at,
             targets=item.targets,

@@ -5,7 +5,9 @@ session-start: exit code 0 means handled (stdout may be empty). Exit code 3 mean
 possible and the hook should use ``recall.sh``. Any other code is an unexpected error. Stdout is
 written only after recall finished, so a failure never leaves partial output. Before recall it
 indexes changed files of the linked Vaults, metadata only, within ``--refresh-budget`` seconds
-(``recall_index_refresh``). A failed refresh is a warning, never a hook failure.
+(``recall_index_refresh``). A failed refresh is a warning, never a hook failure. Block D gets one
+cleanup backlog line when L1 notes or uncited session exchanges wait (``CandidateBacklogCounter``,
+time-limited). The hook never cleans up.
 
 Right after the change scan, before the refresh writes anything, the hook starts one detached
 catch-up process, so a hook killed later by its launcher still leaves it running. The process waits
@@ -33,6 +35,7 @@ import os
 import select
 import subprocess
 import sys
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
@@ -50,6 +53,7 @@ from vault_graph.context.pack.recall import (
 from vault_graph.indexing.vector_failure_log import failure_warning, read_vector_failures, vector_retry_pending
 from vault_graph.interface.composition.adapters.session_capture_runner import capture_hook
 from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME
+from vault_graph.interface.composition.memory_candidate_sources import CandidateBacklogCounter
 from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
 from vault_graph.interface.composition.recall_index_refresh import (
     DEFAULT_REFRESH_BUDGET_S,
@@ -139,6 +143,8 @@ def session_start(
             ports = factory.open_session_recall(vault_map_path=map_path)
     except RecallUnavailable as exc:
         _handoff(str(exc))
+    # Only counts the cleanup backlog for one block D line. Cleanup itself is `curate_memory` (spec 2026-11-05 §4.4.4).
+    ports = replace(ports, backlog=CandidateBacklogCounter(graph_home=state, vault_map_path=map_path))
     bundle = recall(
         cwd,
         source=source,
