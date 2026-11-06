@@ -42,6 +42,7 @@ class SearchRequest:
     include_graph: bool = False
     include_cross_vault: bool = False
     mode: SearchMode = "knowledge"
+    include_retired: bool = False
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

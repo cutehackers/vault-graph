@@ -594,7 +594,7 @@ def mcp_warning_from_context(warning: ContextPackWarning) -> McpErrorPayload:
 
 
 def _retrieval_result_to_dict(result: RetrievalResult) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "result_id": result.result_id,
         "vault_id": result.vault_id,
         "kind": result.kind,
@@ -613,6 +613,15 @@ def _retrieval_result_to_dict(result: RetrievalResult) -> dict[str, object]:
         "context_chunk_ids": list(result.context_chunk_ids),
         "context_policy_version": result.context_policy_version,
     }
+    if result.lifecycle is not None:
+        # Spec 2026-11-05 §4.4.13-1: lifecycle keys appear only for `include_retired` searches.
+        payload.update(
+            status=result.lifecycle.status,
+            retired_reason=result.lifecycle.retired_reason,
+            retired_at=result.lifecycle.retired_at,
+            superseded_by=list(result.lifecycle.superseded_by),
+        )
+    return payload
 
 
 def _store_revision_to_dict(revision: StoreRevision) -> dict[str, object]:

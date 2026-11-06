@@ -97,6 +97,7 @@ class SearchVaultInput:
     include_cross_vault: bool = False
     mode: SearchMode = "knowledge"
     cwd: str | None = None
+    include_retired: bool = False
 
 
 @dataclass(frozen=True)
@@ -301,6 +302,7 @@ class McpToolRegistry:
                 include_graph=request.include_graph,
                 include_cross_vault=request.include_cross_vault,
                 mode=request.mode,
+                include_retired=request.include_retired,
             )
             records = explanation_records_for_search(response)
             payload = search_response_to_payload(response, labels=selection.labels)
@@ -771,6 +773,7 @@ def register_mcp_tools(
         include_cross_vault: bool = False,
         mode: str = "knowledge",
         cwd: str | None = None,
+        include_retired: bool = False,
     ) -> dict[str, object]:
         request = parse_search_vault_input(
             query=query,
@@ -780,6 +783,7 @@ def register_mcp_tools(
             include_cross_vault=include_cross_vault,
             mode=mode,
             cwd=cwd,
+            include_retired=include_retired,
         )
         return registry.search_vault(request).to_json_dict()
 
@@ -999,6 +1003,7 @@ def parse_search_vault_input(
     include_cross_vault: bool = False,
     mode: str = "knowledge",
     cwd: str | None = None,
+    include_retired: bool = False,
 ) -> SearchVaultInput:
     request = SearchVaultInput(
         query=_required_string(query, "query"),
@@ -1008,6 +1013,7 @@ def parse_search_vault_input(
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
         mode=cast(SearchMode, mode),
         cwd=_optional_cwd(cwd),
+        include_retired=_required_bool(include_retired, "include_retired"),
     )
     _validate_search_vault_request(request)
     return request

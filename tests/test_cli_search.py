@@ -231,6 +231,7 @@ class _FakeSearchService:
         include_graph: bool,
         include_cross_vault: bool,
         mode: str,
+        include_retired: bool = False,
     ) -> SearchResponse:
         self.include_graph = include_graph
         assert query_text == "GraphRAG"

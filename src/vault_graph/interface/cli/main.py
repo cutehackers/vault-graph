@@ -872,6 +872,11 @@ def search(
         help="Include explicit cross-Vault graph relationships.",
     ),
     mode: str = typer.Option("knowledge", "--mode", help="Search mode: knowledge, evidence, operating, audit, or all."),
+    include_retired: bool = typer.Option(
+        False,
+        "--include-retired",
+        help="Include retired pages and show each result's status, retired_reason, retired_at and superseded_by.",
+    ),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
@@ -915,6 +920,7 @@ def search(
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
             mode=cast(SearchMode, mode),
+            include_retired=include_retired,
         )
     )
     if output_format == "json":
@@ -1292,6 +1298,9 @@ def _render_search_response(response: SearchResponse, *, selection: ProjectQuery
         if evidence.section:
             typer.echo(f"   section: {evidence.section}")
         typer.echo(f"   summary: {result.summary}")
+        if result.lifecycle is not None and result.lifecycle.status is not None:
+            reason = f" ({result.lifecycle.retired_reason})" if result.lifecycle.retired_reason else ""
+            typer.echo(f"   status: {result.lifecycle.status}{reason}")
         signal_text = ", ".join(f"{signal.kind}:{signal.rank}" for signal in result.signals)
         typer.echo(f"   signals: {signal_text}")
 
@@ -1602,7 +1611,7 @@ def _evidence_ref_text(evidence: EvidenceReference) -> str:
 
 
 def _result_json(result: RetrievalResult) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "result_id": result.result_id,
         "vault_id": result.vault_id,
         "kind": result.kind,
@@ -1621,6 +1630,15 @@ def _result_json(result: RetrievalResult) -> dict[str, object]:
         "context_chunk_ids": list(result.context_chunk_ids),
         "context_policy_version": result.context_policy_version,
     }
+    if result.lifecycle is not None:
+        # Spec 2026-11-05 §4.4.13-1: lifecycle keys appear only for `--include-retired` searches.
+        payload.update(
+            status=result.lifecycle.status,
+            retired_reason=result.lifecycle.retired_reason,
+            retired_at=result.lifecycle.retired_at,
+            superseded_by=list(result.lifecycle.superseded_by),
+        )
+    return payload
 
 
 def _evidence_json(evidence: EvidenceReference) -> dict[str, object]:
