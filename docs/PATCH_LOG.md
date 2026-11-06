@@ -2449,3 +2449,28 @@ indexer regression tests.
 **Changes Applied:** Remove superseded references for changed or historical owners only within selected evidence Vault/path scopes, retaining desired IDs, unknown paths, unmentioned active owners and unrelated contributions. Keep cleanup in the existing transaction. Retire equivalent local/cross memberships together, preserve shared owners supported in other scopes, and retain tombstone metadata while treating retired zero-reference owners as absent. Clean historical zero-reference memberships without weakening active record validation.
 
 **Verification:** Ten new regressions pass, including replacement/deletion through incremental/full CLI indexing twice, source/prior-generation hashes, scope/Vault preservation, local/cross retirement, late SQL failure rollback, unchanged desired evidence and literal path-prefix handling. Independent final review reran all ten and passed. Root MCP-enabled complete suite: 1,478 passed, no skips; Ruff, 424-file formatting, strict mypy on 404 files and diff checks passed. [Current correction evidence](design/reports/2026-10-15-modularization-completion-ko.md#5-발견한-기존-결함과-후속-수정).
+
+## 2026-11-06 - Align Session Memory Implementation With Spec Text
+
+**Trigger:** While implementing `docs/specs/2026-11-05-session-memory-indexing/spec.md`, tests, the A-8 measurement and the A-37 E2E against real vault-builder tools showed places where the spec text was wrong, conflicted with another approved rule, or left a choice open.
+
+**Scope:** Session normalization (M19), session chunkers and session groups (M02), `vg hook capture`, `memory-scan` timing, search with `include_retired`, the `curate_memory` prompt, recall budgets and the project brief. Spec decisions and Vault write paths are unchanged.
+
+**Core Values Protected:** Deterministic search, no lost session records, read-only Vault boundary, one owner per rule, and fixed recall budget.
+
+**Changes Applied:**
+
+1. §4.2.6-7 session embedding input: no project name, and the question is the 80-character `Q:` value from `section_path`, not 200 characters. The input is rebuilt from stored chunk fields (`3cac571`).
+2. §4.2.6-4 v2 window text: an action line keeps the tool name and the result only. Its target (path, command, url, query) goes to `keyword_metadata` only. This follows decision 12 and A-6 over the §4.2.5 action-line wording (`3cac571`).
+3. §4.2.6-9 same exchange id in two files: keep the first whole (not `continued=1`) copy in part order, then by part number, then path. The path-first rule lost a human turn after `vg session export --recapture` wrote a part next to a continued part, because the overlapping v1 exchange was already left out (A-37 E2E, `6e9a77b`).
+4. §4.2.2 `session_id`: the transcript file name. A resumed session's record `sessionId` goes to `parent_session_id`. With the record id, v1 (file name) and v2 parts fell into different session groups and 2,097 v1 chunks were not removed as overlaps (found while measuring A-8, `edb9fea`).
+5. Contract decisions in `docs/contracts/vg-session-jsonl-v1.md` (`a1348f4`): `source_paths` are relative to the Claude Code project folder, not the export folder, so export and capture produce the same bytes. Rewriting a file is decided by its bytes, not only `source_sha256`. `session_ended` is decided per project folder: the newest transcript there may still be running.
+6. `vg hook capture` also falls back to `capture --direct` when a launcher installed before request S10 answers `--normalized` with its usage line and exit code 0, not only exit code 2 (`546b0b8`).
+7. `memory-scan` runs only after `vg index` publishes, including the `vg index` that the session-start catch-up runs. The session-start quick refresh, the MCP background index and `vg watch` do not run it (`b3e637f`).
+8. `include_retired`: default search still leaves out only `retired` pages. `deprecated` and `superseded` pages already stayed in default search under `2026-11-02 - Leave Retired Pages Out Of Default Search As An INV-05 Exception` (`e0c7c7b`).
+9. Session files are raw evidence, so default knowledge-mode search does not return them. Session content is found with `vg search --mode evidence` or `search_vault(mode="evidence")`. The session benchmark uses evidence mode and the `curate_memory` prompt says so (`be6bc69`, `c6e5555`).
+10. Recall budget: block B always leaves block C its 150 tokens. Under a smaller `--max-tokens`, the L3 and C budgets shrink in proportion (`5c0cecf`). When block D is longer than 30 tokens, block C shrinks so that C and D stay within 180 (`16815c6`).
+11. A project brief is written only to the Vault that decision 12 picks with `vault` empty, normally the project's default write Vault. Another explicit `vault` is `rejected`, so recall never finds two briefs (`a3232f3`).
+12. A missing or unreadable L1 folder gives one warning per session start, and the backlog line leaves out its L1 part (`16815c6`).
+
+**Verification:** Focused tests per change: `tests/test_session_exchange_v2_chunker.py`, `tests/test_session_chunk_id_stability.py`, `tests/e2e/test_session_v1_to_v2.py`, `tests/test_session_claude_code_adapter.py`, `tests/test_cli_session_export.py`, `tests/test_cli_hook_capture_normalized.py`, `tests/test_memory_scan_runner.py`, `tests/test_search_include_retired.py`, `tests/test_mcp_curate_prompt.py`, `tests/test_recall_budget.py`, `tests/test_recall_backlog.py`, `tests/test_cli_hook_session_start.py`, `tests/test_remember_kind_project.py`. The A-8 measurement after change 4 left 5 v1 chunks in stage (c) ([session recall report](design/reports/2026-11-session-recall.md)).

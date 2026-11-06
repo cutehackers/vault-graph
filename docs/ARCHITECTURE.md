@@ -36,6 +36,7 @@ src/vault_graph/
 │   ├── diagnostics/         # 상태·위생·진단 설명
 │   ├── runtime/             # setup·watch·자원 종료
 │   ├── memory/              # Vault 기억 쓰기(추가·수정·폐기·제안)
+│   ├── sessions/            # 에이전트 세션 원본을 정규화 JSONL로 바꾸는 adapter·가림 규칙
 │   └── integration/         # 명시적 연동 설정·지침 관리
 │       ├── mcp/             # MCP 설정 파일 생성·등록
 │       ├── harness/         # 지침 설치·제거
@@ -72,6 +73,27 @@ src/vault_graph/
 | M16 실행 운영 | `operation/runtime/` | 초기 설정·주기 색인·중단·자원 정리 |
 | M17 연동 설정 | `operation/integration/` | MCP 등록·저장소 연결 catalog·지침의 명시적 변경 |
 | M18 기억 쓰기 | `operation/memory/` | 저장 Vault 고르기·draft 만들기·Vault 쓰기 포트·Vault별 잠금. Vault 명령 실행과 draft 파일 쓰기(`DraftFiles` 포트)는 `interface/composition/adapters/`가 한다(§4). M18 자체는 파일을 쓰지 않는다 |
+| M19 세션 정규화 | `operation/sessions/` | 에이전트 원본 세션 레코드를 `vg-session-jsonl/1` 줄로 바꾸는 순수 코드(`claude_code_adapter.py`, `normalized_jsonl.py`, 가림 규칙 `redact.py`, 레코드 모델 `models.py`). 파일 읽기·쓰기와 실행기 호출은 `interface/composition/adapters/`가 한다. 형식은 [vg-session-jsonl/1 계약](contracts/vg-session-jsonl-v1.md) |
+
+2026-11-05 [세션·색인·기억 관리 spec](specs/2026-11-05-session-memory-indexing/spec.md)이 더한 파일의 위치는 다음과 같다.
+
+| 영역 | 파일 | 하는 일 |
+|---|---|---|
+| M01 | `operation/scope/session_export_settings.py` | Graph Home `configs/session-export.json` 형식 확인과 읽기·쓰기 |
+| M02 | `indexing/ingestion/chunker_selection.py` | frontmatter `schema`로 조각기를 고르고(`select_chunker`), 조각의 임베딩 입력을 만든다(`embedding_input_for`) |
+| M02 | `indexing/ingestion/session_exchange_v1_chunker.py`, `session_exchange_v2_chunker.py` | 세션 파일 v1·v2를 교환 단위 창으로 자르고 교환 메타를 `keyword_metadata`로 만든다 |
+| M02 | `indexing/ingestion/session_group.py` | 같은 세션 묶음(`agent`, `session_id`)의 파일을 함께 보고 중복 교환과 v2와 겹친 v1 교환을 색인에서 뺀다 |
+| M03 | `indexing/vector_failure_log.py` | Graph Home `logs/vector-index-failures.json`과 벡터 재시도 간격 |
+| M04 | `indexing/publication/tree_clone.py` | 세대 준비를 macOS APFS clone으로 하고, 안 되면 `copytree`로 돌아간다 |
+| M08 | `context/pack/recall_backlog.py` | 회상의 정리 대기 줄과 brief 갱신 안내 줄 |
+| M10 | `context/memory/project_scope.py` | 범위 규칙 `page_in_project`([SPEC.md](SPEC.md) §6-4) |
+| M10 | `context/memory/claims.py`, `brief.py`, `memory_candidates.py` | 대체되지 않은 claim 행(`current_claims`), brief 갱신 판단(`brief_staleness`), 정리 후보 고르기 |
+| storage | `storage/interfaces/vector_manifest_store.py`, `storage/local/sqlite_vector_manifest_store.py` | 세대 안 벡터 목록 표 포트와 SQLite 구현 |
+| storage | `storage/local/embedding_cache.py`, `reviewed_log.py` | Graph Home `cache/embeddings.sqlite3` 임베딩 캐시, `memory/reviewed.jsonl` 정리 기록 |
+| interface | `interface/cli/session_commands.py` | `vg session export` |
+| interface | `interface/composition/memory_candidate_sources.py` | 정리 꾸러미 재료(L1 노트, 색인된 세션 교환, 사용 기록, 코드 투영)를 읽어 M10 규칙에 넘긴다. M10은 M11을 가져올 수 없으므로 코드 경로 소멸 신호는 여기서 합친다 |
+| interface | `interface/composition/adapters/auto_memory_reader.py`, `memory_scan_runner.py`, `vault_import_cli.py` | L1 폴더 읽기, 읽기 전용 Vault `memory-scan --json` 실행·저장, Vault `import-source` 실행 |
+| interface | `interface/composition/adapters/session_capture_runner.py`, `session_export_files.py` | `vg hook capture`의 정규화와 실행기 호출, export 폴더 쓰기 |
 
 `interface`는 입력 검증·전송·직렬화와 구성을 담당한다. `storage`는 포트의 구체 저장 방식과 저장 모델을 담당한다. `errors.py` 등 지원 파일과 하위 모듈은 생략했으므로 위 트리는 전체 파일 목록이 아니다.
 
@@ -125,6 +147,7 @@ flowchart TB
         OPS["M16 operation.runtime<br/>초기 설정·주기 실행·중단"]
         CONFIG["M17 operation.integration<br/>명시적 등록·연결 설정·지침 관리"]
         MEMWRITE["M18 operation.memory<br/>Vault 기억 추가·수정·폐기·제안"]
+        SESSIONS["M19 operation.sessions<br/>세션 원본 정규화·가림"]
     end
 
     subgraph STORAGE["storage · 파생 저장소"]
@@ -154,6 +177,7 @@ flowchart TB
     ROOT --> OPS
     ROOT --> CONFIG
     ROOT --> MEMWRITE
+    ROOT --> SESSIONS
     ROOT --> DIAG
     ROOT --> EXPLAIN
     OPS --> INDEX
@@ -214,6 +238,7 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 | M16 | `operation/runtime/` | M01, M02, M03, M04, M17 | |
 | M17 | `operation/integration/` | M01, M12 | M12의 binding 읽기 Protocol을 구현(보완5) |
 | M18 | `operation/memory/` | M01, M12 | M12의 `VaultMapReader`·`MappedVault`로 저장 Vault를 고른다. 어떤 영역도 M18을 가져오지 않는다 |
+| M19 | `operation/sessions/` | M01 | 결정18(2026-11-05 spec). 레코드를 받아 정규화 줄을 돌려주는 순수 코드다. 어떤 영역도 M19를 가져오지 않고, `interface/` 계층만 부른다 |
 
 표 외에 모든 기능 영역이 가져올 수 있는 대상은 다음과 같다.
 
@@ -225,21 +250,22 @@ Vault 전용 벡터 색인 정책은 `indexing/vector_index_adapter.py`, 임베�
 
 ## 4. 원본·투영·쓰기 경계
 
-등록 저장소의 소스는 읽기만 한다. Vault 문서는 vault-graph 프로세스가 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않고, vault-graph 프로세스는 Vault `raw/`에 직접 쓰지 않는다. Vault가 바뀌는 길은 vault-graph가 Vault 자체 도구를 하위 프로세스로 실행하는 아래 세 가지뿐이며, 바뀐 내용은 그 도구의 검증을 거친다.
+등록 저장소의 소스는 읽기만 한다. Vault 문서는 vault-graph 프로세스가 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않고, vault-graph 프로세스는 Vault `raw/`에 직접 쓰지 않는다. Vault가 바뀌는 길은 vault-graph가 Vault 자체 도구를 하위 프로세스로 실행하는 아래 네 가지뿐이며, 바뀐 내용은 그 도구의 검증을 거친다.
 
 | 쓰기 경로 | 실행하는 Vault 명령 | vault-graph 쪽 위치 |
 |---|---|---|
-| 확정 쓰기 | MCP `remember`·`update_memory`·`retire_memory`에 `basis: stated`를 주면 `tools/wiki/cli.py publish-draft <draft> --json`을 실행한다. 결과는 `published` 또는 `rejected`다 | M18 `operation/memory/`(요청·저장 Vault 고르기·draft·포트·흐름), 어댑터 `interface/composition/adapters/vault_publish_cli.py`, OS 임시 폴더에 draft 파일 쓰기 `interface/composition/adapters/temporary_draft_files.py`, 수정 전 현재 페이지 읽기 `interface/composition/adapters/vault_page_reader.py` |
-| 제안 | 같은 세 도구에 `basis: inferred`를 주면 `tools/wiki/cli.py review propose --draft <draft> --summary <text> --json`을 실행한다. 결과는 `proposed`와 `review_path`이고, 사람이 `review resolve <review_path> --status accepted`로 승인해야 Vault가 발행한다 | 위와 같은 M18 모듈과 `vault_publish_cli.py` |
-| 세션 수집 | `vg hook capture`가 `vault-map.json` 폴더의 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 `raw/sessions/`에 쓴다. vault-graph는 실행 시점만 정하고 Vault와 내용은 고르지 않으며, 수집 뒤 색인하지 않는다 | `interface/cli/hook_commands.py`, 어댑터 `interface/composition/adapters/vault_capture_cli.py`. 기능 영역은 따로 두지 않는다 |
+| 확정 쓰기 | MCP `remember`·`update_memory`·`retire_memory`·`supersede_claim`·`restore_memory`에 `basis: stated`를 주면 `tools/wiki/cli.py publish-draft <draft> --json`을 실행한다. 결과는 `published` 또는 `rejected`다 | M18 `operation/memory/`(요청·저장 Vault 고르기·draft·포트·흐름), 어댑터 `interface/composition/adapters/vault_publish_cli.py`, OS 임시 폴더에 draft 파일 쓰기 `interface/composition/adapters/temporary_draft_files.py`, 수정 전 현재 페이지 읽기 `interface/composition/adapters/vault_page_reader.py` |
+| 제안 | 같은 다섯 도구에 `basis: inferred`를 주면 `tools/wiki/cli.py review propose --draft <draft> --summary <text> --json`을 실행한다. 결과는 `proposed`와 `review_path`이고, 사람이 `review resolve <review_path> --status accepted`로 승인해야 Vault가 발행한다 | 위와 같은 M18 모듈과 `vault_publish_cli.py` |
+| 세션 수집 | `vg hook capture`가 원본 세션을 정규화 JSONL로 바꾸고 `vault-map.json` 폴더의 훅 실행기 `vault_hooks.py capture --direct --normalized <파일>`을 실행한다. 실행기가 Vault `sessions capture`로 `raw/sessions/`에 v2 파일을 쓴다. 실행기가 `--normalized`를 모르면 `capture --direct`로 v1 파일을 쓰게 한다. vault-graph는 실행 시점과 넘길 정규화 파일을 정하고 Vault는 고르지 않으며, 수집 뒤 색인하지 않는다. `vg session export --recapture`는 같은 실행기에 `--rerender`를 붙인다 | `interface/cli/hook_commands.py`, `interface/cli/session_commands.py`, 어댑터 `interface/composition/adapters/session_capture_runner.py`·`vault_capture_cli.py`. 정규화는 M19 `operation/sessions/`가 한다 |
+| 근거 사본 | MCP `import_auto_memory`가 Claude Code 자동 기억 노트 하나로 `tools/wiki/cli.py import-source <note> --into raw/imports/claude-memory/ --json`을 실행한다. 복사와 source 페이지 생성은 Vault 명령이 한다. vault-graph는 자동 기억 파일을 고치거나 옮기거나 지우지 않는다 | M18 `ImportRequest`와 포트 `VaultImporter`, 어댑터 `interface/composition/adapters/vault_import_cli.py` |
 
-M18 `operation/memory/`는 M01과 M12만 가져오고, 어떤 기능 영역도 M18을 가져오지 않는다. M18을 가져오는 곳은 `interface/` 계층(MCP 도구·직렬화·서비스 구성, 어댑터)뿐이다. MCP 쓰기 도구 세 개는 `interface/mcp/mcp_memory_tools.py`에 있고, 읽기 도구와 등록은 `mcp_tools.py`, 둘이 함께 쓰는 도구 이름·본문·인자 오류는 `mcp_tool_body.py`에 있다(2026-11-03 정리 발견1). 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 세 경로를 쓰지 않는다. 사용자 범위의 `vault-map.json`은 읽기만 한다.
+M18 `operation/memory/`는 M01과 M12만 가져오고, 어떤 기능 영역도 M18을 가져오지 않는다. M18을 가져오는 곳은 `interface/` 계층(MCP 도구·직렬화·서비스 구성, 어댑터)뿐이다. MCP 쓰기 도구 여섯 개(`remember`, `update_memory`, `retire_memory`, `supersede_claim`, `restore_memory`, `import_auto_memory`)는 `interface/mcp/mcp_memory_tools.py`에 있고, 읽기 도구와 등록은 `mcp_tools.py`, 둘이 함께 쓰는 도구 이름·본문·인자 오류는 `mcp_tool_body.py`에 있다(2026-11-03 정리 발견1). 정리 도구 `list_memory_candidates`와 `mark_candidates_reviewed`는 `mcp_tools.py`, prompt `curate_memory`는 `mcp_prompts.py`에 있다. `mark_candidates_reviewed`와 `candidate_key`를 받은 쓰기 도구는 Graph Home `memory/reviewed.jsonl`에만 기록한다(`storage/local/reviewed_log.py`). 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 네 경로를 쓰지 않는다. 색인은 읽기 전용 Vault 명령 `memory-scan --json`을 실행할 수 있다. `vg index`가 발행한 뒤에만 실행하고 결과를 Graph Home `memory/memory-scan-<vault>.json`에 둔다(`interface/composition/adapters/memory_scan_runner.py`, `LocalIndexServiceBundle`). Claude Code 자동 기억 폴더와 원본 세션 기록은 읽기만 한다(`auto_memory_reader.py`, `session_capture_runner.py`). 사용자 범위의 `vault-map.json`은 읽기만 한다.
 
-기억을 읽는 쪽에 새로 생긴 파일은 다음과 같다. 세션 시작 회상의 고정 기억 구획은 `context/pack/recall_pins.py`(M08), 검색 결과의 Vault 이름·종류 표시는 `interface/composition/vault_labels.py`, `cwd` 프로젝트의 연결 Vault 전부를 기본 검색 범위로 정하는 일은 `interface/composition/query_scope_resolution.py`가 한다. 기본 검색에서 status `retired` 페이지를 빼는 필터는 `retrieval/search/evidence_result_assembly.py`(M05)에 있다. 메타데이터·벡터·그래프·코드 투영은 원본으로부터 다시 만들 수 있는 파생 데이터이며 지식의 공식 원본이 아니다. 임시 결과 설명 캐시도 영구 기억 저장소가 아니다.
+기억을 읽는 쪽에 새로 생긴 파일은 다음과 같다. 세션 시작 회상의 고정 기억 구획은 `context/pack/recall_pins.py`(M08), 검색 결과의 Vault 이름·종류 표시는 `interface/composition/vault_labels.py`, `cwd` 프로젝트의 연결 Vault 전부를 기본 검색 범위로 정하는 일은 `interface/composition/query_scope_resolution.py`가 한다. 기본 검색에서 status `retired` 페이지를 빼는 필터와 `include_retired`로 그 페이지를 넣고 폐기 이유를 붙이는 일은 `retrieval/search/evidence_result_assembly.py`(M05)에 있다. 회상·L3 목록·정리 꾸러미의 페이지 범위는 M10 `context/memory/project_scope.py`의 `page_in_project` 하나로 정한다. 메타데이터·벡터·그래프·코드 투영은 원본으로부터 다시 만들 수 있는 파생 데이터이며 지식의 공식 원본이 아니다. 임시 결과 설명 캐시도 영구 기억 저장소가 아니다.
 
 일반 조회는 모델 다운로드·색인 생성·투영 기록·파일 초기화·설정 변경을 실행하지 않는다. 예외는 세션 시작 회상과 MCP 페이지 리소스 읽기가 이미 있는 Graph Home 아래 `usage/`에 사용 기록을 덧붙여 쓰는 것 하나다([VG-MOD](design/specs/2026-10-15-vault-graph-modular-architecture-ko.md) INV-02). 준비되지 않았거나 손상된 경우 기존 오류·경고·복구 안내를 반환한다. 여러 저장소의 색인 반영을 하나의 원자적 트랜잭션이라고 주장하지 않는다. Vault 투영은 비공개 세대를 검증한 뒤 발행하고 코드 투영은 전용 세대 수명을 유지한다. Vault 투영 발행은 프로세스 간 파일 잠금(`projections/.publish.lock`)으로 한 번에 하나만 하고, 발행 뒤에는 현재 세대와 이전 세대만 남긴다(M04 `projection_generation.py`, 2026-11-02 재검수 발견4·5).
 
-명시적으로 요청한 setup·index·watch는 해당 파생 데이터를 기록할 수 있다. 색인은 두 경우에도 갱신된다(2026-11-02 의도 검수 F1). `vg hook session-start`는 회상 전에 이미 색인된 연결 Vault의 바뀐 파일만 임베딩 없이 메타데이터·그래프로 색인해 발행한다(`interface/composition/recall_index_refresh.py`, 기본 5초, `--refresh-budget`). 바뀐 파일만 읽고, 바뀐 파일이 200개를 넘거나 발행 잠금을 1초 안에 얻지 못하면 건너뛴다. 색인된 문서가 1,500개를 넘거나 최근 두 번의 갱신 시간(`logs/quick-refresh-times.json`)이 둘 다 한도를 넘을 때도 건너뛴다(2026-11-02 3차 검수 발견8, 두 번 연속 조건은 2026-11-03 발견12). 바뀐 파일 찾기 직후에는 분리된 백그라운드 프로세스를 하나 띄운다. 이 프로세스는 훅의 갱신이 끝난 뒤, 바뀐 파일이 있거나 벡터가 오래된 Vault마다 `vg index --vault-id`를 실행해 벡터를 채운다(`interface/cli/hook_commands.py`의 `start_catch_up_index`). Graph Home `logs/session-start-index.lock`의 flock으로 하나만 띄운다(2026-11-02 재검수 발견1·3, 3차 검수 발견10). `vg watch`는 바뀐 것이 있을 때만 발행한다(3차 검수 발견11). MCP 쓰기 도구가 `published`를 돌려주면 서버가 그 Vault를 백그라운드로 증분 색인한다(`interface/mcp/mcp_service_factory.py`의 `start_background_index`). MCP 도구와 리소스는 `CurrentMcpServices`를 함께 써서, 활성 세대가 바뀌면 서비스를 다시 연다(3차 검수 발견7). 다시 열 때 임베딩 객체도 새로 만들므로 `configs/embedding.json`을 다시 읽는다. 둘 다 Vault 파일은 읽기만 한다. `vg embedding use NAME`은 모델을 고르는 명시적 명령이다. 모델 폴더에 모델이 없으면 내려받고, 그 뒤에 `configs/embedding.json`을 쓴다. 다시 임베딩은 하지 않고 다음 색인(`vg index` 또는 세션 시작 백그라운드 색인)에 맡긴다. 성공한 색인은 발행 전 새 세대에서, 이번 실행의 모델이 아니고 레코드가 0개인 예전 `vault_graph_` 벡터 컬렉션을 지운다(`LocalIndexServiceBundle.commit_projection`). 읽기 경로는 지우지 않는다. MCP 등록·저장소 연결 설정·지침 설치/제거는 기존 경로·dry-run·사용자 수정 보존 규칙 아래에서만 설정 파일을 변경한다. 이 예외는 Vault 문서 편집 권한을 주지 않는다. Vault 쓰기는 위의 세 경로에서만 일어난다.
+명시적으로 요청한 setup·index·watch는 해당 파생 데이터를 기록할 수 있다. 색인은 두 경우에도 갱신된다(2026-11-02 의도 검수 F1). `vg hook session-start`는 회상 전에 이미 색인된 연결 Vault의 바뀐 파일만 임베딩 없이 메타데이터·그래프로 색인해 발행한다(`interface/composition/recall_index_refresh.py`, 기본 5초, `--refresh-budget`). 바뀐 파일만 읽고, 바뀐 파일이 200개를 넘거나 발행 잠금을 1초 안에 얻지 못하면 건너뛴다. 색인된 문서가 1,500개를 넘거나 최근 두 번의 갱신 시간(`logs/quick-refresh-times.json`)이 둘 다 한도를 넘을 때도 건너뛴다(2026-11-02 3차 검수 발견8, 두 번 연속 조건은 2026-11-03 발견12). 바뀐 파일 찾기 직후에는 분리된 백그라운드 프로세스를 하나 띄운다. 이 프로세스는 훅의 갱신이 끝난 뒤, 바뀐 파일이 있거나 벡터가 오래된 Vault마다 `vg index --vault-id`를 실행해 벡터를 채운다(`interface/cli/hook_commands.py`의 `start_catch_up_index`). Graph Home `logs/session-start-index.lock`의 flock으로 하나만 띄운다(2026-11-02 재검수 발견1·3, 3차 검수 발견10). `vg watch`는 바뀐 것이 있을 때만 발행한다(3차 검수 발견11). MCP 쓰기 도구가 `published`를 돌려주면 서버가 그 Vault를 백그라운드로 증분 색인한다(`interface/mcp/mcp_service_factory.py`의 `start_background_index`). MCP 도구와 리소스는 `CurrentMcpServices`를 함께 써서, 활성 세대가 바뀌면 서비스를 다시 연다(3차 검수 발견7). 다시 열 때 임베딩 객체도 새로 만들므로 `configs/embedding.json`을 다시 읽는다. 둘 다 Vault 파일은 읽기만 한다. `vg embedding use NAME`은 모델을 고르는 명시적 명령이다. 모델 폴더에 모델이 없으면 내려받고, 그 뒤에 `configs/embedding.json`을 쓴다. 다시 임베딩은 하지 않고 다음 색인(`vg index` 또는 세션 시작 백그라운드 색인)에 맡긴다. 성공한 색인은 발행 전 새 세대에서, 이번 실행의 모델이 아니고 레코드가 0개인 예전 `vault_graph_` 벡터 컬렉션을 지운다(`LocalIndexServiceBundle.commit_projection`). 읽기 경로는 지우지 않는다. MCP 등록·저장소 연결 설정·지침 설치/제거는 기존 경로·dry-run·사용자 수정 보존 규칙 아래에서만 설정 파일을 변경한다. 색인은 Graph Home `cache/embeddings.sqlite3`(임베딩 캐시, 세대 밖)와 `logs/vector-index-failures.json`(벡터 재시도 간격)도 쓴다. `vg session export`와 export 설정(`configs/session-export.json`)이 있는 `vg hook capture`는 Vault 밖 export 폴더에 쓰고, Vault 안 경로면 쓰지 않는다. 이 예외는 Vault 문서 편집 권한을 주지 않는다. Vault 쓰기는 위의 네 경로에서만 일어난다.
 
 ## 5. 가져오기 경로와 변경 방법
 
