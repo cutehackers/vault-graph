@@ -5,6 +5,12 @@ from datetime import UTC, datetime
 
 from vault_graph.indexing.ingestion.chunker_selection import chunker_selection
 from vault_graph.indexing.ingestion.document_authority import classify_document_role
+from vault_graph.indexing.ingestion.document_chunking import (
+    ChunkDraft,
+    DocumentChunker,
+    DocumentChunkPlan,
+    PlanningDocumentChunker,
+)
 from vault_graph.indexing.ingestion.document_models import ExtractedDocument, SourceDocument
 from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
 from vault_graph.indexing.ingestion.document_snapshots import ChunkSnapshot as ChunkSnapshot
@@ -29,6 +35,7 @@ class DocumentNormalizer:
         provenance_family_id = stable_id("provenance-family", source.vault_id, source.path)
         selection = chunker_selection(extracted)
         chunker_version = selection.chunker.version
+        plan = _chunk_plan(selection.chunker, extracted)
         document = DocumentSnapshot(
             vault_id=source.vault_id,
             document_id=document_id,
@@ -53,13 +60,7 @@ class DocumentNormalizer:
         chunks = tuple(
             ChunkSnapshot(
                 vault_id=source.vault_id,
-                chunk_id=stable_id(
-                    "chunk",
-                    chunker_version,
-                    source.vault_id,
-                    source.path,
-                    draft.boundary_key,
-                ),
+                chunk_id=_chunk_id(chunker_version, source.vault_id, source.path, draft),
                 document_id=document_id,
                 path=source.path,
                 section=draft.section,
@@ -78,12 +79,26 @@ class DocumentNormalizer:
                 parent_locators=draft.parent_locators,
                 keyword_metadata=draft.keyword_metadata,
             )
-            for draft in selection.chunker.chunk(extracted)
+            for draft in plan.drafts
         )
         warnings = tuple(f"{warning.code}: {warning.message}" for warning in extracted.warnings)
         if selection.warning is not None:
             warnings = (*warnings, selection.warning)
+        warnings = (*warnings, *plan.warnings)
         return NormalizedDocument(document=document, chunks=chunks, warnings=warnings)
+
+
+def _chunk_plan(chunker: DocumentChunker[ChunkDraft], extracted: ExtractedDocument) -> DocumentChunkPlan:
+    if isinstance(chunker, PlanningDocumentChunker):
+        return chunker.plan(extracted)
+    return DocumentChunkPlan(drafts=chunker.chunk(extracted))
+
+
+def _chunk_id(chunker_version: str, vault_id: str, path: str, draft: ChunkDraft) -> str:
+    """Generic chunks follow (path, boundary). A chunker that sets `id_key` names its own id parts."""
+    if draft.id_key is not None:
+        return stable_id("chunk", chunker_version, vault_id, *draft.id_key)
+    return stable_id("chunk", chunker_version, vault_id, path, draft.boundary_key)
 
 
 def _extracted_input(

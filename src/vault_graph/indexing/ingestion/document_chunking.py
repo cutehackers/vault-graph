@@ -44,6 +44,9 @@ class ChunkDraft:
     parent_key: str | None = None
     parent_locators: tuple[SourceLocator, ...] = ()
     keyword_metadata: str | None = None
+    # Values after (chunker version, vault id) in the chunk id, set by a chunker whose ids must not
+    # follow the file path (spec 2026-11-05 §4.2.6-9). None keeps the (path, boundary_key) id.
+    id_key: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.token_count < 0:
@@ -58,6 +61,23 @@ class ChunkDraft:
             raise ValueError("boundary_key is required")
         if not isinstance(self.parent_locators, tuple):
             raise ValueError("parent_locators must be a tuple")
+        if self.id_key is not None and (not isinstance(self.id_key, tuple) or not self.id_key):
+            raise ValueError("id_key must be a non-empty tuple or None")
+
+
+@dataclass(frozen=True)
+class DocumentChunkPlan:
+    """Chunks of one document plus one-line warnings about how they were made."""
+
+    drafts: tuple[ChunkDraft, ...]
+    warnings: tuple[str, ...] = ()
+
+
+@runtime_checkable
+class PlanningDocumentChunker(Protocol):
+    """A chunker that also reports warnings. The normalizer calls `plan` instead of `chunk`."""
+
+    def plan(self, document: ExtractedDocument) -> DocumentChunkPlan: ...
 
 
 @dataclass(frozen=True)
