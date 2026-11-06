@@ -393,7 +393,13 @@ def stable_vector_id(*, vault_id: str, chunk_id: str, embedding_spec: EmbeddingM
 
 def embedding_key(chunk: ChunkSnapshot, embedding_spec: EmbeddingModelSpec) -> str:
     """Spec 4.3.2: equal keys mean an equal model input, so the stored vector stays valid."""
-    embedding_input = contextual_embedding_text(section_path=chunk.section_path, text=chunk.text)
+    return embedding_key_for_text(
+        embedding_spec, contextual_embedding_text(section_path=chunk.section_path, text=chunk.text)
+    )
+
+
+def embedding_key_for_text(embedding_spec: EmbeddingModelSpec, embedding_input: str) -> str:
+    """The embedding key of one model input. The embedding cache (spec 4.3.5) stores vectors under it."""
     return hashlib.sha256(f"{_embedding_spec_key(embedding_spec)}\n{embedding_input}".encode()).hexdigest()
 
 

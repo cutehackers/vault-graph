@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -16,7 +17,7 @@ from vault_graph.indexing.publication.projection_generation import (
     ProjectionGenerationManager,
     ProjectionLayout,
 )
-from vault_graph.indexing.vector_index_adapter import VectorApplyResult
+from vault_graph.indexing.vector_index_adapter import VectorApplyResult, embedding_key_for_text
 from vault_graph.interface.composition.adapters.text_embeddings import (
     FastEmbedTextEmbeddings,
     text_embeddings_for,
@@ -36,9 +37,14 @@ from vault_graph.operation.scope.embedding_selection import load_embedding_selec
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.storage.interfaces.graph_store import GraphStore
-from vault_graph.storage.interfaces.text_embeddings import EmbeddingModelSpec
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingModelSpec, TextEmbeddings
 from vault_graph.storage.interfaces.vector_store import VectorStore
 from vault_graph.storage.local.chroma_vector_store import CHROMA_BACKEND, COLLECTION_PREFIX, ChromaVectorStore
+from vault_graph.storage.local.embedding_cache import (
+    CachedTextEmbeddings,
+    SQLiteEmbeddingCache,
+    embedding_cache_path,
+)
 from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -68,6 +74,8 @@ class LocalIndexServiceBundle:
     bundle_publisher: ProjectionBundlePublisher | None = None
     staged_generation: ProjectionLayout | None = None
     projection_committed: bool = False
+    # Present for writable runs. Pruned to the published generation's vectors (spec 4.3.5).
+    embedding_cache: CachedTextEmbeddings | None = None
 
     def commit_projection(self, report: IndexRunReport | None = None) -> ProjectionCommitResult:
         result = ProjectionCommitResult()
@@ -116,8 +124,28 @@ class LocalIndexServiceBundle:
                 enabled_components=enabled_components,
                 run_id=f"projection-run-{self.staged_generation.generation_id}",
             )
+            if isinstance(report.vector, VectorApplyResult) and not report.vector.failed:
+                self._prune_embedding_cache()
         self.projection_committed = True
         return result
+
+    def _prune_embedding_cache(self) -> None:
+        """Keep only keys of vectors in the published generation. A failure here never undoes the publish."""
+        cached = self.embedding_cache
+        if cached is None:
+            return
+        try:
+            if cached.cache_failed:
+                # The next run builds a new cache in place of the unusable file.
+                cached.cache.remove_files()
+                return
+            manifest = SQLiteVectorManifestStore(manifest_path_for_vector_path(self.catalog_service.vector_path))
+            if not manifest.exists():
+                return
+            vault_ids = tuple(entry.vault_id for entry in self.catalog.entries())
+            cached.cache.retain({row.embedding_key for row in manifest.rows(vault_ids) if row.embedding_key})
+        except (OSError, VectorStoreError) as exc:
+            print(f"vault-graph: warning: embedding cache was not pruned: {exc}", file=sys.stderr)
 
     def close(self) -> None:
         self.index_service.close()
@@ -179,6 +207,18 @@ class LocalIndexServiceFactory:
             )
             metadata_store = SQLiteMetadataStore(catalog_service.metadata_path, initialize=initialize_store)
             text_embeddings = self._text_embeddings_factory(catalog_service)
+            # Only writable runs read and fill the cache. Read-only bundles create no files.
+            embedding_cache = (
+                CachedTextEmbeddings(
+                    text_embeddings,
+                    SQLiteEmbeddingCache(embedding_cache_path(catalog_service.graph_home_path)),
+                    key_for=embedding_key_for_text,
+                    run_id=staged_generation.generation_id if staged_generation is not None else "unstaged",
+                )
+                if initialize_store
+                else None
+            )
+            indexing_embeddings: TextEmbeddings = embedding_cache or text_embeddings
             graph_store = _open_index_graph_store(
                 catalog_service,
                 catalog,
@@ -211,7 +251,7 @@ class LocalIndexServiceFactory:
                     catalog=catalog,
                     metadata_store=metadata_store,
                     vector_store=vector_store,
-                    text_embeddings=text_embeddings,
+                    text_embeddings=indexing_embeddings,
                     vector_status_store=vector_status_store,
                     embedding_batch_size=text_embeddings.config.embedding_batch_size,
                     embedding_parallelism=text_embeddings.config.embedding_parallelism,
@@ -243,6 +283,7 @@ class LocalIndexServiceFactory:
                 generation_manager=generation_manager,
                 bundle_publisher=bundle_publisher,
                 staged_generation=staged_generation,
+                embedding_cache=embedding_cache,
             )
         except Exception:
             close = getattr(graph_store, "close", None)
@@ -264,6 +305,9 @@ class LocalIndexServiceFactory:
         )
         catalog_service.assert_graph_home_write_target_safe(
             target_path=catalog_service.graph_status_path, catalog=catalog
+        )
+        catalog_service.assert_graph_home_write_target_safe(
+            target_path=embedding_cache_path(catalog_service.graph_home_path), catalog=catalog
         )
         models_dir = load_embedding_selection(catalog_service.embedding_config_path).models_dir.expanduser()
         catalog_service.assert_cache_target_safe(target_path=models_dir, catalog=catalog)
