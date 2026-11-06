@@ -28,6 +28,7 @@ from vault_graph.interface.cli.embedding_commands import embedding_app
 from vault_graph.interface.cli.harness_commands import harness_app
 from vault_graph.interface.cli.hook_commands import hook_app
 from vault_graph.interface.cli.project_commands import project_app
+from vault_graph.interface.cli.session_commands import session_app
 from vault_graph.interface.composition.adapters.text_embeddings import (
     FastEmbedTextEmbeddings,
     text_embeddings_for,
@@ -107,6 +108,7 @@ app.add_typer(project_app, name="project")
 app.add_typer(harness_app, name="harness")
 app.add_typer(hook_app, name="hook")
 app.add_typer(embedding_app, name="embedding")
+app.add_typer(session_app, name="session")
 
 
 def _catalog(state: Path) -> tuple[CatalogService, VaultCatalog]:
