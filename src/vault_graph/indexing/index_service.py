@@ -11,7 +11,12 @@ from vault_graph.errors import UnsupportedGraphScopeWidthError
 from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
 from vault_graph.indexing.extraction.graph_source_store import MetadataGraphSourceStore, PreviewGraphSourceStore
 from vault_graph.indexing.extraction.relationship_extractor import DeterministicRelationshipExtractor
-from vault_graph.indexing.graph_indexer import GraphIndexApplyResult, GraphIndexer, GraphIndexPlanReport
+from vault_graph.indexing.graph_indexer import (
+    GraphDocumentChanges,
+    GraphIndexApplyResult,
+    GraphIndexer,
+    GraphIndexPlanReport,
+)
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
@@ -210,6 +215,7 @@ class IndexService:
             ),
             scope=scope,
             full=full,
+            changes=_graph_changes(preview.plan),
         )
         return IndexRunReport(metadata=preview.plan, vector=vector_plan, graph=graph_plan)
 
@@ -252,6 +258,7 @@ class IndexService:
             source_store=MetadataGraphSourceStore(self._metadata_store),
             scope=scope,
             full=full,
+            changes=_graph_changes(metadata_plan),
         )
         return IndexRunReport(metadata=metadata_plan, vector=vector_result, graph=graph_result)
 
@@ -265,8 +272,8 @@ class IndexService:
     ) -> IndexRunReport:
         """Metadata for the listed files only (``MetadataIndexer.apply_paths``), then the graph. No embeddings.
 
-        The graph is still reconciled for the whole scope: publication needs current graph evidence
-        for every selected Vault, and graph records merge evidence from many files.
+        The graph re-extracts the documents the metadata run changed or removed and those linked with
+        them (spec 2026-11-05 §4.3.3). A graph that did not follow the metadata is reconciled whole.
 
         Vectors of chunks the listed files no longer have are dropped, so the generation passes the
         same hygiene check as a full run without an embedding model. ``open_vector_store`` is called
@@ -284,6 +291,7 @@ class IndexService:
             source_store=MetadataGraphSourceStore(self._metadata_store),
             scope=scope,
             full=False,
+            changes=_graph_changes(metadata_plan),
         )
         report = IndexRunReport(metadata=metadata_plan, vector=None, graph=graph_result)
         removed = chunks_before - self._chunk_keys(listed)
@@ -400,6 +408,7 @@ class IndexService:
         source_store: object,
         scope: QueryScope,
         full: bool,
+        changes: GraphDocumentChanges,
     ) -> GraphIndexPlanReport | GraphIndexApplyResult | None:
         if self._graph_store is None:
             return None
@@ -415,6 +424,7 @@ class IndexService:
             requested_scope=scope,
             actual_scopes=actual_scopes,
             full=full,
+            changes=changes,
         )
 
     def _graph_apply(
@@ -423,6 +433,7 @@ class IndexService:
         source_store: object,
         scope: QueryScope,
         full: bool,
+        changes: GraphDocumentChanges,
     ) -> GraphIndexApplyResult | None:
         if self._graph_store is None:
             return None
@@ -442,6 +453,7 @@ class IndexService:
             requested_scope=scope,
             actual_scopes=actual_scopes,
             full=full,
+            changes=changes,
         )
         self._record_graph_status(scope=scope, result=result)
         return result
@@ -497,6 +509,15 @@ class _PreviewChunkStore:
                 for content_scope in scope.content_scopes
             )
         )
+
+
+def _graph_changes(plan: MetadataRevisionPlan) -> GraphDocumentChanges:
+    """The files a metadata run wrote or removed, for the graph's document-level run."""
+    return GraphDocumentChanges(
+        index_revision=plan.index_revision,
+        changed_paths=plan.changed_paths,
+        deleted_paths=plan.deleted_paths,
+    )
 
 
 def _graph_actual_scopes(*, catalog: VaultCatalog, requested_scope: QueryScope) -> tuple[QueryScope, ...]:

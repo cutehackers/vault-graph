@@ -799,44 +799,149 @@ class SQLiteGraphStore:
             with self._connect() as connection:
                 _upsert_spec(connection, plan.graph_extraction_spec)
                 _remove_superseded_evidence(connection, plan)
-                for entity in plan.entity_upserts:
-                    _upsert_entity(connection, entity)
-                    _upsert_record_scopes(
-                        connection,
-                        record_kind="entity",
-                        record_vault_id=entity.vault_id,
-                        record_id=entity.entity_id,
-                        plan=plan,
-                        revisions_by_scope=revisions_by_scope,
-                    )
-                for relationship in plan.relationship_upserts:
-                    _upsert_relationship(connection, relationship)
-                    _upsert_record_scopes(
-                        connection,
-                        record_kind="relationship",
-                        record_vault_id=relationship.source_vault_id,
-                        record_id=relationship.relationship_id,
-                        plan=plan,
-                        revisions_by_scope=revisions_by_scope,
-                    )
-                for ref in plan.evidence_ref_upserts:
-                    _upsert_evidence_ref(connection, ref)
-                for tombstone in plan.entity_tombstones + plan.relationship_tombstones:
-                    _upsert_tombstone(connection, tombstone)
-                    _apply_tombstone_status(connection, tombstone)
-                for revision in revisions_by_scope.values():
-                    _upsert_revision(connection, revision)
+                _write_plan(connection, plan, revisions_by_scope)
         except sqlite3.Error as exc:
             raise GraphStoreUnavailable(str(exc)) from exc
-        return GraphApplyResult(
-            graph_run_id=plan.graph_run_id,
-            applied_entity_upsert_count=len(plan.entity_upserts),
-            applied_relationship_upsert_count=len(plan.relationship_upserts),
-            applied_evidence_ref_upsert_count=len(plan.evidence_ref_upserts),
-            applied_tombstone_count=len(plan.entity_tombstones) + len(plan.relationship_tombstones),
-            graph_revision_rows=tuple(revisions_by_scope.values()),
-            warnings=(),
+        return _apply_result(plan, revisions_by_scope)
+
+    # Document-level reconcile (spec 2026-11-05 §4.3.3). GraphIndexer calls these when the run names the
+    # documents it changed, so a run reads and writes the records those documents touch, not the scope.
+    # An owner is (owner_kind, owner_vault_id, owner_id), the key of an entity or relationship.
+
+    def evidence_paths(self, *, vault_id: str) -> frozenset[str]:
+        """Paths of every document that has evidence in ``vault_id``."""
+        rows = self._read(
+            "SELECT DISTINCT path FROM graph_evidence_refs WHERE evidence_vault_id = ? AND path IS NOT NULL",
+            (vault_id,),
         )
+        return frozenset(str(row["path"]) for row in rows)
+
+    def evidence_owners_by_path(
+        self, *, vault_id: str, paths: tuple[str, ...]
+    ) -> dict[str, frozenset[tuple[str, str, str]]]:
+        """Owners of the evidence each path holds. A path without evidence is left out."""
+        found: dict[str, set[tuple[str, str, str]]] = {}
+        for batch in _batches(paths):
+            rows = self._read(
+                f"""SELECT path, owner_kind, owner_vault_id, owner_id FROM graph_evidence_refs
+                    WHERE evidence_vault_id = ? AND path IN ({_placeholders(batch)})""",
+                (vault_id, *batch),
+            )
+            for row in rows:
+                owner = (str(row["owner_kind"]), str(row["owner_vault_id"]), str(row["owner_id"]))
+                found.setdefault(str(row["path"]), set()).add(owner)
+        return {path: frozenset(owners) for path, owners in found.items()}
+
+    def document_entity_owners(
+        self, *, vault_id: str, canonical_paths: tuple[str, ...]
+    ) -> frozenset[tuple[str, str, str]]:
+        """Entities that stand for the documents at ``canonical_paths``."""
+        owners: set[tuple[str, str, str]] = set()
+        for batch in _batches(canonical_paths):
+            rows = self._read(
+                f"""SELECT entity_id FROM graph_entities
+                    WHERE vault_id = ? AND canonical_path IN ({_placeholders(batch)})""",
+                (vault_id, *batch),
+            )
+            owners.update(("entity", vault_id, str(row["entity_id"])) for row in rows)
+        return frozenset(owners)
+
+    def evidence_refs_for_owners(self, owners: tuple[tuple[str, str, str], ...]) -> tuple[GraphEvidenceRef, ...]:
+        refs: list[GraphEvidenceRef] = []
+        try:
+            with self._connect() as connection:
+                for owner_kind, owner_vault_id, owner_id in owners:
+                    refs.extend(
+                        _evidence_refs_for_owner(
+                            connection, owner_kind=owner_kind, owner_vault_id=owner_vault_id, owner_id=owner_id
+                        )
+                    )
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
+        return tuple(refs)
+
+    def owner_statuses(
+        self, *, actual_scope: str, owners: tuple[tuple[str, str, str], ...]
+    ) -> dict[tuple[str, str, str], str]:
+        """Status of each owner that belongs to ``actual_scope``. An owner outside the scope is left out."""
+        statuses: dict[tuple[str, str, str], str] = {}
+        try:
+            with self._connect() as connection:
+                for owner in owners:
+                    kind, vault_id, record_id = owner
+                    table, vault_column, id_column = (
+                        ("graph_entities", "vault_id", "entity_id")
+                        if kind == "entity"
+                        else ("graph_relationships", "source_vault_id", "relationship_id")
+                    )
+                    row = connection.execute(
+                        f"""SELECT record.status FROM {table} AS record
+                            JOIN graph_record_scopes AS membership
+                              ON membership.record_kind = ? AND membership.record_vault_id = record.{vault_column}
+                             AND membership.record_id = record.{id_column} AND membership.actual_scope = ?
+                            WHERE record.{vault_column} = ? AND record.{id_column} = ?""",
+                        (kind, actual_scope, vault_id, record_id),
+                    ).fetchone()
+                    if row is not None:
+                        statuses[owner] = str(row["status"])
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
+        return statuses
+
+    def scope_record_counts(self, *, actual_scope: str) -> tuple[int, int]:
+        """Live entities and relationships of ``actual_scope``, as a full run counts them."""
+        entities = self._read(
+            """SELECT COUNT(*) AS total FROM graph_record_scopes AS membership
+               JOIN graph_entities AS entity
+                 ON entity.vault_id = membership.record_vault_id AND entity.entity_id = membership.record_id
+               WHERE membership.record_kind = 'entity' AND membership.actual_scope = ? AND entity.status = 'active'""",
+            (actual_scope,),
+        )
+        relationships = self._read(
+            """SELECT COUNT(*) AS total FROM graph_record_scopes AS membership
+               JOIN graph_relationships AS edge
+                 ON edge.source_vault_id = membership.record_vault_id
+                AND edge.relationship_id = membership.record_id
+               WHERE membership.record_kind = 'relationship' AND membership.actual_scope = ?
+                 AND edge.status != 'deprecated'""",
+            (actual_scope,),
+        )
+        return int(entities[0]["total"]), int(relationships[0]["total"])
+
+    def apply_owner_reconcile_plan(
+        self,
+        plan: GraphReconcilePlan,
+        *,
+        owners: tuple[tuple[str, str, str], ...],
+        kept_evidence_ref_ids: frozenset[str],
+    ) -> GraphApplyResult:
+        """Apply a plan that rebuilt ``owners`` whole.
+
+        ``kept_evidence_ref_ids`` is every evidence row the owners keep, written or not. Other evidence
+        rows of the owners inside the plan scopes are deleted. Records outside ``owners`` are not read.
+        """
+        if self._read_only:
+            raise GraphReadOnlyViolation("graph store is read-only")
+        _ensure_actual_scopes(plan.actual_scopes)
+        revisions_by_scope = {
+            revision.actual_scope: replace(revision, graph_store_schema_version=GRAPH_SCHEMA_VERSION)
+            for revision in plan.graph_revision_rows
+        }
+        try:
+            with self._connect() as connection:
+                _upsert_spec(connection, plan.graph_extraction_spec)
+                _remove_owner_evidence(connection, plan=plan, owners=owners, kept=kept_evidence_ref_ids)
+                _write_plan(connection, plan, revisions_by_scope)
+        except sqlite3.Error as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
+        return _apply_result(plan, revisions_by_scope)
+
+    def _read(self, sql: str, parameters: tuple[object, ...]) -> list[sqlite3.Row]:
+        try:
+            with self._connect() as connection:
+                return connection.execute(sql, parameters).fetchall()
+        except (FileNotFoundError, sqlite3.Error) as exc:
+            raise GraphStoreUnavailable(str(exc)) from exc
 
     def _connect(self) -> sqlite3.Connection:
         if not self._database_path.exists() and not self._initialize:
@@ -847,6 +952,89 @@ class SQLiteGraphStore:
             connection = sqlite3.connect(self._database_path)
         connection.row_factory = sqlite3.Row
         return connection
+
+
+def _write_plan(
+    connection: sqlite3.Connection, plan: GraphReconcilePlan, revisions_by_scope: dict[str, GraphRevision]
+) -> None:
+    for entity in plan.entity_upserts:
+        _upsert_entity(connection, entity)
+        _upsert_record_scopes(
+            connection,
+            record_kind="entity",
+            record_vault_id=entity.vault_id,
+            record_id=entity.entity_id,
+            plan=plan,
+            revisions_by_scope=revisions_by_scope,
+        )
+    for relationship in plan.relationship_upserts:
+        _upsert_relationship(connection, relationship)
+        _upsert_record_scopes(
+            connection,
+            record_kind="relationship",
+            record_vault_id=relationship.source_vault_id,
+            record_id=relationship.relationship_id,
+            plan=plan,
+            revisions_by_scope=revisions_by_scope,
+        )
+    for ref in plan.evidence_ref_upserts:
+        _upsert_evidence_ref(connection, ref)
+    for tombstone in plan.entity_tombstones + plan.relationship_tombstones:
+        _upsert_tombstone(connection, tombstone)
+        _apply_tombstone_status(connection, tombstone)
+    for revision in revisions_by_scope.values():
+        _upsert_revision(connection, revision)
+
+
+def _apply_result(plan: GraphReconcilePlan, revisions_by_scope: dict[str, GraphRevision]) -> GraphApplyResult:
+    return GraphApplyResult(
+        graph_run_id=plan.graph_run_id,
+        applied_entity_upsert_count=len(plan.entity_upserts),
+        applied_relationship_upsert_count=len(plan.relationship_upserts),
+        applied_evidence_ref_upsert_count=len(plan.evidence_ref_upserts),
+        applied_tombstone_count=len(plan.entity_tombstones) + len(plan.relationship_tombstones),
+        graph_revision_rows=tuple(revisions_by_scope.values()),
+        warnings=(),
+    )
+
+
+def _remove_owner_evidence(
+    connection: sqlite3.Connection,
+    *,
+    plan: GraphReconcilePlan,
+    owners: tuple[tuple[str, str, str], ...],
+    kept: frozenset[str],
+) -> None:
+    """Delete the evidence rows ``owners`` no longer have, inside the plan scopes only."""
+    prefixes_by_vault = {
+        scope.vault_ids[0]: tuple(PurePosixPath(prefix) for prefix in scope.content_scopes)
+        for scope in plan.actual_scopes
+    }
+    obsolete: list[str] = []
+    for owner_kind, owner_vault_id, owner_id in owners:
+        for ref in _evidence_refs_for_owner(
+            connection, owner_kind=owner_kind, owner_vault_id=owner_vault_id, owner_id=owner_id
+        ):
+            prefixes = prefixes_by_vault.get(ref.evidence_vault_id)
+            if ref.evidence_ref_id in kept or ref.path is None or prefixes is None:
+                continue
+            path = PurePosixPath(ref.path)
+            if any(path == prefix or prefix in path.parents for prefix in prefixes):
+                obsolete.append(ref.evidence_ref_id)
+    connection.executemany(
+        "DELETE FROM graph_evidence_refs WHERE evidence_ref_id = ?", ((ref_id,) for ref_id in obsolete)
+    )
+
+
+_BATCH = 500
+
+
+def _batches(values: tuple[str, ...]) -> tuple[tuple[str, ...], ...]:
+    return tuple(values[start : start + _BATCH] for start in range(0, len(values), _BATCH))
+
+
+def _placeholders(values: tuple[str, ...]) -> str:
+    return ", ".join("?" for _ in values)
 
 
 def _incompatible_health(message: str) -> StoreHealth:
