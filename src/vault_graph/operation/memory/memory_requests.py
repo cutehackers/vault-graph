@@ -18,6 +18,9 @@ BASES: tuple[str, ...] = ("stated", "inferred")
 REMEMBER_KINDS: tuple[str, ...] = ("decision", "system")
 # Vault 계약2 tools/wiki/lib/memory_fields.py ALLOWED_MEMORY_KINDS.
 MEMORY_KINDS: tuple[str, ...] = ("rule", "correction", "decision", "preference")
+# The memory kinds the Vault project summary lists as corrections when ``tags`` holds them
+# (vault-builder tools/wiki/lib/maps.py PROJECT_CORRECTION_TAGS).
+TAGGED_MEMORY_KINDS: tuple[str, ...] = ("correction", "rule")
 
 _PATH_SEGMENT = re.compile(r"^[^/\\]+$")
 
@@ -33,6 +36,8 @@ class RememberRequest:
     vault: str | None = None
     pin: bool = False
     memory_kind: str | None = None
+    # The ``cwd`` project id the MCP write tool found, or None outside a project (spec 2026-11-05 §4.4.3).
+    project_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -163,6 +168,7 @@ __all__ = [
     "BASES",
     "MEMORY_KINDS",
     "REMEMBER_KINDS",
+    "TAGGED_MEMORY_KINDS",
     "Basis",
     "MemoryWriteResult",
     "MemoryWriteStatus",

@@ -75,6 +75,7 @@ class McpMemoryTools:
 
         from vault_graph.operation.memory.memory_requests import RememberRequest
 
+        cwd = _write_cwd(request.cwd)
         return self._memory_write(
             "remember",
             lambda service: service.remember(
@@ -84,10 +85,11 @@ class McpMemoryTools:
                     body=request.body,
                     evidence=request.evidence,
                     basis=cast(Any, request.basis),
-                    cwd=_write_cwd(request.cwd),
+                    cwd=cwd,
                     vault=request.vault,
                     pin=request.pin,
                     memory_kind=request.memory_kind,
+                    project_id=_project_id(cwd),
                 )
             ),
         )
@@ -211,7 +213,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         ``cwd`` is the project folder; without it the server working folder is used. The target Vault must be
         linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
         ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
-        ``candidates``.
+        ``candidates``. The new page records the ``cwd`` project id in ``project``.
         """
         request = parse_remember_input(
             title=title,
@@ -314,6 +316,19 @@ def _write_cwd(cwd: str | None) -> str | None:
         return str(Path.cwd())
     except OSError:
         return None
+
+
+def _project_id(cwd: str | None) -> str | None:
+    """The ``vault-map.json`` project id of ``cwd``, or None outside a single project (spec 2026-11-05 §4.4.3).
+
+    Reads the same map file as the read tools' project scope (``vault_map_path()``, ``mcp_tools``).
+    """
+    if cwd is None:
+        return None
+    from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
+
+    vault_map = open_vault_map(vault_map_path()).vault_map
+    return None if vault_map is None else vault_map.find_project(Path(cwd)).project_id
 
 
 def parse_remember_input(

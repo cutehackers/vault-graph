@@ -19,7 +19,12 @@ from datetime import date
 from typing import Any
 
 from vault_graph.operation.memory.memory_ports import PageText
-from vault_graph.operation.memory.memory_requests import RememberRequest, RetireRequest, UpdateRequest
+from vault_graph.operation.memory.memory_requests import (
+    TAGGED_MEMORY_KINDS,
+    RememberRequest,
+    RetireRequest,
+    UpdateRequest,
+)
 from vault_graph.operation.scope.vault_frontmatter import parse_vault_frontmatter, split_frontmatter
 
 MEMORY_SCHEMA = "vault-memory/v1"
@@ -31,7 +36,11 @@ _MAX_SLUG_CHARS = 80
 
 
 def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, object]:
-    """Build the ``upsert-page`` draft for a new page."""
+    """Build the ``upsert-page`` draft for a new page.
+
+    With ``project_id`` the page gets frontmatter ``project``, and a ``correction`` or ``rule`` memory
+    kind is also put in ``tags``, so the Vault project summary lists the page (spec 2026-11-05 §4.4.3).
+    """
     title = request.title.strip()
     evidence = _evidence(request.evidence)
     target = f"{_KIND_FOLDERS[request.kind]}/{page_slug(title)}"
@@ -45,7 +54,7 @@ def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, 
         "owner": "agent",
         "summary": title,
         "source_count": len(evidence),
-        "tags": [],
+        "tags": [request.memory_kind] if request.memory_kind in TAGGED_MEMORY_KINDS else [],
         "related": [],
         "confidence": "medium",
         "quality": {
@@ -55,6 +64,8 @@ def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, 
             "review_required": False,
         },
     }
+    if request.project_id is not None:
+        frontmatter["project"] = request.project_id
     _set_memory_fields(frontmatter, pin=True if request.pin else None, memory_kind=request.memory_kind)
     return {
         "version": 1,
