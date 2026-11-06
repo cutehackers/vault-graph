@@ -2474,3 +2474,16 @@ indexer regression tests.
 12. A missing L1 folder is the normal state of a project with no Claude Code auto memory: it counts as no notes and gives no warning. Spec §6 asked for a warning on a missing folder too, but that printed a warning at every session start and broke the quiet-stderr scenario A-2. Only a path that exists but is not a readable folder gives one warning, and the backlog line then leaves out its L1 part (`16815c6`, narrowed in the following commit).
 
 **Verification:** Focused tests per change: `tests/test_session_exchange_v2_chunker.py`, `tests/test_session_chunk_id_stability.py`, `tests/e2e/test_session_v1_to_v2.py`, `tests/test_session_claude_code_adapter.py`, `tests/test_cli_session_export.py`, `tests/test_cli_hook_capture_normalized.py`, `tests/test_memory_scan_runner.py`, `tests/test_search_include_retired.py`, `tests/test_mcp_curate_prompt.py`, `tests/test_recall_budget.py`, `tests/test_recall_backlog.py`, `tests/test_cli_hook_session_start.py`, `tests/test_remember_kind_project.py`. The A-8 measurement after change 4 left 5 v1 chunks in stage (c) ([session recall report](design/reports/2026-11-session-recall.md)).
+
+## 2026-11-06 - Lower The Default Embedding Token Budget To 8,192
+
+**Trigger:** The branch review found A-16 unmet: a full re-index of every Vault peaked at 6.85 GB with the spec's assumed token budget of 16,384, above the 6 GB goal (목표2).
+
+**Scope:** `packages/vector-index/src/vector_index/indexing.py` `DEFAULT_TOKEN_BUDGET`, two default tests, and `docs/design/reports/2026-11-embedding-memory.md`.
+
+**Core Values Protected:** Bounded memory on the Mac Studio without slowing indexing; results do not change because batching does not change embeddings.
+
+**Changes Applied:** The default budget is 8,192. The measured run on a copy of the real Graph Home peaked at 4.29 GB in 321 s, against 6.85 GB in 326 s at 16,384. `embedding_token_budget` can still be set.
+
+**Verification:** Full re-index of every Vault with the embedding cache off, `/usr/bin/time -l`, recorded in the report; unit tests for the default.
+

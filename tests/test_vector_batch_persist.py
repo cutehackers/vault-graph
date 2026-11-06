@@ -184,7 +184,7 @@ def test_config_defaults_keep_batch_size_and_add_token_budget(tmp_path: Path) ->
     config = _config(tmp_path, embedding_batch_size=32)
 
     assert config.embedding_batch_size == 32
-    assert config.embedding_token_budget == 16_384
+    assert config.embedding_token_budget == 8_192
     assert config.cpu_mem_arena is True
 
 
