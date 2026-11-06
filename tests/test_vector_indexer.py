@@ -188,9 +188,14 @@ def test_colliding_legacy_vector_ids_fail_before_embedding() -> None:
     second = replace(chunk(vault_id="a"), chunk_id="b:c")
     embeddings = DeterministicTextEmbeddings(SPEC)
     store = InMemoryVectorStore()
+    indexer = VectorIndexer(chunk_store=ChunkStore((first, second)), vector_store=store, text_embeddings=embeddings)
+    scopes = (QueryScope(vault_ids=("a:b", "a"), content_scopes=("wiki",)),)
     with pytest.raises(VectorStoreError, match="vector_id collision"):
-        VectorIndexer(chunk_store=ChunkStore((first, second)), vector_store=store, text_embeddings=embeddings).apply(
-            scopes=(QueryScope(vault_ids=("a:b", "a"), content_scopes=("wiki",)),)
-        )
+        indexer.plan(scopes=scopes)
+    # apply reports a plan failure as a result (spec 2026-11-05 §4.3.1) instead of raising.
+    result = indexer.apply(scopes=scopes)
+    assert result.failed is True
+    assert result.failed_stage == "plan"
+    assert "vector_id collision" in (result.error or "")
     assert embeddings.last_inputs == ()
     assert store.export_manifest(QueryScope(vault_ids=("a:b", "a"), content_scopes=("wiki",))) == ()

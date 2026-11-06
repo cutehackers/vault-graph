@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -19,8 +20,9 @@ from vault_graph.context.pack import (
     SearchContextPackBuilder,
 )
 from vault_graph.errors import CatalogError, VaultGraphError
-from vault_graph.indexing.index_service import IndexService, IndexStatusReport
+from vault_graph.indexing.index_service import IndexRunReport, IndexService, IndexStatusReport
 from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
+from vault_graph.indexing.vector_failure_log import clear_vector_failure, record_vector_failure
 from vault_graph.interface.cli.code_commands import code_app
 from vault_graph.interface.cli.embedding_commands import embedding_app
 from vault_graph.interface.cli.harness_commands import harness_app
@@ -597,6 +599,11 @@ def index(
     full: bool = typer.Option(False, "--full", help="Rebuild selected metadata projection."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Plan changes without mutating the Data Home."),
     graph_backend: str | None = typer.Option(None, "--graph-backend", help="Select document or legacy graph storage."),
+    no_vector: bool = typer.Option(
+        False,
+        "--no-vector",
+        help="Index metadata and graph only. Vectors of removed chunks are dropped; no embeddings are built.",
+    ),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
@@ -635,9 +642,15 @@ def index(
     _, catalog, service = bundle.catalog_service, bundle.catalog, bundle.index_service
     committed: ProjectionCommitResult | None = None
     try:
-        report = service.run_plan(scope=scope, full=full) if dry_run else service.run_apply(scope=scope, full=full)
-        if not dry_run and report.exit_code == 0:
+        report = (
+            service.run_plan(scope=scope, full=full)
+            if dry_run
+            else service.run_apply(scope=scope, full=full, skip_vector=no_vector)
+        )
+        if not dry_run and report.publishable:
             committed = bundle.commit_projection(report)
+        if not dry_run:
+            _record_vector_outcome(state, report)
     finally:
         bundle.close()
     metadata = report.metadata
@@ -691,6 +704,23 @@ def index(
             typer.echo(f"graph_warning: {warning}")
     if report.exit_code:
         raise typer.Exit(report.exit_code)
+
+
+def _record_vector_outcome(graph_home: Path, report: IndexRunReport) -> None:
+    """Keep the per-Vault vector failure record the session-start catch-up reads (spec 2026-11-05 §4.3.1)."""
+
+    vector = report.vector
+    if vector is None:
+        return
+    now = datetime.now(UTC)
+    for indexed_vault_id in report.metadata.vault_ids:
+        try:
+            if getattr(vector, "failed", False):
+                record_vector_failure(graph_home, indexed_vault_id, getattr(vector, "error", None) or "", now=now)
+            else:
+                clear_vector_failure(graph_home, indexed_vault_id)
+        except OSError as exc:
+            typer.echo(f"warning: cannot update the vector failure record: {exc}")
 
 
 @app.command()

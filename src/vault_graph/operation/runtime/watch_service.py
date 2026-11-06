@@ -76,7 +76,7 @@ class WatchService:
             )
             try:
                 report = bundle.index_service.run_apply(scope=scope, full=full)
-                if report.exit_code == 0:
+                if report.publishable:
                     if full or _has_changes(report):
                         commit_projection = getattr(bundle, "commit_projection", None)
                         if commit_projection is not None:

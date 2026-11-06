@@ -261,9 +261,10 @@ def index_one_vault(graph_home_path: Path, vault_id: str) -> bool:
     )
     try:
         report = bundle.index_service.run_apply(scope=scope, full=False)
-        if report.exit_code != 0:
+        # A vector plan failure still publishes metadata and graph (spec 2026-11-05 §4.3.1).
+        if not report.publishable:
             return False
         bundle.commit_projection(report)
-        return True
+        return report.exit_code == 0
     finally:
         bundle.close()

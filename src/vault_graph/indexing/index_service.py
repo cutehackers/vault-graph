@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -13,7 +13,12 @@ from vault_graph.indexing.graph_indexer import GraphIndexApplyResult, GraphIndex
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
-from vault_graph.indexing.vector_index_adapter import VectorApplyResult, VectorIndexer, VectorRevisionPlan
+from vault_graph.indexing.vector_index_adapter import (
+    VectorApplyResult,
+    VectorIndexer,
+    VectorRevisionPlan,
+    stable_vector_id,
+)
 from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph.graph_contracts import GraphExtractionSpec, current_graph_extraction_spec
@@ -39,6 +44,19 @@ class IndexRunReport:
     @property
     def exit_code(self) -> int:
         return 1 if getattr(self.vector, "failed", False) or getattr(self.graph, "failed", False) else 0
+
+    @property
+    def publishable(self) -> bool:
+        """True when the staged generation may be published.
+
+        A vector plan failure wrote nothing to the staged vector store, so metadata and graph are
+        published and the vectors stay as they were (spec 2026-11-05 §4.3.1). Any other failure is not.
+        """
+        if getattr(self.graph, "failed", False):
+            return False
+        if getattr(self.vector, "failed", False):
+            return getattr(self.vector, "failed_stage", None) == "plan"
+        return True
 
 
 class IndexStatusReport(Protocol):
@@ -191,19 +209,40 @@ class IndexService:
         )
         return IndexRunReport(metadata=preview.plan, vector=vector_plan, graph=graph_plan)
 
-    def run_apply(self, *, scope: QueryScope, full: bool = False) -> IndexRunReport:
+    def run_apply(self, *, scope: QueryScope, full: bool = False, skip_vector: bool = False) -> IndexRunReport:
+        """Metadata, then vectors, then the graph.
+
+        ``skip_vector`` runs metadata and graph only, as the background catch-up does while a Vault
+        waits out its vector retry interval (spec 2026-11-05 §4.3.1). The vectors that point at
+        chunks this run removed are dropped, as after a vector plan failure, so the generation
+        passes the publication hygiene check.
+        """
+        with_vectors = self._vector_store is not None and self._text_embeddings is not None
+        vector_scopes = actual_query_scopes(catalog=self._catalog, scope=scope) if with_vectors else ()
+        chunks_before = self._scope_chunk_keys(vector_scopes)
         metadata_plan = MetadataIndexer(catalog=self._catalog, metadata_store=self._metadata_store).apply(
             scope=scope,
             full=full,
         )
         vector_result = None
-        if self._vector_store is None or self._text_embeddings is None:
-            vector_result = None
-        else:
+        if with_vectors and skip_vector:
+            try:
+                self._drop_removed_chunk_vectors(chunks_before - self._scope_chunk_keys(vector_scopes))
+            except Exception as exc:  # noqa: BLE001 - reported as a vector failure, nothing is published
+                vector_result = replace(
+                    self._vector_indexer(chunk_store=self._metadata_store).plan_failure(
+                        scopes=vector_scopes, full=full, error=f"dropping vectors of removed chunks failed: {exc}"
+                    ),
+                    failed_stage="apply",
+                )
+        elif with_vectors:
             vector_result = self._vector_indexer(chunk_store=self._metadata_store).apply(
-                scopes=actual_query_scopes(catalog=self._catalog, scope=scope),
-                full=full,
+                scopes=vector_scopes, full=full
             )
+            if vector_result.failed and vector_result.failed_stage == "plan":
+                vector_result = self._after_plan_failure(
+                    vector_result, removed=chunks_before - self._scope_chunk_keys(vector_scopes)
+                )
             self._record_vector_status(scope=scope, result=vector_result)
         graph_result = self._graph_apply(
             source_store=MetadataGraphSourceStore(self._metadata_store),
@@ -260,6 +299,46 @@ class IndexService:
         close_graph = getattr(self._graph_store, "close", None)
         if callable(close_graph):
             close_graph()
+
+    def _scope_chunk_keys(self, scopes: tuple[QueryScope, ...]) -> set[tuple[str, str]]:
+        return {
+            (chunk.vault_id, chunk.chunk_id) for scope in scopes for chunk in self._metadata_store.list_chunks(scope)
+        }
+
+    def _after_plan_failure(self, result: VectorApplyResult, *, removed: set[tuple[str, str]]) -> VectorApplyResult:
+        """Drop vectors of removed chunks so metadata and graph can be published without new vectors.
+
+        When that fails too, the result becomes an apply failure and nothing is published.
+        """
+        try:
+            self._drop_removed_chunk_vectors(removed)
+        except Exception as exc:  # noqa: BLE001 - reported as part of the vector failure
+            return replace(
+                result,
+                failed_stage="apply",
+                error=f"{result.error}; dropping vectors of removed chunks failed: {exc}",
+            )
+        return result
+
+    def _drop_removed_chunk_vectors(self, removed: set[tuple[str, str]]) -> None:
+        """Delete by computed vector id, without listing the store (listing may be what failed)."""
+        if not removed or self._vector_store is None or self._text_embeddings is None:
+            return
+        spec = self._text_embeddings.model_spec()
+        tombstones = tuple(
+            VectorTombstone(
+                vector_id=stable_vector_id(vault_id=vault_id, chunk_id=chunk_id, embedding_spec=spec),
+                vault_id=vault_id,
+                chunk_id=chunk_id,
+                embedding_spec=spec,
+            )
+            for vault_id, chunk_id in sorted(removed)
+        )
+        self._vector_store.apply_vector_revision(
+            vector_index_revision=f"vector-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}",
+            records=(),
+            tombstones=tombstones,
+        )
 
     def _chunk_keys(self, paths: tuple[tuple[str, str], ...]) -> set[tuple[str, str]]:
         """(vault_id, chunk_id) of the listed files' current chunks."""
