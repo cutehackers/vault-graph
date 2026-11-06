@@ -47,6 +47,30 @@ class DocumentState:
     extraction_options_digest: str | None = None
 
 
+@dataclass(frozen=True)
+class SourceStat:
+    """What the last read of a Vault file saw: size, mtime and the index code that read it.
+
+    Spec 2026-11-05 §4.3.3: an incremental run skips a file whose current size and mtime equal
+    these and whose ``index_code`` equals the current one.
+    """
+
+    vault_id: str
+    path: str
+    size: int
+    mtime_ns: int
+    index_code: str
+
+
+@runtime_checkable
+class SourceStatStore(Protocol):
+    """Optional metadata store part that keeps ``SourceStat`` rows. Read-only stores return what exists."""
+
+    def list_source_stats(self, vault_ids: tuple[str, ...]) -> dict[tuple[str, str], SourceStat]: ...
+
+    def record_source_stats(self, stats: tuple[SourceStat, ...], *, removed: tuple[tuple[str, str], ...]) -> None: ...
+
+
 EvidenceLookupKey = tuple[str, str, str]
 
 

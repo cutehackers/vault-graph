@@ -12,7 +12,12 @@ from vault_graph.indexing.ingestion.document_authority import DocumentRole
 from vault_graph.indexing.ingestion.document_models import DocumentModelError, SourceLocator
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.operation.scope.vault_catalog import QueryScope
-from vault_graph.storage.interfaces.metadata_store import DocumentState, EvidenceLookupKey, EvidenceReference
+from vault_graph.storage.interfaces.metadata_store import (
+    DocumentState,
+    EvidenceLookupKey,
+    EvidenceReference,
+    SourceStat,
+)
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.local.sqlite_keyword_index import apply_keyword_revision, ensure_keyword_schema
 
@@ -133,6 +138,19 @@ _REQUIRED_CHUNK_COLUMNS = frozenset(
 )
 
 
+# Not in SCHEMA's required tables: an older store without it is still compatible and is read in full once.
+_SOURCE_STATS_TABLE = """
+CREATE TABLE IF NOT EXISTS document_source_stats (
+  vault_id TEXT NOT NULL,
+  path TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  mtime_ns INTEGER NOT NULL,
+  index_code TEXT NOT NULL,
+  PRIMARY KEY (vault_id, path)
+)
+"""
+
+
 class SQLiteMetadataStore:
     def __init__(self, database_path: Path, *, initialize: bool = False) -> None:
         self._database_path = database_path.expanduser().resolve()
@@ -141,6 +159,7 @@ class SQLiteMetadataStore:
             self._database_path.parent.mkdir(parents=True, exist_ok=True)
             with self._connect() as connection:
                 connection.executescript(SCHEMA)
+                connection.execute(_SOURCE_STATS_TABLE)
                 _upgrade_schema(connection)
                 ensure_keyword_schema(connection)
 
@@ -671,6 +690,50 @@ class SQLiteMetadataStore:
                 """
             ).fetchall()
         return tuple(asdict(_document_snapshot_from_row(row)) for row in rows)
+
+    def list_source_stats(self, vault_ids: tuple[str, ...]) -> dict[tuple[str, str], SourceStat]:
+        """Recorded file stats. Empty when the store or its stats table (added 2026-11) does not exist."""
+        if not vault_ids or not self._database_path.exists():
+            return {}
+        placeholders = ", ".join("?" for _ in vault_ids)
+        with self._connect() as connection:
+            try:
+                found = connection.execute(
+                    "SELECT vault_id, path, size, mtime_ns, index_code FROM document_source_stats "
+                    f"WHERE vault_id IN ({placeholders})",
+                    vault_ids,
+                ).fetchall()
+            except sqlite3.OperationalError:
+                return {}
+        return {
+            (str(row["vault_id"]), str(row["path"])): SourceStat(
+                vault_id=str(row["vault_id"]),
+                path=str(row["path"]),
+                size=int(row["size"]),
+                mtime_ns=int(row["mtime_ns"]),
+                index_code=str(row["index_code"]),
+            )
+            for row in found
+        }
+
+    def record_source_stats(self, stats: tuple[SourceStat, ...], *, removed: tuple[tuple[str, str], ...]) -> None:
+        if not stats and not removed:
+            return
+        with self._connect() as connection:
+            connection.execute(_SOURCE_STATS_TABLE)
+            connection.executemany(
+                "DELETE FROM document_source_stats WHERE vault_id = ? AND path = ?",
+                removed,
+            )
+            connection.executemany(
+                """
+                INSERT INTO document_source_stats (vault_id, path, size, mtime_ns, index_code)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(vault_id, path) DO UPDATE SET
+                  size = excluded.size, mtime_ns = excluded.mtime_ns, index_code = excluded.index_code
+                """,
+                [(stat.vault_id, stat.path, stat.size, stat.mtime_ns, stat.index_code) for stat in stats],
+            )
 
     def connect_for_tests(self) -> sqlite3.Connection:
         return self._connect()
