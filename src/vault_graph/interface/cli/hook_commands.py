@@ -51,7 +51,7 @@ from vault_graph.interface.composition.recall_index_refresh import (
     refresh_linked_vaults,
     vectors_need_catch_up,
 )
-from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, vault_map_path
+from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, open_vault_map, vault_map_path
 
 COMMAND = "vg hook session-start"
 CAPTURE_COMMAND = "vg hook capture"
@@ -116,6 +116,8 @@ def session_start(
         cwd, source, session_id = _read_hook_input(sys.stdin.read())
         factory = ReadOnlyServiceFactory(graph_home_path=state)
         map_path = vault_map_path(vault_map)
+        for notice in _sharable_notices(cwd, map_path):
+            typer.echo(f"{COMMAND}: notice: {notice}", err=True)
         ports = factory.open_session_recall(vault_map_path=map_path)
         try:
             refresh = refresh_linked_vaults(
@@ -147,6 +149,18 @@ def session_start(
     if bundle.text:
         typer.echo(bundle.text, nl=False)
     _warn_vector_failures(state)
+
+
+def _sharable_notices(cwd: Path, map_path: Path) -> tuple[str, ...]:
+    """Setup lines for this project's Vaults that are linked to several projects and lack ``sharable``.
+
+    A missing or damaged map gives none: recall reports the damage itself (spec 2026-11-05 §4.4.2).
+    """
+
+    vault_map = open_vault_map(map_path).vault_map
+    if vault_map is None:
+        return ()
+    return vault_map.sharable_notices(vault.name for vault in vault_map.vaults_for(cwd))
 
 
 def _warn_vector_failures(graph_home: Path) -> None:

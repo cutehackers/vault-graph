@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import datetime
 
 from vault_graph.context.memory.decision_memory import DecisionMemoryService
@@ -19,6 +20,7 @@ from vault_graph.context.memory.memory_models import (
 from vault_graph.context.memory.memory_request_context import (
     MemoryRequestContext,
     MemoryStatusService,
+    MemoryVaultDocuments,
     build_memory_request_context,
 )
 from vault_graph.context.memory.memory_source_reader import (
@@ -26,6 +28,7 @@ from vault_graph.context.memory.memory_source_reader import (
     MemorySourceReader,
     document_resource_kinds_for_document,
 )
+from vault_graph.context.memory.project_scope import UNMAPPED_VAULT_SCOPE, VaultProjectScope, page_in_project
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
@@ -63,7 +66,15 @@ class ProjectMemoryService:
         *,
         requested_scope: QueryScope,
         limit: int = 10,
+        project_id: str | None = None,
+        vault_scopes: Mapping[str, VaultProjectScope] | None = None,
     ) -> ProjectMemoryProjection:
+        """Summarize project memory. With ``vault_scopes`` only pages of ``project_id`` count.
+
+        The pages are chosen by ``page_in_project`` (spec 2026-11-05 §4.4.2). A Vault missing from
+        ``vault_scopes`` is treated as linked to this project only. Without ``vault_scopes`` every
+        page of the requested scope counts.
+        """
         _validate_limit(limit)
         context = build_memory_request_context(
             catalog=self._catalog,
@@ -72,6 +83,8 @@ class ProjectMemoryService:
             requested_scope=requested_scope,
             clock=self._clock,
         )
+        if vault_scopes is not None:
+            context = _in_project_context(context, project_id=project_id, vault_scopes=vault_scopes)
         decisions = self._decision_service._list_decisions_from_context(
             context=context,
             include_graph=False,
@@ -222,6 +235,30 @@ class ProjectMemoryService:
                 preferred_chunk_ids=matched_chunk_ids,
             )
         return initial
+
+
+def _in_project_context(
+    context: MemoryRequestContext, *, project_id: str | None, vault_scopes: Mapping[str, VaultProjectScope]
+) -> MemoryRequestContext:
+    return replace(
+        context,
+        documents_by_vault=tuple(
+            MemoryVaultDocuments(
+                vault_id=group.vault_id,
+                scope=group.scope,
+                documents=tuple(
+                    document
+                    for document in group.documents
+                    if page_in_project(
+                        document.frontmatter,
+                        project_id,
+                        vault_scope=vault_scopes.get(group.vault_id, UNMAPPED_VAULT_SCOPE),
+                    )
+                ),
+            )
+            for group in context.documents_by_vault
+        ),
+    )
 
 
 def _project_matches(document: DocumentSnapshot) -> dict[MemoryItemKind, MemoryClaimStatus]:

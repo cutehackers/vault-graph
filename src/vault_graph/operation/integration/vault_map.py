@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -32,6 +32,10 @@ STAGE_NAME = "name"
 
 VaultMapState = Literal["loaded", "missing", "invalid"]
 
+# How to set ``sharable`` until vault-builder ships its set command (요청S4). Confirm in task #16.
+SHARABLE_SETUP_HOW = "vault-map.json의 vaults.{name}.sharable에 true 또는 false를 적는다"
+SHARABLE_NOTICE = "`{name}`의 `sharable`이 설정되지 않아 false로 다룸. 설정 방법: {how}"
+
 
 class VaultMapError(ValueError):
     """The file is missing, is not version 2, or does not have the version 2 shape."""
@@ -46,10 +50,24 @@ class MappedProject:
     default_write_vault: str | None = None
 
 
+@dataclass(frozen=True)
+class MappedVaultScope:
+    """The projects linking one Vault and its ``sharable`` value (spec 2026-11-05 §4.4.2).
+
+    It has the shape of the memory views ``VaultProjectScope``. ``sharable`` is False when the
+    field is absent or not a boolean.
+    """
+
+    linked_projects: frozenset[str]
+    sharable: bool
+
+
 class VaultMap(VaultMapReader):
     """Read-only view of one ``vault-map.json`` version 2 file.
 
     ``warnings`` lists optional fields that were ignored because their value was unusable.
+    ``sharable`` holds the Vaults that have a ``sharable`` field: its value, or None when the
+    value is not a boolean and was ignored.
     """
 
     def __init__(
@@ -60,12 +78,32 @@ class VaultMap(VaultMapReader):
         vaults: tuple[MappedVault, ...],
         projects: tuple[MappedProject, ...],
         warnings: tuple[str, ...] = (),
+        sharable: Mapping[str, bool | None] | None = None,
     ) -> None:
         self.path = path
         self.version = version
         self._vaults = vaults
         self._projects = {project.project_id: project for project in projects}
         self.warnings = warnings
+        self._sharable = dict(sharable or {})
+
+    def project_scope(self, vault_name: str) -> MappedVaultScope:
+        """The projects linking ``vault_name`` and its ``sharable`` value. Unknown names have no links."""
+        linked = frozenset(pid for pid, project in self._projects.items() if vault_name in project.vault_names)
+        return MappedVaultScope(linked_projects=linked, sharable=self._sharable.get(vault_name) is True)
+
+    def sharable_notices(self, vault_names: Iterable[str] | None = None) -> tuple[str, ...]:
+        """One setup line per Vault linked to two or more projects whose ``sharable`` field is absent.
+
+        A Vault linked to one project never reads ``sharable``, so it gets no line. A non-boolean
+        value is reported in ``warnings`` instead. ``vault_names`` limits the Vaults checked.
+        """
+        names = sorted({vault.name for vault in self._vaults} if vault_names is None else set(vault_names))
+        return tuple(
+            SHARABLE_NOTICE.format(name=name, how=SHARABLE_SETUP_HOW.format(name=name))
+            for name in names
+            if name not in self._sharable and len(self.project_scope(name).linked_projects) >= 2
+        )
 
     @property
     def vaults(self) -> tuple[MappedVault, ...]:
@@ -178,6 +216,17 @@ def load_vault_map(path: Path) -> VaultMap:
     )
     vault_names = {vault.name for vault in vaults}
     warnings: list[str] = []
+    sharable: dict[str, bool | None] = {}
+    for name, entry in sorted(data["vaults"].items()):
+        if "sharable" not in entry:
+            continue
+        value = entry["sharable"]
+        if isinstance(value, bool):
+            sharable[name] = value
+        else:
+            # A bad value drops only this field and reads as false (spec 2026-11-05 §6).
+            sharable[name] = None
+            warnings.append(f"Vault map {path}: vault {name} sharable is not a boolean. The field is ignored (false).")
     projects = []
     for project_id, entry in data["projects"].items():
         default_write_vault, warning = _default_write_vault(project_id, entry, vault_names)
@@ -193,7 +242,12 @@ def load_vault_map(path: Path) -> VaultMap:
             )
         )
     return VaultMap(
-        path=path, version=data["version"], vaults=vaults, projects=tuple(projects), warnings=tuple(warnings)
+        path=path,
+        version=data["version"],
+        vaults=vaults,
+        projects=tuple(projects),
+        warnings=tuple(warnings),
+        sharable=sharable,
     )
 
 
@@ -312,7 +366,10 @@ __all__ = [
     "VAULT_MAP_VERSION",
     "MappedProject",
     "MappedProjectMatch",
+    "SHARABLE_NOTICE",
+    "SHARABLE_SETUP_HOW",
     "MappedVault",
+    "MappedVaultScope",
     "VaultMap",
     "VaultMapError",
     "VaultMapOpening",

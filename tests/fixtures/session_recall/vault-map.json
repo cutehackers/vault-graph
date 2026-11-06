@@ -1,7 +1,7 @@
 {
   "version": 2,
   "vaults": {
-    "main": {"path": "{base}/vaults/main", "role": "personal"},
+    "main": {"path": "{base}/vaults/main", "role": "personal", "sharable": true},
     "other": {"path": "{base}/vaults/other", "role": "team"},
     "ghost": {"path": "{base}/vaults/ghost", "role": "team"}
   },

@@ -1223,3 +1223,25 @@ def test_an_unreadable_duration_record_does_not_block_the_quick_refresh(base: Pa
     assert result.exit_code == 0, result.output
     assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
     assert result.stderr == ""
+
+
+def test_untagged_page_of_a_shared_vault_that_is_not_sharable_is_searchable_but_not_recalled(
+    base: Path, graph_home: Path
+) -> None:
+    """A-20: `main` is linked to two projects. With `sharable` false its pages without `project` leave recall."""
+    data = json.loads((base / "map" / "vault-map.json").read_text(encoding="utf-8"))
+    data["vaults"]["main"]["sharable"] = False
+    not_sharable = base / "map" / "not-sharable.json"
+    not_sharable.write_text(json.dumps(data), encoding="utf-8")
+
+    shared = hook(graph_home, base)
+    narrowed = hook(graph_home, base, vault_map=not_sharable)
+    search = runner.invoke(app, ["search", "--graph-home", str(graph_home), "--vault-id", "main", "Use SQLite"])
+
+    assert shared.exit_code == 0, shared.output
+    assert "Use SQLite" in shared.stdout
+    assert narrowed.exit_code == 0, narrowed.output
+    assert "Use SQLite" not in narrowed.stdout
+    assert "Alpha flow" in narrowed.stdout  # tagged `project: alpha`, so rule 1 keeps it
+    assert search.exit_code == 0, search.output
+    assert "wiki/decisions/use-sqlite.md" in search.stdout
