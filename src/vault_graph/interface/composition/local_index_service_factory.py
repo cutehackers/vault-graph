@@ -8,7 +8,7 @@ from pathlib import Path
 
 from vector_index.indexing import DEFAULT_TOKEN_BUDGET
 
-from vault_graph.errors import GraphStoreError, VectorStoreError
+from vault_graph.errors import GraphStoreError, ReadOnlyBoundaryError, VectorStoreError
 from vault_graph.indexing.index_service import IndexRunReport, IndexService
 from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION
 from vault_graph.indexing.publication.projection_generation import (
@@ -18,6 +18,8 @@ from vault_graph.indexing.publication.projection_generation import (
     ProjectionLayout,
 )
 from vault_graph.indexing.vector_index_adapter import VectorApplyResult, embedding_key_for_text
+from vault_graph.interface.composition.adapters.auto_memory_reader import default_managed_settings_path
+from vault_graph.interface.composition.adapters.memory_scan_runner import scan_linked_vaults
 from vault_graph.interface.composition.adapters.text_embeddings import (
     FastEmbedTextEmbeddings,
     text_embeddings_for,
@@ -31,6 +33,7 @@ from vault_graph.interface.composition.graph_store_factory import (
 )
 from vault_graph.operation.diagnostics.index_status_reader import IndexStatusReader
 from vault_graph.operation.diagnostics.projection_hygiene_service import ProjectionHygieneService
+from vault_graph.operation.integration.vault_map import vault_map_path
 from vault_graph.operation.readiness.graph_readiness_service import ReadOnlyGraphReadiness
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.embedding_selection import load_embedding_selection
@@ -76,6 +79,9 @@ class LocalIndexServiceBundle:
     projection_committed: bool = False
     # Present for writable runs. Pruned to the published generation's vectors (spec 4.3.5).
     embedding_cache: CachedTextEmbeddings | None = None
+    # Only `vg index` (and the session start catch-up, which runs it) sets this. The session
+    # start quick refresh, MCP background index and watch publish without the Vault subprocess.
+    scan_auto_memory: bool = False
 
     def commit_projection(self, report: IndexRunReport | None = None) -> ProjectionCommitResult:
         result = ProjectionCommitResult()
@@ -126,8 +132,33 @@ class LocalIndexServiceBundle:
             )
             if isinstance(report.vector, VectorApplyResult) and not report.vector.failed:
                 self._prune_embedding_cache()
+            if self.scan_auto_memory:
+                self._scan_auto_memory(report)
         self.projection_committed = True
         return result
+
+    def _scan_auto_memory(self, report: IndexRunReport) -> None:
+        """Run the read-only Vault ``memory-scan`` for the indexed Vaults (spec 2026-11-05 §4.4.5).
+
+        Each problem is one warning line. A failure here never undoes the publish.
+        """
+        try:
+            vaults = [(vault_id, self.catalog.resolve(vault_id).root_path) for vault_id in report.metadata.vault_ids]
+            outcomes = scan_linked_vaults(
+                vaults,
+                vault_map_path=vault_map_path(),
+                graph_home=self.catalog_service.graph_home_path,
+                managed_settings_path=default_managed_settings_path(),
+                check_write_target=lambda path: self.catalog_service.assert_graph_home_write_target_safe(
+                    target_path=path, catalog=self.catalog
+                ),
+            )
+        except (OSError, ValueError, ReadOnlyBoundaryError) as exc:
+            print(f"vault-graph: warning: memory-scan was skipped: {exc}", file=sys.stderr)
+            return
+        for outcome in outcomes:
+            if outcome.warning is not None:
+                print(f"vault-graph: warning: {outcome.warning}", file=sys.stderr)
 
     def _prune_embedding_cache(self) -> None:
         """Keep only keys of vectors in the published generation. A failure here never undoes the publish."""

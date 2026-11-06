@@ -633,6 +633,7 @@ def index(
         )
     )
     _, catalog, service = bundle.catalog_service, bundle.catalog, bundle.index_service
+    bundle.scan_auto_memory = True
     committed: ProjectionCommitResult | None = None
     try:
         report = (

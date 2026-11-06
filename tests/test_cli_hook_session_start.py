@@ -1262,3 +1262,21 @@ def test_quick_refresh_drops_keep_the_vector_manifest_table_in_step(base: Path, 
     store = manifest_tracked(ChromaVectorStore(vector_path, initialize=False), vector_path)
     read = store.manifest_rows(("main",))  # type: ignore[attr-defined]
     assert read.warnings == ()
+
+
+def test_only_vg_index_runs_memory_scan_not_the_session_start_refresh(
+    base: Path, graph_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The quick refresh has a 5 s budget, so it publishes without the Vault subprocess (spec 2026-11-05 §4.4.5)."""
+    from vault_graph.interface.composition import local_index_service_factory
+
+    calls: list[object] = []
+    monkeypatch.setattr(local_index_service_factory, "scan_linked_vaults", lambda *a, **k: calls.append(a) or ())
+
+    reindex(graph_home)
+    assert len(calls) == 1
+
+    write_page(base / "vaults" / "main", "wiki/notes/fresh-scan.md", "type: note\nstatus: active\n", "Fresh scan")
+    result = hook(graph_home, base)
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
