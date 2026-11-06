@@ -210,7 +210,6 @@ def _score(question: Question, *, graph_home: Path, vault_id: str | None) -> Que
         "-c",
         "from vault_graph.interface.cli.main import app; app()",
         "search",
-        question.text,
         "--graph-home",
         str(graph_home),
         "--format",
@@ -223,6 +222,8 @@ def _score(question: Question, *, graph_home: Path, vault_id: str | None) -> Que
     ]
     if vault_id is not None:
         command += ["--vault-id", vault_id]
+    # After `--` so a question that starts with "-" is not read as an option.
+    command += ["--", question.text]
     started = time.monotonic()
     try:
         completed = subprocess.run(
