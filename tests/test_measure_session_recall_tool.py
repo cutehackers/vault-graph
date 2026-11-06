@@ -92,7 +92,7 @@ def test_runs_vg_search_as_a_subprocess_and_writes_totals_only(tmp_path: Path, m
         json.dumps(
             {
                 "id": "parser",
-                "question": "parser drop last token quoted string",
+                "question": "-- parser drop last token quoted string",
                 "expected_exchanges": [f"{PARSER_SESSION} L{start}-L{len(lines)}"],
                 "kind": "error",
             }
