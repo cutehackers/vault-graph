@@ -2,7 +2,10 @@
 
 Exports agent sessions to a folder the user chose outside every Vault: a byte copy of the source
 files under ``raw/`` and the ``vg-session-jsonl/1`` file under ``normalized/``. Codex has no adapter
-until backlog B-1. ``--recapture`` belongs to S6 and is not offered here.
+until backlog B-1. ``--recapture`` then runs the Vault hook launcher next to ``vault-map.json`` with
+``capture --direct --normalized <file> --rerender`` for each exported session (spec §4.2.4, §4.2.12-4).
+The launcher chooses the Vault. A launcher without ``--normalized`` (exit code 2) is an error here:
+there is no v1 fallback for a migration.
 """
 
 from __future__ import annotations
@@ -14,7 +17,12 @@ from typing import NoReturn
 import typer
 
 from vault_graph.errors import VaultGraphError
+from vault_graph.interface.composition.adapters.session_capture_runner import (
+    UNKNOWN_OPTION_EXIT_CODE,
+    recapture_session,
+)
 from vault_graph.interface.composition.adapters.session_export_files import (
+    ClaudeCodeSession,
     claude_config_dir,
     export_claude_code_session,
     find_claude_code_sessions,
@@ -23,6 +31,7 @@ from vault_graph.interface.composition.adapters.session_export_files import (
     valid_session_id,
     vault_containing,
 )
+from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME
 from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.session_export_settings import SESSION_EXPORT_AGENTS
@@ -40,6 +49,12 @@ _SINCE_OPTION = typer.Option(
 )
 _ALL_OPTION = typer.Option(False, "--all", help="Export every session.")
 _RAW_OPTION = typer.Option(True, "--raw/--no-raw", help="Also copy the source files byte for byte, unredacted.")
+_RECAPTURE_OPTION = typer.Option(
+    False,
+    "--recapture",
+    help=f"After each export, run {LAUNCHER_NAME} capture --direct --normalized <file> --rerender "
+    "so the Vault writes the session again as v2 parts. For migrating sessions whose source still exists.",
+)
 _GRAPH_HOME_OPTION = typer.Option(Path.home() / ".vault-graph", "--graph-home", help="Vault Graph Data Home path.")
 _VAULT_MAP_OPTION = typer.Option(
     None, "--vault-map", help="vault-map.json path. Defaults to $VAULT_GRAPH_VAULT_MAP, then the vault-builder path."
@@ -54,6 +69,7 @@ def export(
     since: str | None = _SINCE_OPTION,
     export_all: bool = _ALL_OPTION,
     raw: bool = _RAW_OPTION,
+    recapture: bool = _RECAPTURE_OPTION,
     state: Path = _GRAPH_HOME_OPTION,
     vault_map: Path | None = _VAULT_MAP_OPTION,
 ) -> None:
@@ -83,6 +99,8 @@ def export(
     if session is not None and not selected:
         _fail(f"session_not_found: {session} under {claude_config_dir() / 'projects'}")
 
+    launcher = vault_map_path(vault_map).parent / LAUNCHER_NAME
+    recapture_failures = 0
     for item in selected:
         try:
             result = export_claude_code_session(item, target, raw=raw)
@@ -94,7 +112,28 @@ def export(
             f"raw_written={result.raw_files_written} raw_unchanged={result.raw_files_unchanged} "
             f"invalid_lines={result.invalid_lines} unknown_record_types={unknown}"
         )
+        if recapture and not _recapture(item, result.normalized_path, launcher):
+            recapture_failures += 1
     typer.echo(f"exported_sessions: {len(selected)} out: {target}")
+    if recapture_failures:
+        _fail(f"recapture_failed_sessions: {recapture_failures}")
+
+
+def _recapture(session: ClaudeCodeSession, normalized: Path, launcher: Path) -> bool:
+    """Run the launcher with ``--rerender`` for one exported session. False when it did not finish."""
+    outcome = recapture_session(session, normalized, launcher=launcher)
+    if outcome.stderr:
+        typer.echo(outcome.stderr, err=True, nl=not outcome.stderr.endswith("\n"))
+    if not outcome.finished:
+        reason = outcome.problem or "launcher did not finish."
+        if outcome.exit_code == UNKNOWN_OPTION_EXIT_CODE:
+            reason = f"{reason} The launcher or Vault tool does not support --normalized yet."
+        typer.echo(f"recapture_failed: {session.session_id}: {reason}", err=True)
+        return False
+    typer.echo(
+        f"{session.session_id} recapture={outcome.status} vault={outcome.vault or '-'} path={outcome.path or '-'}"
+    )
+    return True
 
 
 def _vault_roots(state: Path, explicit_map: Path | None) -> list[Path]:
