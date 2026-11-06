@@ -133,5 +133,7 @@ def test_setup_help_names_no_index_and_the_index_command() -> None:
     result = runner.invoke(app, ["setup", "--help"], env={"COLUMNS": "200", "TERM": "dumb"})
 
     assert result.exit_code == 0, result.output
-    assert "--no-index" in result.stdout
-    assert "vg index --all-vaults" in result.stdout
+    # CI forces an 80-column help box, which wraps the text across bordered lines.
+    help_text = " ".join(result.stdout.replace("│", " ").split())
+    assert "--no-index" in help_text
+    assert "vg index --all-vaults" in help_text
