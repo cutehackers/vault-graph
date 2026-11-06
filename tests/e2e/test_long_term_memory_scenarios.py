@@ -355,9 +355,15 @@ def test_a4_session_transcript_is_saved_when_the_session_ends(world: MemoryWorld
     assert len(second_files) == 2
     assert any("Remember that tags are signed." in path.read_text(encoding="utf-8") for path in second_files)
 
+    # v2 parts hold closed exchanges only (spec 2026-11-05 §4.2.5): at PreCompact the session goes on,
+    # so its only exchange is still open and waits; SessionEnd closes and writes it.
     compact = world.capture("PreCompact", "a4-session-three", "Remember that builds run nightly.")
     assert compact.returncode == 0, compact.stderr
-    assert "vg hook capture: status=written vault=proj" in compact.stderr
+    assert "vg hook capture: status=no-new-turns vault=proj" in compact.stderr
+    assert len([path for path in session_files(sessions) if path not in template_files]) == 2
+    ended = world.capture("SessionEnd", "a4-session-three", "Remember that builds run nightly.")
+    assert ended.returncode == 0, ended.stderr
+    assert "vg hook capture: status=written vault=proj" in ended.stderr
     third_files = [path for path in session_files(sessions) if path not in template_files]
     assert len(third_files) == 3
     assert any("Remember that builds run nightly." in path.read_text(encoding="utf-8") for path in third_files)

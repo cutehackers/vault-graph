@@ -595,16 +595,29 @@ def test_no_backlog_line_without_candidates(base: Path, graph_home: Path) -> Non
     assert "정리 대기" not in result.stdout
 
 
-def test_missing_l1_folder_leaves_the_l1_count_out_with_one_warning(base: Path, graph_home: Path) -> None:
+def test_missing_l1_folder_gives_no_warning(base: Path, graph_home: Path) -> None:
+    """A project where Claude Code saved no auto memory has no folder; session start stays quiet."""
     shutil.rmtree(l1_folder(base, "alpha"))
 
     result = hook(graph_home, base)
 
     assert result.exit_code == 0, result.output
+    assert "L1 memory folder" not in result.stderr
+
+
+def test_unreadable_l1_folder_leaves_the_l1_count_out_with_one_warning(base: Path, graph_home: Path) -> None:
+    folder = l1_folder(base, "alpha")
+    folder.chmod(0)
+    try:
+        result = hook(graph_home, base)
+    finally:
+        folder.chmod(0o755)
+
+    assert result.exit_code == 0, result.output
     assert "L1 노트" not in result.stdout
     warnings = [line for line in result.stderr.splitlines() if "L1 memory folder" in line]
     assert len(warnings) == 1
-    assert "does not exist" in warnings[0]
+    assert "cannot be read" in warnings[0]
 
 
 def test_unknown_memory_schema_warns_once_on_stderr(base: Path, graph_home: Path) -> None:
@@ -1375,6 +1388,7 @@ def test_only_vg_index_runs_memory_scan_not_the_session_start_refresh(
     from vault_graph.interface.composition import local_index_service_factory
 
     calls: list[object] = []
+
     def record_scan(*args: object, **_: object) -> tuple[()]:
         calls.append(args)
         return ()
