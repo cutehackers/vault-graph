@@ -785,6 +785,8 @@ source of truth.
 
 ## 2026-11-02 - Leave Retired Pages Out Of Default Search As An INV-05 Exception
 
+**Current note:** `2026-11-06 - Find Retired Memories With include_retired And Restore Them` added the option to include retired pages. Default search is unchanged.
+
 **Question:** Should default search still return pages whose frontmatter status is `retired` (spec `docs/specs/2026-11-02-vault-long-term-memory/spec.md` decision S14, question 3)?
 
 **Decision:** No. Default search drops results from pages with status `retired`. Pages with status `deprecated` stay in results as before. This is an accepted exception to VG-MOD INV-05, which otherwise keeps search scores and order unchanged.
@@ -882,3 +884,93 @@ source of truth.
 - The README install command is the Vault Graph one. vault-builder alone is installed with its own command.
 - `vg setup` hook warnings name `VAULT_GRAPH_BIN=<this vg> vault-builder setup` as the fix, because `vault-builder setup` no longer installs `vg`.
 - vault-builder must ship its change (no `vg` install, `--without-vault-graph` removed) before this install command is used. Otherwise vault-builder setup installs `vg` from `main` a second time.
+
+## 2026-11-06 - Export Agent Sessions Through Per-Agent Adapters To A Common Format
+
+**Question:** Claude Code deletes session transcripts after 30 days, and Vault session files are markdown written from them. Should Vault Graph keep the transcripts, and in what format (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §9.1 questions 1 and 2)?
+
+**Decision:** The user decided that `vg session export` writes the source copy and a normalized file to a user-chosen path outside every Vault, and that one adapter per agent converts to a common format. The Claude Code adapter is implemented; the Codex adapter has a contract only (backlog B-1). With the final spec approval the user also accepted decisions 7, 8, 9 and 18: the common format has two layers, the machine format `vg-session-jsonl/1` outside the Vault and the `vault-session/v2` markdown that the Vault tool renders from it (`sessions capture --normalized`, request S10). Human turns, tool targets and success come from source record fields, not text heuristics. The adapter code is the new feature area M19 `operation/sessions/`, which imports only M01.
+
+**Reason:** JSONL loses the least and parses easily, while the markdown keeps the current reader, FTS and line locators. The Vault tool keeps owning the markdown format, so sessions captured without Vault Graph look the same. Vault Graph still never writes Vault files.
+
+**Implications:** `vg hook capture` now decides which normalized file it passes as well as when it runs (boundary sentence 5). With Graph Home `configs/session-export.json` every capture also exports. The format is fixed in `docs/contracts/vg-session-jsonl-v1.md`. `docs/SPEC.md` §9.2 B-1 holds the Codex work.
+
+## 2026-11-06 - Chunk Session Files By Exchange
+
+**Question:** Session files were cut by the general block chunker, so tool-only turns filled results and one exchange spread over many chunks. How should session files be chunked and returned (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §5.2, §9.3 question 11)?
+
+**Decision:** Accepted with the final spec approval (decisions 10 to 17, 41 and 42). Session files are cut into non-overlapping windows of at most 160 whitespace tokens inside one exchange (`session-exchange-v2`, and `session-exchange-v1` for old files). A v2 chunk id comes from session id, exchange id, agent scope and window number, not the file path. Exchange meta (files, commands, tools, errors, outcome) goes only to the keyword row's `frontmatter` column. Search finds windows and returns one result per exchange with the whole exchange line range. The chunker owns its embedding input. Subagent exchanges are chunked separately with the same score. The user decided that when v1 and v2 files of one session overlap, Vault Graph leaves the overlapping v1 exchanges out of the index only and does not touch Vault files (question 11). Part numbers and cursors stay with the Vault tool, and incremental runs re-plan every file of one session group and provenance family.
+
+**Reason:** A question and its answer land in one result, keyword hits on tool names disappear, and chunk ids survive renderer and model changes. Re-planning whole groups keeps incremental results equal to a full run.
+
+**Implications:** Session evidence ids changed once, so session citations in answers made before the switch do not reopen. Session recall is measured per exchange (`tests/benchmarks/measure_session_recall.py`); measurement 1 is only a regression check. Implementation changes to the spec text are in `docs/PATCH_LOG.md` `2026-11-06 - Align Session Memory Implementation With Spec Text`.
+
+## 2026-11-06 - Fix The Five Indexing Slowdowns At Their Causes
+
+**Question:** Indexing re-embedded whole documents, repeated failed background runs and used up to 21 GB of memory. Should Vault Graph speed it up, and should the embedding model change (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §5.1, §5.3, §9.1 question 5)?
+
+**Decision:** The user decided to fix all five causes at their source, to fix the background failure first, and to keep `e5-small` (model choice is outside this spec). With the final spec approval the user accepted decisions 19 to 23: compare the embedding key and the metadata fingerprint separately and update metadata only when only it changed; keep the vector list table inside the generation and the embedding cache outside it; hold back vector retries for the same error for 1, 2, 4 up to 24 hours without blocking metadata and graph; cut embedding batches by a token budget (default 16,384); update the graph per changed document as the last code step.
+
+**Reason:** Vector values do not depend on revision or role metadata. A generation must roll back with its table, but computed vectors should survive a rebuilt generation. An error that does not clear by itself must not rewrite a generation at every session start.
+
+**Implications:** Graph Home gains `cache/embeddings.sqlite3` and `logs/vector-index-failures.json` (`docs/SPEC.md` §4). The ONNX memory arena stays on by default because turning it off was 23% slower (`docs/design/reports/2026-11-embedding-memory.md`).
+
+## 2026-11-06 - Move L1, L2 And L3 Memory Management To Vault Graph
+
+**Question:** Memory cleanup was split between Claude Code auto-memory (L1), Vault pages (L2), vault-builder skills and Vault Graph recall. Who should manage memory (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §5.4, §9.1 questions 3 and 6)?
+
+**Decision:** The user decided to move L1, L2 and L3 management to Vault Graph and to keep Vault as the store (ingest, update, query and validation), with no split of duties. Vault Graph reads the L1 folder. With the final spec approval the user accepted decisions 27 to 29, 31, 34 and 35: Vault Graph builds the cleanup bundle deterministically, the agent in the session decides what to add, update, retire or skip, and the Vault tool validates and stores. `basis: stated` only when the evidence quotes the user's own words, and at most 10 `inferred` proposals per cleanup. Retirement is only suggested, never automatic. The user starts a cleanup (`curate_memory`); hooks never clean up. The vault-builder judgment pieces (`memory-cleanup`, the `maps build` project summary, `recall.sh`, `/project-memory`) are frozen and removed in the last step after a person confirms.
+
+**Reason:** Vault Graph calls no LLM and never writes `raw/`, so the judgment stays with the strongest available judge, the agent, while the rules no longer live in vault-builder.
+
+**Implications:** New MCP tools `list_memory_candidates`, `mark_candidates_reviewed`, `import_auto_memory`, `supersede_claim` and `restore_memory` bring the count to 19 (`docs/SPEC.md` §5). A session-start line shows the cleanup backlog. Targets such as the 10-proposal cap and the 180-day age limit for session candidates are checked again in each measurement.
+
+## 2026-11-06 - Scope Recall By Project Links And A Per-Vault Sharable Flag
+
+**Question:** Pages without a `project` field reached the recall of every project linked to their Vault. How should recall decide which pages belong to a project (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §9.1 question 4, §9.3 question 15, review 1)?
+
+**Decision:** The user decided on a per-Vault setting and named it `sharable` (`vault-map.json` `vaults.<name>.sharable`). True puts the Vault's pages without `project` in the session-start memory of every linked project; false leaves them out. A missing field counts as false, and `vg status` and session start show one setup line. Search ignores the setting. With the final spec approval the user accepted decision 40: a page without `project` in a Vault linked to only one project belongs to that project; `sharable` applies only to Vaults linked to two or more projects.
+
+**Reason:** The link data already sits in `vault-map.json`, so no Vault write is needed. Without the one-project rule, project Vaults whose pages lack `project` would recall nothing.
+
+**Implications:** One rule function `page_in_project` serves recall, L3 lists and the cleanup bundle (`docs/SPEC.md` §6-4). `remember` now writes `project` from `cwd`. vault-builder owns the field and its set command (request S4).
+
+## 2026-11-06 - Use Usage And Skip Records Only For Cleanup Suggestions
+
+**Question:** Should recall ranking use when a memory was last opened, and may Graph Home records influence cleanup (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §9.3 question 14)?
+
+**Decision:** The user decided that recall ranking does not use usage records. Usage records and cleanup skip records stay in Graph Home and are used only to pick, order and show cleanup candidates. Whether to write a memory stays with the agent and Vault validation. `docs/SPEC.md` §0 rule 5 records this exception. With the final spec approval the user accepted decision 44: a write tool that receives `candidate_key` records the candidate when the result is `published` or `proposed`, session evidence counts per exchange location, and session candidates older than 180 days are not suggested.
+
+**Reason:** Deleting Graph Home must not change recall. In cleanup it only means seeing an already skipped candidate once more.
+
+**Implications:** Records go to Graph Home `memory/reviewed.jsonl`. A proposal waiting for review does not come back in the next cleanup.
+
+## 2026-11-06 - Keep L3 Lists Computed And The Brief As A Vault Page
+
+**Question:** Where should the project-level summary (L3) live: computed by Vault Graph, or written to the Vault (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §9.3 questions 10 and 13)?
+
+**Decision:** The user left question 10 to the spec, and approved the result. L3 is mixed: the lists of open work, current decisions and corrections or rules are computed from the index at recall and query time and never stored. The brief is one Vault page per project at `wiki/projects/<project>.md` with the new type `project` (user, question 13), written by the agent through `remember(kind="project")` and then `update_memory`. Vault Graph decides when it is stale: 5 or more decisions after the brief. With the final spec approval the user accepted decisions 30 and 33: superseded claim rows are left out of recall and L3 lists, and the 1,500-token recall splits into 400 pinned, 500 L3, 180 notices and the rest for other memories.
+
+**Reason:** Lists can be computed again, and the approved boundary forbids writing machine-made content to a Vault. Only judged knowledge goes to the Vault.
+
+**Implications:** `remember` accepts `kind` `project` (`docs/SPEC.md` §5). The Vault schema change is vault-builder request S9.
+
+## 2026-11-06 - Change The Boundary Sentences For Memory Management
+
+**Question:** Memory management needs Vault Graph to copy auto-memory notes into a Vault, run read-only Vault commands while indexing and choose the normalized session file. The boundary sentences did not allow that (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §4.4.8, §9.3 question 9, §9.4 question 17).
+
+**Decision:** The user approved the seven sentences (question 9) and the three matching sentences in `docs/SPEC.md` §0 rules 2 and 3 and principle 5 (question 17): write path 4 `import-source`, read-only Vault commands during indexing, reading the L1 folder, no machine-made content in a Vault, the capture path choosing the normalized file, the principle 1 addition that the agent decides what to remember, and "Vault works without Vault Graph as a store".
+
+**Reason:** Within one document, boundary rules that disagree make the next implementer follow the narrower one.
+
+**Implications:** The sentences are in `AGENTS.md` Project Boundary and `docs/SPEC.md` (commit `4fc6280`). `docs/ARCHITECTURE.md` §4 lists the four write paths.
+
+## 2026-11-06 - Find Retired Memories With include_retired And Restore Them
+
+**Question:** Retirement only changes frontmatter, but default search always hid retired pages and nothing could undo a retirement. An agent could then save the same fact again. How should retired memories be found and restored (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §4.4.13, review 6, question 16)?
+
+**Decision:** The user confirmed the recommended answer to question 16 with the final spec approval (decision 45). `search_vault` and `vg search` take the optional `include_retired` (default false), and results then carry `status`, `retired_reason`, `retired_at` and `superseded_by`. The cleanup comparison material includes retired pages. The new write tool `restore_memory` sets `status: active` through the existing Vault `patch-page` and keeps the retirement fields as history. With the same approval the user accepted decision 43: the new write tool `supersede_claim` replaces one claim row through the existing `patch-page` `supersede-claim` edit.
+
+**Reason:** A retirement that cannot be undone or seen leads to duplicates. Both tools reuse validated Vault formats, so no new Vault feature is needed.
+
+**Implications:** Default search still leaves out only `retired` pages, as in `2026-11-02 - Leave Retired Pages Out Of Default Search As An INV-05 Exception`. Recall and L3 lists never use the option.
