@@ -1245,3 +1245,18 @@ def test_untagged_page_of_a_shared_vault_that_is_not_sharable_is_searchable_but_
     assert "Alpha flow" in narrowed.stdout  # tagged `project: alpha`, so rule 1 keeps it
     assert search.exit_code == 0, search.output
     assert "wiki/decisions/use-sqlite.md" in search.stdout
+
+
+def test_quick_refresh_drops_keep_the_vector_manifest_table_in_step(base: Path, graph_home: Path) -> None:
+    """Spec 2026-11-05 §4.3.1: vectors dropped by the session start refresh go through the manifest table."""
+    from vault_graph.interface.composition.local_index_service_factory import manifest_tracked
+    from vault_graph.operation.scope.catalog_service import CatalogService
+    from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
+
+    (base / "vaults" / "main" / "wiki" / "decisions" / "use-sqlite.md").unlink()
+    assert hook(graph_home, base).exit_code == 0
+
+    vector_path = CatalogService(graph_home_path=graph_home).vector_path
+    store = manifest_tracked(ChromaVectorStore(vector_path, initialize=False), vector_path)
+    read = store.manifest_rows(("main",))  # type: ignore[attr-defined]
+    assert read.warnings == ()

@@ -37,10 +37,17 @@ from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.graph.graph_contracts import current_graph_extraction_spec
 from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.interfaces.text_embeddings import EmbeddingModelSpec
-from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
+from vault_graph.storage.interfaces.vector_store import VectorStore
+from vault_graph.storage.local.chroma_vector_store import CHROMA_BACKEND, COLLECTION_PREFIX, ChromaVectorStore
 from vault_graph.storage.local.graph_status_store import LocalGraphStatusStore
 from vault_graph.storage.local.sqlite_graph_store import SQLiteGraphStore
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+from vault_graph.storage.local.sqlite_vector_manifest_store import (
+    ChromaSQLiteListing,
+    ManifestTrackedVectorStore,
+    SQLiteVectorManifestStore,
+    manifest_path_for_vector_path,
+)
 from vault_graph.storage.local.vector_status_store import LocalVectorStatusStore
 
 
@@ -186,10 +193,14 @@ class LocalIndexServiceFactory:
                 _bootstrap_document_graph(graph_store, catalog_service, catalog)
             if initialize_store and (selected_backend == "document" or graph_backend is not None):
                 write_graph_backend_selection(catalog_service, selected_backend)
-            vector_store = ChromaVectorStore(
+            chroma_store = ChromaVectorStore(
                 catalog_service.vector_path,
                 initialize=initialize_store,
                 read_only=not initialize_store,
+            )
+            # Writable runs keep `vector/manifest.sqlite3` in step, so the plan never lists Chroma.
+            vector_store: VectorStore = (
+                manifest_tracked(chroma_store, catalog_service.vector_path) if initialize_store else chroma_store
             )
             vector_status_store = LocalVectorStatusStore(catalog_service.vector_status_path)
             graph_status_store = LocalGraphStatusStore(catalog_service.graph_status_path)
@@ -491,4 +502,15 @@ def open_projection_hygiene_service(catalog_service: CatalogService) -> Projecti
         graph_path=catalog_service.graph_path,
         graph_store=graph_store,
         document_evidence_refs=graph_store if isinstance(graph_store, DocumentGraphStore) else None,
+    )
+
+
+def manifest_tracked(chroma_store: VectorStore, vector_path: Path) -> VectorStore:
+    """Wrap a writable Chroma store so `vector/manifest.sqlite3` follows each successful write."""
+
+    return ManifestTrackedVectorStore(
+        chroma_store,
+        manifest=SQLiteVectorManifestStore(manifest_path_for_vector_path(vector_path)),
+        listing=ChromaSQLiteListing(vector_path, collection_prefix=COLLECTION_PREFIX, backend=CHROMA_BACKEND),
+        backend=CHROMA_BACKEND,
     )

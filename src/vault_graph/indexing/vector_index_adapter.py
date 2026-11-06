@@ -24,6 +24,7 @@ from vault_graph.storage.interfaces.text_embeddings import (
     EmbeddingVector,
     TextEmbeddings,
 )
+from vault_graph.storage.interfaces.vector_manifest_store import VectorManifestSource
 from vault_graph.storage.interfaces.vector_store import (
     VectorEmbeddingRecord,
     VectorManifestRecord,
@@ -132,7 +133,8 @@ class VectorIndexer:
         backend_health = self._vector_store.health()
         backend_schema_version = backend_health.schema_version
         desired_chunks = _unique_chunks(_chunks_for_scopes(chunk_store=self._chunk_store, scopes=scopes))
-        current_rows = _unique_manifest_rows(_manifest_for_scopes(vector_store=self._vector_store, scopes=scopes))
+        manifest_rows, manifest_warnings = _manifest_for_scopes(vector_store=self._vector_store, scopes=scopes)
+        current_rows = _unique_manifest_rows(manifest_rows)
         desired = tuple(
             IndexItem(
                 chunk.vault_id,
@@ -171,7 +173,8 @@ class VectorIndexer:
         ]
         unchanged_count = generic_plan.unchanged_count
 
-        warnings = () if backend_health.ok and backend_health.schema_compatible else (backend_health.message,)
+        health_warnings = () if backend_health.ok and backend_health.schema_compatible else (backend_health.message,)
+        warnings = health_warnings + manifest_warnings
         return VectorRevisionPlan(
             vector_index_revision=f"vector-{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}",
             mode="full" if full else "incremental",
@@ -322,8 +325,23 @@ def _manifest_for_scopes(
     *,
     vector_store: VectorStore,
     scopes: tuple[QueryScope, ...],
-) -> tuple[VectorManifestRecord, ...]:
-    return tuple(row for scope in scopes for row in vector_store.export_manifest(scope))
+) -> tuple[tuple[VectorManifestRecord, ...], tuple[str, ...]]:
+    """Stored vectors in `scopes` and any warning from reading them.
+
+    A store with a manifest table answers from the table, so planning never lists the vector store.
+    """
+    if isinstance(vector_store, VectorManifestSource):
+        read = vector_store.manifest_rows(tuple(dict.fromkeys(vault for scope in scopes for vault in scope.vault_ids)))
+        rows = tuple(row for scope in scopes for row in read.rows if _row_in_scope(row, scope))
+        return rows, read.warnings
+    return tuple(row for scope in scopes for row in vector_store.export_manifest(scope)), ()
+
+
+def _row_in_scope(row: VectorManifestRecord, scope: QueryScope) -> bool:
+    return row.vault_id in scope.vault_ids and any(
+        row.content_scope == content_scope or row.content_scope.startswith(f"{content_scope}/")
+        for content_scope in scope.content_scopes
+    )
 
 
 def _unique_chunks(chunks: tuple[ChunkSnapshot, ...]) -> tuple[ChunkSnapshot, ...]:
