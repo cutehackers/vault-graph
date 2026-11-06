@@ -1,4 +1,4 @@
-"""Enforce the import direction between functional areas M01-M18.
+"""Enforce the import direction between functional areas M01-M19.
 
 Source: modularization remediation plan, 보완1 (발견10), and VG-MOD-20261015 §4 DEP-01..07.
 The transport and composition ban for feature code stays in test_functional_module_boundaries.py.
@@ -34,6 +34,7 @@ _AREAS: dict[str, str] = {
     "operation/runtime/": "M16",  # runtime_operations
     "operation/integration/": "M17",  # integration_configuration
     "operation/memory/": "M18",  # memory_write
+    "operation/sessions/": "M19",  # session_normalization (spec 2026-11-05 §4.2.2)
     "storage/interfaces/": "PORT",  # read/write ports, importable by every area
     "storage/local/": "STORE",  # concrete storage, built only by composition
     "interface/": "COMPOSITION",  # transports and composition, see test_functional_module_boundaries.py
@@ -112,6 +113,8 @@ _ALLOWED: dict[str, frozenset[str]] = {
     "M17": frozenset({"M01", "M12"}),  # 보완5: M17 implements the M12 binding read Protocol
     # 결정S1: Vault memory writes read the M12 VaultMapReader and MappedVault. Only composition builds M18.
     "M18": frozenset({"M01", "M12"}),
+    # 결정18: session adapters are pure code over M01. Only composition reads files and calls them.
+    "M19": frozenset({"M01"}),
 }
 
 # Current violations, fixed per (source file, imported module). Remove an entry when its fix lands.
@@ -280,6 +283,9 @@ _EXPORTS = {"X": ("vault_graph.operation.integration.project_binding_catalog", "
         ("M18", "vault_graph.operation.integration.vault_map", False),  # the vault map is injected
         ("M17", "vault_graph.operation.memory.memory_requests", False),  # only composition builds M18
         ("M10", "vault_graph.operation.memory.memory_requests", False),
+        ("M19", "vault_graph.operation.scope.path_guard", True),
+        ("M19", "vault_graph.operation.memory.memory_requests", False),
+        ("M17", "vault_graph.operation.sessions.claude_code_adapter", False),  # only composition calls M19
     ],
 )
 def test_direction_rule_examples(source_area: str, target: str, allowed: bool) -> None:
@@ -288,6 +294,10 @@ def test_direction_rule_examples(source_area: str, target: str, allowed: bool) -
 
 def test_no_area_imports_memory_write() -> None:
     assert sorted(area for area, targets in _ALLOWED.items() if "M18" in targets) == []
+
+
+def test_no_area_imports_session_normalization() -> None:
+    assert sorted(area for area, targets in _ALLOWED.items() if "M19" in targets) == []
 
 
 def test_feature_imports_follow_direction_table() -> None:
