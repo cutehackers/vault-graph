@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
+from vault_graph.context.memory.memory_candidates import CANDIDATE_KINDS, CandidateKind
 from vault_graph.context.memory.memory_models import MemoryWarning, OpenQuestionsProjection, ProjectMemoryProjection
 from vault_graph.context.pack.context_pack import (
     DEFAULT_CONTEXT_MAX_TOKENS,
@@ -24,12 +26,15 @@ from vault_graph.interface.composition.query_scope_resolution import (
 from vault_graph.interface.composition.vault_labels import label_payload
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError
+from vault_graph.interface.mcp.mcp_memory_tools import ImportAutoMemoryInput as ImportAutoMemoryInput
 from vault_graph.interface.mcp.mcp_memory_tools import McpMemoryTools as McpMemoryTools
 from vault_graph.interface.mcp.mcp_memory_tools import MemoryBasis as MemoryBasis
 from vault_graph.interface.mcp.mcp_memory_tools import MemoryKind as MemoryKind
 from vault_graph.interface.mcp.mcp_memory_tools import PageKind as PageKind
 from vault_graph.interface.mcp.mcp_memory_tools import RememberInput as RememberInput
+from vault_graph.interface.mcp.mcp_memory_tools import RestoreMemoryInput as RestoreMemoryInput
 from vault_graph.interface.mcp.mcp_memory_tools import RetireMemoryInput as RetireMemoryInput
+from vault_graph.interface.mcp.mcp_memory_tools import SupersedeClaimInput as SupersedeClaimInput
 from vault_graph.interface.mcp.mcp_memory_tools import UpdateMemoryInput as UpdateMemoryInput
 from vault_graph.interface.mcp.mcp_memory_tools import background_index_message as background_index_message
 from vault_graph.interface.mcp.mcp_memory_tools import parse_remember_input as parse_remember_input
@@ -72,6 +77,9 @@ if TYPE_CHECKING:
 
 MAX_MCP_TOOL_LIMIT = 50
 MAX_MCP_PROJECT_TASK_CHARS = 4096
+DEFAULT_MEMORY_CANDIDATE_LIMIT = 20  # spec 2026-11-05 §4.4.4
+SKIPPED_OUTCOME = "skipped"
+MEMORY_CANDIDATES_WARNING_CODE = "memory_candidates"
 
 
 # Allowed values of the write tool inputs. They show as `enum` in the MCP schema and must equal
@@ -183,6 +191,19 @@ class ExploreProjectInput:
         )
 
 
+@dataclass(frozen=True)
+class ListMemoryCandidatesInput:
+    cwd: str | None = None
+    kinds: tuple[CandidateKind, ...] | None = None
+    limit: int = DEFAULT_MEMORY_CANDIDATE_LIMIT
+
+
+@dataclass(frozen=True)
+class MarkCandidatesReviewedInput:
+    keys: tuple[str, ...]
+    cwd: str | None = None
+
+
 class McpToolRegistry:
     tool_names: tuple[McpToolName, ...]
 
@@ -215,9 +236,14 @@ class McpToolRegistry:
             "get_open_questions",
             "get_recent_changes",
             "explore_project",
+            "list_memory_candidates",
+            "mark_candidates_reviewed",
             "remember",
             "update_memory",
             "retire_memory",
+            "import_auto_memory",
+            "supersede_claim",
+            "restore_memory",
         )
 
     def ask_vault(self, request: AskVaultInput) -> McpToolBody:
@@ -705,6 +731,47 @@ class McpToolRegistry:
         except Exception as exc:
             raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
 
+    def list_memory_candidates(self, request: ListMemoryCandidatesInput) -> McpToolBody:
+        """Return the cleanup bundle of the ``cwd`` project and start a new cleanup (spec 2026-11-05 §4.4.4).
+
+        A cleanup runs from one call to the next in this server process, so every call resets the
+        inferred proposal count, also when the bundle is empty.
+        """
+
+        try:
+            self._service_factory.start_curation()
+            cwd = Path(request.cwd) if request.cwd is not None else Path.cwd()
+            package = self._service_factory.memory_candidate_package(cwd, kinds=request.kinds, limit=request.limit)
+            from vault_graph.interface.mcp.mcp_tool_serialization import memory_candidate_package_to_payload
+
+            return _tool_body(
+                tool_name="list_memory_candidates",
+                payload=memory_candidate_package_to_payload(package),
+                resource_links=(),
+                warnings=tuple(
+                    McpErrorPayload(
+                        code=MEMORY_CANDIDATES_WARNING_CODE, message=message, severity="warning", affected_vault_ids=()
+                    )
+                    for message in package.warnings
+                ),
+            )
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
+    def mark_candidates_reviewed(self, request: MarkCandidatesReviewedInput) -> McpToolBody:
+        """Record skipped candidates in the Graph Home ``memory/reviewed.jsonl``. Writes nothing to a Vault."""
+
+        try:
+            self._service_factory.open_reviewed_log().append(request.keys, outcome=SKIPPED_OUTCOME)
+            return _tool_body(
+                tool_name="mark_candidates_reviewed",
+                payload={"recorded": list(request.keys), "outcome": SKIPPED_OUTCOME},
+                resource_links=(),
+                warnings=(),
+            )
+        except Exception as exc:
+            raise _map_tool_exception(exc, service_factory=self._service_factory) from exc
+
     def remember(self, request: RememberInput) -> McpToolBody:
         return self._memory_tools.remember(request)
 
@@ -713,6 +780,15 @@ class McpToolRegistry:
 
     def retire_memory(self, request: RetireMemoryInput) -> McpToolBody:
         return self._memory_tools.retire_memory(request)
+
+    def import_auto_memory(self, request: ImportAutoMemoryInput) -> McpToolBody:
+        return self._memory_tools.import_auto_memory(request)
+
+    def supersede_claim(self, request: SupersedeClaimInput) -> McpToolBody:
+        return self._memory_tools.supersede_claim(request)
+
+    def restore_memory(self, request: RestoreMemoryInput) -> McpToolBody:
+        return self._memory_tools.restore_memory(request)
 
     def _current_services(self) -> McpServices:
         """Return read services on the active index generation, reopening them when it changed (finding 발견2)."""
@@ -933,6 +1009,41 @@ def register_mcp_tools(
         )
         return registry.explore_project(request).to_json_dict()
 
+    @server.tool("list_memory_candidates", structured_output=True)
+    def list_memory_candidates(
+        cwd: str | None = None,
+        kinds: list[CandidateKind] | None = None,
+        limit: int = DEFAULT_MEMORY_CANDIDATE_LIMIT,
+    ) -> dict[str, object]:
+        """List memory cleanup candidates of a project and start a new cleanup. Reads only; writes nothing.
+
+        Kinds: ``l1_note`` (a Claude Code auto-memory note no linked Vault keeps yet; ``location`` is the note
+        path), ``session_exchange`` (an indexed session exchange no wiki page cites yet; ``location`` is
+        ``<path> L<a>-L<b>``, cite it as is), ``merge`` (two very similar current pages) and ``retire`` (a page
+        whose cited code is gone or that recall injected for 90 days and nobody opened). Each candidate has a
+        ``key``; pass it as ``candidate_key`` to the write tool that handles it, or to mark_candidates_reviewed
+        to skip it. ``comparison`` lists similar existing pages with ``status`` and ``superseded_by``; a
+        retired page has ``label`` "폐기됨: <reason>": use restore_memory instead of writing it again.
+
+        Each call starts a new cleanup: at most 10 ``basis: inferred`` proposals until the next call.
+        ``cwd`` is the project folder; without it the server working folder is used. Outside a project the
+        bundle is empty and ``reason`` says why. The prompt curate_memory gives the full order of steps.
+        """
+        request = parse_list_memory_candidates_input(cwd=cwd, kinds=kinds, limit=limit)
+        return registry.list_memory_candidates(request).to_json_dict()
+
+    @server.tool("mark_candidates_reviewed", structured_output=True)
+    def mark_candidates_reviewed(keys: list[str], cwd: str | None = None) -> dict[str, object]:
+        """Record cleanup candidates you decided to skip, so list_memory_candidates does not offer them again.
+
+        ``keys`` are candidate ``key`` values from list_memory_candidates. The record goes to the vault-graph
+        Graph Home (``memory/reviewed.jsonl``) with outcome ``skipped``; nothing is written to a Vault.
+        Candidates handled by a write tool with ``candidate_key`` are recorded by that tool. ``cwd`` is
+        accepted like in list_memory_candidates; the record is one Graph Home file for every project.
+        """
+        request = parse_mark_candidates_reviewed_input(keys=keys, cwd=cwd)
+        return registry.mark_candidates_reviewed(request).to_json_dict()
+
     register_memory_tools(server, registry)
     return registry
 
@@ -967,6 +1078,33 @@ def mcp_scope_input_from_raw(
         content_scopes=_optional_string_tuple(scope.get("content_scopes"), "content_scopes"),
         include_cross_vault=include_cross_vault,
     )
+
+
+def parse_list_memory_candidates_input(
+    *,
+    cwd: str | None = None,
+    kinds: Sequence[str] | None = None,
+    limit: int = DEFAULT_MEMORY_CANDIDATE_LIMIT,
+) -> ListMemoryCandidatesInput:
+    kind_values = _optional_string_tuple(kinds, "kinds")
+    if kind_values is not None:
+        unknown = sorted(set(kind_values) - set(CANDIDATE_KINDS))
+        if unknown:
+            raise _invalid_arguments(f"kinds must be among {', '.join(CANDIDATE_KINDS)}; got {', '.join(unknown)}")
+    return ListMemoryCandidatesInput(
+        cwd=_optional_cwd(cwd),
+        kinds=cast(tuple[CandidateKind, ...], kind_values) if kind_values is not None else None,
+        limit=_limit(limit),
+    )
+
+
+def parse_mark_candidates_reviewed_input(*, keys: list[str], cwd: str | None = None) -> MarkCandidatesReviewedInput:
+    values = _string_tuple(keys, "keys")
+    if not values:
+        raise _invalid_arguments("keys must list at least one candidate key")
+    if any("\n" in value or "\r" in value for value in values):
+        raise _invalid_arguments("keys must contain only single-line strings")
+    return MarkCandidatesReviewedInput(keys=values, cwd=_optional_cwd(cwd))
 
 
 def parse_ask_vault_input(

@@ -6,7 +6,7 @@ import json
 import re
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, unquote, urlsplit
 
 from vault_graph.context.pack.context_pack import ContextEvidence, ContextPack, ContextPackSignal, ContextPackWarning
@@ -42,6 +42,10 @@ from vault_graph.retrieval.search.retrieval_result import (
 from vault_graph.retrieval.search.search_response import SearchResponse, SearchStoreRevision, SearchWarning
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 
+if TYPE_CHECKING:
+    from vault_graph.context.memory.memory_candidates import ComparisonPage, MemoryCandidate
+    from vault_graph.interface.composition.memory_candidate_sources import MemoryCandidatePackage
+
 
 def query_scope_to_dict(scope: QueryScope) -> dict[str, object]:
     return {
@@ -52,9 +56,10 @@ def query_scope_to_dict(scope: QueryScope) -> dict[str, object]:
 
 
 def memory_write_result_to_payload(result: MemoryWriteResult) -> dict[str, object]:
-    """Serialize a ``remember``, ``update_memory`` or ``retire_memory`` result (spec 2026-11-02 V3).
+    """Serialize the result of one memory write tool (spec 2026-11-02 V3, spec 2026-11-05 §4.4.5).
 
-    ``candidates`` is filled for ``vault_required``. ``review_path`` appears only when it is set.
+    ``candidates`` is filled for ``vault_required``. ``review_path``, ``raw_path`` and ``source_page``
+    appear only when they are set; ``import_auto_memory`` sets the last two.
     """
     payload: dict[str, object] = {
         "status": result.status,
@@ -66,7 +71,49 @@ def memory_write_result_to_payload(result: MemoryWriteResult) -> dict[str, objec
     }
     if result.review_path is not None:
         payload["review_path"] = result.review_path
+    if result.raw_path is not None:
+        payload["raw_path"] = result.raw_path
+    if result.source_page is not None:
+        payload["source_page"] = result.source_page
     return payload
+
+
+def memory_candidate_package_to_payload(package: MemoryCandidatePackage) -> dict[str, object]:
+    """Serialize the cleanup bundle (spec 2026-11-05 §4.4.4). ``warnings`` go to the tool body warnings."""
+    return {
+        "project_id": package.project_id,
+        "candidates": [_memory_candidate_to_dict(candidate) for candidate in package.candidates],
+        "reason": package.reason,
+    }
+
+
+def _memory_candidate_to_dict(candidate: MemoryCandidate) -> dict[str, object]:
+    """``location`` is the L1 note path, the exchange location ``<path> L<a>-L<b>``, a merge pair or a page."""
+    return {
+        "key": candidate.key,
+        "kind": candidate.kind,
+        "location": candidate.location,
+        "signal": candidate.signal,
+        "started_at": candidate.started_at.isoformat() if candidate.started_at is not None else None,
+        "targets": [_comparison_page_to_dict(page) for page in candidate.targets],
+        "similarity": candidate.similarity,
+        "retire_signals": list(candidate.retire_signals),
+        "reasons": list(candidate.reasons),
+        "comparison": [_comparison_page_to_dict(page) for page in candidate.comparison],
+    }
+
+
+def _comparison_page_to_dict(page: ComparisonPage) -> dict[str, object]:
+    return {
+        "vault_id": page.vault_id,
+        "path": page.path,
+        "title": page.title,
+        "status": page.status,
+        "superseded_by": page.superseded_by,
+        "retired_reason": page.retired_reason,
+        "evidence_date": page.evidence_date,
+        "label": page.label,
+    }
 
 
 def search_response_to_payload(

@@ -1,8 +1,10 @@
-"""The three MCP tools that write Vault memory: ``remember``, ``update_memory``, ``retire_memory``.
+"""The six MCP tools that write Vault memory: ``remember``, ``update_memory``, ``retire_memory``,
+``import_auto_memory``, ``supersede_claim`` and ``restore_memory`` (spec 2026-11-05 §4.4.4, §4.4.5, §4.4.13).
 
 Split from ``mcp_tools`` (정리 발견1). Every write runs through the M18 ``MemoryWriteService`` that the
 service factory opens, so this module never writes a Vault file. A ``published`` write starts a
-background index of that Vault (finding F1).
+background index of that Vault (finding F1). Each tool takes an optional ``candidate_key``: the write
+service records it in the Graph Home review log when the result is ``published`` or ``proposed``.
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ class RememberInput:
     vault: str | None = None
     pin: bool = False
     memory_kind: str | None = None
+    candidate_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +54,7 @@ class UpdateMemoryInput:
     title: str | None = None
     pin: bool | None = None
     memory_kind: str | None = None
+    candidate_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -61,10 +65,41 @@ class RetireMemoryInput:
     vault: str | None = None
     cwd: str | None = None
     replaced_by: str | None = None
+    candidate_key: str | None = None
+
+
+@dataclass(frozen=True)
+class SupersedeClaimInput:
+    path: str
+    claim: str
+    new_claim: str
+    evidence: str
+    basis: str
+    cwd: str | None = None
+    vault: str | None = None
+    candidate_key: str | None = None
+
+
+@dataclass(frozen=True)
+class RestoreMemoryInput:
+    path: str
+    reason: str
+    basis: str
+    cwd: str | None = None
+    vault: str | None = None
+    candidate_key: str | None = None
+
+
+@dataclass(frozen=True)
+class ImportAutoMemoryInput:
+    note: str
+    cwd: str | None = None
+    vault: str | None = None
+    candidate_key: str | None = None
 
 
 class McpMemoryTools:
-    """Run the three write tools. ``on_index_finished`` receives whether the background index published."""
+    """Run the six write tools. ``on_index_finished`` receives whether the background index published."""
 
     def __init__(self, *, service_factory: McpServiceFactory, on_index_finished: Callable[[bool], None]) -> None:
         self._service_factory = service_factory
@@ -90,6 +125,7 @@ class McpMemoryTools:
                     pin=request.pin,
                     memory_kind=request.memory_kind,
                     project_id=_project_id(cwd),
+                    candidate_key=request.candidate_key,
                 )
             ),
         )
@@ -112,6 +148,7 @@ class McpMemoryTools:
                     title=request.title,
                     pin=request.pin,
                     memory_kind=request.memory_kind,
+                    candidate_key=request.candidate_key,
                 )
             ),
         )
@@ -131,6 +168,64 @@ class McpMemoryTools:
                     vault=request.vault,
                     cwd=_write_cwd(request.cwd),
                     replaced_by=request.replaced_by,
+                    candidate_key=request.candidate_key,
+                )
+            ),
+        )
+
+    def supersede_claim(self, request: SupersedeClaimInput) -> McpToolBody:
+        """Replace one claim row of a page with a ``patch-page`` ``supersede-claim`` edit (spec §4.4.4)."""
+
+        from vault_graph.operation.memory.memory_requests import SupersedeClaimRequest
+
+        return self._memory_write(
+            "supersede_claim",
+            lambda service: service.supersede_claim(
+                SupersedeClaimRequest(
+                    path=request.path,
+                    claim=request.claim,
+                    new_claim=request.new_claim,
+                    evidence=request.evidence,
+                    basis=cast(Any, request.basis),
+                    vault=request.vault,
+                    cwd=_write_cwd(request.cwd),
+                    candidate_key=request.candidate_key,
+                )
+            ),
+        )
+
+    def restore_memory(self, request: RestoreMemoryInput) -> McpToolBody:
+        """Make a retired page current again through the Vault publish-draft (spec §4.4.13-3)."""
+
+        from vault_graph.operation.memory.memory_requests import RestoreRequest
+
+        return self._memory_write(
+            "restore_memory",
+            lambda service: service.restore(
+                RestoreRequest(
+                    path=request.path,
+                    reason=request.reason,
+                    basis=cast(Any, request.basis),
+                    vault=request.vault,
+                    cwd=_write_cwd(request.cwd),
+                    candidate_key=request.candidate_key,
+                )
+            ),
+        )
+
+    def import_auto_memory(self, request: ImportAutoMemoryInput) -> McpToolBody:
+        """Have the Vault keep a copy of one auto-memory note with its ``import-source`` (path 4, spec §4.4.5)."""
+
+        from vault_graph.operation.memory.memory_requests import ImportRequest
+
+        return self._memory_write(
+            "import_auto_memory",
+            lambda service: service.import_auto_memory(
+                ImportRequest(
+                    note=request.note,
+                    cwd=_write_cwd(request.cwd),
+                    vault=request.vault,
+                    candidate_key=request.candidate_key,
                 )
             ),
         )
@@ -182,9 +277,15 @@ class MemoryToolRunner(Protocol):
 
     def retire_memory(self, request: RetireMemoryInput) -> McpToolBody: ...
 
+    def import_auto_memory(self, request: ImportAutoMemoryInput) -> McpToolBody: ...
+
+    def supersede_claim(self, request: SupersedeClaimInput) -> McpToolBody: ...
+
+    def restore_memory(self, request: RestoreMemoryInput) -> McpToolBody: ...
+
 
 def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> None:
-    """Register the three write tools on ``server``. Each one parses its arguments and calls ``registry``."""
+    """Register the six write tools on ``server``. Each one parses its arguments and calls ``registry``."""
 
     @server.tool("remember", structured_output=True)
     def remember(
@@ -197,6 +298,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         vault: str | None = None,
         pin: bool = False,
         memory_kind: MemoryKind | None = None,
+        candidate_key: str | None = None,
     ) -> dict[str, object]:
         """Add one new memory page to a Vault. To change an existing page use update_memory.
 
@@ -214,6 +316,9 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
         ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
         ``candidates``. The new page records the ``cwd`` project id in ``project``.
+
+        ``candidate_key`` (optional) is the ``key`` of the list_memory_candidates candidate this write handles.
+        A ``published`` or ``proposed`` result records it, so the candidate is not offered again.
         """
         request = parse_remember_input(
             title=title,
@@ -225,6 +330,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
             vault=vault,
             pin=pin,
             memory_kind=memory_kind,
+            candidate_key=candidate_key,
         )
         return registry.remember(request).to_json_dict()
 
@@ -239,6 +345,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         title: str | None = None,
         pin: bool | None = None,
         memory_kind: MemoryKind | None = None,
+        candidate_key: str | None = None,
     ) -> dict[str, object]:
         """Replace the body of one existing memory page.
 
@@ -256,6 +363,9 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
         ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
         ``candidates``.
+
+        ``candidate_key`` (optional) is the ``key`` of the list_memory_candidates candidate this write handles.
+        A ``published`` or ``proposed`` result records it, so the candidate is not offered again.
         """
         request = parse_update_memory_input(
             path=path,
@@ -267,6 +377,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
             title=title,
             pin=pin,
             memory_kind=memory_kind,
+            candidate_key=candidate_key,
         )
         return registry.update_memory(request).to_json_dict()
 
@@ -278,6 +389,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         vault: str | None = None,
         cwd: str | None = None,
         replaced_by: str | None = None,
+        candidate_key: str | None = None,
     ) -> dict[str, object]:
         """Mark one existing memory page as retired. The file stays in the Vault.
 
@@ -294,11 +406,115 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
         ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
         ``candidates``.
+
+        ``candidate_key`` (optional) is the ``key`` of the list_memory_candidates candidate this write handles.
+        A ``published`` or ``proposed`` result records it, so the candidate is not offered again.
         """
         request = parse_retire_memory_input(
-            path=path, reason=reason, basis=basis, vault=vault, cwd=cwd, replaced_by=replaced_by
+            path=path,
+            reason=reason,
+            basis=basis,
+            vault=vault,
+            cwd=cwd,
+            replaced_by=replaced_by,
+            candidate_key=candidate_key,
         )
         return registry.retire_memory(request).to_json_dict()
+
+    @server.tool("import_auto_memory", structured_output=True)
+    def import_auto_memory(
+        note: str,
+        cwd: str | None = None,
+        vault: str | None = None,
+        candidate_key: str | None = None,
+    ) -> dict[str, object]:
+        """Keep a copy of one Claude Code auto-memory note in a Vault, to cite it as evidence.
+
+        ``note`` is the absolute path of the note file, the ``location`` of an ``l1_note`` candidate. The Vault's
+        own ``import-source`` copies the file under ``raw/imports/claude-memory/`` and makes a source page;
+        vault-graph does not change, move or delete the note. The result has ``raw_path`` (cite this path as
+        evidence) and ``source_page``. A note the Vault already holds returns the existing paths.
+
+        ``cwd`` is the project folder; without it the server working folder is used. The target Vault must be
+        linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
+        ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
+        ``candidates``.
+
+        ``candidate_key`` (optional) is the ``key`` of the list_memory_candidates candidate this write handles.
+        A ``published`` or ``proposed`` result records it, so the candidate is not offered again.
+        """
+        request = parse_import_auto_memory_input(note=note, cwd=cwd, vault=vault, candidate_key=candidate_key)
+        return registry.import_auto_memory(request).to_json_dict()
+
+    @server.tool("supersede_claim", structured_output=True)
+    def supersede_claim(
+        path: str,
+        claim: str,
+        new_claim: str,
+        evidence: str,
+        basis: MemoryBasis,
+        cwd: str | None = None,
+        vault: str | None = None,
+        candidate_key: str | None = None,
+    ) -> dict[str, object]:
+        """Replace one claim row of an existing page with a new claim. The old row stays, marked superseded.
+
+        ``path`` is the Vault-relative page path. ``claim`` is the text of the current claim row; it must match
+        exactly one row of the page's claim table. ``new_claim`` and ``evidence`` become the new row; each is one
+        line without ``|``. For a session exchange, write its location ``<path> L<a>-L<b>`` in ``evidence``.
+        A page without a claim table is rejected; to replace a whole page use retire_memory(replaced_by=...).
+
+        ``basis`` (required): ``stated`` when the user said the fact; the change is published and the tool
+        returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
+        the tool returns ``proposed`` with a ``review_path`` in the Vault review queue.
+
+        ``cwd`` is the project folder; without it the server working folder is used. Without ``vault``, the tool
+        looks for ``path`` in the project's Vaults.
+
+        ``candidate_key`` (optional) is the ``key`` of the list_memory_candidates candidate this write handles.
+        A ``published`` or ``proposed`` result records it, so the candidate is not offered again.
+        """
+        request = parse_supersede_claim_input(
+            path=path,
+            claim=claim,
+            new_claim=new_claim,
+            evidence=evidence,
+            basis=basis,
+            cwd=cwd,
+            vault=vault,
+            candidate_key=candidate_key,
+        )
+        return registry.supersede_claim(request).to_json_dict()
+
+    @server.tool("restore_memory", structured_output=True)
+    def restore_memory(
+        path: str,
+        reason: str,
+        basis: MemoryBasis,
+        cwd: str | None = None,
+        vault: str | None = None,
+        candidate_key: str | None = None,
+    ) -> dict[str, object]:
+        """Make a retired, deprecated or superseded page current again. Only its frontmatter changes.
+
+        Use this instead of writing the same fact again when search with ``include_retired`` or the cleanup
+        comparison material shows the page as retired ("폐기됨"). ``path`` is the Vault-relative page path and
+        ``reason`` is one line. A page that is not retired is rejected.
+
+        ``basis`` (required): ``stated`` when the user said the fact; the change is published and the tool
+        returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
+        the tool returns ``proposed`` with a ``review_path`` in the Vault review queue.
+
+        ``cwd`` is the project folder; without it the server working folder is used. Without ``vault``, the tool
+        looks for ``path`` in the project's Vaults.
+
+        ``candidate_key`` (optional) is the ``key`` of the list_memory_candidates candidate this write handles.
+        A ``published`` or ``proposed`` result records it, so the candidate is not offered again.
+        """
+        request = parse_restore_memory_input(
+            path=path, reason=reason, basis=basis, cwd=cwd, vault=vault, candidate_key=candidate_key
+        )
+        return registry.restore_memory(request).to_json_dict()
 
 
 def background_index_message(vault_name: str) -> str:
@@ -342,11 +558,12 @@ def parse_remember_input(
     vault: str | None = None,
     pin: bool = False,
     memory_kind: str | None = None,
+    candidate_key: str | None = None,
 ) -> RememberInput:
     """Check only types here. Empty fields, unknown kinds and bases come back as a ``rejected`` result."""
 
     _require_strings(title=title, kind=kind, body=body, basis=basis)
-    _require_optional_strings(cwd=cwd, vault=vault, memory_kind=memory_kind)
+    _require_optional_strings(cwd=cwd, vault=vault, memory_kind=memory_kind, candidate_key=candidate_key)
     if not isinstance(pin, bool):
         raise invalid_arguments("pin must be a boolean")
     return RememberInput(
@@ -359,6 +576,7 @@ def parse_remember_input(
         vault=vault,
         pin=pin,
         memory_kind=memory_kind,
+        candidate_key=candidate_key,
     )
 
 
@@ -373,11 +591,12 @@ def parse_update_memory_input(
     title: str | None = None,
     pin: bool | None = None,
     memory_kind: str | None = None,
+    candidate_key: str | None = None,
 ) -> UpdateMemoryInput:
     """Check only types here. Bad paths and empty fields come back as a ``rejected`` result."""
 
     _require_strings(path=path, body=body, basis=basis)
-    _require_optional_strings(vault=vault, cwd=cwd, title=title, memory_kind=memory_kind)
+    _require_optional_strings(vault=vault, cwd=cwd, title=title, memory_kind=memory_kind, candidate_key=candidate_key)
     if pin is not None and not isinstance(pin, bool):
         raise invalid_arguments("pin must be a boolean")
     return UpdateMemoryInput(
@@ -390,6 +609,7 @@ def parse_update_memory_input(
         title=title,
         pin=pin,
         memory_kind=memory_kind,
+        candidate_key=candidate_key,
     )
 
 
@@ -401,12 +621,78 @@ def parse_retire_memory_input(
     vault: str | None = None,
     cwd: str | None = None,
     replaced_by: str | None = None,
+    candidate_key: str | None = None,
 ) -> RetireMemoryInput:
     """Check only types here. Bad paths and empty reasons come back as a ``rejected`` result."""
 
     _require_strings(path=path, reason=reason, basis=basis)
-    _require_optional_strings(vault=vault, cwd=cwd, replaced_by=replaced_by)
-    return RetireMemoryInput(path=path, reason=reason, basis=basis, vault=vault, cwd=cwd, replaced_by=replaced_by)
+    _require_optional_strings(vault=vault, cwd=cwd, replaced_by=replaced_by, candidate_key=candidate_key)
+    return RetireMemoryInput(
+        path=path,
+        reason=reason,
+        basis=basis,
+        vault=vault,
+        cwd=cwd,
+        replaced_by=replaced_by,
+        candidate_key=candidate_key,
+    )
+
+
+def parse_supersede_claim_input(
+    *,
+    path: str,
+    claim: str,
+    new_claim: str,
+    evidence: str,
+    basis: str,
+    cwd: str | None = None,
+    vault: str | None = None,
+    candidate_key: str | None = None,
+) -> SupersedeClaimInput:
+    """Check only types here. Empty cells, ``|`` and line breaks come back as a ``rejected`` result."""
+
+    _require_strings(path=path, claim=claim, new_claim=new_claim, evidence=evidence, basis=basis)
+    _require_optional_strings(cwd=cwd, vault=vault, candidate_key=candidate_key)
+    return SupersedeClaimInput(
+        path=path,
+        claim=claim,
+        new_claim=new_claim,
+        evidence=evidence,
+        basis=basis,
+        cwd=cwd,
+        vault=vault,
+        candidate_key=candidate_key,
+    )
+
+
+def parse_restore_memory_input(
+    *,
+    path: str,
+    reason: str,
+    basis: str,
+    cwd: str | None = None,
+    vault: str | None = None,
+    candidate_key: str | None = None,
+) -> RestoreMemoryInput:
+    """Check only types here. Bad paths, empty reasons and pages that are not retired come back as ``rejected``."""
+
+    _require_strings(path=path, reason=reason, basis=basis)
+    _require_optional_strings(cwd=cwd, vault=vault, candidate_key=candidate_key)
+    return RestoreMemoryInput(path=path, reason=reason, basis=basis, cwd=cwd, vault=vault, candidate_key=candidate_key)
+
+
+def parse_import_auto_memory_input(
+    *,
+    note: str,
+    cwd: str | None = None,
+    vault: str | None = None,
+    candidate_key: str | None = None,
+) -> ImportAutoMemoryInput:
+    """Check only types here. A relative or empty note path comes back as a ``rejected`` result."""
+
+    _require_strings(note=note)
+    _require_optional_strings(cwd=cwd, vault=vault, candidate_key=candidate_key)
+    return ImportAutoMemoryInput(note=note, cwd=cwd, vault=vault, candidate_key=candidate_key)
 
 
 def _require_strings(**values: object) -> None:
@@ -428,17 +714,23 @@ def _evidence_tuple(evidence: object) -> tuple[str, ...]:
 
 
 __all__ = [
+    "ImportAutoMemoryInput",
     "McpMemoryTools",
     "MemoryToolRunner",
     "MemoryBasis",
     "MemoryKind",
     "PageKind",
     "RememberInput",
+    "RestoreMemoryInput",
     "RetireMemoryInput",
+    "SupersedeClaimInput",
     "UpdateMemoryInput",
     "background_index_message",
+    "parse_import_auto_memory_input",
     "parse_remember_input",
+    "parse_restore_memory_input",
     "parse_retire_memory_input",
+    "parse_supersede_claim_input",
     "parse_update_memory_input",
     "register_memory_tools",
 ]

@@ -26,9 +26,14 @@ McpToolName = Literal[
     "get_open_questions",
     "get_recent_changes",
     "explore_project",
+    "list_memory_candidates",
+    "mark_candidates_reviewed",
     "remember",
     "update_memory",
     "retire_memory",
+    "import_auto_memory",
+    "supersede_claim",
+    "restore_memory",
 ]
 
 
