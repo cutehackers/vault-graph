@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from vault_graph.indexing.ingestion import chunker_selection as chunker_selection_module
+from vault_graph.indexing.ingestion.chunker_selection import CHUNKER_VERSIONS, select_chunker
 from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION, ChunkDraft, DocumentChunker
 from vault_graph.indexing.ingestion.document_models import ExtractedDocument, SourceDocument, SourceLocator
 from vault_graph.indexing.ingestion.document_normalizer import DocumentNormalizer, stable_id
@@ -269,11 +269,10 @@ def test_chunker_matches_the_document_chunker_protocol() -> None:
     assert isinstance(chunker, DocumentChunker)
 
 
-def test_registered_v1_chunker_leaves_no_generic_windows_in_a_session_file(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Registration in chunker_selection.py lands separately. This patches the table the way it will look.
-    chunker = SessionExchangeV1Chunker()
-    monkeypatch.setattr(chunker_selection_module, "_SESSION_CHUNKERS", {"vault-session/v1": chunker})
+def test_registered_v1_chunker_leaves_no_generic_windows_in_a_session_file() -> None:
     extracted = _extracted(_CAPTURED)
+    assert isinstance(select_chunker(extracted), SessionExchangeV1Chunker)
+    assert SESSION_EXCHANGE_V1_VERSION in CHUNKER_VERSIONS
 
     normalized = DocumentNormalizer().normalize(extracted)
 

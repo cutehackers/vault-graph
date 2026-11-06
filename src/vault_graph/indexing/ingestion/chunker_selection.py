@@ -13,6 +13,8 @@ from vault_graph.indexing.ingestion.document_chunking import (
 )
 from vault_graph.indexing.ingestion.document_models import ExtractedDocument
 from vault_graph.indexing.ingestion.document_snapshots import ChunkSnapshot
+from vault_graph.indexing.ingestion.session_exchange_v1_chunker import SessionExchangeV1Chunker
+from vault_graph.indexing.ingestion.session_exchange_v2_chunker import SessionExchangeV2Chunker
 
 SESSION_SCHEMA_PREFIX = "vault-session/"
 SESSION_SCHEMA_V1 = "vault-session/v1"
@@ -21,9 +23,11 @@ KNOWN_SESSION_SCHEMAS: frozenset[str] = frozenset({SESSION_SCHEMA_V1, SESSION_SC
 
 _GENERIC_CHUNKER: DocumentChunker[ChunkDraft] = DocumentWindowChunker()
 
-# Session exchange chunkers by frontmatter `schema`. `session-exchange-v1` and `session-exchange-v2`
-# register here when they land. Until then a known session schema uses the generic chunker.
-_SESSION_CHUNKERS: Mapping[str, DocumentChunker[ChunkDraft]] = {}
+# Session exchange chunkers by frontmatter `schema` (spec 2026-11-05 §4.2.6-1).
+_SESSION_CHUNKERS: Mapping[str, DocumentChunker[ChunkDraft]] = {
+    SESSION_SCHEMA_V1: SessionExchangeV1Chunker(),
+    SESSION_SCHEMA_V2: SessionExchangeV2Chunker(),
+}
 
 _CHUNKERS_BY_VERSION: Mapping[str, DocumentChunker[ChunkDraft]] = {
     chunker.version: chunker for chunker in (_GENERIC_CHUNKER, *_SESSION_CHUNKERS.values())
