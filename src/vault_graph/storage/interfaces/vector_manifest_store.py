@@ -17,9 +17,13 @@ from vault_graph.storage.interfaces.vector_store import VectorManifestRecord, Ve
 class VectorManifestRow(VectorManifestRecord):
     """One table row per stored vector.
 
-    A subclass of `VectorManifestRecord` so the plan reads rows as records. Later columns
-    (embedding key, metadata fingerprint) are added here as fields with defaults.
+    A subclass of `VectorManifestRecord` so the plan reads rows as records. `embedding_key` and
+    `metadata_fingerprint` (spec 4.3.2) are empty for rows rebuilt from the vector store, which
+    does not keep them.
     """
+
+    embedding_key: str = ""
+    metadata_fingerprint: str = ""
 
     @classmethod
     def from_record(cls, record: VectorManifestRecord) -> VectorManifestRow:

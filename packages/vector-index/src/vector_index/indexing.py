@@ -22,6 +22,9 @@ class IndexItem:
     record_id: str
     text: str
     fingerprint: str
+    # Optional. When both the item and its stored row carry one, a differing value with an equal
+    # ``fingerprint`` plans a metadata-only update instead of a re-embedding.
+    metadata_fingerprint: str | None = None
 
     def __post_init__(self) -> None:
         if not all((self.collection_id, self.item_id, self.record_id, self.fingerprint)):
@@ -35,6 +38,7 @@ class IndexedItem:
     record_id: str
     space_id: str
     fingerprint: str
+    metadata_fingerprint: str | None = None
 
     def __post_init__(self) -> None:
         if not all((self.collection_id, self.item_id, self.record_id, self.space_id, self.fingerprint)):
@@ -57,6 +61,8 @@ class IndexPlan:
     deletions: tuple[IndexedItem, ...]
     unchanged_count: int
     full: bool = False
+    # Items whose stored vector stays valid but whose metadata changed. Empty without metadata fingerprints.
+    metadata_updates: tuple[IndexItem, ...] = ()
 
 
 def plan_index(
@@ -96,6 +102,7 @@ def plan_index(
     for row in current:
         by_item.setdefault((row.collection_id, row.item_id), []).append(row)
     upserts: list[IndexItem] = []
+    metadata_updates: list[IndexItem] = []
     deletions: dict[tuple[str, str, str], IndexedItem] = {}
     unchanged = 0
     for item in items:
@@ -110,6 +117,12 @@ def plan_index(
             if existing is not None:
                 deletions[(existing.collection_id, existing.record_id, existing.space_id)] = existing
             upserts.append(item)
+        elif (
+            item.metadata_fingerprint is not None
+            and existing.metadata_fingerprint is not None
+            and existing.metadata_fingerprint != item.metadata_fingerprint
+        ):
+            metadata_updates.append(item)
         else:
             unchanged += 1
     if input_kind == "snapshot":
@@ -118,7 +131,15 @@ def plan_index(
             if (row.collection_id, row.item_id) not in desired:
                 deletions[(row.collection_id, row.record_id, row.space_id)] = row
     return IndexPlan(
-        collection_ids, space_id, input_kind, items, tuple(upserts), tuple(deletions.values()), unchanged, full
+        collection_ids,
+        space_id,
+        input_kind,
+        items,
+        tuple(upserts),
+        tuple(deletions.values()),
+        unchanged,
+        full,
+        tuple(metadata_updates),
     )
 
 
@@ -272,12 +293,21 @@ class VectorIndex:
         expected = self.plan(plan.items, collection_ids=plan.collection_ids, input_kind=plan.input_kind, full=plan.full)
         if expected != plan:
             raise VectorIndexError("invalid or stale index plan")
-        vectors = embed_items(plan.upserts, self._embeddings, batch_size=self._batch_size)
+        # IndexStore has no metadata-only write, so metadata updates are written as full records.
+        writes = plan.upserts + plan.metadata_updates
+        vectors = embed_items(writes, self._embeddings, batch_size=self._batch_size)
         records = tuple(
             IndexedVector(
-                IndexedItem(item.collection_id, item.item_id, item.record_id, plan.space_id, item.fingerprint),
+                IndexedItem(
+                    item.collection_id,
+                    item.item_id,
+                    item.record_id,
+                    plan.space_id,
+                    item.fingerprint,
+                    item.metadata_fingerprint,
+                ),
                 vectors[(item.collection_id, item.item_id)].values,
             )
-            for item in plan.upserts
+            for item in writes
         )
         self._store.apply(records, plan.deletions)

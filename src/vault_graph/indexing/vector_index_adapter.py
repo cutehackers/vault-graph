@@ -15,7 +15,7 @@ from vector_index import IndexedItem, IndexItem, VectorIndexError, model_space_i
 from vector_index.indexing import DEFAULT_TOKEN_BUDGET, EmbeddingBatch, iter_embedding_batches
 
 from vault_graph.errors import TextEmbeddingsError, VectorStoreError
-from vault_graph.indexing.ingestion.document_chunking import contextual_embedding_text
+from vault_graph.indexing.ingestion.document_chunking import CHUNKER_VERSION, contextual_embedding_text
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, stable_id
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.text_embeddings import (
@@ -24,13 +24,18 @@ from vault_graph.storage.interfaces.text_embeddings import (
     EmbeddingVector,
     TextEmbeddings,
 )
-from vault_graph.storage.interfaces.vector_manifest_store import VectorManifestSource
+from vault_graph.storage.interfaces.vector_manifest_store import VectorManifestRow, VectorManifestSource
 from vault_graph.storage.interfaces.vector_store import (
     VectorEmbeddingRecord,
     VectorManifestRecord,
+    VectorMetadataRecord,
+    VectorMetadataUpdater,
     VectorStore,
     VectorTombstone,
 )
+
+# Records per `update_metadata` call. Below Chroma's max batch size, and no model memory is involved.
+METADATA_UPDATE_BATCH_SIZE = 1000
 
 
 class ChunkListingStore(Protocol):
@@ -50,10 +55,17 @@ class VectorRevisionPlan:
     tombstones: tuple[VectorTombstone, ...]
     unchanged_count: int
     warnings: tuple[str, ...]
+    # Chunks whose embedding key matches the stored vector but whose metadata fingerprint does not.
+    # Written with `update_metadata`, without opening the embedding model (spec 4.3.2).
+    metadata_update_chunks: tuple[ChunkSnapshot, ...] = ()
 
     @property
     def upsert_count(self) -> int:
         return len(self.upsert_chunks)
+
+    @property
+    def metadata_update_count(self) -> int:
+        return len(self.metadata_update_chunks)
 
     @property
     def tombstone_count(self) -> int:
@@ -83,6 +95,7 @@ class VectorApplyResult:
     # "plan" when the plan could not be made: nothing was written to the vector store.
     # "apply" when embedding or writing failed: the staged vector store may be partly written.
     failed_stage: str | None = None
+    metadata_update_count: int = 0
 
     @classmethod
     def from_plan(
@@ -104,6 +117,7 @@ class VectorApplyResult:
             failed=failed,
             error=error,
             failed_stage=failed_stage if failed else None,
+            metadata_update_count=plan.metadata_update_count,
         )
 
 
@@ -141,19 +155,34 @@ class VectorIndexer:
                 chunk.chunk_id,
                 stable_vector_id(vault_id=chunk.vault_id, chunk_id=chunk.chunk_id, embedding_spec=embedding_spec),
                 contextual_embedding_text(section_path=chunk.section_path, text=chunk.text),
-                _chunk_fingerprint(chunk, backend_schema_version),
+                embedding_key(chunk, embedding_spec),
+                metadata_fingerprint=_chunk_metadata_fingerprint(chunk, backend_schema_version),
             )
             for chunk in desired_chunks
         )
         if len({item.record_id for item in desired}) != len(desired):
             raise VectorStoreError("vector_id collision in indexing scope")
+        chunk_by_key = {(chunk.vault_id, chunk.chunk_id): chunk for chunk in desired_chunks}
+        item_by_key = {(item.collection_id, item.item_id): item for item in desired}
+        # Keys are filled only where a metadata-only write can keep them: a manifest table store
+        # whose vector store updates metadata. Elsewhere filling would re-embed.
+        keeps_keys = isinstance(self._vector_store, VectorManifestSource) and _supports_metadata_update(
+            self._vector_store
+        )
         current = tuple(
             IndexedItem(
                 row.vault_id,
                 row.chunk_id,
                 row.vector_id,
                 model_space_id(_generic_spec(row.embedding_spec)),
-                _row_fingerprint(row),
+                *_stored_keys(
+                    row,
+                    chunk=chunk_by_key.get((row.vault_id, row.chunk_id)),
+                    item=item_by_key.get((row.vault_id, row.chunk_id)),
+                    embedding_spec=embedding_spec,
+                    backend_schema_version=backend_schema_version,
+                    keeps_keys=keeps_keys,
+                ),
             )
             for row in current_rows
         )
@@ -165,12 +194,22 @@ class VectorIndexer:
             space_id=model_space_id(_generic_spec(embedding_spec)),
             full=full,
         )
-        chunk_by_key = {(chunk.vault_id, chunk.chunk_id): chunk for chunk in desired_chunks}
         row_by_key = {(row.vault_id, row.vector_id): row for row in current_rows}
         upsert_chunks = [chunk_by_key[(item.collection_id, item.item_id)] for item in generic_plan.upserts]
         tombstones = [
             _tombstone_for_row(row_by_key[(row.collection_id, row.record_id)]) for row in generic_plan.deletions
         ]
+        metadata_update_chunks = [
+            chunk_by_key[(item.collection_id, item.item_id)] for item in generic_plan.metadata_updates
+        ]
+        if metadata_update_chunks and not _supports_metadata_update(self._vector_store):
+            # A store without metadata-only writes gets the earlier behavior: replace and re-embed.
+            upsert_chunks.extend(metadata_update_chunks)
+            tombstones.extend(
+                _tombstone_for_row(row_by_key[(item.collection_id, item.record_id)])
+                for item in generic_plan.metadata_updates
+            )
+            metadata_update_chunks = []
         unchanged_count = generic_plan.unchanged_count
 
         health_warnings = () if backend_health.ok and backend_health.schema_compatible else (backend_health.message,)
@@ -187,6 +226,7 @@ class VectorIndexer:
             tombstones=_unique_tombstones(tuple(tombstones)),
             unchanged_count=unchanged_count,
             warnings=warnings,
+            metadata_update_chunks=tuple(sorted(metadata_update_chunks, key=_chunk_sort_key)),
         )
 
     def apply(self, *, scopes: tuple[QueryScope, ...], full: bool = False) -> VectorApplyResult:
@@ -217,9 +257,44 @@ class VectorIndexer:
                     records=(),
                     tombstones=tombstones,
                 )
+            self._update_metadata(plan)
             return VectorApplyResult.from_plan(plan, failed=False, error=None)
         except Exception as exc:
             return VectorApplyResult.from_plan(plan, failed=True, error=str(exc), failed_stage="apply")
+
+    def _update_metadata(self, plan: VectorRevisionPlan) -> None:
+        if not plan.metadata_update_chunks:
+            return
+        store = self._vector_store
+        if not isinstance(store, VectorMetadataUpdater):
+            raise VectorStoreError("vector store cannot update metadata")
+        backend_schema_version = store.health().schema_version
+        chunks = plan.metadata_update_chunks
+        for start in range(0, len(chunks), METADATA_UPDATE_BATCH_SIZE):
+            store.update_metadata(
+                tuple(
+                    VectorMetadataRecord(
+                        vector_id=stable_vector_id(
+                            vault_id=chunk.vault_id, chunk_id=chunk.chunk_id, embedding_spec=plan.embedding_spec
+                        ),
+                        vault_id=chunk.vault_id,
+                        document_id=chunk.document_id,
+                        chunk_id=chunk.chunk_id,
+                        content_scope=_content_scope_for_path(chunk.path),
+                        embedding_spec=plan.embedding_spec,
+                        source_chunk_hash=chunk.content_hash,
+                        chunker_version=chunk.chunker_version,
+                        metadata_index_revision=chunk.index_revision or "unknown",
+                        vector_index_revision=plan.vector_index_revision,
+                        backend_schema_version=backend_schema_version,
+                        source_role=chunk.source_role,
+                        provenance_family_id=_family_id_for_chunk(chunk),
+                        embedding_key=embedding_key(chunk, plan.embedding_spec),
+                        metadata_fingerprint=_chunk_metadata_fingerprint(chunk, backend_schema_version),
+                    )
+                    for chunk in chunks[start : start + METADATA_UPDATE_BATCH_SIZE]
+                )
+            )
 
     def plan_failure(self, *, scopes: tuple[QueryScope, ...], full: bool, error: str) -> VectorApplyResult:
         """A failed result for a run whose plan could not be made. Nothing was written."""
@@ -288,6 +363,7 @@ class VectorIndexer:
         chunk: ChunkSnapshot,
         embedding: EmbeddingVector,
     ) -> VectorEmbeddingRecord:
+        backend_schema_version = self._vector_store.health().schema_version
         return VectorEmbeddingRecord(
             vector_id=stable_vector_id(
                 vault_id=chunk.vault_id,
@@ -303,14 +379,22 @@ class VectorIndexer:
             chunker_version=chunk.chunker_version,
             metadata_index_revision=chunk.index_revision or "unknown",
             vector_index_revision=plan.vector_index_revision,
-            backend_schema_version=self._vector_store.health().schema_version,
+            backend_schema_version=backend_schema_version,
             source_role=chunk.source_role,
             provenance_family_id=_family_id_for_chunk(chunk),
+            embedding_key=embedding_key(chunk, plan.embedding_spec),
+            metadata_fingerprint=_chunk_metadata_fingerprint(chunk, backend_schema_version),
         )
 
 
 def stable_vector_id(*, vault_id: str, chunk_id: str, embedding_spec: EmbeddingModelSpec) -> str:
     return stable_id("vector", vault_id, chunk_id, _embedding_spec_key(embedding_spec))
+
+
+def embedding_key(chunk: ChunkSnapshot, embedding_spec: EmbeddingModelSpec) -> str:
+    """Spec 4.3.2: equal keys mean an equal model input, so the stored vector stays valid."""
+    embedding_input = contextual_embedding_text(section_path=chunk.section_path, text=chunk.text)
+    return hashlib.sha256(f"{_embedding_spec_key(embedding_spec)}\n{embedding_input}".encode()).hexdigest()
 
 
 def _embedding_spec_key(spec: EmbeddingModelSpec) -> str:
@@ -412,7 +496,79 @@ def _fingerprint(values: tuple[str, ...]) -> str:
     return hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
+def _chunk_metadata_fingerprint(chunk: ChunkSnapshot, backend_schema_version: str) -> str:
+    return _fingerprint(
+        (
+            chunk.index_revision or "unknown",
+            backend_schema_version,
+            chunk.source_role,
+            _family_id_for_chunk(chunk),
+            chunk.chunker_version,
+        )
+    )
+
+
+def _row_metadata_fingerprint(row: VectorManifestRecord) -> str:
+    return _fingerprint(
+        (
+            row.metadata_index_revision,
+            row.backend_schema_version,
+            row.source_role,
+            row.provenance_family_id,
+            row.chunker_version,
+        )
+    )
+
+
+def _stored_keys(
+    row: VectorManifestRecord,
+    *,
+    chunk: ChunkSnapshot | None,
+    item: IndexItem | None,
+    embedding_spec: EmbeddingModelSpec,
+    backend_schema_version: str,
+    keeps_keys: bool,
+) -> tuple[str, str]:
+    """The stored row's embedding key and metadata fingerprint, as the generic plan compares them.
+
+    A row without an embedding key comes from a generation before spec 4.3.2 or from a store that
+    does not keep keys. Its key is the desired chunk's key when the embedding input is known to be
+    equal. For a table store the metadata fingerprint is then empty, so the plan writes the key once.
+    Otherwise the key can never match and the chunk is embedded again.
+    """
+    if isinstance(row, VectorManifestRow) and row.embedding_key:
+        return row.embedding_key, row.metadata_fingerprint or _row_metadata_fingerprint(row)
+    if (
+        chunk is not None
+        and item is not None
+        and item.record_id == row.vector_id
+        and _same_embedding_input(row, chunk, embedding_spec, backend_schema_version)
+    ):
+        return item.fingerprint, "" if keeps_keys else _row_metadata_fingerprint(row)
+    return f"legacy:{_row_fingerprint(row)}", _row_metadata_fingerprint(row)
+
+
+def _same_embedding_input(
+    row: VectorManifestRecord, chunk: ChunkSnapshot, embedding_spec: EmbeddingModelSpec, backend_schema_version: str
+) -> bool:
+    """The first transition run rule (spec 4.3.2), plus the earlier whole-fingerprint match."""
+    if row.embedding_spec != embedding_spec:
+        return False
+    if (
+        row.chunker_version == CHUNKER_VERSION
+        and chunk.chunker_version == CHUNKER_VERSION
+        and row.source_chunk_hash == chunk.content_hash
+    ):
+        return True
+    return _row_fingerprint(row) == _chunk_fingerprint(chunk, backend_schema_version)
+
+
+def _supports_metadata_update(store: VectorStore) -> bool:
+    return isinstance(store, VectorMetadataUpdater) and store.supports_metadata_update()
+
+
 def _chunk_fingerprint(chunk: ChunkSnapshot, backend_schema_version: str) -> str:
+    """The whole-record fingerprint used before spec 4.3.2. Only matches rows that have no embedding key."""
     return _fingerprint(
         (
             chunk.content_hash,
