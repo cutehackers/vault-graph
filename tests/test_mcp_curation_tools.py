@@ -197,7 +197,7 @@ def test_new_tool_input_schemas_follow_the_spec_signatures(tmp_path: Path) -> No
         assert set(schema["properties"]) == set(required) | set(optional), name
         assert {field: schema["properties"][field]["default"] for field in optional} == optional, name
     kinds = tools["list_memory_candidates"].inputSchema["properties"]["kinds"]
-    assert kinds["anyOf"][0]["items"]["enum"] == ["l1_note", "session_exchange", "merge", "retire"]
+    assert kinds["anyOf"][0]["items"]["enum"] == ["l1_note", "session_exchange", "merge", "retire", "brief"]
 
 
 # list_memory_candidates -------------------------------------------------------------------------
@@ -274,7 +274,7 @@ def test_every_list_call_starts_a_new_cleanup(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "arguments",
     [
-        {"kinds": ["brief"]},
+        {"kinds": ["unknown"]},
         {"kinds": "session_exchange"},
         {"limit": 0},
         {"limit": 51},
