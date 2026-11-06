@@ -203,9 +203,10 @@ def test_backlog_counter_counts_like_the_full_package_without_search_or_embeddin
     assert counted.warnings == ()
 
 
-def test_backlog_counter_reports_a_missing_l1_folder(
+def test_backlog_counter_counts_no_l1_notes_and_stays_quiet_without_an_l1_folder(
     project: _Project,  # noqa: F811
 ) -> None:
+    """A project where Claude Code saved no auto memory has no folder; that is not a problem."""
     shutil.rmtree(project.memory)
     map_file = Path(project.environ["VAULT_GRAPH_VAULT_MAP"])
 
@@ -213,17 +214,37 @@ def test_backlog_counter_reports_a_missing_l1_folder(
         graph_home=project.graph_home, vault_map_path=map_file, environ=project.environ
     ).count(project.repo)
 
+    assert counted.l1_notes == 0
+    assert counted.session_exchanges == 1
+    assert counted.warnings == ()
+
+
+def test_backlog_counter_reports_an_unreadable_l1_folder(
+    project: _Project,  # noqa: F811
+) -> None:
+    project.memory.chmod(0)
+    map_file = Path(project.environ["VAULT_GRAPH_VAULT_MAP"])
+    try:
+        counted = CandidateBacklogCounter(
+            graph_home=project.graph_home, vault_map_path=map_file, environ=project.environ
+        ).count(project.repo)
+    finally:
+        project.memory.chmod(0o755)
+
     assert counted.l1_notes is None
     assert counted.session_exchanges == 1
     assert len(counted.warnings) == 1
     assert "L1 memory folder" in counted.warnings[0]
 
 
-def test_l1_folder_problem_names_a_missing_and_an_unreadable_folder(tmp_path: Path) -> None:
+def test_l1_folder_problem_is_quiet_when_missing_and_names_a_file_or_unreadable_folder(tmp_path: Path) -> None:
     from vault_graph.interface.composition.adapters.auto_memory_reader import memory_folder_problem
 
     folder = tmp_path / "memory"
-    assert "does not exist" in (memory_folder_problem(folder) or "")
+    assert memory_folder_problem(folder) is None
+    folder.write_text("not a folder", encoding="utf-8")
+    assert "is not a folder" in (memory_folder_problem(folder) or "")
+    folder.unlink()
     folder.mkdir()
     assert memory_folder_problem(folder) is None
     folder.chmod(0)

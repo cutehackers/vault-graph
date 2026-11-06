@@ -124,11 +124,18 @@ def read_memory_notes(folder: Path) -> tuple[MemoryNote, ...]:
 
 
 def memory_folder_problem(folder: Path) -> str | None:
-    """Why the L1 folder cannot be read, or None when it can. A missing folder counts (spec 2026-11-05 §6)."""
+    """Why the L1 folder cannot be read, or None when it can or does not exist yet.
+
+    A missing folder is the normal state of a project where Claude Code has saved no auto memory:
+    it has no notes and gives no warning, so every session start stays quiet. A path that exists but
+    is not a readable folder is a problem (spec 2026-11-05 §6, narrowed in PATCH_LOG 2026-11-06).
+    """
 
     try:
+        if not folder.exists():
+            return None
         if not folder.is_dir():
-            return f"The L1 memory folder {folder} does not exist."
+            return f"The L1 memory folder {folder} is not a folder."
         with os.scandir(folder):
             pass
     except OSError as exc:
