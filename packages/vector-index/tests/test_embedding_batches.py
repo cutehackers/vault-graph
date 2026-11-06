@@ -27,7 +27,7 @@ def item(item_id: str, text: str) -> IndexItem:
 
 
 def test_defaults_follow_the_spec() -> None:
-    assert DEFAULT_TOKEN_BUDGET == 16_384
+    assert DEFAULT_TOKEN_BUDGET == 8_192
     assert DEFAULT_MAX_BATCH_ITEMS == 256
 
 

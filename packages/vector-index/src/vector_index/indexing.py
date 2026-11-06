@@ -148,7 +148,9 @@ def model_space_id(spec: EmbeddingModelSpec, *, preprocessing_id: str = "") -> s
     return hashlib.sha256(serialized.encode()).hexdigest()
 
 
-DEFAULT_TOKEN_BUDGET = 16_384
+# Measured on a full re-index of every Vault (docs/design/reports/2026-11-embedding-memory.md):
+# 8,192 keeps peak RSS near 4.3 GB at the same speed as 16,384 (6.9 GB).
+DEFAULT_TOKEN_BUDGET = 8_192
 DEFAULT_MAX_BATCH_ITEMS = 256
 
 
