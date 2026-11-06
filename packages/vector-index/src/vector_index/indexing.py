@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, Protocol
 
@@ -126,37 +127,102 @@ def model_space_id(spec: EmbeddingModelSpec, *, preprocessing_id: str = "") -> s
     return hashlib.sha256(serialized.encode()).hexdigest()
 
 
-def embed_items(
-    items: tuple[IndexItem, ...], provider: TextEmbeddings, *, batch_size: int = 256
-) -> dict[tuple[str, str], EmbeddingVector]:
-    from text_embeddings import EmbeddingInput
+DEFAULT_TOKEN_BUDGET = 16_384
+DEFAULT_MAX_BATCH_ITEMS = 256
 
-    if batch_size <= 0:
-        raise VectorIndexError("batch_size must be positive")
+
+def estimate_tokens_from_bytes(text: str) -> int:
+    """Token estimate used when no model tokenizer is available: UTF-8 bytes divided by three, rounded up."""
+    return max(1, -(-len(text.encode("utf-8")) // 3))
+
+
+@dataclass(frozen=True)
+class EmbeddingBatch:
+    """One provider call. ``vectors[i]`` belongs to ``items[i]`` and has been validated."""
+
+    items: tuple[IndexItem, ...]
+    vectors: tuple[EmbeddingVector, ...]
+    max_estimated_tokens: int
+
+
+def iter_embedding_batches(
+    items: tuple[IndexItem, ...],
+    provider: TextEmbeddings,
+    *,
+    token_budget: int,
+    max_batch_items: int,
+    estimate_tokens: Callable[[str], int] | None = None,
+) -> Iterator[EmbeddingBatch]:
+    """Embed items in batches sorted by estimated tokens.
+
+    Every batch keeps ``len(items) * max_estimated_tokens <= token_budget`` and
+    ``len(items) <= max_batch_items``. The only exception is one item whose own
+    estimate exceeds the budget: it is embedded alone. Inputs are validated before
+    the first provider call, so a duplicate never produces a partial result.
+    """
+    if token_budget <= 0 or max_batch_items <= 0:
+        raise VectorIndexError("token_budget and max_batch_items must be positive")
     keys = [(item.collection_id, item.item_id) for item in items]
     if len(set(keys)) != len(keys):
         raise VectorIndexError("duplicate item_id within a collection")
-    vectors: dict[tuple[str, str], EmbeddingVector] = {}
+    estimate = estimate_tokens or estimate_tokens_from_bytes
+    ordered = sorted(
+        ((max(1, estimate(item.text)), index, item) for index, item in enumerate(items)),
+        key=lambda row: (row[0], row[1]),
+    )
     expected_spec = provider.model_spec()
-    for offset in range(0, len(items), batch_size):
-        batch = items[offset : offset + batch_size]
-        # Namespaced opaque IDs prevent collisions between collections.
-        input_ids = tuple(json.dumps([item.collection_id, item.item_id]) for item in batch)
-        outputs = provider.embed(
-            tuple(EmbeddingInput(key, item.text) for key, item in zip(input_ids, batch, strict=True))
-        )
-        if len(outputs) != len(batch) or {row.input_id for row in outputs} != set(input_ids):
-            raise VectorIndexError("embedding output IDs must match input item IDs")
-        output_by_id = {row.input_id: row for row in outputs}
-        for key, item in zip(input_ids, batch, strict=True):
-            output = output_by_id[key]
-            if len(output.values) != expected_spec.dimensions or any(
-                not math.isfinite(value) for value in output.values
-            ):
-                raise VectorIndexError("embedding values must be finite and match model dimensions")
-            if output.model_spec != expected_spec:
-                raise VectorIndexError("embedding model spec mismatch")
-            vectors[(item.collection_id, item.item_id)] = output
+    batch: list[IndexItem] = []
+    batch_max = 0
+    for tokens, _, item in ordered:
+        # Sorted ascending, so the new item's estimate is the batch maximum.
+        if batch and (len(batch) + 1 > max_batch_items or (len(batch) + 1) * tokens > token_budget):
+            yield _embed_batch(tuple(batch), batch_max, provider, expected_spec)
+            batch = []
+        batch.append(item)
+        batch_max = tokens
+    if batch:
+        yield _embed_batch(tuple(batch), batch_max, provider, expected_spec)
+
+
+def _embed_batch(
+    batch: tuple[IndexItem, ...], max_tokens: int, provider: TextEmbeddings, expected_spec: EmbeddingModelSpec
+) -> EmbeddingBatch:
+    from text_embeddings import EmbeddingInput
+
+    # Namespaced opaque IDs prevent collisions between collections.
+    input_ids = tuple(json.dumps([item.collection_id, item.item_id]) for item in batch)
+    outputs = provider.embed(tuple(EmbeddingInput(key, item.text) for key, item in zip(input_ids, batch, strict=True)))
+    if len(outputs) != len(batch) or {row.input_id for row in outputs} != set(input_ids):
+        raise VectorIndexError("embedding output IDs must match input item IDs")
+    output_by_id = {row.input_id: row for row in outputs}
+    vectors: list[EmbeddingVector] = []
+    for key in input_ids:
+        output = output_by_id[key]
+        if len(output.values) != expected_spec.dimensions or any(not math.isfinite(value) for value in output.values):
+            raise VectorIndexError("embedding values must be finite and match model dimensions")
+        if output.model_spec != expected_spec:
+            raise VectorIndexError("embedding model spec mismatch")
+        vectors.append(output)
+    return EmbeddingBatch(batch, tuple(vectors), max_tokens)
+
+
+def embed_items(
+    items: tuple[IndexItem, ...],
+    provider: TextEmbeddings,
+    *,
+    batch_size: int = DEFAULT_MAX_BATCH_ITEMS,
+    token_budget: int = DEFAULT_TOKEN_BUDGET,
+    estimate_tokens: Callable[[str], int] | None = None,
+) -> dict[tuple[str, str], EmbeddingVector]:
+    """Collect ``iter_embedding_batches``. ``batch_size`` is the item cap per batch."""
+    if batch_size <= 0:
+        raise VectorIndexError("batch_size must be positive")
+    vectors: dict[tuple[str, str], EmbeddingVector] = {}
+    for batch in iter_embedding_batches(
+        items, provider, token_budget=token_budget, max_batch_items=batch_size, estimate_tokens=estimate_tokens
+    ):
+        for item, vector in zip(batch.items, batch.vectors, strict=True):
+            vectors[(item.collection_id, item.item_id)] = vector
     return vectors
 
 

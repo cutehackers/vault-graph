@@ -5,6 +5,8 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Protocol
 
+from vector_index.indexing import DEFAULT_TOKEN_BUDGET
+
 from vault_graph.errors import UnsupportedGraphScopeWidthError
 from vault_graph.indexing.extraction.entity_extractor import DeterministicEntityExtractor
 from vault_graph.indexing.extraction.graph_source_store import MetadataGraphSourceStore, PreviewGraphSourceStore
@@ -165,6 +167,7 @@ class IndexService:
         embedding_batch_size: int = 256,
         embedding_parallelism: int | None = None,
         embedding_lazy_load: bool = True,
+        embedding_token_budget: int = DEFAULT_TOKEN_BUDGET,
         graph_store: GraphStore | None = None,
         graph_extraction_spec: GraphExtractionSpec | None = None,
         graph_status_store: GraphStatusStore | None = None,
@@ -178,6 +181,7 @@ class IndexService:
         self._embedding_batch_size = embedding_batch_size
         self._embedding_parallelism = embedding_parallelism
         self._embedding_lazy_load = embedding_lazy_load
+        self._embedding_token_budget = embedding_token_budget
         self._graph_store = graph_store
         self._graph_extraction_spec = graph_extraction_spec or current_graph_extraction_spec()
         self._graph_status_store = graph_status_store
@@ -369,6 +373,7 @@ class IndexService:
             embedding_batch_size=self._embedding_batch_size,
             embedding_parallelism=self._embedding_parallelism,
             embedding_lazy_load=self._embedding_lazy_load,
+            embedding_token_budget=self._embedding_token_budget,
         )
 
     def _record_vector_status(self, *, scope: QueryScope, result: VectorApplyResult) -> None:

@@ -11,6 +11,7 @@ from text_embeddings import EmbeddingInput as GenericEmbeddingInput
 from text_embeddings import EmbeddingModelSpec as GenericEmbeddingModelSpec
 from text_embeddings import FastEmbedTextEmbeddings as GenericFastEmbedTextEmbeddings
 from text_embeddings import TextEmbeddingsError as GenericTextEmbeddingsError
+from vector_index.indexing import DEFAULT_TOKEN_BUDGET
 
 from vault_graph.errors import CatalogError, TextEmbeddingsError
 from vault_graph.operation.scope.embedding_selection import DEFAULT_MODELS_DIR, load_embedding_selection
@@ -96,14 +97,22 @@ class FastEmbedBackend(Protocol):
 class FastEmbedTextEmbeddingsConfig:
     preset: EmbeddingPreset
     cache_dir: Path = DEFAULT_MODELS_DIR
+    # Item cap per embedding batch.
     embedding_batch_size: int = 256
+    # Cap on items x largest estimated tokens per embedding batch (spec 4.3.4).
+    embedding_token_budget: int = DEFAULT_TOKEN_BUDGET
     embedding_parallelism: int | None = None
     embedding_lazy_load: bool = True
     local_files_only: bool = False
+    # Passed to fastembed as ONNX ``enable_cpu_mem_arena``. The default stays on until
+    # the full re-index measurement (spec 4.3.4) shows turning it off costs at most 20%.
+    cpu_mem_arena: bool = True
 
     def __post_init__(self) -> None:
         if self.embedding_batch_size <= 0:
             raise TextEmbeddingsError("embedding_batch_size must be positive")
+        if self.embedding_token_budget <= 0:
+            raise TextEmbeddingsError("embedding_token_budget must be positive")
         if self.embedding_parallelism is not None and self.embedding_parallelism < 0:
             raise TextEmbeddingsError("embedding_parallelism must be None, 0, or positive")
 
@@ -249,6 +258,7 @@ def _default_backend_factory(config: FastEmbedTextEmbeddingsConfig, snapshot_pat
         specific_model_path=str(snapshot_path),
         cache_dir=str(config.cache_dir.expanduser()),
         lazy_load=config.embedding_lazy_load,
+        enable_cpu_mem_arena=config.cpu_mem_arena,
     )
 
 
