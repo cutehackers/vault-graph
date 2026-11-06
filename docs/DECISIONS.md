@@ -913,7 +913,7 @@ source of truth.
 
 **Reason:** Vector values do not depend on revision or role metadata. A generation must roll back with its table, but computed vectors should survive a rebuilt generation. An error that does not clear by itself must not rewrite a generation at every session start.
 
-**Implications:** Graph Home gains `cache/embeddings.sqlite3` and `logs/vector-index-failures.json` (`docs/SPEC.md` §4). The ONNX memory arena stays on by default because turning it off was 23% slower (`docs/design/reports/2026-11-embedding-memory.md`).
+**Implications:** Graph Home gains `cache/embeddings.sqlite3` and `logs/vector-index-failures.json` (`docs/SPEC.md` §4). The ONNX memory arena stays on by default because turning it off was 23% slower (`docs/design/reports/2026-11-embedding-memory.md`). After the session chunkers landed, a full re-index of every Vault peaked at 6.85 GB with the assumed 16,384 budget, so the measured default became 8,192 (4.29 GB at the same speed); see `docs/PATCH_LOG.md` `2026-11-06 - Lower The Default Embedding Token Budget To 8,192`.
 
 ## 2026-11-06 - Move L1, L2 And L3 Memory Management To Vault Graph
 
