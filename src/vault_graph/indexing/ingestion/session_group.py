@@ -3,7 +3,8 @@
 A session group is the files whose frontmatter has the same (`agent`, `session_id`). After chunking and
 before the metadata apply, `reprocess_session_groups` runs two rules on each group:
 
-1. The same v2 exchange id in two files stays only in the path-first file (§4.2.6-9).
+1. The same v2 exchange id in two files stays in one file: the whole (not continued) copy first,
+   then the lower part number, then the path (§4.2.6-9, `drop_duplicate_exchanges`).
 2. A v1 exchange whose time range overlaps a v2 exchange's `started`~`ended` is left out (§4.2.7 last
    bullet). Only index rows change. Vault files are never touched.
 
