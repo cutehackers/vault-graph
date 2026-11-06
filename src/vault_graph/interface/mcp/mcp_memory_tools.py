@@ -25,7 +25,7 @@ from vault_graph.interface.mcp.mcp_tool_body import (
 )
 
 MemoryBasis = Literal["stated", "inferred"]
-PageKind = Literal["decision", "system"]
+PageKind = Literal["decision", "system", "project"]
 MemoryKind = Literal["rule", "correction", "decision", "preference"]
 
 
@@ -303,6 +303,10 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         """Add one new memory page to a Vault. To change an existing page use update_memory.
 
         ``kind`` is the page type and folder: ``decision`` (wiki/decisions/) or ``system`` (wiki/systems/).
+        ``project`` writes the one brief of the ``cwd`` project (goal, structure, constraints, next steps) at
+        wiki/projects/<project id>.md; the title does not change that path. A brief needs ``cwd`` inside a
+        project, and a project has one brief: if it already exists the result is ``rejected``, so change it
+        with update_memory.
         ``memory_kind`` is optional and says what sort of memory it is: ``rule``, ``correction``, ``decision``
         or ``preference``. It does not choose the Vault or the folder. ``evidence`` lists at least one source
         such as a file path, URL or quote. ``pin`` puts the page first in session-start recall.

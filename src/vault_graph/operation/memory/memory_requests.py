@@ -15,7 +15,15 @@ Basis = Literal["stated", "inferred"]
 MemoryWriteStatus = Literal["published", "proposed", "rejected", "vault_required", "error"]
 
 BASES: tuple[str, ...] = ("stated", "inferred")
-REMEMBER_KINDS: tuple[str, ...] = ("decision", "system")
+# ``project`` is the one brief of a project (spec 2026-11-05 §4.4.7). New values go at the end (docs/SPEC.md §5).
+REMEMBER_KINDS: tuple[str, ...] = ("decision", "system", "project")
+PROJECT_KIND = "project"
+# A brief path is wiki/projects/<project id>.md. Same pattern as Vault tools/wiki/lib/schema.py _PROJECT_ID.
+_PROJECT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+BRIEF_NEEDS_PROJECT_MESSAGE = (
+    "kind project writes the project brief, so it must be called from a project folder: "
+    "cwd is not inside one project of vault-map.json."
+)
 # Vault 계약2 tools/wiki/lib/memory_fields.py ALLOWED_MEMORY_KINDS.
 MEMORY_KINDS: tuple[str, ...] = ("rule", "correction", "decision", "preference")
 # The memory kinds the Vault project summary lists as corrections when ``tags`` holds them
@@ -139,6 +147,8 @@ def validate_remember(request: RememberRequest) -> tuple[str, ...]:
         problems.append("body must be a non-empty string.")
     if request.kind not in REMEMBER_KINDS:
         problems.append(f"kind must be one of {', '.join(REMEMBER_KINDS)}.")
+    if request.kind == PROJECT_KIND:
+        problems.extend(_brief_project_problems(request.project_id))
     if not _is_evidence(request.evidence):
         problems.append("evidence must list at least one non-empty string.")
     problems.extend(_basis_problems(request.basis))
@@ -209,6 +219,15 @@ def validate_import(request: ImportRequest) -> tuple[str, ...]:
     return tuple(problems)
 
 
+def _brief_project_problems(project_id: str | None) -> tuple[str, ...]:
+    """The brief path is built from the project id, so it must be one Vault project id (spec §4.4.7)."""
+    if project_id is None:
+        return (BRIEF_NEEDS_PROJECT_MESSAGE,)
+    if not _PROJECT_ID.match(project_id):
+        return (f"project id {project_id!r} cannot name a brief page: it must match {_PROJECT_ID.pattern}.",)
+    return ()
+
+
 def _candidate_key_problems(candidate_key: object) -> tuple[str, ...]:
     if candidate_key is None or _is_single_line(candidate_key):
         return ()
@@ -263,7 +282,9 @@ def _is_evidence(value: object) -> bool:
 
 __all__ = [
     "BASES",
+    "BRIEF_NEEDS_PROJECT_MESSAGE",
     "MEMORY_KINDS",
+    "PROJECT_KIND",
     "REMEMBER_KINDS",
     "TAGGED_MEMORY_KINDS",
     "Basis",

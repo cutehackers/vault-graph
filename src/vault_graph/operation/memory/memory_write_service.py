@@ -41,6 +41,7 @@ from vault_graph.operation.memory.memory_ports import (
     WriteOutcome,
 )
 from vault_graph.operation.memory.memory_requests import (
+    PROJECT_KIND,
     ImportRequest,
     MemoryWriteResult,
     RememberRequest,
@@ -160,6 +161,20 @@ class MemoryWriteService:
         chosen = choose_write_vault(request.vault, _cwd(request.cwd), self._vault_map)
         if not isinstance(chosen, MappedVault):
             return _choice_result(chosen)
+        if request.kind == PROJECT_KIND and request.vault is not None:
+            # A project brief lives only in the project's default write Vault; recall reads it there
+            # (spec 2026-11-05 §4.4.7, §6 "brief 페이지가 두 Vault에 있음").
+            default = choose_write_vault(None, _cwd(request.cwd), self._vault_map)
+            if not isinstance(default, MappedVault) or default.name != chosen.name:
+                return _result(
+                    chosen,
+                    WriteOutcome(
+                        "rejected",
+                        messages=(
+                            "A project brief is written to the project's default write Vault only. Leave vault empty.",
+                        ),
+                    ),
+                )
 
         draft = build_remember_draft(request, today=self._today())
         target = str(draft["path"])

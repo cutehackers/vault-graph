@@ -25,6 +25,7 @@ from typing import Any
 
 from vault_graph.operation.memory.memory_ports import PageText
 from vault_graph.operation.memory.memory_requests import (
+    PROJECT_KIND,
     TAGGED_MEMORY_KINDS,
     RememberRequest,
     RestoreRequest,
@@ -36,9 +37,9 @@ from vault_graph.operation.scope.vault_frontmatter import parse_vault_frontmatte
 
 MEMORY_SCHEMA = "vault-memory/v1"
 
-_KIND_FOLDERS = {"decision": "decisions", "system": "systems"}
-_KIND_INDEX_SECTIONS = {"decision": "Decisions", "system": "Systems"}
-_KIND_LOG_EVENTS = {"decision": "decision", "system": "manual-note"}
+_KIND_FOLDERS = {"decision": "decisions", "system": "systems", PROJECT_KIND: "projects"}
+_KIND_INDEX_SECTIONS = {"decision": "Decisions", "system": "Systems", PROJECT_KIND: "Projects"}
+_KIND_LOG_EVENTS = {"decision": "decision", "system": "manual-note", PROJECT_KIND: "manual-note"}
 _MAX_SLUG_CHARS = 80
 # The page statuses a page leaves recall with, and so the ones restore accepts
 # (context/memory/project_memory.py STALE_STATUSES, spec 2026-11-05 §4.4.13).
@@ -50,10 +51,15 @@ def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, 
 
     With ``project_id`` the page gets frontmatter ``project``, and a ``correction`` or ``rule`` memory
     kind is also put in ``tags``, so the Vault project summary lists the page (spec 2026-11-05 §4.4.3).
+
+    Kind ``project`` is the project brief: its file name is the project id, not the title, because the
+    Vault accepts ``type: project`` only at ``wiki/projects/<project>.md`` (spec 2026-11-05 §4.4.7).
+    ``validate_remember`` has already checked that a brief request has a project id.
     """
     title = request.title.strip()
     evidence = _evidence(request.evidence)
-    target = f"{_KIND_FOLDERS[request.kind]}/{page_slug(title)}"
+    name = str(request.project_id) if request.kind == PROJECT_KIND else page_slug(title)
+    target = f"{_KIND_FOLDERS[request.kind]}/{name}"
     day = today.isoformat()
     frontmatter: dict[str, Any] = {
         "title": title,
