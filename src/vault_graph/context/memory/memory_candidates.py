@@ -354,10 +354,20 @@ def _session_candidates(
     citations = _exchange_citations(wiki_pages)
     signals = _signals(ordered)
     oldest = now - SESSION_CANDIDATE_MAX_AGE
-    pending: list[_Pending] = []
+    # A resumed or forked session file repeats the earlier turns, so one exchange can sit in several
+    # files. Copies are one candidate: the first in `ordered`, left out when any copy is reviewed or cited.
+    copies: dict[tuple[datetime, str], list[SessionExchange]] = {}
     for exchange in ordered:
+        copies.setdefault(_copy_key(exchange), []).append(exchange)
+    pending: list[_Pending] = []
+    for group in copies.values():
+        exchange = group[0]
         key = f"{SESSION_KEY_PREFIX}{exchange.parent_key}"
-        if exchange.started_at < oldest or key in reviewed or _is_cited(exchange, citations):
+        if (
+            exchange.started_at < oldest
+            or any(f"{SESSION_KEY_PREFIX}{item.parent_key}" in reviewed for item in group)
+            or any(_is_cited(item, citations) for item in group)
+        ):
             continue
         pending.append(
             _Pending(
@@ -373,6 +383,11 @@ def _session_candidates(
     pending.sort(key=lambda item: item.started_at or now, reverse=True)
     pending.sort(key=lambda item: _SIGNAL_RANK[item.signal or "none"])
     return pending
+
+
+def _copy_key(exchange: SessionExchange) -> tuple[datetime, str]:
+    """Copies of one exchange share the start time and what the person typed. No text: the exchange alone."""
+    return (exchange.started_at, exchange.human_text or f"\0{exchange.parent_key}")
 
 
 def _exchange_order(exchange: SessionExchange) -> tuple[str, datetime, str, int, str]:

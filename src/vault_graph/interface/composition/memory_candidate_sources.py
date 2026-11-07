@@ -85,7 +85,10 @@ _CODE_REF_RE = re.compile(
     r"(?:(?:::|#|:)(?P<symbol>[A-Za-z_][\w.]*)|[:#@][\w.@:#-]*)?$"
 )
 _META_RE = re.compile(r"^<!-- vg:exchange (?P<body>.*) -->$")
-_V1_TURN_RE = re.compile(r"^## (?P<at>\d{4}-\d{2}-\d{2}T\S+) (?:subagent \S+ )?(?P<role>user|assistant)$")
+_V1_TURN_RE = re.compile(r"^## (?P<at>\d{4}-\d{2}-\d{2}T\S+) (?P<subagent>subagent \S+ )?(?P<role>user|assistant)$")
+# A v1 user turn whose text starts like this is not what a person typed (spec 2026-11-05 §4.2.2 사람 턴):
+# the context summary after compaction, or tagged command and system text.
+_V1_NOT_HUMAN_STARTS = ("This session is being continued from a previous conversation", "<")
 _V2_TURN_RE = re.compile(r"^### (?P<role>[^ ·]+)")
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
@@ -437,10 +440,12 @@ def _exchange(
     if chunk.chunker_version == SESSION_EXCHANGE_V2_VERSION:
         fields = next((_meta_fields(line) for line in block if _META_RE.match(line)), {})
         started_text = fields.get("started", "")
-        human = _turn_text(block, _V2_TURN_RE, top_level_ends_turn=True)
+        # A subagent exchange's user turn is the main agent's prompt, not a person's.
+        is_subagent = fields.get("scope", "main").startswith("subagent")
+        human = "" if is_subagent else _turn_text(block, _V2_TURN_RE, top_level_ends_turn=True)
     else:
         started_text = next((match.group("at") for line in block if (match := _V1_TURN_RE.match(line))), "")
-        human = _turn_text(block, _V1_TURN_RE, top_level_ends_turn=False)
+        human = _turn_text(block, _V1_TURN_RE, top_level_ends_turn=False, not_human_starts=_V1_NOT_HUMAN_STARTS)
     started = _time(started_text) or _time(_text(document.frontmatter.get("first_turn_at"))) or _path_day(document.path)
     if started is None:
         return None
@@ -469,20 +474,41 @@ def _meta_fields(line: str) -> dict[str, str]:
     return fields
 
 
-def _turn_text(block: Sequence[str], heading: re.Pattern[str], *, top_level_ends_turn: bool) -> str:
-    """Text of the user turns in an exchange block. v1 ``Tools:`` lines are not human text."""
+def _turn_text(
+    block: Sequence[str],
+    heading: re.Pattern[str],
+    *,
+    top_level_ends_turn: bool,
+    not_human_starts: tuple[str, ...] = (),
+) -> str:
+    """Text a person typed in an exchange block (spec 2026-11-05 §4.2.2 사람 턴).
+
+    v1 ``Tools:`` lines, v1 prompts to subagents, and v1 user turns that open with a compaction summary or a
+    tag are left out. v2 renders those as other turn kinds already.
+    """
     role: str | None = None
+    turn: list[str] = []
     kept: list[str] = []
+
+    def close() -> None:
+        if role == "user" and turn and not turn[0].startswith(not_human_starts):
+            kept.extend(turn)
+        turn.clear()
+
     for line in block:
         match = heading.match(line)
         if match is not None:
-            role = match.group("role")
+            close()
+            subagent = match.groupdict().get("subagent")
+            role = None if subagent else match.group("role")
             continue
         if top_level_ends_turn and line.startswith("## "):
+            close()
             role = None
             continue
         if role == "user" and line.strip() and not line.startswith("Tools: "):
-            kept.append(line.strip())
+            turn.append(line.strip())
+    close()
     return "\n".join(kept)
 
 

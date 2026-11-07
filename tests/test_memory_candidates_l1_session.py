@@ -63,7 +63,7 @@ def _exchange(
     path: str = SESSION_A,
     lines: tuple[int, int] = (10, 20),
     days_ago: float = 1,
-    human: str = "parser 테스트를 돌려 줘",
+    human: str | None = None,
     outcome: str = "answered",
 ) -> SessionExchange:
     return SessionExchange(
@@ -72,7 +72,8 @@ def _exchange(
         line_start=lines[0],
         line_end=lines[1],
         started_at=NOW - timedelta(days=days_ago),
-        human_text=human,
+        # Distinct exchanges get distinct text: the same time and text in two files is one copied exchange.
+        human_text=human if human is not None else f"parser 테스트를 돌려 줘 ({exchange_id})",
         outcome=outcome,
         exchange_id=exchange_id,
     )
@@ -318,3 +319,19 @@ def test_review_log_hides_a_candidate_until_the_file_is_deleted(tmp_path: Path) 
     assert _keys(shown) == ["session:sess-aaaa11:u-1"]
     assert {path: path.read_bytes() for path in vault.rglob("*") if path.is_file()} == vault_before
     assert not list(vault.rglob("reviewed.jsonl"))
+
+
+def test_the_same_exchange_copied_into_resumed_sessions_is_one_candidate() -> None:
+    # A resumed or forked Claude Code session starts a new session file that repeats the earlier turns.
+    first = _exchange("u-1", path=SESSION_A, lines=(10, 20), days_ago=3, human="v2 형식으로 가기로 결정했어")
+    copy = _exchange("u-1", path=SESSION_B, lines=(10, 20), days_ago=3, human="v2 형식으로 가기로 결정했어")
+
+    assert _keys(_build(exchanges=[first, copy])) == ["session:sess-aaaa11:u-1"]
+
+
+def test_a_citation_of_one_copy_removes_every_copy() -> None:
+    first = _exchange("u-1", path=SESSION_A, lines=(10, 20), days_ago=3, human="v2 형식으로 가기로 결정했어")
+    copy = _exchange("u-1", path=SESSION_B, lines=(10, 20), days_ago=3, human="v2 형식으로 가기로 결정했어")
+    page = WikiPageText(path="wiki/decisions/v2.md", text=f"근거: {SESSION_B} L10-L20")
+
+    assert _build(exchanges=[first, copy], pages=[page]) == ()
