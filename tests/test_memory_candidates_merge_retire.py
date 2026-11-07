@@ -451,6 +451,11 @@ def project(tmp_path: Path, monkeypatch: MonkeyPatch) -> _Project:
         "---\ntitle: 옛 파서\ntype: concept\nstatus: retired\nretired_reason: 파서를 바꿈\n---\n"
         "# 옛 파서\n\ntree-sitter 파서 이전에는 정규식 파서를 썼다.\n",
     )
+    _write(
+        vault,
+        "wiki/sources/parser-notes.md",
+        "---\ntitle: 파서 메모\ntype: source\n---\n# 파서 메모\n\ntree-sitter 파서는 정규식 파서를 바꿨다.\n",
+    )
     session_path = "raw/sessions/claude-code/" + V2_FIXTURE.name
     (vault / session_path).parent.mkdir(parents=True)
     shutil.copyfile(V2_FIXTURE, vault / session_path)
@@ -535,6 +540,18 @@ def test_comparison_material_includes_retired_pages_with_the_retired_label(proje
     labels = {page.path: page.label for page in parser.comparison}
     assert labels.get("wiki/concepts/old-parser.md") == "폐기됨: 파서를 바꿈"
     assert "wiki/concepts/parser-code.md" not in labels
+
+
+def test_comparison_material_leaves_out_source_registration_pages(project: _Project) -> None:
+    """Comparison material is existing knowledge pages (spec 2026-11-05 §4.4.4), not `wiki/sources/` records,
+    even though knowledge-mode search now returns source pages (§10.2 원인1)."""
+    package = memory_candidate_package(
+        project.graph_home, project.repo, now=NOW, environ=project.environ, kinds=RETIRE_ONLY
+    )
+
+    parser = next(candidate for candidate in package.candidates if candidate.location == "wiki/concepts/parser-code.md")
+    assert parser.comparison
+    assert [page.path for page in parser.comparison if page.path.startswith("wiki/sources/")] == []
 
 
 def test_same_state_gives_the_same_package_and_no_vault_or_l1_file_changes(project: _Project) -> None:
