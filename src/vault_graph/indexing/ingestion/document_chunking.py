@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol, TypeVar, runtime_checkable
 
 from vault_graph.indexing.ingestion.document_models import ContentBlock, ContentUnit, ExtractedDocument, SourceLocator
+from vault_graph.indexing.ingestion.document_snapshots import ChunkKind
 
 DEFAULT_DOCUMENT_CHUNK_MAX_TOKENS = 256
 CHUNKER_VERSION = "document-block-window-v2"
@@ -47,6 +48,8 @@ class ChunkDraft:
     # Values after (chunker version, vault id) in the chunk id, set by a chunker whose ids must not
     # follow the file path (spec 2026-11-05 §4.2.6-9). None keeps the (path, boundary_key) id.
     id_key: tuple[str, ...] | None = None
+    # What the chunk holds (document_snapshots.ChunkKind). Only the wiki page chunker sets another kind.
+    chunk_kind: ChunkKind = "body"
 
     def __post_init__(self) -> None:
         if self.token_count < 0:

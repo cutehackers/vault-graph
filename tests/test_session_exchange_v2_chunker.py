@@ -71,14 +71,14 @@ def test_v2_schema_selects_the_session_exchange_v2_chunker() -> None:
     chunker = select_chunker(_extracted(WITH_ORIGIN))
 
     assert isinstance(chunker, SessionExchangeV2Chunker)
-    assert chunker.version == SESSION_EXCHANGE_V2_VERSION == "session-exchange-v2"
+    assert chunker.version == SESSION_EXCHANGE_V2_VERSION == "session-exchange-v2-w96"
     assert SESSION_EXCHANGE_V2_VERSION in CHUNKER_VERSIONS
     # The incremental precheck hashes INDEX_CODE_PARTS, so a new chunker version re-plans every file.
     assert SESSION_EXCHANGE_V2_VERSION in INDEX_CODE_PARTS
 
 
 @pytest.mark.parametrize("path", ALL_FIXTURES)
-def test_windows_hide_meta_lines_stay_within_160_tokens_and_do_not_overlap(path: str) -> None:
+def test_windows_hide_meta_lines_stay_within_96_tokens_and_do_not_overlap(path: str) -> None:
     normalized = _normalized(path)
     lines = _file_lines(path)
     meta_lines = [line for line in lines if line.startswith("<!-- vg:exchange ")]
@@ -325,7 +325,8 @@ def test_pack_exchange_windows_splits_one_long_line_with_disjoint_char_ranges() 
 
     windows = pack_exchange_windows(lines)
 
-    assert [window.token_count for window in windows] == [160, 160, 83]
+    assert SESSION_WINDOW_MAX_TOKENS == 96
+    assert [window.token_count for window in windows] == [96, 96, 96, 96, 19]
     assert " ".join(window.text for window in windows).split() == ["short", "opening", "line", *long_line.split()]
     ranges = [(window.start_offset, window.end_offset) for window in windows]
     assert ranges[0][0] == 100

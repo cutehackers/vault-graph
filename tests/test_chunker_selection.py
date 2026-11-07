@@ -24,6 +24,7 @@ from vault_graph.indexing.ingestion.document_chunking import (
 from vault_graph.indexing.ingestion.document_models import ExtractedDocument, SourceDocument
 from vault_graph.indexing.ingestion.document_normalizer import DocumentNormalizer
 from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
+from vault_graph.indexing.ingestion.wiki_page_chunker import WIKI_PAGE_CHUNKER_VERSION, WikiPageChunker
 
 _BODY = """# Title
 
@@ -48,10 +49,20 @@ Closing words.
 """
 
 # Digest of (chunk_id, text, source_locators, embedding input) per chunk, as produced at abc77e7.
+# Spec 2026-11-05 §10.2 moved wiki pages to the wiki page chunker, so the generic cases now use paths
+# outside `wiki/`. Their digests are those the generic chunker gave before that change (61011ed + 4f79315).
 _GOLDEN = {
-    "plain": "6c97ddd4c19fd0bb21028040c37134fc3cdca99798d7db9f2389c685099cff22",
-    "other-schema": "c993dd85b609e643395851a7d79929b5214e4cc94388ec0e835556895e3faa0e",
+    "plain": "ea513ed8b35f9b0896e47e11af5352786c98d291906ba1f38a97bcebe5d3377d",
+    "raw-plain": "ba1c98df742ae490a7c29b46fbfe19e6f465ba89673409819e917935801b0809",
+    "other-schema": "5b13ff9d34a2a17d124a83e94452b4a52b24c99667394005e8b9be0f2625bbbc",
     "session-no-schema": "b094db34c9afd9193e503ddd5a8dff3e509afd13c66e88ffbf4586f816a24e98",
+}
+
+# Wiki pages under `wiki-page-window-v1` (spec 2026-11-05 §10.2 원인7·8). Changed on purpose from the
+# abc77e7 digests 6c97ddd4... and c993dd85... when wiki pages left the generic chunker.
+_WIKI_GOLDEN = {
+    "plain": "e53ffc00dd2e621efae38318ad8a6ddaf677be7f0241221aa2f147c236234aeb",
+    "other-schema": "e3e903cc98799d4006f9b4af6ed6e3d8a8429ad4a403c53c9a084c6225c14329",
 }
 
 
@@ -87,9 +98,15 @@ def _digest(extracted: ExtractedDocument) -> str:
 
 
 _CASES = {
+    "plain": ("notes/page.md", None),
+    "raw-plain": ("raw/notes/page.md", None),
+    "other-schema": ("notes/page.md", "schema: vault-page/v1\n"),
+    "session-no-schema": ("raw/sessions/2026-11-01-x.md", "type: session\nsession_id: s-1\n"),
+}
+
+_WIKI_CASES = {
     "plain": ("wiki/page.md", None),
     "other-schema": ("wiki/page.md", "schema: vault-page/v1\n"),
-    "session-no-schema": ("raw/sessions/2026-11-01-x.md", "type: session\nsession_id: s-1\n"),
 }
 
 
@@ -112,6 +129,20 @@ def test_generic_documents_match_abc77e7_byte_for_byte(case: str) -> None:
     )
     assert normalized.warnings == ()
     assert _digest(extracted) == _GOLDEN[case]
+
+
+@pytest.mark.parametrize("case", sorted(_WIKI_CASES))
+def test_wiki_pages_match_their_wiki_page_chunker_digest(case: str) -> None:
+    path, frontmatter = _WIKI_CASES[case]
+    extracted = _extracted(path, frontmatter)
+
+    normalized = DocumentNormalizer().normalize(extracted)
+
+    assert isinstance(select_chunker(extracted), WikiPageChunker)
+    assert {chunk.chunker_version for chunk in normalized.chunks} == {WIKI_PAGE_CHUNKER_VERSION}
+    assert normalized.chunks[0].chunk_kind == "page_card"
+    assert normalized.warnings == ()
+    assert _digest(extracted) == _digest(extracted) == _WIKI_GOLDEN[case]
 
 
 def test_documents_without_session_schema_select_the_window_chunker() -> None:

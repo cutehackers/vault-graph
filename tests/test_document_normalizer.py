@@ -34,7 +34,10 @@ def test_document_and_chunk_ids_are_vault_scoped(tmp_path: Path) -> None:
 
     assert first_snapshot.document.document_id != second_snapshot.document.document_id
     assert first_snapshot.chunks[0].chunk_id != second_snapshot.chunks[0].chunk_id
-    assert first_snapshot.chunks[0].anchor == "same-title"
+    # Wiki pages start with their page card (spec 2026-11-05 §10.2 원인8). The body window follows.
+    assert [chunk.chunk_kind for chunk in first_snapshot.chunks] == ["page_card", "body"]
+    assert first_snapshot.chunks[1].chunk_id != second_snapshot.chunks[1].chunk_id
+    assert first_snapshot.chunks[1].anchor == "same-title"
 
 
 def test_document_normalizer_preserves_vault_id_and_path(tmp_path: Path) -> None:
@@ -53,7 +56,7 @@ def test_document_normalizer_preserves_vault_id_and_path(tmp_path: Path) -> None
 
     assert snapshot.document.vault_id == "default"
     assert snapshot.document.path == "wiki/decisions/local-first.md"
-    assert snapshot.chunks[0].text == "We chose local-first indexing."
+    assert snapshot.chunks[1].text == "We chose local-first indexing."
 
 
 def test_repeated_headings_produce_unique_chunk_ids(tmp_path: Path) -> None:
@@ -61,7 +64,8 @@ def test_repeated_headings_produce_unique_chunk_ids(tmp_path: Path) -> None:
     loaded = LoadedVaultDocument(
         vault_id="default",
         root_path=tmp_path,
-        path="wiki/repeated.md",
+        # Outside wiki/: the generic window chunker cuts at every heading.
+        path="notes/repeated.md",
         text=text,
         raw_sha256="raw",
         content_hash="content",

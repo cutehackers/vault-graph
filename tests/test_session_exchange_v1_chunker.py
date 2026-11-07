@@ -22,6 +22,7 @@ from vault_graph.indexing.ingestion.document_models import ExtractedDocument, So
 from vault_graph.indexing.ingestion.document_normalizer import DocumentNormalizer, stable_id
 from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
 from vault_graph.indexing.ingestion.session_exchange_v1_chunker import (
+    MAX_WINDOW_TOKENS,
     SESSION_EXCHANGE_V1_VERSION,
     SessionExchangeV1Chunker,
 )
@@ -114,7 +115,7 @@ _EXPECTED: dict[str, list[tuple[object, ...]]] = {
             _lines((54, 64)),
         ),
     ],
-    # A continued exchange first, then a turn over 160 whitespace tokens.
+    # A continued exchange first, then turns over 96 whitespace tokens.
     _CONTINUED_LONG: [
         (
             ("Session 2026-11-04 part2", _CONTINUED_Q),
@@ -126,15 +127,31 @@ _EXPECTED: dict[str, list[tuple[object, ...]]] = {
         ),
         (
             ("Session 2026-11-04 part2", "Q: Explain the new schema in detail."),
-            "Explain the new schema in detail.\n\n" + _words("a", 1, 100),
+            "Explain the new schema in detail.",
             f"{_CONTINUED_KEY}:2026-11-04T09:00:30.000Z user:1",
             None,
-            _lines((27, 27), (31, 31)),
+            _lines((27, 27)),
             _lines((25, 34)),
         ),
         (
             ("Session 2026-11-04 part2", "Q: Explain the new schema in detail."),
-            _words("b", 1, 100),
+            _words("a", 1, 96),
+            f"{_CONTINUED_KEY}:2026-11-04T09:00:30.000Z user:1",
+            None,
+            _lines((31, 31)),
+            _lines((25, 34)),
+        ),
+        (
+            ("Session 2026-11-04 part2", "Q: Explain the new schema in detail."),
+            _words("a", 97, 100),
+            f"{_CONTINUED_KEY}:2026-11-04T09:00:30.000Z user:1",
+            None,
+            _lines((31, 31)),
+            _lines((25, 34)),
+        ),
+        (
+            ("Session 2026-11-04 part2", "Q: Explain the new schema in detail."),
+            _words("b", 1, 96),
             f"{_CONTINUED_KEY}:2026-11-04T09:00:30.000Z user:1",
             None,
             _lines((32, 32)),
@@ -142,7 +159,15 @@ _EXPECTED: dict[str, list[tuple[object, ...]]] = {
         ),
         (
             ("Session 2026-11-04 part2", "Q: Explain the new schema in detail."),
-            _words("c", 1, 160),
+            _words("b", 97, 100),
+            f"{_CONTINUED_KEY}:2026-11-04T09:00:30.000Z user:1",
+            None,
+            _lines((32, 32)),
+            _lines((25, 34)),
+        ),
+        (
+            ("Session 2026-11-04 part2", "Q: Explain the new schema in detail."),
+            _words("c", 1, 96),
             f"{_CONTINUED_KEY}:2026-11-04T09:00:30.000Z user:1",
             None,
             _lines((34, 34)),
@@ -150,7 +175,15 @@ _EXPECTED: dict[str, list[tuple[object, ...]]] = {
         ),
         (
             ("Session 2026-11-04 part2", "Q: Explain the new schema in detail."),
-            _words("c", 161, 200),
+            _words("c", 97, 192),
+            f"{_CONTINUED_KEY}:2026-11-04T09:00:30.000Z user:1",
+            None,
+            _lines((34, 34)),
+            _lines((25, 34)),
+        ),
+        (
+            ("Session 2026-11-04 part2", "Q: Explain the new schema in detail."),
+            _words("c", 193, 200),
             f"{_CONTINUED_KEY}:2026-11-04T09:00:30.000Z user:1",
             None,
             _lines((34, 34)),
@@ -189,11 +222,11 @@ def test_fixture_windows_match_the_expected_list(name: str) -> None:
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED))
-def test_windows_stay_within_160_tokens_and_never_hold_tool_lines(name: str) -> None:
+def test_windows_stay_within_96_tokens_and_never_hold_tool_lines(name: str) -> None:
     drafts = SessionExchangeV1Chunker().chunk(_extracted(name))
 
     for draft in drafts:
-        assert draft.token_count == len(draft.text.split()) <= 160
+        assert draft.token_count == len(draft.text.split()) <= MAX_WINDOW_TOKENS == 96
         assert "Tools:" not in draft.text
         assert not any(line.startswith("## ") for line in draft.text.splitlines())
 
@@ -265,7 +298,7 @@ def test_embedding_input_puts_session_and_question_before_the_window() -> None:
 def test_chunker_matches_the_document_chunker_protocol() -> None:
     chunker = SessionExchangeV1Chunker()
 
-    assert chunker.version == SESSION_EXCHANGE_V1_VERSION == "session-exchange-v1"
+    assert chunker.version == SESSION_EXCHANGE_V1_VERSION == "session-exchange-v1-w96"
     assert isinstance(chunker, DocumentChunker)
 
 
@@ -278,11 +311,11 @@ def test_registered_v1_chunker_leaves_no_generic_windows_in_a_session_file() -> 
 
     versions = [chunk.chunker_version for chunk in normalized.chunks]
     assert versions and versions.count(CHUNKER_VERSION) == 0
-    assert set(versions) == {"session-exchange-v1"}
+    assert set(versions) == {"session-exchange-v1-w96"}
     first = normalized.chunks[0]
     assert first.chunk_id == stable_id(
         "chunk",
-        "session-exchange-v1",
+        "session-exchange-v1-w96",
         "default",
         extracted.source.path,
         "2026-11-03T14:00:00.000Z user",

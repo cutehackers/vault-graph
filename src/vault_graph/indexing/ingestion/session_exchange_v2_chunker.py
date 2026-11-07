@@ -34,8 +34,11 @@ from vault_graph.indexing.ingestion.document_models import ExtractedDocument, So
 from vault_graph.indexing.ingestion.document_snapshots import NormalizedDocument
 from vault_graph.indexing.ingestion.markdown_parser import make_anchor
 
-SESSION_EXCHANGE_V2_VERSION = "session-exchange-v2"
-SESSION_WINDOW_MAX_TOKENS = 160
+# `-w96`: windows of 96 whitespace words (spec 2026-11-05 §10.2). Was 160. On the vault-graph session
+# set, 96 words gave MRR 0.45 against 0.43 and cut model inputs over 512 tokens from 12.0% to 0.65%.
+# The version is in every chunk id, so the change replaces each window once.
+SESSION_EXCHANGE_V2_VERSION = "session-exchange-v2-w96"
+SESSION_WINDOW_MAX_TOKENS = 96
 MODEL_TOKEN_LIMIT = 512
 QUESTION_CHARS = 80
 CONTINUED_QUESTION = "(이전 파트에서 이어짐)"

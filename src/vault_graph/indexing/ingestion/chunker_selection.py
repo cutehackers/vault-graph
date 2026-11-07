@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from vault_graph.indexing.ingestion.document_authority import classify_document_role
 from vault_graph.indexing.ingestion.document_chunking import (
     ChunkDraft,
     DocumentChunker,
@@ -15,6 +16,7 @@ from vault_graph.indexing.ingestion.document_models import ExtractedDocument
 from vault_graph.indexing.ingestion.document_snapshots import ChunkSnapshot
 from vault_graph.indexing.ingestion.session_exchange_v1_chunker import SessionExchangeV1Chunker
 from vault_graph.indexing.ingestion.session_exchange_v2_chunker import SessionExchangeV2Chunker
+from vault_graph.indexing.ingestion.wiki_page_chunker import WikiPageChunker
 
 SESSION_SCHEMA_PREFIX = "vault-session/"
 SESSION_SCHEMA_V1 = "vault-session/v1"
@@ -23,6 +25,11 @@ KNOWN_SESSION_SCHEMAS: frozenset[str] = frozenset({SESSION_SCHEMA_V1, SESSION_SC
 
 _GENERIC_CHUNKER: DocumentChunker[ChunkDraft] = DocumentWindowChunker()
 
+# Curated wiki pages and `wiki/sources/` pages (spec 2026-11-05 §10.2 원인7·8). Raw files, generated
+# views (wiki/index.md, wiki/maps/), the log and files outside `wiki/` keep the generic window chunker.
+_WIKI_PAGE_CHUNKER: DocumentChunker[ChunkDraft] = WikiPageChunker()
+_WIKI_PAGE_ROLES = frozenset({"canonical_knowledge", "source_manifest"})
+
 # Session exchange chunkers by frontmatter `schema` (spec 2026-11-05 §4.2.6-1).
 _SESSION_CHUNKERS: Mapping[str, DocumentChunker[ChunkDraft]] = {
     SESSION_SCHEMA_V1: SessionExchangeV1Chunker(),
@@ -30,7 +37,7 @@ _SESSION_CHUNKERS: Mapping[str, DocumentChunker[ChunkDraft]] = {
 }
 
 _CHUNKERS_BY_VERSION: Mapping[str, DocumentChunker[ChunkDraft]] = {
-    chunker.version: chunker for chunker in (_GENERIC_CHUNKER, *_SESSION_CHUNKERS.values())
+    chunker.version: chunker for chunker in (_GENERIC_CHUNKER, _WIKI_PAGE_CHUNKER, *_SESSION_CHUNKERS.values())
 }
 
 # Every chunker version this code can write, in a fixed order. The incremental precheck hashes them.
@@ -47,7 +54,7 @@ def chunker_selection(extracted: ExtractedDocument) -> ChunkerSelection:
     """The chunker for this document, plus one warning line for an unknown session schema."""
     schema = extracted.frontmatter.data.get("schema")
     if not isinstance(schema, str) or not schema.startswith(SESSION_SCHEMA_PREFIX):
-        return ChunkerSelection(_GENERIC_CHUNKER)
+        return ChunkerSelection(_WIKI_PAGE_CHUNKER if _is_wiki_page(extracted) else _GENERIC_CHUNKER)
     session_chunker = _SESSION_CHUNKERS.get(schema)
     if session_chunker is not None:
         return ChunkerSelection(session_chunker)
@@ -59,6 +66,15 @@ def chunker_selection(extracted: ExtractedDocument) -> ChunkerSelection:
             f"unknown_session_schema: {extracted.source.path} has schema {schema}; "
             f"chunked with {_GENERIC_CHUNKER.version}"
         ),
+    )
+
+
+def _is_wiki_page(extracted: ExtractedDocument) -> bool:
+    path = extracted.source.path
+    return (
+        extracted.format == "markdown"
+        and path.startswith("wiki/")
+        and classify_document_role(path=path, frontmatter=extracted.frontmatter.data) in _WIKI_PAGE_ROLES
     )
 
 

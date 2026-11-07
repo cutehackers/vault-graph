@@ -11,6 +11,7 @@ from vault_graph.errors import MetadataStoreError
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
 from vault_graph.indexing.ingestion.document_models import DocumentModelError, SourceLocator
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.indexing.ingestion.document_snapshots import ALL_CHUNK_KINDS, ChunkKind
 from vault_graph.indexing.ingestion.session_group import session_group_key
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import (
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS chunks (
   parent_key TEXT,
   parent_locators_json TEXT NOT NULL DEFAULT '[]',
   keyword_metadata TEXT,
+  chunk_kind TEXT NOT NULL DEFAULT 'body',
   PRIMARY KEY (vault_id, chunk_id)
 );
 
@@ -141,12 +143,14 @@ _REQUIRED_CHUNK_COLUMNS = frozenset(
         "document_order",
     }
 )
-# Session window columns (spec 2026-11-05 §4.2.6-6·8). Not in _REQUIRED_CHUNK_COLUMNS: a store written
-# before them stays healthy, and its read-only open reads them as None and an empty tuple.
+# Session window columns (spec 2026-11-05 §4.2.6-6·8) and the chunk kind (§10.2 원인7·8). Not in
+# _REQUIRED_CHUNK_COLUMNS: a store written before them stays healthy, and its read-only open reads
+# them as None, an empty tuple and "body".
 _OPTIONAL_CHUNK_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("parent_key", "TEXT", "NULL"),
     ("parent_locators_json", "TEXT NOT NULL DEFAULT '[]'", "'[]'"),
     ("keyword_metadata", "TEXT", "NULL"),
+    ("chunk_kind", "TEXT NOT NULL DEFAULT 'body'", "'body'"),
 )
 
 
@@ -263,9 +267,9 @@ class SQLiteMetadataStore:
                       vault_id, chunk_id, document_id, path, section, anchor, blob_hash,
                       token_count, content_hash, chunker_version, index_revision, source_role,
                       provenance_family_id, section_path_json, source_locators_json, document_order,
-                      parent_key, parent_locators_json, keyword_metadata
+                      parent_key, parent_locators_json, keyword_metadata, chunk_kind
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         chunk.vault_id,
@@ -287,6 +291,7 @@ class SQLiteMetadataStore:
                         chunk.parent_key,
                         _source_locators_json(chunk.parent_locators),
                         chunk.keyword_metadata,
+                        chunk.chunk_kind,
                     ),
                 )
             for vault_id, path in tombstones:
@@ -954,7 +959,15 @@ def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
         parent_key=str(row["parent_key"]) if row["parent_key"] is not None else None,
         parent_locators=_decode_source_locators(row["parent_locators_json"]),
         keyword_metadata=str(row["keyword_metadata"]) if row["keyword_metadata"] is not None else None,
+        chunk_kind=_chunk_kind(row["chunk_kind"]),
     )
+
+
+def _chunk_kind(raw_value: object) -> ChunkKind:
+    for kind in ALL_CHUNK_KINDS:
+        if raw_value == kind:
+            return kind
+    raise MetadataStoreError(f"metadata chunk_kind is unknown: {raw_value}")
 
 
 def _path_in_content_scope(*, path: str, content_scopes: tuple[str, ...]) -> bool:

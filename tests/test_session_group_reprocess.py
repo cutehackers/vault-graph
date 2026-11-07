@@ -29,6 +29,8 @@ from tests.test_session_v1_v2_overlap import (
     write,
 )
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.indexing.ingestion.session_exchange_v1_chunker import SESSION_EXCHANGE_V1_VERSION
+from vault_graph.indexing.ingestion.session_exchange_v2_chunker import SESSION_EXCHANGE_V2_VERSION
 from vault_graph.indexing.ingestion.vault_loader import VaultLoader
 from vault_graph.indexing.metadata_indexer import MetadataIndexer
 from vault_graph.indexing.revision_planner import MetadataRevisionPlan
@@ -253,7 +255,7 @@ def test_family_change_by_supersedes_matches_a_full_run(tmp_path: Path, reads: l
 # embedding input is over 512 model tokens and says how it counted.
 
 
-def window(chunk_id: str, text: str, chunker_version: str = "session-exchange-v2") -> ChunkSnapshot:
+def window(chunk_id: str, text: str, chunker_version: str = SESSION_EXCHANGE_V2_VERSION) -> ChunkSnapshot:
     return ChunkSnapshot(
         vault_id="main",
         chunk_id=chunk_id,
@@ -297,7 +299,7 @@ def model_limit_warnings(embeddings: DeterministicTextEmbeddings, chunks: tuple[
 def test_session_windows_over_512_tokens_are_counted_with_the_byte_estimate() -> None:
     chunks = (
         window("long-v2", LONG),
-        window("long-v1", LONG, "session-exchange-v1"),
+        window("long-v1", LONG, SESSION_EXCHANGE_V1_VERSION),
         window("short", "short window"),
         window("long-generic", LONG, "document-block-window-v2"),
     )

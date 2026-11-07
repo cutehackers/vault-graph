@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from vault_graph.context.pack.context_pack_renderer import ContextPackRenderer
     from vault_graph.context.pack.recall import RecallPorts, RecallScope
     from vault_graph.indexing.index_service import IndexService
-    from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
+    from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
     from vault_graph.interface.composition.adapters.text_embeddings import FastEmbedTextEmbeddings
     from vault_graph.operation.diagnostics.health_explorer import HealthExplorerService
     from vault_graph.operation.integration.vault_map import MappedVaultScope, VaultMap
@@ -450,6 +450,15 @@ class ProjectMemoryScope:
     vault_scopes: Mapping[str, MappedVaultScope]
 
 
+def _body_chunks(metadata_store: MetadataStore, vault_id: str, document_id: str) -> tuple[ChunkSnapshot, ...]:
+    """The chunks that make up a page body. The page card repeats the title and summary, so it is left out."""
+    return tuple(
+        chunk
+        for chunk in metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
+        if chunk.chunk_kind != "page_card"
+    )
+
+
 def metadata_body_reader(metadata_store: MetadataStore) -> Callable[[str, str], str]:
     """Read the indexed body of a page as Markdown, section headings included, by ``(vault_id, document_id)``.
 
@@ -458,7 +467,7 @@ def metadata_body_reader(metadata_store: MetadataStore) -> Callable[[str, str], 
     """
 
     def body_text(vault_id: str, document_id: str) -> str:
-        chunks = metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
+        chunks = _body_chunks(metadata_store, vault_id, document_id)
         return "\n\n".join(f"## {chunk.section}\n\n{chunk.text}" if chunk.section else chunk.text for chunk in chunks)
 
     return body_text
@@ -574,7 +583,7 @@ class _MetadataRecallDocuments:
         return self._metadata_store.list_documents(self._catalog.scope_for_vault_ids((vault_id,)))
 
     def body_tokens(self, vault_id: str, document_id: str) -> int:
-        chunks = self._metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
+        chunks = _body_chunks(self._metadata_store, vault_id, document_id)
         return sum(chunk.token_count for chunk in chunks)
 
     def body_text(self, vault_id: str, document_id: str) -> str:
