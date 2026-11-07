@@ -233,7 +233,7 @@ vg는 이 형식을 쓰지 않고 읽기만 한다. vault-builder에 요청하�
 1. 조각기 선택: 새 파일 `src/vault_graph/indexing/ingestion/chunker_selection.py`(M02)의 `def select_chunker(extracted: ExtractedDocument) -> DocumentChunker[ChunkDraft]`. frontmatter `schema`가 `vault-session/v2`면 `session-exchange-v2`, `vault-session/v1`이면 `session-exchange-v1`, 모르는 `vault-session/*`면 일반 조각기와 경고 한 줄, 그 밖은 지금의 `DocumentWindowChunker`. `DocumentNormalizer`(`document_normalizer.py:51-76@abc77e7`)는 고른 조각기의 `version`을 조각 id와 `chunker_version`에 쓴다.
 2. 임베딩 입력 소유: `DocumentChunker` Protocol(`document_chunking.py:17-23@abc77e7`)에 `embedding_input(section_path, text) -> str`을 더한다. 일반 조각기는 지금의 `contextual_embedding_text`를 그대로 돌려준다. 벡터 색인(`vector_index_adapter.py:130, 206@abc77e7`)은 새 함수 `embedding_input_for(chunk: ChunkSnapshot) -> str`(M02)을 부른다.
 3. 교환 읽기: `##` 제목과 숨은 메타 줄로 교환 id와 교환 메타를 읽고, `###` 제목으로 턴을 읽는다. 사람 턴 판단에 휴리스틱을 쓰지 않는다(Vault 렌더러가 adapter의 `turn_kind`를 제목 role로 옮긴다).
-4. 창 자르기: 교환 안 턴 본문과 행동 목록 줄을 순서대로 이어 공백 토큰 160개 이하로 자른다. 겹치지 않는다. 숨은 메타 줄은 창 본문에 넣지 않는다. 교환이 바뀌면 새 창을 연다.
+4. 창 자르기: 교환 안 턴 본문과 행동 목록 줄을 순서대로 이어 공백 토큰 96개 이하로 자른다(§10.2에서 160에서 96으로 줄였다). 겹치지 않는다. 숨은 메타 줄은 창 본문에 넣지 않는다. 교환이 바뀌면 새 창을 연다.
 5. 창 `section_path`: (`Session <날짜> part<N>`, `Q: <교환 첫 사람 턴 앞 80자>`). 서브에이전트 교환이면 첫 값 뒤에 ` subagent <agent_id>`.
 6. 부모 단위: 창마다 `parent_key = <session_id>:<exchange_id>`와 `parent_locators`(교환 전체 줄 범위)를 둔다. `ChunkSnapshot`에 선택 필드 두 개를 더한다: `parent_key: str | None`, `parent_locators: tuple[SourceLocator, ...]`. 일반 문서는 `None`과 빈 튜플이다. M05 결과 조립(`retrieval/search/evidence_result_assembly.py`)은 같은 `parent_key`의 창들을 가장 높은 순위의 창 하나로 묶고, 결과 위치를 `parent_locators`로, 발췌를 그 창 본문으로 둔다. 묶인 창 수는 결과 설명에 적는다.
 7. 임베딩 입력: `Session: <project> <날짜> part<N>`, `Question: <교환 첫 사람 턴 앞 200자>`, 빈 줄, 창 본문. 숨은 메타 줄과 교환 메타는 넣지 않는다.
@@ -241,6 +241,7 @@ vg는 이 형식을 쓰지 않고 읽기만 한다. vault-builder에 요청하�
 9. 조각 id: `stable_id("chunk", "session-exchange-v2", vault_id, session_id, exchange_id, agent_scope, 창 번호)`. 파일 경로와 renderer 버전에 묶이지 않는다. 같은 교환 id가 두 파일에 있으면 경로 사전순으로 앞 파일만 색인하고 경고 한 줄을 낸다.
 10. 위치(`source_locators`): 창에 든 줄 범위. 형식은 지금 markdown 리더의 `SourceLocator`(`src/vault_graph/indexing/ingestion/markdown_parser.py:418-428@abc77e7`)와 같다.
 11. 모델 토큰 검사: 임베딩 입력이 모델 토큰 512를 넘는 창 수를 색인 결과 경고에 적는다. 창 경계는 공백 토큰 수로만 정한다.
+12. 조각기 버전 이름: 창 크기를 바꾼 뒤 `chunker_version`은 `session-exchange-v2-w96`, `session-exchange-v1-w96`이다. 이 문서의 `session-exchange-v2`·`-v1`은 조각기 이름이고, 버전 문자열은 창 크기를 뒤에 붙인다. 조각 id(9번, 4.2.7)의 첫 값도 이 버전 문자열이라, 창 크기를 바꾸면 모든 세션 창이 한 번 새 id로 바뀐다.
 
 #### 4.2.7 v1 세션 파일 (`session-exchange-v1`)
 
@@ -271,9 +272,9 @@ vg는 이 형식을 쓰지 않고 읽기만 한다. vault-builder에 요청하�
 
 | 대상 | 바뀌는 것 | 바뀌지 않는 것 |
 |---|---|---|
-| 키워드 검색 | 세션 조각이 창 단위가 된다. "Bash"만 맞는 결과가 사라진다. 파일 경로, 명령, 오류 수로 교환을 찾는다 | 일반 문서의 키워드 행, FTS 스키마(열 다섯 개), 한국어 조사 처리 |
-| 의미 검색 | 세션 조각의 벡터가 모두 새로 만들어진다 | 일반 문서의 벡터. 임베딩 입력이 같으므로 임베딩 키도 같다(4.3 원인2) |
-| 결과 단위 | 세션 결과는 교환 하나가 결과 하나다 | 일반 문서 결과(`parent_key`가 없음) |
+| 키워드 검색 | 세션 조각이 창 단위가 된다. "Bash"만 맞는 결과가 사라진다. 파일 경로, 명령, 오류 수로 교환을 찾는다 | 일반 문서의 키워드 행, FTS 스키마(열 다섯 개). 한국어 조사 처리와 열 가중치는 §10에서 바뀐다 |
+| 의미 검색 | 세션 조각의 벡터가 모두 새로 만들어진다 | §10 이전에는 일반 문서의 벡터가 바뀌지 않았다. §10 단계C에서 wiki 페이지는 `wiki-page-window-v1`으로 다시 조각 내고 한 번 다시 임베딩한다 |
+| 결과 단위 | 세션 결과는 교환 하나가 결과 하나다 | §10 단계A부터 일반 문서도 문서 하나가 결과 하나다(`document_id`로 묶음) |
 | 위치 표시 | 세션 결과의 위치가 교환 전체 줄 범위다 | `SourceLocator` 형식, 파일 경로 |
 | 인용 검증, 근거 id | 세션 조각을 가리키던 근거 id(`src/vault_graph/context/answer/evidence_planner.py:468-470@abc77e7`)가 새 id로 바뀐다. 전환 전 답변의 세션 근거는 다시 열리지 않는다 | wiki 페이지가 `raw/sessions/<파일>` 경로로 건 근거 |
 | 그래프 | 세션 파일에서 뽑은 근거 행이 새 조각 id로 바뀐다 | 일반 문서의 그래프 |
@@ -630,7 +631,7 @@ backlog:
 7. 결정7 [가정] 공통 형식은 두 층이다. 기계용 정본은 정규화 JSONL `vg-session-jsonl/1`(Vault 밖), 검색·사람용은 그것에서 결정적으로 렌더링한 `vault-session/v2` md(Vault 안)다. 이유: JSONL은 손실이 적고 파싱이 쉽지만 Obsidian에서 읽을 수 없고 새 리더와 위치 형식이 필요하다. md는 지금 리더, FTS, 줄 위치를 그대로 쓴다(조사 session-format 결정7).
 8. 결정8 [가정] v2 md는 Vault 도구가 렌더링하고 쓴다(`sessions capture --normalized`, 요청S10). vg는 언제, 어떤 정규화 파일을 넘길지만 정한다. 이유: vg는 Vault 파일을 직접 쓰지 않는다. md 형식의 주인이 Vault 도구에 남아 Vault만 쓰는 수집(vg가 없을 때)과 형식이 같다. 대안(vg가 렌더링하고 Vault가 검사만)은 Vault 쪽 검사 규칙이 렌더러를 다시 구현해야 한다.
 9. 결정9 [가정] 사람 턴, 도구 대상, 성공 여부는 adapter가 원본 필드로 판단한다. md 텍스트 휴리스틱은 원본에 필드가 없는 옛 레코드와 v1 파일에만 쓴다. 이유: 발견A8. `turnOrigin`이 95%에 있다.
-10. 결정10 [가정] 세션 조각은 교환 안의 고정 창(공백 토큰 160, 겹침 없음)이다. 창 경계는 모델 토큰이 아니라 공백 토큰으로 정한다. 이유: 질문과 답이 한 조각에 들어가고, 겹침이 없어 키워드 결과가 중복되지 않는다. 모델을 바꿔도 조각 id가 바뀌지 않는다(조사 session-embedding 위험4).
+10. 결정10 [가정] 세션 조각은 교환 안의 고정 창(공백 토큰 96, 겹침 없음)이다. 처음 값 160은 같은 평가 세트에서 96이 MRR 0.43→0.45, 512 초과 12.0%→0.65%여서 바꿨다(§10.2). 창 경계는 모델 토큰이 아니라 공백 토큰으로 정한다. 이유: 질문과 답이 한 조각에 들어가고, 겹침이 없어 키워드 결과가 중복되지 않는다. 모델을 바꿔도 조각 id가 바뀌지 않는다(조사 session-embedding 위험4).
 11. 결정11 [가정] v2 조각 id는 (세션 id, 교환 id, agent 범위, 창 번호)로 만든다. 파일 경로와 renderer 버전에 묶지 않는다. 이유: 렌더러가 조금 바뀌거나 파트 번호가 바뀌어도 id가 그대로다(조사 session-format 2.3).
 12. 결정12 [가정] 교환 메타(파일, 명령, 도구, 오류, 결과)는 키워드 색인의 `frontmatter` 열에만 넣고 임베딩 입력과 `text`에는 넣지 않는다. 이유: "그 파일을 고친 세션" 같은 질의는 정확한 단어가 맞아야 하고, 경로 문자열은 임베딩 의미를 흐린다. FTS 열은 이미 있다(발견A12).
 13. 결정13 [가정] 검색은 창으로 찾고 결과는 교환 하나로 묶어 교환 전체 줄 범위를 돌려준다. 이유: 같은 교환의 창이 결과를 채우지 않고, 근거를 열면 질문과 답 전체가 보인다. 일반 문서 결과는 바뀌지 않는다.
@@ -680,7 +681,7 @@ backlog:
 | 목표3 | 한 정리에서 `inferred` 제안 10개까지 | 4.4.4, 결정29, A-23 | 검토 부담 상한. 지표4로 확인 |
 | 목표4 | brief 갱신 기준값: brief 뒤 새 결정 5개 | 4.4.7, A-35 | 위험D9 |
 | 목표5 | 사용 기록 폐기 후보 기간 90일 | 4.4.4 | 조사 memory-management 3.7 예시값. 위험D10 |
-| 목표6 | 창 크기 공백 토큰 160, 512 모델 토큰 초과 창 1% 이하 | 결정10, A-8 | 위험A4 |
+| 목표6 | 창 크기 공백 토큰 96, 512 모델 토큰 초과 창 1% 이하 | 결정10, A-8 | 위험A4 |
 | 목표7 | 증분 run 디스크 증가 50MB 이하(지금 약 650MB) | A-18 | clone 세대 준비 |
 | 목표8 | 세션 교환 정리 후보 나이 상한 180일 | 4.4.4, 결정44 | 지표5(정리 대기 나이)로 확인. 위험D11 |
 
@@ -1103,3 +1104,12 @@ backlog:
 2. 단계B(키워드 표): 원인5. 수용: 제목 질문 recall@5가 0.95 이상.
 3. 단계C(일반 문서 벡터): 원인7·8, 세션 창 96단어. 수용: wiki 의역 질문 recall@5가 단계B보다 높다. 색인 결정성 테스트 통과.
 4. 단계마다 보고서 `docs/design/reports/2026-11-search-quality.md`에 같은 평가 세트 결과를 쌓는다.
+
+### 10.5 단계C에서 정한 것
+
+- `wiki/` 아래 정리 페이지와 `wiki/sources/` 페이지는 `wiki-page-window-v1`로 조각 낸다. 생성된 보기(`wiki/index.md`, `wiki/maps/`), 로그, `wiki/` 밖 파일은 지금의 일반 조각기를 쓴다.
+- 본문 창: 공백 토큰 160개 이하, 40개 미만이면 앞 창에 붙인다. personal Vault에서 160단어일 때 512 모델 토큰을 넘는 창이 0%다.
+- 템플릿 절(Claim Evidence, Sources, Related 등)은 `template` 조각이다. 키워드 검색만 읽고 벡터 입력에서 뺀다.
+- 페이지 카드(`page_card`): frontmatter의 제목, 별칭, 요약, 태그와 파일 이름만 모은 조각 하나. 생성 텍스트가 없다(원칙1). 키워드와 벡터 모두 읽는다. 본문을 다시 읽는 곳(recall 본문, 본문 토큰 수, 기억 출처 읽기)은 카드를 뺀다.
+- 탐색 페이지는 `document_kind=hub`로 표시한다.
+- 이 브랜치에서 만든 Graph Home은 카드 위치가 작업 중에 바뀌었으므로 다시 색인해야 한다.
