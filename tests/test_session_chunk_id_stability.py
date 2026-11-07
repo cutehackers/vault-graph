@@ -53,8 +53,8 @@ def test_window_id_is_built_from_vault_session_exchange_scope_and_window_number(
     chunks = _normalized(SUBAGENT).chunks
 
     assert [chunk.chunk_id for chunk in chunks] == [
-        stable_id("chunk", "session-exchange-v2", "project", SUBAGENT_SESSION, "u-201", "main", "0"),
-        stable_id("chunk", "session-exchange-v2", "project", SUBAGENT_SESSION, "s-301", "subagent:a7f3", "0"),
+        stable_id("chunk", "session-exchange-v2-w96", "project", SUBAGENT_SESSION, "u-201", "main", "0"),
+        stable_id("chunk", "session-exchange-v2-w96", "project", SUBAGENT_SESSION, "s-301", "subagent:a7f3", "0"),
     ]
     other_vault = _normalized(SUBAGENT, vault_id="other").chunks
     assert {chunk.chunk_id for chunk in other_vault}.isdisjoint({chunk.chunk_id for chunk in chunks})

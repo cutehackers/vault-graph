@@ -28,13 +28,14 @@ def test_list_chunks_returns_current_non_tombstoned_chunks(tmp_path: Path) -> No
 
     chunks = store.list_chunks(QueryScope(vault_ids=("default",), content_scopes=("wiki",)))
 
-    assert len(chunks) == 1
-    assert chunks[0].vault_id == "default"
-    assert chunks[0].path == "wiki/page.md"
-    assert chunks[0].text == "Body"
-    assert chunks[0].content_hash
-    assert chunks[0].chunker_version == "document-block-window-v2"
-    assert chunks[0].index_revision is not None
+    # A wiki page is its page card plus one body window (spec 2026-11-05 §10.2 원인7·8).
+    assert [chunk.chunk_kind for chunk in chunks] == ["page_card", "body"]
+    assert {chunk.vault_id for chunk in chunks} == {"default"}
+    assert {chunk.path for chunk in chunks} == {"wiki/page.md"}
+    assert [chunk.text for chunk in chunks] == ["Page", "Body"]
+    assert all(chunk.content_hash for chunk in chunks)
+    assert {chunk.chunker_version for chunk in chunks} == {"wiki-page-window-v1"}
+    assert all(chunk.index_revision is not None for chunk in chunks)
 
 
 def test_list_chunks_filters_vault_and_content_scope(tmp_path: Path) -> None:
@@ -55,7 +56,7 @@ def test_list_chunks_filters_vault_and_content_scope(tmp_path: Path) -> None:
 
     chunks = store.list_chunks(QueryScope(vault_ids=("first",), content_scopes=("wiki",)))
 
-    assert tuple((chunk.vault_id, chunk.path) for chunk in chunks) == (("first", "wiki/page.md"),)
+    assert set((chunk.vault_id, chunk.path) for chunk in chunks) == {("first", "wiki/page.md")}
 
 
 def test_list_chunks_excludes_tombstoned_documents(tmp_path: Path) -> None:
@@ -81,8 +82,8 @@ def test_metadata_preview_contains_chunks_after_apply_without_writing(tmp_path: 
     preview = MetadataIndexer(catalog=catalog, metadata_store=store).preview(scope=catalog.default_scope())
 
     assert preview.plan.changed_paths == (("default", "wiki/page.md"),)
-    assert len(preview.chunks_after_apply) == 1
-    assert preview.chunks_after_apply[0].index_revision == preview.plan.index_revision
+    assert len(preview.chunks_after_apply) == 2
+    assert {chunk.index_revision for chunk in preview.chunks_after_apply} == {preview.plan.index_revision}
     assert len(preview.documents_after_apply) == 1
     assert preview.documents_after_apply[0].index_revision == preview.plan.index_revision
     assert not (tmp_path / "state" / "metadata.sqlite3").exists()

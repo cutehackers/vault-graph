@@ -3,7 +3,7 @@
 A v1 file is a list of turns written by the Vault tool's `sessions capture`:
 `## <timestamp> <role>` or `## <timestamp> subagent <agent_id> <role>`, then the turn text,
 then an optional last line `Tools: a, b`. This chunker groups the turns into exchanges, cuts each
-exchange into windows of at most 160 whitespace tokens without overlap, and leaves tool names out
+exchange into windows of at most 96 whitespace tokens without overlap, and leaves tool names out
 of the window text. Tool names go to `keyword_metadata` instead.
 """
 
@@ -16,8 +16,9 @@ from datetime import date, datetime
 from vault_graph.indexing.ingestion.document_chunking import ChunkDraft
 from vault_graph.indexing.ingestion.document_models import ExtractedDocument, SourceLocator
 
-SESSION_EXCHANGE_V1_VERSION = "session-exchange-v1"
-MAX_WINDOW_TOKENS = 160
+# `-w96`: windows of 96 whitespace words, as session-exchange-v2-w96 (spec 2026-11-05 §10.2). Was 160.
+SESSION_EXCHANGE_V1_VERSION = "session-exchange-v1-w96"
+MAX_WINDOW_TOKENS = 96
 QUESTION_PREVIEW_CHARS = 80
 CONTINUED_QUESTION = "(이전 파트에서 이어짐)"
 # Claude Code writes a compaction summary as a plain user entry. v1 files lost the `isCompactSummary`

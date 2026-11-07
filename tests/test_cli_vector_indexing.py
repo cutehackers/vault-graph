@@ -51,7 +51,8 @@ def test_cli_index_dry_run_reports_vector_plan_without_writes(tmp_path: Path) ->
 
     assert result.exit_code == 0
     assert "vector_mode: incremental" in result.stdout
-    assert "vector_upserts: 1" in result.stdout
+    # The page card and the body window of the one page (spec 2026-11-05 §10.2 원인8).
+    assert "vector_upserts: 2" in result.stdout
     assert "embedding_batch_size: 256" in result.stdout
     assert not (graph_home_path / "metadata").exists()
     assert not (graph_home_path / "vector").exists()

@@ -199,3 +199,24 @@ def test_colliding_legacy_vector_ids_fail_before_embedding() -> None:
     assert "vector_id collision" in (result.error or "")
     assert embeddings.last_inputs == ()
     assert store.export_manifest(QueryScope(vault_ids=("a:b", "a"), content_scopes=("wiki",))) == ()
+
+
+def test_template_chunks_stay_out_of_the_vector_index_and_page_cards_go_in() -> None:
+    """Spec 2026-11-05 §10.2 원인7: template section text is in no embedding input."""
+    card = replace(chunk(text="card"), chunk_id="card", chunk_kind="page_card")
+    body = replace(chunk(text="body"), chunk_id="body")
+    template = replace(chunk(text="claim evidence"), chunk_id="template", chunk_kind="template")
+    vector_store = InMemoryVectorStore()
+    indexer = VectorIndexer(
+        chunk_store=ChunkStore((card, body, template)),
+        vector_store=vector_store,
+        text_embeddings=DeterministicTextEmbeddings(SPEC),
+    )
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+
+    plan = indexer.plan(scopes=(scope,))
+    indexer.apply(scopes=(scope,))
+
+    assert {item.chunk_id for item in plan.upsert_chunks} == {"card", "body"}
+    assert {row.chunk_id for row in vector_store.export_manifest(scope)} == {"card", "body"}
+    assert indexer.plan(scopes=(scope,)).upsert_count == 0

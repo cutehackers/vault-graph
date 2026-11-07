@@ -41,7 +41,14 @@ class MemorySourceReader:
     ) -> MemoryDocumentRead:
         if max_evidence_chunks < 1:
             raise MemoryProjectionError("invalid_memory_evidence_limit: max_evidence_chunks must be positive")
-        chunks = self._metadata_store.list_document_chunks(vault_id=document.vault_id, document_id=document.document_id)
+        # The page card repeats the title and summary; it is a search unit, not page body (spec §10.2 원인3).
+        chunks = tuple(
+            chunk
+            for chunk in self._metadata_store.list_document_chunks(
+                vault_id=document.vault_id, document_id=document.document_id
+            )
+            if chunk.chunk_kind != "page_card"
+        )
         headings = tuple(
             MemoryHeadingRef(chunk_id=chunk.chunk_id, section=chunk.section, anchor=chunk.anchor)
             for chunk in chunks

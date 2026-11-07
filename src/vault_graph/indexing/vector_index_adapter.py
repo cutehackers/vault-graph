@@ -52,6 +52,10 @@ METADATA_UPDATE_BATCH_SIZE = 1000
 
 SESSION_WINDOW_CHUNKER_VERSIONS = frozenset({SESSION_EXCHANGE_V1_VERSION, SESSION_EXCHANGE_V2_VERSION})
 
+# Chunk kinds keyword search reads but the vector index leaves out (spec 2026-11-05 §10.2 원인7).
+# A stored vector of such a chunk is deleted by the next plan.
+KEYWORD_ONLY_CHUNK_KINDS = frozenset({"template"})
+
 
 class ChunkListingStore(Protocol):
     def list_chunks(self, scope: QueryScope) -> tuple[ChunkSnapshot, ...]: ...
@@ -448,7 +452,12 @@ def _embedding_spec_key(spec: EmbeddingModelSpec) -> str:
 
 
 def _chunks_for_scopes(*, chunk_store: ChunkListingStore, scopes: tuple[QueryScope, ...]) -> tuple[ChunkSnapshot, ...]:
-    return tuple(chunk for scope in scopes for chunk in chunk_store.list_chunks(scope))
+    return tuple(
+        chunk
+        for scope in scopes
+        for chunk in chunk_store.list_chunks(scope)
+        if chunk.chunk_kind not in KEYWORD_ONLY_CHUNK_KINDS
+    )
 
 
 def _manifest_for_scopes(
