@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any, Literal
@@ -117,3 +118,12 @@ class NormalizedDocument:
     document: DocumentSnapshot
     chunks: tuple[ChunkSnapshot, ...]
     warnings: tuple[str, ...] = ()
+
+
+def page_body_chunks(chunks: Iterable[ChunkSnapshot]) -> tuple[ChunkSnapshot, ...]:
+    """The chunks that hold page text, in their stored order.
+
+    The page card repeats frontmatter values as a search unit (spec 2026-11-05 §10.5). Readers that rebuild,
+    quote or expand a page body use this so the card never reads as page text.
+    """
+    return tuple(chunk for chunk in chunks if chunk.chunk_kind != "page_card")

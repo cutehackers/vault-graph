@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from vault_graph.errors import RetrievalContractError
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.indexing.ingestion.document_snapshots import page_body_chunks
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.retrieval.search.retrieval_result import RetrievalWarning
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
@@ -127,9 +128,11 @@ class ContextExpander:
         matched_chunk: ChunkSnapshot,
         scope: QueryScope,
     ) -> tuple[ChunkSnapshot, ...]:
-        chunks = self._metadata_store.list_document_chunks(
-            vault_id=matched_chunk.vault_id,
-            document_id=matched_chunk.document_id,
+        chunks = page_body_chunks(
+            self._metadata_store.list_document_chunks(
+                vault_id=matched_chunk.vault_id,
+                document_id=matched_chunk.document_id,
+            )
         )
         return tuple(
             sorted(

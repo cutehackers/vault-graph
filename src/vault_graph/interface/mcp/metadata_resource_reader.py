@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import NoReturn
 
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.indexing.ingestion.document_snapshots import page_body_chunks
 from vault_graph.interface.mcp.mcp_errors import McpErrorPayload, McpProtocolError
 from vault_graph.interface.mcp.mcp_resource_models import McpResourceBody
 from vault_graph.interface.mcp.mcp_uri import McpResourceUri
@@ -84,9 +85,11 @@ class MetadataResourceReader:
         uri: McpResourceUri,
         document: DocumentSnapshot,
     ) -> McpResourceBody:
-        chunks = self._metadata_store.list_document_chunks(
-            vault_id=document.vault_id,
-            document_id=document.document_id,
+        chunks = page_body_chunks(
+            self._metadata_store.list_document_chunks(
+                vault_id=document.vault_id,
+                document_id=document.document_id,
+            )
         )
         evidence: list[EvidenceReference] = []
         warnings: list[McpErrorPayload] = []
