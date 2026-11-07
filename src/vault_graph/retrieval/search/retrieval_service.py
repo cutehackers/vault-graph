@@ -35,13 +35,21 @@ from vault_graph.retrieval.search.search_response import (
 )
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordIndex, KeywordQuery
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
-from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
+from vault_graph.storage.interfaces.text_embeddings import EmbeddingVector, TextEmbeddings
 from vault_graph.storage.interfaces.vector_store import VectorHit, VectorQuery, VectorStore
 
 DEFAULT_CONTEXT_EXPANSION_MAX_TOKENS = 256
 DEFAULT_CONTEXT_NEIGHBOR_RADIUS = 1
+# Candidates per signal: max(limit * CANDIDATES_PER_RESULT, MIN_CANDIDATES). Chunks fold into one result per
+# document, so when a full candidate list gives fewer results than the limit, the search runs again once
+# with CANDIDATE_REFILL_FACTOR times as many candidates.
+CANDIDATES_PER_RESULT = 4
+MIN_CANDIDATES = 20
+CANDIDATE_REFILL_FACTOR = 4
+# Spec 2026-11-05 §10.2 원인1: knowledge mode reads source pages too and ranks them with a role weight
+# (candidate_ranking.SEARCH_MODE_ROLE_WEIGHTS). Raw evidence, sessions included, stays in evidence mode.
 SEARCH_MODE_ROLES: dict[SearchMode, tuple[DocumentRole, ...]] = {
-    "knowledge": ("canonical_knowledge",),
+    "knowledge": ("canonical_knowledge", "source_manifest"),
     "evidence": ("source_manifest", "raw_evidence"),
     "operating": ("operating_contract",),
     "audit": ("generated_view", "operation_log", "audit_record"),
@@ -120,29 +128,39 @@ class RetrievalService:
         return self._search_request(request)
 
     def _search_request(self, request: SearchRequest) -> SearchResponse:
-        candidate_limit = max(request.limit * 4, 20)
+        candidate_limit = max(request.limit * CANDIDATES_PER_RESULT, MIN_CANDIDATES)
         readiness = self._readiness.check(actual_scopes=request.actual_scopes)
         fatal = _fatal_readiness_error(readiness)
         if fatal is not None:
             raise fatal
         warnings = list(_warnings_for_readiness(readiness, request.actual_scopes))
-        keyword_candidates = self._keyword_candidates(request=request, candidate_limit=candidate_limit)
-        vector_candidates = self._vector_candidates(
-            request=request,
-            candidate_limit=candidate_limit,
-            readiness=readiness,
-            warnings=warnings,
-        )
-        graph_result = self._graph_candidates(request=request, candidate_limit=candidate_limit)
+        query_vector = self._query_vector(request=request, readiness=readiness, warnings=warnings)
+        for refill in (False, True):
+            round_warnings: list[SearchWarning] = []
+            keyword_candidates = self._keyword_candidates(request=request, candidate_limit=candidate_limit)
+            vector_candidates = self._vector_candidates(
+                request=request,
+                candidate_limit=candidate_limit,
+                readiness=readiness,
+                query_vector=query_vector,
+                warnings=round_warnings,
+            )
+            graph_result = self._graph_candidates(request=request, candidate_limit=candidate_limit)
+            signal_candidates = keyword_candidates + vector_candidates + graph_result.candidates
+            candidates = fuse_candidates(candidates=signal_candidates)
+            results, dropped, missing_warnings = self._evidence_results.resolve_results(
+                candidates=candidates,
+                mode=request.mode,
+                allowed_roles=SEARCH_MODE_ROLES[request.mode],
+                include_retired=request.include_retired,
+                vault_order=_affected_vault_ids(request.actual_scopes),
+            )
+            saturated = candidate_limit in (len(keyword_candidates), len(vector_candidates))
+            if refill or len(results) >= request.limit or not saturated:
+                break
+            candidate_limit *= CANDIDATE_REFILL_FACTOR
+        warnings.extend(round_warnings)
         warnings.extend(graph_result.warnings)
-        signal_candidates = keyword_candidates + vector_candidates + graph_result.candidates
-        candidates = fuse_candidates(candidates=signal_candidates)
-        results, dropped, missing_warnings = self._evidence_results.resolve_results(
-            candidates=candidates,
-            mode=request.mode,
-            allowed_roles=SEARCH_MODE_ROLES[request.mode],
-            include_retired=request.include_retired,
-        )
         warnings.extend(missing_warnings)
         limited_results = self._expand_context(
             results=tuple(results[: request.limit]),
@@ -233,10 +251,10 @@ class RetrievalService:
         return tuple(expanded)
 
     def _keyword_candidates(self, *, request: SearchRequest, candidate_limit: int) -> tuple[RetrievalCandidate, ...]:
-        hits: list[KeywordHit] = []
+        per_scope: list[tuple[KeywordHit, ...]] = []
         try:
             for scope in request.actual_scopes:
-                hits.extend(
+                per_scope.append(
                     self._keyword_index.search(
                         KeywordQuery(
                             query_text=request.query_text,
@@ -248,6 +266,9 @@ class RetrievalService:
                 )
         except KeywordIndexError as exc:
             raise SearchError(f"keyword_index_unavailable: {exc}. Run `vg index`.") from exc
+        # Spec 2026-11-05 §10.2 원인4: one keyword table holds every Vault, so bm25 scores (lower is better)
+        # compare across scopes and give one ranking for the whole scope.
+        hits = _merge_scope_hits(per_scope, limit=candidate_limit, score_sign=1.0)
         return tuple(candidate_from_keyword_hit(hit) for hit in hits)
 
     def _vector_candidates(
@@ -256,19 +277,17 @@ class RetrievalService:
         request: SearchRequest,
         candidate_limit: int,
         readiness: SearchReadinessReport,
+        query_vector: EmbeddingVector | None,
         warnings: list[SearchWarning],
     ) -> tuple[RetrievalCandidate, ...]:
-        if self._vector_store is None or self._text_embeddings is None:
-            return ()
-        if not _can_run_vector_search_globally(readiness):
+        if self._vector_store is None or self._text_embeddings is None or query_vector is None:
             return ()
         try:
-            query_vector = self._text_embeddings.embed_query(request.query_text)
-            hits: list[VectorHit] = []
+            per_scope: list[tuple[VectorHit, ...]] = []
             for scope in request.actual_scopes:
                 if _vector_stale_count_for_scope(readiness=readiness, scope=scope) not in (None, 0):
                     continue
-                hits.extend(
+                per_scope.append(
                     self._vector_store.search(
                         VectorQuery(
                             query_vector=query_vector,
@@ -279,17 +298,29 @@ class RetrievalService:
                         )
                     )
                 )
-        except (TextEmbeddingsError, VectorStoreError) as exc:
-            warnings.append(
-                SearchWarning(
-                    code="vector_query_failed",
-                    message=f"Vector query failed; keyword-only results returned: {exc}",
-                    severity="warning",
-                    affected_vault_ids=_affected_vault_ids(request.actual_scopes),
-                )
-            )
+        except VectorStoreError as exc:
+            warnings.append(_vector_query_failed(request, exc))
             return ()
+        # Spec 2026-11-05 §10.2 원인4: cosine similarity (higher is better) compares across Vaults.
+        hits = _merge_scope_hits(per_scope, limit=candidate_limit, score_sign=-1.0)
         return tuple(candidate_from_vector_hit(hit) for hit in hits)
+
+    def _query_vector(
+        self,
+        *,
+        request: SearchRequest,
+        readiness: SearchReadinessReport,
+        warnings: list[SearchWarning],
+    ) -> EmbeddingVector | None:
+        if self._vector_store is None or self._text_embeddings is None:
+            return None
+        if not _can_run_vector_search_globally(readiness):
+            return None
+        try:
+            return self._text_embeddings.embed_query(request.query_text)
+        except TextEmbeddingsError as exc:
+            warnings.append(_vector_query_failed(request, exc))
+            return None
 
     def _graph_candidates(self, *, request: SearchRequest, candidate_limit: int) -> GraphCandidateResult:
         if not request.include_graph or self._graph_candidate_provider is None:
@@ -301,6 +332,36 @@ class RetrievalService:
             limit=candidate_limit,
             include_cross_vault=request.include_cross_vault,
         )
+
+
+def _merge_scope_hits[Hit: (KeywordHit, VectorHit)](
+    per_scope: list[tuple[Hit, ...]], *, limit: int, score_sign: float
+) -> tuple[Hit, ...]:
+    """Merge per-scope hit lists into one list ranked 1..n by score. A single list keeps its own order.
+
+    ``score_sign`` 1.0 sorts ascending (bm25), -1.0 descending (cosine similarity). Ties keep scope order,
+    then each scope's own rank.
+    """
+    if len(per_scope) <= 1:
+        return per_scope[0] if per_scope else ()
+    ordered = sorted(
+        (
+            (score_sign * hit.score, scope_index, hit.rank, hit.vault_id, hit.chunk_id, hit)
+            for scope_index, hits in enumerate(per_scope)
+            for hit in hits
+        ),
+        key=lambda entry: entry[:5],
+    )
+    return tuple(replace(entry[5], rank=rank) for rank, entry in enumerate(ordered[:limit], start=1))
+
+
+def _vector_query_failed(request: SearchRequest, exc: Exception) -> SearchWarning:
+    return SearchWarning(
+        code="vector_query_failed",
+        message=f"Vector query failed; keyword-only results returned: {exc}",
+        severity="warning",
+        affected_vault_ids=_affected_vault_ids(request.actual_scopes),
+    )
 
 
 def _requested_scope_for_search(*, requested_scope: QueryScope, include_cross_vault: bool) -> QueryScope:

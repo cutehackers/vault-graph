@@ -267,14 +267,17 @@ def test_grouped_window_count_is_in_result_explanation(tmp_path: Path) -> None:
     )
 
 
-def test_general_document_chunks_are_not_grouped(tmp_path: Path) -> None:
+def test_general_document_chunks_group_per_document_at_best_chunk_location(tmp_path: Path) -> None:
+    """Spec 2026-11-05 §10.2 원인3: a general document is one result that keeps its best chunk's location."""
     response = keyword_search(tmp_path, "Keyword search part explains ranked")
 
     general = [result for result in response.results if result.evidence[0].path == "wiki/keyword-search.md"]
-    assert sorted(result.evidence[0].chunk_id for result in general) == ["wiki-chunk-0", "wiki-chunk-1"]
-    assert all(result.warnings == () for result in general)
-    locators = {result.evidence[0].chunk_id: result.evidence[0].source_locators for result in general}
-    assert locators == {"wiki-chunk-0": (line_locator(1, 5),), "wiki-chunk-1": (line_locator(11, 15),)}
+    assert len(general) == 1
+    assert general[0].evidence[0].chunk_id in {"wiki-chunk-0", "wiki-chunk-1"}
+    locators = {"wiki-chunk-0": (line_locator(1, 5),), "wiki-chunk-1": (line_locator(11, 15),)}
+    assert general[0].evidence[0].source_locators == locators[general[0].evidence[0].chunk_id]
+    assert [warning.code for warning in general[0].warnings] == ["parent_grouped"]
+    assert "2 chunks" in general[0].warnings[0].message
 
 
 def test_mcp_document_resource_at_grouped_location_has_human_turn_and_answer(tmp_path: Path) -> None:

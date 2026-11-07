@@ -174,7 +174,8 @@ def test_search_keeps_matched_evidence_and_reports_bounded_context(tmp_path: Pat
     assert any(warning.code == "context_budget_omitted" for warning in response.warnings)
 
 
-def test_knowledge_search_collapses_family_and_attaches_source_references(tmp_path: Path) -> None:
+def test_knowledge_search_keeps_family_siblings_and_attaches_source_references(tmp_path: Path) -> None:
+    """Spec 2026-11-05 §10.2 원인2: pages that only share a provenance family are separate results."""
     catalog = _catalog(tmp_path)
     store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
     family_id = "family:shared"
@@ -224,9 +225,9 @@ def test_knowledge_search_collapses_family_and_attaches_source_references(tmp_pa
 
     response = service.search(query_text="alpha", requested_scope=catalog.default_scope())
 
-    assert response.result_count == 1
-    assert response.result_family_duplication == 0.0
-    assert response.results[0].provenance_family_id == family_id
+    assert [result.evidence[0].path for result in response.results] == ["wiki/first.md", "wiki/second.md"]
+    assert response.result_family_duplication == 0.5
+    assert all(result.provenance_family_id == family_id for result in response.results)
     assert {item.path for item in response.results[0].supporting_evidence} == {"raw/source.md"}
 
 

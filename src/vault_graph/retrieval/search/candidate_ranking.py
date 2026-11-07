@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
+from vault_graph.indexing.ingestion.document_authority import DocumentRole
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSignal, RetrievalSignalKind
 from vault_graph.retrieval.search.search_response import SearchMode
@@ -11,6 +13,20 @@ from vault_graph.storage.interfaces.vector_store import VectorHit
 
 RANK_CONSTANT = 60.0
 SIGNAL_WEIGHTS: dict[RetrievalSignalKind, float] = {"keyword": 1.0, "vector": 1.0, "graph": 0.75}
+
+# Spec 2026-11-05 §10.2 원인3. A document's score is its best chunk's fused score (MaxP, Dai and Callan
+# SIGIR 2019) plus DOCUMENT_TAIL_WEIGHT times the sum of its next DOCUMENT_TAIL_CHUNKS chunk scores. The
+# small tail share breaks near-ties toward a document that matched in several places without letting a
+# long document win on chunk count alone.
+DOCUMENT_TAIL_WEIGHT = 0.1
+DOCUMENT_TAIL_CHUNKS = 2
+
+# Spec 2026-11-05 §10.2 원인1. In knowledge mode, source pages are candidates next to canonical pages and
+# their document score is multiplied by this weight, so a canonical page comes first at equal relevance.
+# Roles that are not listed weigh 1.0. Explicit modes have no weights.
+SEARCH_MODE_ROLE_WEIGHTS: dict[SearchMode, dict[DocumentRole, float]] = {
+    "knowledge": {"canonical_knowledge": 1.0, "source_manifest": 0.8},
+}
 
 
 @dataclass(frozen=True)
@@ -56,10 +72,10 @@ def fuse_candidates(*, candidates: tuple[RetrievalCandidate, ...]) -> tuple[Fuse
     )
 
 
-def rank_resolved_candidates(
-    resolved: list[tuple[FusedCandidate, EvidenceReference, str]], *, mode: SearchMode
+def sort_resolved_candidates(
+    resolved: list[tuple[FusedCandidate, EvidenceReference, str]],
 ) -> list[tuple[FusedCandidate, EvidenceReference, str]]:
-    sorted_resolved = sorted(
+    return sorted(
         resolved,
         key=lambda item: (
             -item[0].fused_score,
@@ -69,18 +85,18 @@ def rank_resolved_candidates(
             item[0].chunk_id,
         ),
     )
-    if mode == "knowledge":
-        seen_families: set[tuple[str, str]] = set()
-        sorted_resolved = [
-            item
-            for item in sorted_resolved
-            if _take_family_once(
-                seen_families,
-                vault_id=item[1].vault_id,
-                family_id=item[1].provenance_family_id or item[1].document_id,
-            )
-        ]
-    return sorted_resolved
+
+
+def document_score(chunk_scores: Sequence[float]) -> float:
+    """Best chunk score plus ``DOCUMENT_TAIL_WEIGHT`` times the next ``DOCUMENT_TAIL_CHUNKS`` chunk scores."""
+    ordered = sorted(chunk_scores, reverse=True)
+    if not ordered:
+        return 0.0
+    return ordered[0] + DOCUMENT_TAIL_WEIGHT * sum(ordered[1 : 1 + DOCUMENT_TAIL_CHUNKS])
+
+
+def role_weight(mode: SearchMode, role: DocumentRole) -> float:
+    return SEARCH_MODE_ROLE_WEIGHTS.get(mode, {}).get(role, 1.0)
 
 
 def family_duplication(results: tuple[RetrievalResult, ...]) -> float:
@@ -126,14 +142,6 @@ def candidate_from_vector_hit(hit: VectorHit) -> RetrievalCandidate:
             ),
         ),
     )
-
-
-def _take_family_once(seen: set[tuple[str, str]], *, vault_id: str, family_id: str) -> bool:
-    key = (vault_id, family_id)
-    if key in seen:
-        return False
-    seen.add(key)
-    return True
 
 
 def _signal_kind_order(kind: RetrievalSignalKind) -> int:
