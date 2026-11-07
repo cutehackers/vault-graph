@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from vault_graph.context.memory.memory_models import MemoryDocumentResourceKind, MemoryEvidenceRef, MemoryWarning
 from vault_graph.errors import MemoryProjectionError
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
+from vault_graph.indexing.ingestion.document_snapshots import page_body_chunks
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference, MetadataStore
 
@@ -41,13 +42,8 @@ class MemorySourceReader:
     ) -> MemoryDocumentRead:
         if max_evidence_chunks < 1:
             raise MemoryProjectionError("invalid_memory_evidence_limit: max_evidence_chunks must be positive")
-        # The page card repeats the title and summary; it is a search unit, not page body (spec §10.2 원인3).
-        chunks = tuple(
-            chunk
-            for chunk in self._metadata_store.list_document_chunks(
-                vault_id=document.vault_id, document_id=document.document_id
-            )
-            if chunk.chunk_kind != "page_card"
+        chunks = page_body_chunks(
+            self._metadata_store.list_document_chunks(vault_id=document.vault_id, document_id=document.document_id)
         )
         headings = tuple(
             MemoryHeadingRef(chunk_id=chunk.chunk_id, section=chunk.section, anchor=chunk.anchor)

@@ -451,12 +451,9 @@ class ProjectMemoryScope:
 
 
 def _body_chunks(metadata_store: MetadataStore, vault_id: str, document_id: str) -> tuple[ChunkSnapshot, ...]:
-    """The chunks that make up a page body. The page card repeats the title and summary, so it is left out."""
-    return tuple(
-        chunk
-        for chunk in metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id)
-        if chunk.chunk_kind != "page_card"
-    )
+    from vault_graph.indexing.ingestion.document_snapshots import page_body_chunks
+
+    return page_body_chunks(metadata_store.list_document_chunks(vault_id=vault_id, document_id=document_id))
 
 
 def metadata_body_reader(metadata_store: MetadataStore) -> Callable[[str, str], str]:
