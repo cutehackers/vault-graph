@@ -276,6 +276,8 @@ def build_memory_candidates(
 ) -> tuple[MemoryCandidate, ...]:
     """Candidates in table order (L1 notes, session exchanges, merge pairs, retire pages, brief), cut to ``limit``.
 
+    Session exchanges without a signal come after every other kind (spec 2026-11-05 §4.4.4).
+
     L1 notes are ordered by path, session exchanges by signal, merge pairs by similarity and retire
     pages by signal. ``kinds`` keeps only those kinds; None keeps all. Comparison material is looked
     up only for the candidates returned. ``with_comparison=False`` never calls ``similar_pages`` and
@@ -287,14 +289,19 @@ def build_memory_candidates(
     pending: list[_Pending] = []
     if "l1_note" in wanted:
         pending.extend(_l1_candidates(l1_notes, imported_raw_sha256, reviewed_keys))
+    plain_exchanges: list[_Pending] = []
     if "session_exchange" in wanted:
-        pending.extend(_session_candidates(exchanges, wiki_pages, reviewed_keys, now))
+        sessions = _session_candidates(exchanges, wiki_pages, reviewed_keys, now)
+        pending.extend(item for item in sessions if item.signal != "none")
+        plain_exchanges = [item for item in sessions if item.signal == "none"]
     if "merge" in wanted:
         pending.extend(_merge_candidates(pages, page_vectors or {}, project_id, reviewed_keys, merge_threshold))
     if "retire" in wanted:
         pending.extend(_retire_candidates(pages, missing_code or {}, usage_events, project_id, reviewed_keys, now))
     if "brief" in wanted and brief is not None:
         pending.extend(_brief_candidates(brief, reviewed_keys))
+    # Exchanges without a signal go last: there can be hundreds, and they must not hide the other kinds.
+    pending.extend(plain_exchanges)
     if limit is not None:
         pending = pending[: max(limit, 0)]
     return tuple(

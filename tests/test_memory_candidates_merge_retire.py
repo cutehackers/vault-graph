@@ -29,6 +29,7 @@ from vault_graph.context.memory.memory_candidates import (
     ComparisonPage,
     MemoryCandidate,
     MemoryPage,
+    SessionExchange,
     SimilarPage,
     build_memory_candidates,
 )
@@ -294,6 +295,45 @@ def test_kinds_come_in_table_order_and_reviewed_keys_are_left_out() -> None:
     ] == ["retire"]
 
 
+def test_session_exchanges_without_a_signal_come_after_every_other_kind() -> None:
+    # A-23 (2026-11-07): about 1,000 plain exchanges filled the default 20 and hid every merge and retire
+    # candidate. Plain exchanges go last, so a backlog of them never hides the other kinds.
+    a, b = _page("wiki/a.md"), _page("wiki/b.md")
+    vectors = {("demo-vault", a.path): (1.0,), ("demo-vault", b.path): (1.0,)}
+    missing = {("demo-vault", a.path): ("src/gone.py",)}
+
+    def exchange(name: str, human: str) -> SessionExchange:
+        return SessionExchange(
+            parent_key=f"s:{name}",
+            path=f"raw/sessions/claude-code/2026-11-0{len(name)}-{name}-part1.md",
+            line_start=1,
+            line_end=5,
+            started_at=NOW - timedelta(days=1),
+            human_text=human,
+        )
+
+    candidates = build_memory_candidates(
+        project_id="demo",
+        l1_notes=(),
+        imported_raw_sha256=frozenset(),
+        exchanges=(exchange("plain", "테스트 돌려 줘"), exchange("fix", "아니야, 그건 틀렸어")),
+        wiki_pages=(),
+        reviewed_keys=frozenset(),
+        similar_pages=FakeFinder(),
+        now=NOW,
+        memory_pages=(a, b),
+        page_vectors=vectors,
+        missing_code=missing,
+        limit=3,
+    )
+
+    assert [candidate.key for candidate in candidates] == [
+        "session:s:fix",
+        "merge:wiki/a.md|wiki/b.md",
+        "retire:wiki/a.md",
+    ]
+
+
 # Comparison material ----------------------------------------------------------------------------
 
 
@@ -511,23 +551,25 @@ def test_package_has_all_four_kinds_in_table_order_with_at_most_5_comparison_pag
     assert package.reason is None
     assert package.warnings == ()
     keys = [candidate.key for candidate in package.candidates]
+    # The session exchange has no signal, so it comes after the other kinds.
     assert [candidate.kind for candidate in package.candidates] == [
         "l1_note",
-        "session_exchange",
         "merge",
         "retire",
         "retire",
+        "session_exchange",
     ], keys
     l1 = package.candidates[0]
     assert l1.location.endswith("feedback_a.md")
-    session = package.candidates[1]
+    session = package.candidates[4]
     assert session.key == "session:11111111-1111-4111-8111-111111111111:u-001"
+    assert session.signal == "none"
     assert session.started_at == datetime(2026, 11, 1, 10, 0, tzinfo=UTC)
     assert session.location.startswith("raw/sessions/claude-code/2026-11-01-")
-    assert keys[2] == "merge:wiki/decisions/parser-a.md|wiki/decisions/parser-b.md"
-    assert keys[3:] == ["retire:wiki/concepts/parser-code.md", "retire:wiki/concepts/quiet.md"]
-    assert package.candidates[3].reasons == ("근거 코드가 등록 저장소에서 사라짐: src/app/gone.py",)
-    assert package.candidates[4].retire_signals == ("unused",)
+    assert keys[1] == "merge:wiki/decisions/parser-a.md|wiki/decisions/parser-b.md"
+    assert keys[2:4] == ["retire:wiki/concepts/parser-code.md", "retire:wiki/concepts/quiet.md"]
+    assert package.candidates[2].reasons == ("근거 코드가 등록 저장소에서 사라짐: src/app/gone.py",)
+    assert package.candidates[3].retire_signals == ("unused",)
     assert all(len(candidate.comparison) <= COMPARISON_PAGE_LIMIT for candidate in package.candidates)
 
 
