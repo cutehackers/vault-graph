@@ -166,6 +166,15 @@ def hook(
     )
 
 
+def hook_warnings(result: Result) -> list[str]:
+    """Standard error lines of a hook run, without the copy fallback line of generation preparation.
+
+    Off macOS, or when clonefile(2) fails, preparing a generation copies the folder and prints one warning line
+    (spec 2026-11-05 §4.3.3). That line depends on the machine, not on the hook.
+    """
+    return [line for line in result.stderr.splitlines() if "with copytree instead" not in line]
+
+
 def section(text: str, title: str) -> list[str]:
     lines = text.splitlines()
     if title not in lines:
@@ -356,7 +365,7 @@ def test_read_only_usage_keeps_output_and_warns_once(base: Path, graph_home: Pat
 
     assert result.exit_code == 0
     assert result.stdout == writable.stdout
-    assert len(result.stderr.splitlines()) == 1
+    assert len(hook_warnings(result)) == 1
     assert "warning" in result.stderr
 
 
@@ -583,7 +592,7 @@ def test_l1_notes_waiting_for_cleanup_give_one_backlog_line_and_change_no_file(b
     )
     assert section(result.stdout, "## 가져오는 방법")[-1] == expected
     assert result.stdout.count("정리 대기") == 1
-    assert result.stderr == ""
+    assert hook_warnings(result) == []
     assert tree(base / "vaults") == vaults_before
     assert tree(folder) == l1_before
 
@@ -629,7 +638,7 @@ def test_unknown_memory_schema_warns_once_on_stderr(base: Path, graph_home: Path
     assert result.exit_code == 0, result.output
     assert "## 고정 기억" not in result.stdout
     assert "Future rule" in "\n".join(section(result.stdout, "## 기억 목록"))
-    assert len(result.stderr.splitlines()) == 1
+    assert len(hook_warnings(result)) == 1
     assert "vault-memory/v9" in result.stderr
 
 
@@ -711,7 +720,7 @@ def test_refresh_reads_metadata_only_and_never_embeds(
 
     assert result.exit_code == 0, result.output
     assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
-    assert result.stderr == ""
+    assert hook_warnings(result) == []
 
 
 def test_deleted_page_leaves_recall_and_a_later_vg_index_still_works(base: Path, graph_home: Path) -> None:
@@ -723,7 +732,7 @@ def test_deleted_page_leaves_recall_and_a_later_vg_index_still_works(base: Path,
 
     assert result.exit_code == 0, result.output
     assert "Use SQLite" not in result.stdout
-    assert result.stderr == ""
+    assert hook_warnings(result) == []
     assert section(after_index.stdout, "## 기억 목록") == section(result.stdout, "## 기억 목록")
 
 
@@ -764,7 +773,7 @@ def test_failed_refresh_warns_and_recalls_from_the_existing_index(
     assert "Use SQLite" in result.stdout
     assert "Fresh" not in result.stdout
     assert "disk full" in result.stderr
-    assert len(result.stderr.splitlines()) == 1
+    assert len(hook_warnings(result)) == 1
     assert active_generation(graph_home) == before
     assert generations(graph_home) == staged_before
 
@@ -891,7 +900,7 @@ def test_quick_refresh_reads_only_the_changed_files(
 
     assert result.exit_code == 0, result.output
     assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
-    assert result.stderr == ""
+    assert hook_warnings(result) == []
 
 
 def test_too_many_changed_files_skip_the_quick_refresh_and_leave_no_staged_folder(
@@ -910,7 +919,7 @@ def test_too_many_changed_files_skip_the_quick_refresh_and_leave_no_staged_folde
 
     assert result.exit_code == 0, result.output
     assert "Three" not in result.stdout
-    assert len(result.stderr.splitlines()) == 1
+    assert len(hook_warnings(result)) == 1
     assert "3 changed files" in result.stderr
     assert active_generation(graph_home) == before
     assert generations(graph_home) == staged_before
@@ -978,7 +987,7 @@ def test_busy_projection_lock_skips_the_quick_refresh_after_a_short_wait(
 
     assert result.exit_code == 0, result.output
     assert "Use SQLite" in result.stdout
-    assert len(result.stderr.splitlines()) == 1
+    assert len(hook_warnings(result)) == 1
     assert "Index refresh skipped" in result.stderr
     assert "another vg index" in result.stderr
     assert waits and waits[0] is not None and 0 < waits[0] <= 1.0
@@ -1221,7 +1230,7 @@ def test_large_indexed_vault_skips_the_quick_refresh_before_staging(
     assert result.exit_code == 0, result.output
     assert "Use SQLite" in result.stdout
     assert "Fresh" not in result.stdout
-    assert len(result.stderr.splitlines()) == 1
+    assert len(hook_warnings(result)) == 1
     assert "Index refresh skipped" in result.stderr
     assert "indexed documents" in result.stderr
     assert active_generation(graph_home) == before
@@ -1264,7 +1273,7 @@ def test_one_slow_quick_refresh_does_not_turn_the_next_one_off(base: Path, graph
 
     assert result.exit_code == 0, result.output
     assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
-    assert result.stderr == ""
+    assert hook_warnings(result) == []
     runs = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))["main"]["runs"]
     assert [run["seconds"] for run in runs][0] == 30.0
     assert len(runs) == 2
@@ -1298,7 +1307,7 @@ def test_two_slow_quick_refreshes_in_a_row_skip_the_next_one_before_staging(
 
     assert result.exit_code == 0, result.output
     assert "Fresh" not in result.stdout
-    assert len(result.stderr.splitlines()) == 1
+    assert len(hook_warnings(result)) == 1
     assert "last two quick refreshes" in result.stderr
     assert active_generation(graph_home) == before
     assert generations(graph_home) == staged_before
@@ -1326,7 +1335,7 @@ def test_old_slow_records_are_ignored_so_the_quick_refresh_is_tried_again(base: 
 
     assert result.exit_code == 0, result.output
     assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
-    assert result.stderr == ""
+    assert hook_warnings(result) == []
     runs = json.loads((graph_home / QUICK_REFRESH_TIMES).read_text(encoding="utf-8"))["main"]["runs"]
     assert runs[-1]["seconds"] < 30.0
 
@@ -1341,7 +1350,7 @@ def test_an_unreadable_duration_record_does_not_block_the_quick_refresh(base: Pa
 
     assert result.exit_code == 0, result.output
     assert "Fresh" in "\n".join(section(result.stdout, "## 기억 목록"))
-    assert result.stderr == ""
+    assert hook_warnings(result) == []
 
 
 def test_untagged_page_of_a_shared_vault_that_is_not_sharable_is_searchable_but_not_recalled(
