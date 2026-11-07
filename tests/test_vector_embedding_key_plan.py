@@ -79,7 +79,7 @@ def run_without_keys(vector_path: Path, chunks: tuple[ChunkSnapshot, ...]) -> No
     """Write as the adapter did before spec 4.3.2: no manifest table and no keys in Chroma metadata."""
     store = OldChromaVectorStore(vector_path, initialize=True)
     original = vector_store_adapter.key_metadata
-    vector_store_adapter.key_metadata = lambda *_: {}  # type: ignore[assignment]
+    vector_store_adapter.key_metadata = lambda *_: {}
     try:
         result = VectorIndexer(
             chunk_store=ChunkStore(chunks), vector_store=store, text_embeddings=DeterministicTextEmbeddings(SPEC)

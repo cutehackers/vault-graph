@@ -62,7 +62,7 @@ def test_memory_source_reader_leaves_out_the_card(tmp_path: Path) -> None:
 
     read = MemorySourceReader(metadata_store=store).read_document(document=normalized.document, max_evidence_chunks=5)
 
-    assert CARD_ONLY_TEXT not in read.body_excerpt
+    assert CARD_ONLY_TEXT not in (read.body_excerpt or "")
     assert card.chunk_id not in {heading.chunk_id for heading in read.headings}
     assert card.chunk_id not in {evidence.chunk_id for evidence in read.evidence}
 
