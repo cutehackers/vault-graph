@@ -335,3 +335,8 @@ def test_a_citation_of_one_copy_removes_every_copy() -> None:
     page = WikiPageText(path="wiki/decisions/v2.md", text=f"근거: {SESSION_B} L10-L20")
 
     assert _build(exchanges=[first, copy], pages=[page]) == ()
+
+
+def test_an_exchange_with_no_person_turn_is_not_a_candidate() -> None:
+    # A subagent's work or a compaction summary has nothing a person said, so there is nothing to keep.
+    assert _keys(_build(exchanges=[_exchange("u-1", human=""), _exchange("u-2")])) == ["session:sess-aaaa11:u-2"]
