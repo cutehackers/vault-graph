@@ -188,7 +188,7 @@ def main() -> None:
     if not root:
         raise SystemExit("Set VAULT_BUILDER_ROOT to a vault-builder checkout with the v2 renderer.")
     sys.path.insert(0, str(Path(root)))
-    from tools.wiki.lib import session_capture as capture
+    from tools.wiki.lib import session_capture as capture  # type: ignore[import-not-found]
 
     long_path = NORMALIZED / "long_continued.jsonl"
     long_path.write_text(

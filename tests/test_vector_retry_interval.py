@@ -92,7 +92,7 @@ def test_warning_names_the_vault_hours_and_error_head(tmp_path: Path) -> None:
     )
 
 
-def _raise_manifest_error(**_: object) -> tuple:
+def _raise_manifest_error(**_: object) -> tuple[object, ...]:
     raise VectorStoreError(SQL_ERROR)
 
 
@@ -140,7 +140,9 @@ def test_catch_up_skips_vectors_only_while_the_retry_interval_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[list[str]] = []
-    monkeypatch.setattr(hook_commands.subprocess, "run", lambda args, **_: calls.append(list(args)))
+    monkeypatch.setattr(
+        "vault_graph.interface.cli.hook_commands.subprocess.run", lambda args, **_: calls.append(list(args))
+    )
     record_vector_failure(tmp_path, "main", SQL_ERROR, now=T0)
     record_vector_failure(tmp_path, "main", SQL_ERROR, now=T0)
 
@@ -156,11 +158,16 @@ def test_vector_check_is_skipped_while_the_retry_interval_runs(tmp_path: Path, m
     checked: list[str] = []
     indexed: list[str] = []
     monkeypatch.setattr(hook_commands, "_wait_for_gate", lambda *_, **__: True)
-    monkeypatch.setattr(hook_commands, "vectors_need_catch_up", lambda _, vault_id: checked.append(vault_id) or True)
+
+    def vectors_need_catch_up(_: object, vault_id: str) -> bool:
+        checked.append(vault_id)
+        return True
+
+    monkeypatch.setattr(hook_commands, "vectors_need_catch_up", vectors_need_catch_up)
     monkeypatch.setattr(hook_commands, "_run_vg_index", lambda _, vault_id, **__: indexed.append(vault_id))
     record_vector_failure(tmp_path, "main", SQL_ERROR, now=datetime.now(UTC))
     plan = json.dumps({"index": [], "check": ["main", "other"]})
-    monkeypatch.setattr(hook_commands.sys, "argv", ["-c", str(tmp_path), "0", plan])
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.sys.argv", ["-c", str(tmp_path), "0", plan])
 
     hook_commands.run_catch_up_index()
 

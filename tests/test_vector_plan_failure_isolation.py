@@ -17,17 +17,18 @@ from vault_graph.indexing.publication.projection_generation import ProjectionGen
 from vault_graph.indexing.vector_index_adapter import VectorIndexer
 from vault_graph.interface.cli.main import app
 from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.storage.interfaces.vector_store import VectorManifestRecord
 
 runner = CliRunner()
 _SQL_ERROR = "Error executing plan: Internal error: too many SQL variables"
 
 
 class _ManifestFailingStore(InMemoryVectorStore):
-    def export_manifest(self, scope: QueryScope) -> tuple:  # type: ignore[override]
+    def export_manifest(self, scope: QueryScope) -> tuple[VectorManifestRecord, ...]:
         raise VectorStoreError(_SQL_ERROR)
 
 
-def _raise_manifest_error(**_: object) -> tuple:
+def _raise_manifest_error(**_: object) -> tuple[object, ...]:
     raise VectorStoreError(_SQL_ERROR)
 
 
