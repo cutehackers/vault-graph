@@ -237,3 +237,21 @@ def test_indexing_leaves_vault_files_byte_for_byte_unchanged(tmp_path: Path) -> 
     indexer.apply(scope=catalog.default_scope(), full=True)
 
     assert digests() == before
+
+
+def test_v1_part_starting_at_the_last_v2_turn_keeps_its_later_exchange(tmp_path: Path) -> None:
+    """A continued v1 part opens with the last assistant turn of the v2 range (14:06:01) and then a new
+    exchange at 14:10:00. Ranges that only touch at 14:06:01 do not overlap, so the new exchange, which no
+    v2 file holds, stays searchable."""
+    root = session_vault(tmp_path / "vault")
+    continued = V1_PART2.replace(
+        "\n## 2026-11-03T14:10:00.000Z user\n",
+        "\n## 2026-11-03T14:06:01.000Z assistant\n\nThe secret is masked now.\n\n## 2026-11-03T14:10:00.000Z user\n",
+    ).replace('first_turn_at: "2026-11-03T14:10:00.000Z"', 'first_turn_at: "2026-11-03T14:06:01.000Z"')
+    write(root, V1_PART2_PATH, continued)
+    documents, ranges = load(root)
+    assert parents(documents, V1_PART2_PATH)
+
+    result, _ = reprocess_session_groups(documents, ranges)
+
+    assert parents(result, V1_PART2_PATH) == parents(documents, V1_PART2_PATH)

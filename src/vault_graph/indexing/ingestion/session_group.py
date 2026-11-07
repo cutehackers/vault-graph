@@ -34,8 +34,9 @@ SESSION_SCHEMA_PREFIX = "vault-session/"
 SESSION_SCHEMA_V1 = "vault-session/v1"
 SESSION_SCHEMA_V2 = "vault-session/v2"
 # Part of the metadata index code: a store written before session groups reads every file once, so
-# each session file gets its stored group key.
-SESSION_GROUP_VERSION = "session-group-v1"
+# each session file gets its stored group key. v2: v1 exchanges that only touch a v2 range are kept, so
+# a store written by v1 reads every file again to bring them back.
+SESSION_GROUP_VERSION = "session-group-v2"
 
 Key = tuple[str, str]
 TimeRange = tuple[str, str]
@@ -149,8 +150,13 @@ def _reprocess_group(
 
 
 def _overlaps(time_range: tuple[datetime, datetime], others: list[tuple[datetime, datetime]]) -> bool:
+    """True when the ranges share time, or start at the same moment (the same exchange).
+
+    Ranges that only touch at one end do not overlap. A continued v1 part opens with the last turn of the
+    previous exchange, so its first v1 exchange touches the last v2 range without being in any v2 file.
+    """
     start, end = time_range
-    return any(start <= other_end and other_start <= end for other_start, other_end in others)
+    return any((start < other_end and other_start < end) or start == other_start for other_start, other_end in others)
 
 
 def _parse_range(time_range: TimeRange | None) -> tuple[datetime, datetime] | None:
