@@ -14,6 +14,10 @@ from vault_graph.storage.interfaces.graph_store import GraphStore
 from vault_graph.storage.interfaces.metadata_store import MetadataStore
 from vault_graph.storage.interfaces.vector_store import VectorStore
 
+# Must equal `sqlite_keyword_index.KEYWORD_SCHEMA_VERSION`; the operation layer may not import storage/local.
+# tests/test_keyword_field_weights.py checks that the two stay equal.
+KEYWORD_SCHEMA_VERSION = "sqlite-keyword-v3"
+
 
 @dataclass(frozen=True)
 class RoleCount:
@@ -145,7 +149,7 @@ class ProjectionHygieneService:
             result_family_duplication=result_family_duplication,
             schema_versions=(
                 SchemaVersion("metadata", metadata_version),
-                SchemaVersion("keyword", "sqlite-keyword-v2"),
+                SchemaVersion("keyword", KEYWORD_SCHEMA_VERSION),
                 SchemaVersion("vector", vector_version),
                 SchemaVersion("graph", graph_version),
             ),

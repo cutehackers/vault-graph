@@ -154,6 +154,7 @@ class RetrievalService:
                 allowed_roles=SEARCH_MODE_ROLES[request.mode],
                 include_retired=request.include_retired,
                 vault_order=_affected_vault_ids(request.actual_scopes),
+                query_text=request.query_text,
             )
             saturated = candidate_limit in (len(keyword_candidates), len(vector_candidates))
             if refill or len(results) >= request.limit or not saturated:

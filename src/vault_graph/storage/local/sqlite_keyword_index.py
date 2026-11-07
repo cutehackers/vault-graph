@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import cast
@@ -10,12 +11,30 @@ from typing import cast
 from vault_graph.errors import KeywordIndexError
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.indexing.ingestion.hangul_terms import strip_hangul_suffix, word_tokens
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery
 from vault_graph.storage.interfaces.store_health import StoreHealth
 
 SQLITE_KEYWORD_BACKEND = "sqlite-fts5"
-KEYWORD_SCHEMA_VERSION = "sqlite-keyword-v2"
+# v3 (spec 2026-11-05 §10.2 원인5): an `aliases` column, and `frontmatter` holds tags and summary only.
+KEYWORD_SCHEMA_VERSION = "sqlite-keyword-v3"
+
+# bm25() weight per keyword_chunks column, in column order (spec 2026-11-05 §10.2 원인5). Fields that name
+# the page (title, aliases) weigh 10, the file path 5, and the other fields 1. The tiers follow the
+# per-column weight example of the SQLite FTS5 manual, `bm25(email, 10.0, 5.0)` with 1.0 for the rest
+# (https://www.sqlite.org/fts5.html#the_bm25_function). They are a fixed rule, not fitted to any question set.
+KEYWORD_COLUMN_WEIGHTS: tuple[tuple[str, float], ...] = (
+    ("path", 5.0),
+    ("section", 1.0),
+    ("title", 10.0),
+    ("aliases", 10.0),
+    ("frontmatter", 1.0),
+    ("text", 1.0),
+)
+_BM25 = f"bm25(keyword_chunks, {', '.join(str(weight) for _, weight in KEYWORD_COLUMN_WEIGHTS)})"
+# Frontmatter keys whose values the `frontmatter` column keeps, in this order. Title and aliases have columns.
+KEYWORD_FRONTMATTER_KEYS: tuple[str, ...] = ("tags", "summary")
 
 KEYWORD_SCHEMA = """
 CREATE TABLE IF NOT EXISTS keyword_projection_metadata (
@@ -40,6 +59,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS keyword_chunks USING fts5(
   path,
   section,
   title,
+  aliases,
   frontmatter,
   text,
   content='',
@@ -48,13 +68,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS keyword_chunks USING fts5(
 );
 """
 
-REQUIRED_KEYWORD_COLUMNS = (
-    "path",
-    "section",
-    "title",
-    "frontmatter",
-    "text",
-)
+REQUIRED_KEYWORD_COLUMNS = tuple(column for column, _ in KEYWORD_COLUMN_WEIGHTS)
 
 
 class SQLiteKeywordIndex:
@@ -74,7 +88,7 @@ class SQLiteKeywordIndex:
                 f"""
                 SELECT r.rowid, r.vault_id, r.document_id, r.chunk_id, r.path,
                        r.source_role, r.provenance_family_id, r.index_revision,
-                       bm25(keyword_chunks) AS score
+                       {_BM25} AS score
                 FROM keyword_chunks
                 INNER JOIN keyword_rows r ON r.rowid = keyword_chunks.rowid
                 WHERE keyword_chunks MATCH ?
@@ -220,38 +234,94 @@ def apply_keyword_revision(
                 index_revision,
             ),
         )
-        connection.execute(
-            """
-            INSERT INTO keyword_chunks (
-              rowid, path, section, title, frontmatter, text
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                cursor.lastrowid,
-                chunk.path,
-                " > ".join(chunk.section_path) or chunk.section or "",
-                _title_for_document(document),
-                keyword_frontmatter(document, chunk),
-                chunk.text,
-            ),
+        _insert_keyword_text(
+            connection,
+            rowid=cast(int, cursor.lastrowid),
+            path=chunk.path,
+            section=" > ".join(chunk.section_path) or chunk.section or "",
+            frontmatter=document.frontmatter,
+            keyword_metadata=chunk.keyword_metadata,
+            text=chunk.text,
         )
 
 
-def keyword_frontmatter(document: DocumentSnapshot, chunk: ChunkSnapshot) -> str:
-    """The `frontmatter` column value: document frontmatter, then the chunk's keyword metadata line if any.
+def _insert_keyword_text(
+    connection: sqlite3.Connection,
+    *,
+    rowid: int,
+    path: str,
+    section: str,
+    frontmatter: Mapping[str, object],
+    keyword_metadata: str | None,
+    text: str,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO keyword_chunks (
+          rowid, path, section, title, aliases, frontmatter, text
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            rowid,
+            path,
+            section,
+            _title(frontmatter, path),
+            _aliases(frontmatter),
+            _slim_frontmatter(frontmatter, keyword_metadata),
+            text,
+        ),
+    )
 
-    Session windows carry exchange metadata (files, commands, tools, errors, outcome) here and not in
-    `text`, so it is searchable without reaching window text or embedding input (spec 2026-11-05 §4.2.6-8).
+
+def keyword_frontmatter(document: DocumentSnapshot, chunk: ChunkSnapshot) -> str:
+    """The `frontmatter` column value: tags and summary, then the chunk's keyword metadata line if any.
+
+    Other frontmatter (links, ids, hashes, dates) is left out: it names other pages or nothing a reader
+    asks for (spec 2026-11-05 §10.2 원인5). Session windows carry exchange metadata (files, commands, tools,
+    errors, outcome) here and not in `text`, so it is searchable without reaching window text or embedding
+    input (§4.2.6-8).
     """
-    frontmatter = json.dumps(document.frontmatter, sort_keys=True)
-    if not chunk.keyword_metadata:
-        return frontmatter
-    return f"{frontmatter}\n{chunk.keyword_metadata}"
+    return _slim_frontmatter(document.frontmatter, chunk.keyword_metadata)
+
+
+def keyword_aliases(document: DocumentSnapshot) -> str:
+    """The `aliases` column value: the frontmatter aliases joined by ", "."""
+    return _aliases(document.frontmatter)
+
+
+def _slim_frontmatter(frontmatter: Mapping[str, object], keyword_metadata: str | None) -> str:
+    values = [" ".join(_frontmatter_texts(frontmatter.get(key))) for key in KEYWORD_FRONTMATTER_KEYS]
+    if keyword_metadata:
+        values.append(keyword_metadata)
+    return "\n".join(value for value in values if value)
+
+
+def _aliases(frontmatter: Mapping[str, object]) -> str:
+    return ", ".join(_frontmatter_texts(frontmatter.get("aliases")))
+
+
+def _frontmatter_texts(value: object) -> tuple[str, ...]:
+    """Non-empty texts of a scalar or list value, in written order. Nested mappings and lists are skipped."""
+    items = value if isinstance(value, list | tuple) else (value,)
+    texts = (str(item).strip() for item in items if item is not None and not isinstance(item, dict | list | tuple))
+    return tuple(text for text in texts if text)
 
 
 def ensure_keyword_schema(connection: sqlite3.Connection) -> None:
+    """Create the keyword tables, or rebuild them when another schema version wrote them.
+
+    A rebuild drops `keyword_rows` and `keyword_chunks` and refills them from the `documents`, `chunks` and
+    `content_blobs` tables of the same database. So a Graph Home written by an older version becomes
+    searchable on the next writable open (`vg index`), even when no Vault file changed.
+    """
+    rebuild = _stored_keyword_schema_version(connection) != KEYWORD_SCHEMA_VERSION
+    if rebuild:
+        connection.execute("DROP TABLE IF EXISTS keyword_chunks")
+        connection.execute("DROP TABLE IF EXISTS keyword_rows")
     connection.executescript(KEYWORD_SCHEMA)
+    if rebuild:
+        _refill_keyword_rows(connection)
     connection.execute(
         """
         INSERT INTO keyword_projection_metadata (key, value)
@@ -260,6 +330,66 @@ def ensure_keyword_schema(connection: sqlite3.Connection) -> None:
         """,
         (KEYWORD_SCHEMA_VERSION,),
     )
+
+
+def _stored_keyword_schema_version(connection: sqlite3.Connection) -> str | None:
+    table = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'keyword_projection_metadata'"
+    ).fetchone()
+    if table is None:
+        return None
+    row = connection.execute("SELECT value FROM keyword_projection_metadata WHERE key = 'schema_version'").fetchone()
+    return None if row is None else str(row[0])
+
+
+def _refill_keyword_rows(connection: sqlite3.Connection) -> None:
+    """Write one keyword row per stored chunk of a live document. Does nothing before the metadata tables exist.
+
+    The version row is written after this in the same transaction, so a rebuild that stops halfway runs again.
+    """
+    tables = {
+        str(row[0]) for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    }
+    if not {"documents", "chunks", "content_blobs"} <= tables:
+        return
+    chunk_columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
+    keyword_metadata = "c.keyword_metadata" if "keyword_metadata" in chunk_columns else "NULL"
+    rows = connection.execute(
+        f"""
+        SELECT c.vault_id, c.document_id, c.chunk_id, c.path, c.section, c.section_path_json,
+               c.source_role, c.provenance_family_id,
+               COALESCE(c.index_revision, d.index_revision, '') AS index_revision,
+               d.frontmatter_json, b.text, {keyword_metadata} AS keyword_metadata
+        FROM chunks c
+        INNER JOIN documents d ON d.vault_id = c.vault_id AND d.document_id = c.document_id
+        INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
+        WHERE d.is_tombstoned = 0
+        ORDER BY c.vault_id, c.path, c.document_order, c.chunk_id
+        """
+    ).fetchall()
+    for row in rows:
+        path = str(row[3])
+        cursor = connection.execute(
+            """
+            INSERT INTO keyword_rows (
+              vault_id, document_id, chunk_id, path, content_scope, source_role,
+              provenance_family_id, index_revision
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (row[0], row[1], row[2], path, _content_scope_for_path(path), row[6], row[7], row[8]),
+        )
+        section_path = json.loads(row[5] or "[]")
+        frontmatter = json.loads(row[9] or "{}")
+        _insert_keyword_text(
+            connection,
+            rowid=cast(int, cursor.lastrowid),
+            path=path,
+            section=" > ".join(str(part) for part in section_path) or row[4] or "",
+            frontmatter=frontmatter if isinstance(frontmatter, dict) else {},
+            keyword_metadata=row[11],
+            text=str(row[10]),
+        )
 
 
 @dataclass(frozen=True)
@@ -275,78 +405,8 @@ class QueryTerm:
         return f"{column}:{term}" if column else term
 
 
-# Spec 2026-11-05 §10.2 원인6. `unicode61` keeps a Korean word and its particle as one token ("아이디어를"),
-# so the query side drops one trailing particle or common ending and matches Hangul stems by prefix.
-# The particle list extends the Vault's own wiki search list (`tools/wiki/lib/search.py`). Longest first.
-HANGUL_QUERY_SUFFIXES: tuple[str, ...] = tuple(
-    sorted(
-        {
-            # particles
-            "에서는",
-            "에서도",
-            "으로는",
-            "으로서",
-            "으로써",
-            "에게서",
-            "이라는",
-            "이라고",
-            "에서",
-            "에게",
-            "한테",
-            "으로",
-            "로서",
-            "로써",
-            "까지",
-            "부터",
-            "보다",
-            "처럼",
-            "마다",
-            "이나",
-            "이랑",
-            "라는",
-            "라고",
-            "들을",
-            "들이",
-            "들의",
-            "들은",
-            "은",
-            "는",
-            "이",
-            "가",
-            "을",
-            "를",
-            "의",
-            "에",
-            "로",
-            "와",
-            "과",
-            "도",
-            "만",
-            "랑",
-            "들",
-            # common endings
-            "했습니다",
-            "합니다",
-            "하려면",
-            "하려는",
-            "하는",
-            "하기",
-            "하고",
-            "하면",
-            "해서",
-            "했다",
-            "한다",
-            "하다",
-            "된다",
-            "되는",
-            "된",
-            "한",
-        },  # fmt: skip
-        key=lambda suffix: (-len(suffix), suffix),
-    )
-)
-# A stem keeps at least this many letters, so "회의" is not read as "회" + "의".
-HANGUL_STEM_MIN_LETTERS = 2
+# Spec 2026-11-05 §10.2 원인6: the query side drops one Korean particle or ending (`hangul_terms`) and
+# matches Hangul stems by prefix.
 # Hangul terms this long or longer match by prefix. Shorter ones stay exact: a two-letter prefix matches
 # too many unrelated words.
 HANGUL_PREFIX_MIN_LETTERS = 3
@@ -361,7 +421,7 @@ def query_terms(query_text: str) -> tuple[QueryTerm, ...]:
     """
     terms: list[QueryTerm] = []
     for token in _query_tokens(query_text):
-        stem = _strip_hangul_suffix(token)
+        stem = strip_hangul_suffix(token)
         stem_term = _term(stem)
         if stem == token:
             terms.append(stem_term)
@@ -379,13 +439,6 @@ def _term(text: str) -> QueryTerm:
     )
 
 
-def _strip_hangul_suffix(token: str) -> str:
-    for suffix in HANGUL_QUERY_SUFFIXES:
-        if token.endswith(suffix) and len(token) - len(suffix) >= HANGUL_STEM_MIN_LETTERS:
-            return token[: -len(suffix)]
-    return token
-
-
 def _match_query(query_text: str) -> str:
     terms = query_terms(query_text)
     if not terms:
@@ -394,7 +447,7 @@ def _match_query(query_text: str) -> str:
 
 
 def _query_tokens(query_text: str) -> tuple[str, ...]:
-    return tuple(re.findall(r"[\w가-힣]+", query_text, flags=re.UNICODE))
+    return word_tokens(query_text)
 
 
 def _content_scope_clause(content_scopes: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
@@ -429,7 +482,7 @@ def _matched_fields(
 ) -> tuple[str, ...]:
     matched = tuple(
         field
-        for field in ("title", "section", "frontmatter", "text", "path")
+        for field in ("title", "aliases", "section", "frontmatter", "text", "path")
         if _row_matches_field(connection, rowid=rowid, field=field, tokens=tokens)
     )
     return matched or ("text",)
@@ -480,9 +533,9 @@ def _delete_keyword_rows(
         connection.execute("DELETE FROM keyword_rows WHERE rowid = ?", (int(row["rowid"]),))
 
 
-def _title_for_document(document: DocumentSnapshot) -> str:
-    title = document.frontmatter.get("title")
-    return str(title) if title is not None else PurePosixPath(document.path).stem
+def _title(frontmatter: Mapping[str, object], path: str) -> str:
+    title = frontmatter.get("title")
+    return str(title) if title is not None else PurePosixPath(path).stem
 
 
 def _content_scope_for_path(path: str) -> str:

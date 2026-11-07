@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import replace
 from pathlib import Path
@@ -27,20 +26,24 @@ from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 RAW_SCOPE = QueryScope(vault_ids=("default",), content_scopes=("raw", "wiki"))
 
 
-def test_keyword_frontmatter_appends_chunk_metadata_after_document_frontmatter() -> None:
+def test_keyword_frontmatter_of_session_window_is_its_exchange_metadata() -> None:
+    # Spec 2026-11-05 §10.2 원인5: the column keeps tags and summary only, and a session has neither.
     document = session_document()
     window = session_windows(document)[0]
 
     value = keyword_frontmatter(document, window)
 
-    assert value == json.dumps(document.frontmatter, sort_keys=True) + "\n" + exchange_metadata()
+    assert value == exchange_metadata()
 
 
-def test_keyword_frontmatter_of_general_chunk_is_document_frontmatter_only() -> None:
-    document = replace(make_document("default", "wiki/page.md", "hash"), frontmatter={"title": "Page", "tags": ["a"]})
+def test_keyword_frontmatter_of_general_chunk_is_tags_and_summary_only() -> None:
+    document = replace(
+        make_document("default", "wiki/page.md", "hash"),
+        frontmatter={"title": "Page", "tags": ["a"], "summary": "Short."},
+    )
     chunk = make_chunk("default", document.document_id, document.path)
 
-    assert keyword_frontmatter(document, chunk) == json.dumps(document.frontmatter, sort_keys=True)
+    assert keyword_frontmatter(document, chunk) == "a\nShort."
 
 
 def test_edited_file_path_finds_exchange_through_frontmatter_column_only(tmp_path: Path) -> None:

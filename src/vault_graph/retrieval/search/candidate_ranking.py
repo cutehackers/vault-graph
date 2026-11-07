@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
+from vault_graph.indexing.ingestion.document_snapshots import DocumentSnapshot
+from vault_graph.indexing.ingestion.hangul_terms import name_terms
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSignal, RetrievalSignalKind
 from vault_graph.retrieval.search.search_response import SearchMode
@@ -27,6 +30,18 @@ DOCUMENT_TAIL_CHUNKS = 2
 SEARCH_MODE_ROLE_WEIGHTS: dict[SearchMode, dict[DocumentRole, float]] = {
     "knowledge": {"canonical_knowledge": 1.0, "source_manifest": 0.8},
 }
+
+
+# Spec 2026-11-05 §10.2 원인5. A query that names a page lifts it: the page's title and aliases act as one
+# more ranked list fused like the others (reciprocal rank fusion, Cormack et al. SIGIR 2009, same
+# RANK_CONSTANT). A title or alias equal to the query ranks TITLE_MATCH_EXACT_RANK in that list. One that
+# appears whole, as consecutive words, inside a longer query ranks TITLE_MATCH_CONTAINED_RANK, but only with
+# TITLE_CONTAINED_MIN_TERMS or more words, because a one-word title such as "Index" is inside many questions.
+# Words compare after NFKC, case folding and dropping one Korean particle or ending (`hangul_terms`).
+TITLE_SIGNAL_WEIGHT = 1.0
+TITLE_MATCH_EXACT_RANK = 1
+TITLE_MATCH_CONTAINED_RANK = 2
+TITLE_CONTAINED_MIN_TERMS = 2
 
 
 @dataclass(frozen=True)
@@ -93,6 +108,46 @@ def document_score(chunk_scores: Sequence[float]) -> float:
     if not ordered:
         return 0.0
     return ordered[0] + DOCUMENT_TAIL_WEIGHT * sum(ordered[1 : 1 + DOCUMENT_TAIL_CHUNKS])
+
+
+def document_names(document: DocumentSnapshot | None) -> tuple[str, ...]:
+    """Names a query can call a page by: its title (the file stem when there is none), then its aliases."""
+    if document is None:
+        return ()
+    title = document.frontmatter.get("title")
+    names = [str(title) if title is not None else PurePosixPath(document.path).stem]
+    aliases = document.frontmatter.get("aliases")
+    for alias in aliases if isinstance(aliases, list | tuple) else (aliases,):
+        if alias is not None and not isinstance(alias, dict | list | tuple) and str(alias).strip():
+            names.append(str(alias).strip())
+    return tuple(names)
+
+
+def title_match_rank(query_text: str, names: Sequence[str]) -> int | None:
+    """``TITLE_MATCH_EXACT_RANK`` when a name equals the query, ``TITLE_MATCH_CONTAINED_RANK`` when a name of
+    ``TITLE_CONTAINED_MIN_TERMS`` or more words appears whole inside it, else None."""
+    query = name_terms(query_text)
+    if not query:
+        return None
+    best: int | None = None
+    for name in names:
+        terms = name_terms(name)
+        if not terms:
+            continue
+        if terms == query:
+            return TITLE_MATCH_EXACT_RANK
+        if len(terms) >= TITLE_CONTAINED_MIN_TERMS and _contains_run(query, terms):
+            best = TITLE_MATCH_CONTAINED_RANK
+    return best
+
+
+def title_signal_score(match_rank: int | None) -> float:
+    """The title list's reciprocal rank fusion share for a page, 0.0 when the query does not name it."""
+    return 0.0 if match_rank is None else TITLE_SIGNAL_WEIGHT / (RANK_CONSTANT + match_rank)
+
+
+def _contains_run(terms: tuple[str, ...], run: tuple[str, ...]) -> bool:
+    return any(terms[start : start + len(run)] == run for start in range(len(terms) - len(run) + 1))
 
 
 def role_weight(mode: SearchMode, role: DocumentRole) -> float:

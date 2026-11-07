@@ -9,9 +9,12 @@ from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, Do
 from vault_graph.retrieval.evidence.evidence_linking import EvidenceLinker
 from vault_graph.retrieval.search.candidate_ranking import (
     FusedCandidate,
+    document_names,
     document_score,
     role_weight,
     sort_resolved_candidates,
+    title_match_rank,
+    title_signal_score,
 )
 from vault_graph.retrieval.search.retrieval_result import (
     ResultLifecycle,
@@ -58,13 +61,15 @@ class EvidenceResultAssembly:
         allowed_roles: tuple[DocumentRole, ...],
         include_retired: bool = False,
         vault_order: tuple[str, ...] = (),
+        query_text: str = "",
     ) -> tuple[tuple[RetrievalResult, ...], int, tuple[SearchWarning, ...]]:
         """Resolve fused chunk candidates into ranked results, one per document or session exchange.
 
         Spec 2026-11-05 §10.2: chunks group per unit and the unit score is ``document_score`` times the
-        mode's role weight (원인1·3). Knowledge mode folds pages joined by `supersedes`/`superseded_by`
-        (원인2). The same content in several Vaults returns once, from the earliest Vault of
-        ``vault_order`` (원인4).
+        mode's role weight (원인1·3). A unit whose page title or alias the query names gets the title
+        signal added once (원인5, ``title_signal_score``). Knowledge mode folds pages joined by
+        `supersedes`/`superseded_by` (원인2). The same content in several Vaults returns once, from the
+        earliest Vault of ``vault_order`` (원인4).
         """
         dropped = 0
         warnings: list[SearchWarning] = []
@@ -98,7 +103,7 @@ class EvidenceResultAssembly:
             chunks[(candidate.vault_id, candidate.chunk_id)] = chunk
 
         ranked = sort_resolved_candidates(resolved)
-        groups = _group_by_unit(ranked, chunks, documents=documents, mode=mode)
+        groups = _group_by_unit(ranked, chunks, documents=documents, mode=mode, query_text=query_text)
         if mode == "knowledge":
             groups = _fold_replacements(groups)
         groups = _fold_duplicate_content(groups, vault_order=vault_order)
@@ -223,11 +228,14 @@ def _group_by_unit(
     *,
     documents: dict[str, DocumentSnapshot | None],
     mode: SearchMode,
+    query_text: str = "",
 ) -> tuple[_ParentGroup, ...]:
     """Fold ranked chunks into one unit per session exchange (`parent_key`) or per document, best chunk first.
 
-    Units are ordered by ``document_score`` of their chunks' fused scores times the role weight, then by
-    the best chunk's ranking key, so equal scores keep the chunk order.
+    Units are ordered by ``document_score`` of their chunks' fused scores plus the title signal, times the
+    role weight, then by the best chunk's ranking key, so equal scores keep the chunk order. The title
+    signal depends on the document only, so a page that matches in its page card and in several windows
+    gets it once.
     """
     members: dict[tuple[str, str, str], list[ResolvedCandidate]] = {}
     for item in ranked:
@@ -242,7 +250,9 @@ def _group_by_unit(
     groups: list[tuple[int, _ParentGroup]] = []
     for position, items in enumerate(members.values()):
         best = items[0]
+        document = documents.get(best[0].document_id)
         score = document_score(tuple(item[0].fused_score for item in items))
+        score += title_signal_score(title_match_rank(query_text, document_names(document)))
         groups.append(
             (
                 position,
@@ -251,7 +261,7 @@ def _group_by_unit(
                     chunk=chunks[(best[0].vault_id, best[0].chunk_id)],
                     window_count=len(items),
                     score=score * role_weight(mode, best[1].source_role),
-                    document=documents.get(best[0].document_id),
+                    document=document,
                 ),
             )
         )
