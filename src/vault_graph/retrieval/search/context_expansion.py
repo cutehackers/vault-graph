@@ -128,11 +128,15 @@ class ContextExpander:
         matched_chunk: ChunkSnapshot,
         scope: QueryScope,
     ) -> tuple[ChunkSnapshot, ...]:
-        chunks = page_body_chunks(
-            self._metadata_store.list_document_chunks(
-                vault_id=matched_chunk.vault_id,
-                document_id=matched_chunk.document_id,
-            )
+        stored = self._metadata_store.list_document_chunks(
+            vault_id=matched_chunk.vault_id,
+            document_id=matched_chunk.document_id,
+        )
+        # The page card is never context for another chunk. A matched card stays, so its page's first
+        # body windows become its context.
+        body_ids = {chunk.chunk_id for chunk in page_body_chunks(stored)}
+        chunks = tuple(
+            chunk for chunk in stored if chunk.chunk_id in body_ids or chunk.chunk_id == matched_chunk.chunk_id
         )
         return tuple(
             sorted(

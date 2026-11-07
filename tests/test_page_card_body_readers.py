@@ -76,3 +76,16 @@ def test_context_expansion_does_not_add_the_card_as_a_neighbor(tmp_path: Path) -
     )
 
     assert card.chunk_id not in expansion.context_chunk_ids
+
+
+def test_context_expansion_of_a_matched_card_adds_the_first_body_window_without_warnings(tmp_path: Path) -> None:
+    store, normalized = _store(tmp_path)
+    card, body, _template = store.list_document_chunks(vault_id="default", document_id=normalized.document.document_id)
+
+    expansion = ContextExpander(metadata_store=store).expand(
+        matched_chunk=card, scope=_SCOPE, max_tokens=1000, neighbor_radius=1
+    )
+
+    assert expansion.warnings == ()
+    assert expansion.matched_chunk_id == card.chunk_id
+    assert body.chunk_id in expansion.context_chunk_ids
