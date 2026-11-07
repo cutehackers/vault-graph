@@ -237,7 +237,7 @@ vg는 이 형식을 쓰지 않고 읽기만 한다. vault-builder에 요청하�
 5. 창 `section_path`: (`Session <날짜> part<N>`, `Q: <교환 첫 사람 턴 앞 80자>`). 서브에이전트 교환이면 첫 값 뒤에 ` subagent <agent_id>`.
 6. 부모 단위: 창마다 `parent_key = <session_id>:<exchange_id>`와 `parent_locators`(교환 전체 줄 범위)를 둔다. `ChunkSnapshot`에 선택 필드 두 개를 더한다: `parent_key: str | None`, `parent_locators: tuple[SourceLocator, ...]`. 일반 문서는 `None`과 빈 튜플이다. M05 결과 조립(`retrieval/search/evidence_result_assembly.py`)은 같은 `parent_key`의 창들을 가장 높은 순위의 창 하나로 묶고, 결과 위치를 `parent_locators`로, 발췌를 그 창 본문으로 둔다. 묶인 창 수는 결과 설명에 적는다.
 7. 임베딩 입력: `Session: <project> <날짜> part<N>`, `Question: <교환 첫 사람 턴 앞 200자>`, 빈 줄, 창 본문. 숨은 메타 줄과 교환 메타는 넣지 않는다.
-8. 교환 메타의 키워드 색인: 같은 교환의 모든 창의 키워드 행 `frontmatter` 열(발견A12)에 `files: … commands: … tools: … errors: <n> outcome: <값>`을 더한다. `text` 열과 임베딩 입력에는 넣지 않는다. `ChunkSnapshot`에 선택 필드 `keyword_metadata: str | None`을 더하고 키워드 색인이 이 값을 `frontmatter` 열 끝에 붙인다.
+8. 교환 메타의 키워드 색인: 같은 교환의 모든 창의 키워드 행 `frontmatter` 열(발견A12)에 `files: … commands: … tools: … errors: <n> outcome: <값>`을 더한다. `text` 열과 임베딩 입력에는 넣지 않는다. `ChunkSnapshot`에 선택 필드 `keyword_metadata: str | None`을 더하고 키워드 색인이 이 값을 `frontmatter` 열 끝에 붙인다. §10 단계B(`sqlite-keyword-v3`)부터 `frontmatter` 열은 frontmatter 전체 JSON이 아니라 tags, summary, 이 값만 담는다.
 9. 조각 id: `stable_id("chunk", "session-exchange-v2", vault_id, session_id, exchange_id, agent_scope, 창 번호)`. 파일 경로와 renderer 버전에 묶이지 않는다. 같은 교환 id가 두 파일에 있으면 경로 사전순으로 앞 파일만 색인하고 경고 한 줄을 낸다.
 10. 위치(`source_locators`): 창에 든 줄 범위. 형식은 지금 markdown 리더의 `SourceLocator`(`src/vault_graph/indexing/ingestion/markdown_parser.py:418-428@abc77e7`)와 같다.
 11. 모델 토큰 검사: 임베딩 입력이 모델 토큰 512를 넘는 창 수를 색인 결과 경고에 적는다. 창 경계는 공백 토큰 수로만 정한다.
@@ -1113,3 +1113,18 @@ backlog:
 - 페이지 카드(`page_card`): frontmatter의 제목, 별칭, 요약, 태그와 파일 이름만 모은 조각 하나. 생성 텍스트가 없다(원칙1). 키워드와 벡터 모두 읽는다. 본문을 다시 읽는 곳(recall 본문, 본문 토큰 수, 기억 출처 읽기)은 카드를 뺀다.
 - 탐색 페이지는 `document_kind=hub`로 표시한다.
 - 이 브랜치에서 만든 Graph Home은 카드 위치가 작업 중에 바뀌었으므로 다시 색인해야 한다.
+
+### 10.6 단계A·B에서 정한 것
+
+- 단계A 순위 규칙(`retrieval/search/candidate_ranking.py`):
+  - knowledge 모드 역할 가중치: canonical 1.0, source 0.8. 다른 모드에는 가중치가 없다.
+  - 문서 점수: 최고 조각 점수 + 0.1 × 다음 2개 조각 점수의 합.
+  - 접기: knowledge 모드에서 `supersedes`/`superseded_by` 사슬만 접는다. 다른 Vault에 `content_hash`가 같은 문서는 범위에서 먼저 나온 Vault의 것 하나만 남긴다.
+  - 한국어 질의: 낱말 끝 조사·어미 하나를 떼고(남는 앞부분 2글자 이상), 3글자 이상 한글은 앞부분 일치로 찾는다.
+- 단계B 키워드 표(`sqlite-keyword-v3`):
+  - 열: path, section, title, aliases, frontmatter(tags, summary, 교환 메타), text.
+  - `bm25()` 열 가중치: title·aliases 10, path 5, 나머지 1. SQLite FTS5 문서의 열 가중치 예시와 같은 크기로 미리 정했고 평가 질문에 맞추지 않았다.
+  - 저장된 버전이 다르면 `vg index`가 같은 DB의 문서·조각으로 키워드 표를 다시 채운다. 다시 임베딩하지 않는다.
+- 제목 일치 신호: 질의가 제목·별칭과 같으면 1위, 2단어 이상 제목이 질의 안에 통째로 있으면 2위인 순위 목록 하나로 보고 RRF(k=60, 가중치 1.0)로 문서당 한 번 더한다. 제목이 없으면 파일 이름을 쓴다.
+- 세션 창 크기 재확인(단계A·B·C 적용 뒤): 96단어는 recall@5 0.64, MRR 0.50, 512 초과 창 55개다. 160단어는 0.71, 0.40, 608개다. recall@5 차이는 14문항 중 1문항이고 목표6(512 초과 1% 이하)을 지키므로 96단어로 정한다.
+- all 모드의 결정·방법 질문(8문항)은 기대 페이지가 상위 20 밖이다. 같은 주제의 원문·spec·보고서가 위에 온다. 모든 모드에 역할 가중치(1.0/0.8/0.6)를 주는 안과 결과 단위마다 후보 조각 수를 3개로 묶는 안을 재 보았으나 둘 다 이 질문들을 상위 20에 올리지 못했고 다른 값이 떨어져 넣지 않았다. 기본 knowledge 모드에서는 이 질문들이 3~10위다.
