@@ -29,8 +29,8 @@ vault-builder, so the command installs both. It installs the newest release tag
 of `vg`, then runs the vault-builder install command, which creates or registers
 your Vaults, installs the Vault hooks (they run this `vg`), links the current
 repository and registers the `vault-wiki` MCP server. Last it runs
-`vg setup --agent claude --mcp`, which registers the `vault-graph` MCP server
-and runs the first index:
+`vg setup --agent claude --mcp --no-index`, which registers your Vaults and the
+`vault-graph` MCP server. It does not index the Vaults:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cutehackers/vault-graph/main/scripts/install.sh | bash
@@ -42,11 +42,24 @@ vault-builder setup as a dry run, so a problem vault-builder would stop on
 stops the command first. Vaults made by an older vault-builder are upgraded in
 the same run. Without a terminal for questions, add `--yes`
 (`| bash -s -- --yes`). When uv is missing, it asks before it installs uv
-(`--install-uv` installs it without asking). The first index
-downloads the embedding model (about 135 MB) and embeds every Vault, so the
-command can run for several minutes. On six Vaults with 26,209 chunks it took
-about 14 minutes and up to about 21 GB of memory. Start Claude Code again when
+(`--install-uv` installs it without asking). Start Claude Code again when
 the command finishes and check the servers with `/mcp`.
+
+The command does not index your Vaults, so `vault-graph` search and session
+start recall return nothing until you index them. Index every Vault when you
+have time, with Claude Code open or closed:
+
+```bash
+vg index --all-vaults
+```
+
+The last lines of the install command print this command, with the full path
+of `vg` when `~/.local/bin` is not on your `PATH`. The first run downloads the
+embedding model (about 135 MB) and embeds every Vault. On six Vaults with
+26,209 chunks it took about 14 minutes and up to about 21 GB of memory. Vaults
+with many session transcripts under `raw/sessions/` take longer, up to tens of
+minutes, because transcripts split into many small chunks. Later runs index
+only changed files.
 
 Options after `bash -s --` go to the vault-builder install command, for example
 `--repo /path/to/app --yes` to run without questions or `--dry-run` to install
@@ -85,7 +98,7 @@ Then continue with Quick Start below.
 
 ## Quick Start
 
-The install command already runs this step for you. Run it
+The install command already runs this step for you, with `--no-index`. Run it
 yourself only when you installed `vg` alone. For Claude Code, use
 `--agent claude`:
 
@@ -95,7 +108,8 @@ vg setup --vault /path/to/vault --agent claude --mcp
 ```
 
 By default, setup uses `~/.vault-graph` for local Data Home, registers the Vault,
-and runs indexing. Keep this Data Home directory outside your Vault.
+and runs indexing. `--no-index` skips indexing; run `vg index --all-vaults` later.
+Keep this Data Home directory outside your Vault.
 
 With `--agent claude`, setup adds a user-scope `mcpServers.vault-graph` entry to
 `~/.claude.json`. The entry starts the absolute path of your `vg` command with
@@ -199,7 +213,7 @@ Vault Graph embeds every chunk with a local model for semantic search. It uses
 one model, `e5-small` (`Xenova/multilingual-e5-small`, int8). The model suits
 Korean and English coding agent session transcripts, reads up to 512 tokens per
 chunk, and downloads about 135 MB. You do not need to set anything up: the
-first `vg setup` or `vg index` downloads it.
+first `vg setup` or `vg index` downloads it. `vg setup --no-index` does not.
 
 Model files live in `~/llm/models`, outside every registered Vault. The model
 folder is saved in `configs/embedding.json` under your Data Home

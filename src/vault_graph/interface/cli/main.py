@@ -457,6 +457,14 @@ def setup(
     print_mcp_config: bool = typer.Option(False, "--print-mcp-config", help="Print MCP config JSON."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Report setup without writing state."),
     vault_map: Path | None = typer.Option(None, "--vault-map", help=VAULT_MAP_OPTION_HELP),
+    run_index: bool = typer.Option(
+        True,
+        "--index/--no-index",
+        help=(
+            "Index each Vault after setup. --no-index only registers Vaults, initializes the Data Home "
+            "and registers MCP; run `vg index --all-vaults` later to build the index."
+        ),
+    ),
 ) -> None:
     from vault_graph.operation.integration.mcp.mcp_config_registration import McpAgent
     from vault_graph.operation.runtime.setup_service import SetupRequest, SetupService
@@ -478,6 +486,7 @@ def setup(
             mcp_config_path=mcp_config_path,
             print_mcp_config=print_mcp_config and last,
             dry_run=dry_run,
+            run_index=run_index,
         )
         if vault is not None:
             _echo_setup_report(_exit_on_domain_error(partial(setup_service.setup, request)))

@@ -213,10 +213,12 @@ def recall(
         return _handoff(scope.reason or f"No Vault is linked to {cwd}.")
     indexed = tuple(vault_id for vault_id in scope.vault_ids if ports.documents.is_indexed(vault_id))
     if not indexed:
-        return _handoff(f"No index for Vault {', '.join(scope.vault_ids)}. Run `vg index`.")
+        return _handoff(f"No index for Vault {', '.join(scope.vault_ids)}. Run `vg index --all-vaults`.")
     warnings = list(scope.warnings)
     warnings.extend(
-        f"Vault {vault_id} has no index. Run `vg index`." for vault_id in scope.vault_ids if vault_id not in indexed
+        f"Vault {vault_id} has no index. Run `vg index --all-vaults`."
+        for vault_id in scope.vault_ids
+        if vault_id not in indexed
     )
 
     library = _Library.load(
