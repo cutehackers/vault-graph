@@ -55,6 +55,7 @@ from vault_graph.context.memory.memory_candidates import (
 )
 from vault_graph.context.memory.project_scope import UNMAPPED_VAULT_SCOPE, VaultProjectScope
 from vault_graph.errors import VaultGraphError
+from vault_graph.indexing.ingestion.document_authority import classify_document_role
 from vault_graph.indexing.ingestion.session_exchange_v1_chunker import SESSION_EXCHANGE_V1_VERSION
 from vault_graph.indexing.ingestion.session_exchange_v2_chunker import SESSION_EXCHANGE_V2_VERSION
 from vault_graph.operation.scope.catalog_service import CatalogService
@@ -683,6 +684,10 @@ class SearchSimilarPageFinder:
             evidence = result.evidence[0]
             document = self._documents.get((evidence.vault_id, evidence.document_id))
             if document is None or not document.path.startswith(WIKI_PATH_PREFIX):
+                continue
+            # Knowledge-mode search also returns `wiki/sources/` records (spec §10.2 원인1). Comparison
+            # material is existing knowledge pages only (spec §4.4.4).
+            if classify_document_role(path=document.path, frontmatter=document.frontmatter) != "canonical_knowledge":
                 continue
             key = (document.vault_id, document.path)
             if key in seen:
