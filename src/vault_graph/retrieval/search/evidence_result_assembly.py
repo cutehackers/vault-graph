@@ -4,10 +4,15 @@ import re
 from dataclasses import dataclass, replace
 from datetime import date
 
-from vault_graph.indexing.ingestion.document_authority import DocumentRole
+from vault_graph.indexing.ingestion.document_authority import DocumentRole, provenance_paths
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.retrieval.evidence.evidence_linking import EvidenceLinker
-from vault_graph.retrieval.search.candidate_ranking import FusedCandidate, rank_resolved_candidates
+from vault_graph.retrieval.search.candidate_ranking import (
+    FusedCandidate,
+    document_score,
+    role_weight,
+    sort_resolved_candidates,
+)
 from vault_graph.retrieval.search.retrieval_result import (
     ResultLifecycle,
     RetrievalResult,
@@ -19,17 +24,25 @@ from vault_graph.storage.interfaces.metadata_store import EvidenceReference, Met
 
 RETIRED_STATUS = "retired"
 PARENT_GROUPED_WARNING = "parent_grouped"
+DUPLICATE_CONTENT_WARNING = "duplicate_content"
 
 ResolvedCandidate = tuple[FusedCandidate, EvidenceReference, str]
 
 
 @dataclass(frozen=True)
 class _ParentGroup:
-    """The best-ranked window of one parent unit and how many ranked windows it stands for."""
+    """One result unit: the best-ranked chunk of a document (or of a session exchange) and its score.
+
+    ``window_count`` is how many ranked chunks the unit stands for. ``duplicates`` names the same content
+    in other Vaults (`<vault_id>:<path>`), folded into this unit (spec 2026-11-05 §10.2 원인4).
+    """
 
     item: ResolvedCandidate
     chunk: ChunkSnapshot
     window_count: int = 1
+    score: float = 0.0
+    document: DocumentSnapshot | None = None
+    duplicates: tuple[str, ...] = ()
 
 
 class EvidenceResultAssembly:
@@ -44,14 +57,23 @@ class EvidenceResultAssembly:
         mode: SearchMode,
         allowed_roles: tuple[DocumentRole, ...],
         include_retired: bool = False,
+        vault_order: tuple[str, ...] = (),
     ) -> tuple[tuple[RetrievalResult, ...], int, tuple[SearchWarning, ...]]:
+        """Resolve fused chunk candidates into ranked results, one per document or session exchange.
+
+        Spec 2026-11-05 §10.2: chunks group per unit and the unit score is ``document_score`` times the
+        mode's role weight (원인1·3). Knowledge mode folds pages joined by `supersedes`/`superseded_by`
+        (원인2). The same content in several Vaults returns once, from the earliest Vault of
+        ``vault_order`` (원인4).
+        """
         dropped = 0
         warnings: list[SearchWarning] = []
         resolved: list[ResolvedCandidate] = []
         chunks: dict[tuple[str, str], ChunkSnapshot] = {}
         documents: dict[str, DocumentSnapshot | None] = {}
         for candidate in candidates:
-            if not include_retired and _is_retired(self._document(candidate.document_id, documents)):
+            document = self._document(candidate.document_id, documents)
+            if not include_retired and _is_retired(document):
                 continue
             evidence = self._evidence_linker.resolve_evidence(
                 ((candidate.vault_id, candidate.document_id, candidate.chunk_id),)
@@ -75,8 +97,11 @@ class EvidenceResultAssembly:
             resolved.append((candidate, evidence, _excerpt(chunk.text)))
             chunks[(candidate.vault_id, candidate.chunk_id)] = chunk
 
-        ranked = rank_resolved_candidates(resolved, mode=mode)
-        groups = _group_by_parent(ranked, chunks)
+        ranked = sort_resolved_candidates(resolved)
+        groups = _group_by_unit(ranked, chunks, documents=documents, mode=mode)
+        if mode == "knowledge":
+            groups = _fold_replacements(groups)
+        groups = _fold_duplicate_content(groups, vault_order=vault_order)
         results = tuple(self._result_for_group(group=group, rank=rank) for rank, group in enumerate(groups, start=1))
         if include_retired:
             # Spec 2026-11-05 §4.4.13-1: with `include_retired`, every result carries its page lifecycle.
@@ -93,25 +118,47 @@ class EvidenceResultAssembly:
 
     def _result_for_group(self, *, group: _ParentGroup, rank: int) -> RetrievalResult:
         candidate, evidence, summary = group.item
-        if group.chunk.parent_key is None:
-            return self._result_for_candidate(candidate=candidate, evidence=evidence, summary=summary, rank=rank)
-        # Spec 2026-11-05 §4.2.6-6: a session result points at the whole exchange and quotes its best window.
-        if group.chunk.parent_locators:
-            evidence = replace(evidence, source_locators=group.chunk.parent_locators)
-        warnings: tuple[RetrievalWarning, ...] = ()
-        if group.window_count > 1:
-            warnings = (
+        warnings: list[RetrievalWarning] = []
+        if group.chunk.parent_key is not None:
+            # Spec 2026-11-05 §4.2.6-6: a session result points at the whole exchange and quotes its best window.
+            if group.chunk.parent_locators:
+                evidence = replace(evidence, source_locators=group.chunk.parent_locators)
+            if group.window_count > 1:
+                warnings.append(
+                    RetrievalWarning(
+                        code=PARENT_GROUPED_WARNING,
+                        message=(
+                            f"{group.window_count} windows of {group.chunk.parent_key} matched; "
+                            f"shown once as the best-ranked window {candidate.chunk_id}."
+                        ),
+                        severity="info",
+                    )
+                )
+        elif group.window_count > 1:
+            # Spec 2026-11-05 §10.2 원인3: a document result quotes its best chunk.
+            warnings.append(
                 RetrievalWarning(
                     code=PARENT_GROUPED_WARNING,
                     message=(
-                        f"{group.window_count} windows of {group.chunk.parent_key} matched; "
-                        f"shown once as the best-ranked window {candidate.chunk_id}."
+                        f"{group.window_count} chunks of {evidence.path} matched; "
+                        f"shown once as the best-ranked chunk {candidate.chunk_id}."
                     ),
                     severity="info",
-                ),
+                )
+            )
+        if group.duplicates:
+            warnings.append(
+                RetrievalWarning(
+                    code=DUPLICATE_CONTENT_WARNING,
+                    message=(
+                        f"The same content is also in {', '.join(group.duplicates)}; "
+                        f"shown once from Vault {candidate.vault_id}."
+                    ),
+                    severity="info",
+                )
             )
         result = self._result_for_candidate(candidate=candidate, evidence=evidence, summary=summary, rank=rank)
-        return replace(result, warnings=warnings)
+        return replace(result, warnings=tuple(warnings))
 
     def _result_for_candidate(
         self, *, candidate: FusedCandidate, evidence: EvidenceReference, summary: str, rank: int
@@ -170,25 +217,132 @@ def _frontmatter_text(value: object) -> str | None:
     return text or None
 
 
-def _group_by_parent(
-    ranked: list[ResolvedCandidate], chunks: dict[tuple[str, str], ChunkSnapshot]
+def _group_by_unit(
+    ranked: list[ResolvedCandidate],
+    chunks: dict[tuple[str, str], ChunkSnapshot],
+    *,
+    documents: dict[str, DocumentSnapshot | None],
+    mode: SearchMode,
 ) -> tuple[_ParentGroup, ...]:
-    """Keep ranked order. Windows sharing a `parent_key` fold into the first (best-ranked) one."""
-    groups: list[_ParentGroup] = []
-    position_by_parent: dict[tuple[str, str], int] = {}
+    """Fold ranked chunks into one unit per session exchange (`parent_key`) or per document, best chunk first.
+
+    Units are ordered by ``document_score`` of their chunks' fused scores times the role weight, then by
+    the best chunk's ranking key, so equal scores keep the chunk order.
+    """
+    members: dict[tuple[str, str, str], list[ResolvedCandidate]] = {}
     for item in ranked:
-        chunk = chunks[(item[0].vault_id, item[0].chunk_id)]
-        if chunk.parent_key is None:
-            groups.append(_ParentGroup(item=item, chunk=chunk))
+        candidate = item[0]
+        chunk = chunks[(candidate.vault_id, candidate.chunk_id)]
+        key = (
+            (candidate.vault_id, "exchange", chunk.parent_key)
+            if chunk.parent_key is not None
+            else (candidate.vault_id, "document", candidate.document_id)
+        )
+        members.setdefault(key, []).append(item)
+    groups: list[tuple[int, _ParentGroup]] = []
+    for position, items in enumerate(members.values()):
+        best = items[0]
+        score = document_score(tuple(item[0].fused_score for item in items))
+        groups.append(
+            (
+                position,
+                _ParentGroup(
+                    item=best,
+                    chunk=chunks[(best[0].vault_id, best[0].chunk_id)],
+                    window_count=len(items),
+                    score=score * role_weight(mode, best[1].source_role),
+                    document=documents.get(best[0].document_id),
+                ),
+            )
+        )
+    groups.sort(key=lambda entry: (-entry[1].score, entry[0]))
+    return tuple(group for _, group in groups)
+
+
+def _fold_replacements(groups: tuple[_ParentGroup, ...]) -> tuple[_ParentGroup, ...]:
+    """Keep the highest-ranked page of each `supersedes`/`superseded_by` chain (spec 2026-11-05 §10.2 원인2).
+
+    Pages that only share a `derived_from` or `canonical_source` target stay separate results.
+    """
+    parent: dict[tuple[str, str], tuple[str, str]] = {}
+
+    def find(key: tuple[str, str]) -> tuple[str, str]:
+        parent.setdefault(key, key)
+        while parent[key] != key:
+            parent[key] = parent[parent[key]]
+            key = parent[key]
+        return key
+
+    for group in groups:
+        evidence = group.item[1]
+        own = find((evidence.vault_id, evidence.path))
+        for target in _replacement_paths(group.document):
+            other = find((evidence.vault_id, target))
+            if other != own:
+                parent[max(own, other)] = min(own, other)
+                own = min(own, other)
+    kept: list[_ParentGroup] = []
+    seen: set[tuple[str, str]] = set()
+    for group in groups:
+        evidence = group.item[1]
+        if group.chunk.parent_key is not None:
+            kept.append(group)
             continue
-        parent = (item[0].vault_id, chunk.parent_key)
-        position = position_by_parent.get(parent)
-        if position is None:
-            position_by_parent[parent] = len(groups)
-            groups.append(_ParentGroup(item=item, chunk=chunk))
-        else:
-            groups[position] = replace(groups[position], window_count=groups[position].window_count + 1)
-    return tuple(groups)
+        root = find((evidence.vault_id, evidence.path))
+        if root in seen:
+            continue
+        seen.add(root)
+        kept.append(group)
+    return tuple(kept)
+
+
+def _replacement_paths(document: DocumentSnapshot | None) -> tuple[str, ...]:
+    if document is None:
+        return ()
+    targets: list[str] = []
+    for field_name in ("supersedes", "superseded_by"):
+        value = document.frontmatter.get(field_name)
+        if isinstance(value, str):
+            targets.append(value)
+        elif isinstance(value, list | tuple):
+            targets.extend(item for item in value if isinstance(item, str))
+    # `provenance_paths` normalizes wiki links and Vault-relative paths the same way the index does.
+    return provenance_paths({"supersedes": targets})
+
+
+def _fold_duplicate_content(
+    groups: tuple[_ParentGroup, ...], *, vault_order: tuple[str, ...]
+) -> tuple[_ParentGroup, ...]:
+    """Fold units with the same document `content_hash` from different Vaults into one result.
+
+    The folded result takes the position of the highest-ranked copy and shows the copy from the Vault
+    that comes first in ``vault_order`` (the requested scope order). The others are listed in it.
+    """
+    order = {vault_id: index for index, vault_id in enumerate(vault_order)}
+    clusters: list[list[_ParentGroup]] = []
+    cluster_by_key: dict[tuple[str, str | None], int] = {}
+    for group in groups:
+        key = None if group.document is None else (group.document.content_hash, group.chunk.parent_key)
+        position = cluster_by_key.get(key) if key is not None else None
+        if position is not None and all(
+            member.item[0].vault_id != group.item[0].vault_id for member in clusters[position]
+        ):
+            clusters[position].append(group)
+            continue
+        if key is not None and position is None:
+            cluster_by_key[key] = len(clusters)
+        clusters.append([group])
+    folded: list[_ParentGroup] = []
+    for cluster in clusters:
+        if len(cluster) == 1:
+            folded.append(cluster[0])
+            continue
+        shown = min(
+            cluster, key=lambda member: (order.get(member.item[0].vault_id, len(order)), member.item[0].vault_id)
+        )
+        others = tuple(f"{member.item[0].vault_id}:{member.item[1].path}" for member in cluster if member is not shown)
+        folded.append(replace(shown, duplicates=others))
+    return tuple(folded)
 
 
 def _one_reference_per_document(evidence: tuple[EvidenceReference, ...]) -> tuple[EvidenceReference, ...]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import cast
 
@@ -85,7 +86,7 @@ class SQLiteKeywordIndex:
                 """,
                 (match_query, *query.scope.vault_ids, *path_args, *role_args, query.limit),
             ).fetchall()
-            tokens = _query_tokens(query.query_text)
+            tokens = query_terms(query.query_text)
             return tuple(
                 _keyword_hit_from_row(
                     rank=rank,
@@ -261,11 +262,135 @@ def ensure_keyword_schema(connection: sqlite3.Connection) -> None:
     )
 
 
+@dataclass(frozen=True)
+class QueryTerm:
+    """One FTS5 query term. ``prefix`` terms match every indexed token that starts with ``text``."""
+
+    text: str
+    prefix: bool = False
+
+    def fts_expression(self, column: str | None = None) -> str:
+        quoted = f'"{self.text.replace('"', '""')}"'
+        term = f"{quoted}*" if self.prefix else quoted
+        return f"{column}:{term}" if column else term
+
+
+# Spec 2026-11-05 §10.2 원인6. `unicode61` keeps a Korean word and its particle as one token ("아이디어를"),
+# so the query side drops one trailing particle or common ending and matches Hangul stems by prefix.
+# The particle list extends the Vault's own wiki search list (`tools/wiki/lib/search.py`). Longest first.
+HANGUL_QUERY_SUFFIXES: tuple[str, ...] = tuple(
+    sorted(
+        {
+            # particles
+            "에서는",
+            "에서도",
+            "으로는",
+            "으로서",
+            "으로써",
+            "에게서",
+            "이라는",
+            "이라고",
+            "에서",
+            "에게",
+            "한테",
+            "으로",
+            "로서",
+            "로써",
+            "까지",
+            "부터",
+            "보다",
+            "처럼",
+            "마다",
+            "이나",
+            "이랑",
+            "라는",
+            "라고",
+            "들을",
+            "들이",
+            "들의",
+            "들은",
+            "은",
+            "는",
+            "이",
+            "가",
+            "을",
+            "를",
+            "의",
+            "에",
+            "로",
+            "와",
+            "과",
+            "도",
+            "만",
+            "랑",
+            "들",
+            # common endings
+            "했습니다",
+            "합니다",
+            "하려면",
+            "하려는",
+            "하는",
+            "하기",
+            "하고",
+            "하면",
+            "해서",
+            "했다",
+            "한다",
+            "하다",
+            "된다",
+            "되는",
+            "된",
+            "한",
+        },  # fmt: skip
+        key=lambda suffix: (-len(suffix), suffix),
+    )
+)
+# A stem keeps at least this many letters, so "회의" is not read as "회" + "의".
+HANGUL_STEM_MIN_LETTERS = 2
+# Hangul terms this long or longer match by prefix. Shorter ones stay exact: a two-letter prefix matches
+# too many unrelated words.
+HANGUL_PREFIX_MIN_LETTERS = 3
+_HANGUL_WORD = re.compile(r"[가-힣]+")
+
+
+def query_terms(query_text: str) -> tuple[QueryTerm, ...]:
+    """Deterministic FTS5 terms of a query: each word, plus its stem without a Korean particle or ending.
+
+    A Hangul-only term of ``HANGUL_PREFIX_MIN_LETTERS`` or more letters is a prefix term. When a stem is a
+    prefix term the original word is left out, because the stem already matches it.
+    """
+    terms: list[QueryTerm] = []
+    for token in _query_tokens(query_text):
+        stem = _strip_hangul_suffix(token)
+        stem_term = _term(stem)
+        if stem == token:
+            terms.append(stem_term)
+        elif stem_term.prefix:
+            terms.append(stem_term)
+        else:
+            terms.extend((_term(token), stem_term))
+    return tuple(dict.fromkeys(terms))
+
+
+def _term(text: str) -> QueryTerm:
+    return QueryTerm(
+        text=text,
+        prefix=_HANGUL_WORD.fullmatch(text) is not None and len(text) >= HANGUL_PREFIX_MIN_LETTERS,
+    )
+
+
+def _strip_hangul_suffix(token: str) -> str:
+    for suffix in HANGUL_QUERY_SUFFIXES:
+        if token.endswith(suffix) and len(token) - len(suffix) >= HANGUL_STEM_MIN_LETTERS:
+            return token[: -len(suffix)]
+    return token
+
+
 def _match_query(query_text: str) -> str:
-    tokens = _query_tokens(query_text)
-    if not tokens:
+    terms = query_terms(query_text)
+    if not terms:
         raise KeywordIndexError("query_text has no searchable tokens")
-    return " OR ".join(f'"{token.replace('"', '""')}"' for token in tokens)
+    return " OR ".join(term.fts_expression() for term in terms)
 
 
 def _query_tokens(query_text: str) -> tuple[str, ...]:
@@ -300,7 +425,7 @@ def _matched_fields(
     connection: sqlite3.Connection,
     *,
     rowid: int,
-    tokens: tuple[str, ...],
+    tokens: tuple[QueryTerm, ...],
 ) -> tuple[str, ...]:
     matched = tuple(
         field
@@ -315,9 +440,9 @@ def _row_matches_field(
     *,
     rowid: int,
     field: str,
-    tokens: tuple[str, ...],
+    tokens: tuple[QueryTerm, ...],
 ) -> bool:
-    expression = " OR ".join(f'{field}:"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens)
+    expression = " OR ".join(token.fts_expression(field) for token in tokens)
     row = connection.execute(
         "SELECT 1 FROM keyword_chunks WHERE rowid = ? AND keyword_chunks MATCH ?",
         (rowid, expression),
