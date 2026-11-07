@@ -162,6 +162,19 @@ def test_merge_candidate_is_a_pair_of_current_project_pages_above_the_threshold(
     assert merge.similarity is not None and merge.similarity >= DEFAULT_MERGE_SIMILARITY
 
 
+def test_merge_pairs_need_the_same_page_type() -> None:
+    # A-23 (2026-11-07): the agent skipped every pair of a concept, decision or workflow page with another
+    # kind. Pages of different kinds describe one topic from different sides and are not merged.
+    concept = _page("wiki/concepts/a.md", frontmatter={"type": "concept", "status": "active"})
+    decision = _page("wiki/decisions/a.md", frontmatter={"type": "decision", "status": "active"})
+    other = _page("wiki/decisions/b.md", frontmatter={"type": "decision", "status": "active"})
+    vectors = {("demo-vault", page.path): (1.0, 0.0) for page in (concept, decision, other)}
+
+    candidates = _build(pages=(concept, decision, other), vectors=vectors, kinds=("merge",))
+
+    assert [candidate.key for candidate in candidates] == ["merge:wiki/decisions/a.md|wiki/decisions/b.md"]
+
+
 def test_merge_threshold_is_conservative_and_configurable() -> None:
     assert 0.9 <= DEFAULT_MERGE_SIMILARITY < 1.0
     a, b = _page("wiki/a.md"), _page("wiki/b.md")

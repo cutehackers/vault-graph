@@ -370,6 +370,9 @@ def _session_candidates(
     for group in copies.values():
         exchange = group[0]
         key = f"{SESSION_KEY_PREFIX}{exchange.parent_key}"
+        # No person turn (a subagent's work, a compaction summary): nothing a person said to keep.
+        if not exchange.human_text:
+            continue
         if (
             exchange.started_at < oldest
             or any(f"{SESSION_KEY_PREFIX}{item.parent_key}" in reviewed for item in group)
@@ -492,6 +495,9 @@ def _merge_candidates(
         for second in eligible[index + 1 :]:
             second_unit = units[second.key]
             if second_unit is None or len(second_unit) != len(first_unit):
+                continue
+            # Pages of different types (a concept and a decision on one topic) are not merged.
+            if first.frontmatter.get("type") != second.frontmatter.get("type"):
                 continue
             similarity = round(sum(a * b for a, b in zip(first_unit, second_unit, strict=True)), 6)
             key = f"{MERGE_KEY_PREFIX}{first.path}|{second.path}"
