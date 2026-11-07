@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from tests.fakes.in_memory_graph_store import InMemoryGraphStore
@@ -154,7 +155,11 @@ def _search_service_with_graph(
 
     metadata_store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
     apply_metadata_refs(metadata_store, relationship.evidence_refs)
-    direct_document = make_document("default", "wiki/direct.md", "direct-hash")
+    # The graph evidence page is wiki/graphrag.md, so the query "GraphRAG" names it (title signal, spec
+    # 2026-11-05 §10.2 원인5). The direct page carries the same title, so only the signals differ.
+    direct_document = replace(
+        make_document("default", "wiki/direct.md", "direct-hash"), frontmatter={"title": "GraphRAG"}
+    )
     direct_chunk = make_chunk(direct_document, text="GraphRAG direct evidence")
     metadata_store.apply_metadata_revision(
         index_revision="metadata-1",
