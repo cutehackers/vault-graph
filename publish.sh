@@ -6,7 +6,7 @@ usage() {
 Usage: ./publish.sh -v 0.1.2
 
 Prepare a release candidate PR:
-  - create or reuse release-v<VERSION>
+  - create release-v<VERSION> from main, or reuse it when run on that branch
   - update package version files
   - refresh uv.lock
   - commit the version bump
@@ -68,8 +68,9 @@ CURRENT_BRANCH="$(git branch --show-current)"
 
 if [ "${CURRENT_BRANCH}" = "main" ]; then
   git switch -c "${BRANCH}"
-else
-  BRANCH="${CURRENT_BRANCH}"
+elif [ "${CURRENT_BRANCH}" != "${BRANCH}" ]; then
+  echo "Run this from main or from ${BRANCH}. Current: ${CURRENT_BRANCH:-detached HEAD}." >&2
+  exit 1
 fi
 
 uv run --python 3.12 python - "${VERSION}" <<'PY'
