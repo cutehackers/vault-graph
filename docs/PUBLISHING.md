@@ -4,7 +4,9 @@
 
 1. Open a release candidate PR with the version bump:
    `./publish.sh -v 0.5.0`
-   Run this from a clean `main` checkout or release worktree.
+   Run this from a clean `main` checkout, or from the `release-vX.Y.Z` branch
+   when a previous run stopped before opening the PR. The script stops on any
+   other branch and on a detached HEAD.
 2. Review and merge the release candidate PR into `main`.
 3. In GitHub Actions, run `release` manually:
    - `version`: `0.5.0`
@@ -30,6 +32,17 @@ vg ask --help
 - The workflow stops if the target commit is not on `main`.
 - The workflow uses no API tokens or GitHub secrets beyond the default
   `GITHUB_TOKEN`.
+
+## Branches And Tags
+
+- `release-vX.Y.Z` exists only to carry the version bump PR. GitHub deletes it
+  when the PR merges (repository setting "Automatically delete head
+  branches").
+- The tag `vX.Y.Z` is the permanent record of a release. It points at a commit
+  on `main`, and only the `release` workflow creates it.
+- Tags are never moved or deleted. A broken release gets a new patch version.
+- No long-lived release branch exists. Create `release/X.Y.x` from the tag
+  only when an older version needs a patch release.
 
 ## Install Channels
 
