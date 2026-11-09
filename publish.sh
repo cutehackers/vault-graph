@@ -6,7 +6,7 @@ usage() {
 Usage: ./publish.sh -v 0.1.2
 
 Prepare a release candidate PR:
-  - create or reuse codex/release-v<VERSION>
+  - create or reuse release-v<VERSION>
   - update package version files
   - refresh uv.lock
   - commit the version bump
@@ -63,7 +63,7 @@ fi
 ROOT="$(git rev-parse --show-toplevel)"
 cd "${ROOT}"
 
-BRANCH="codex/release-v${VERSION}"
+BRANCH="release-v${VERSION}"
 CURRENT_BRANCH="$(git branch --show-current)"
 
 if [ "${CURRENT_BRANCH}" = "main" ]; then
