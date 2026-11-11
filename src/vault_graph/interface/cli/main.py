@@ -24,6 +24,7 @@ from vault_graph.indexing.index_service import IndexRunReport, IndexService, Ind
 from vault_graph.indexing.publication.projection_generation import ProjectionGenerationManager
 from vault_graph.indexing.vector_failure_log import clear_vector_failure, record_vector_failure
 from vault_graph.interface.cli.code_commands import code_app
+from vault_graph.interface.cli.doctor_commands import doctor
 from vault_graph.interface.cli.embedding_commands import embedding_app
 from vault_graph.interface.cli.harness_commands import harness_app
 from vault_graph.interface.cli.hook_commands import hook_app
@@ -109,6 +110,7 @@ app.add_typer(harness_app, name="harness")
 app.add_typer(hook_app, name="hook")
 app.add_typer(embedding_app, name="embedding")
 app.add_typer(session_app, name="session")
+app.command("doctor")(doctor)
 
 
 def _catalog(state: Path) -> tuple[CatalogService, VaultCatalog]:

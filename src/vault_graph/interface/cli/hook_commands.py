@@ -15,7 +15,10 @@ until the hook's refresh is done (or the hook is gone), then runs a normal ``vg 
 embeddings) for Vaults with changed files, and for the other linked Vaults only when their vectors
 are stale or missing. A catch-up that was killed is therefore run again at the next session start.
 The process holds an flock on ``logs/session-start-index.lock`` while it lives. A hook that finds
-the lock taken starts nothing, so session starts never pile up background runs.
+the lock taken starts nothing, so session starts never pile up background runs. A ``vg index`` of the
+catch-up that exits non-zero without recording a vector failure, or a catch-up that stops on an
+error, is recorded in ``logs/vector-index-failures.json`` too. Each recorded failure is one stderr
+warning, and for the Vaults linked to the folder one line in block D of the recall output.
 
 capture: normalizes the hook's ``transcript_path`` and runs ``vault_hooks.py capture --direct
 --normalized <file>`` from the ``vault-map.json`` folder with the hook JSON unchanged (spec 2026-11-05
@@ -50,7 +53,13 @@ from vault_graph.context.pack.recall import (
     RecallUnavailable,
     recall,
 )
-from vault_graph.indexing.vector_failure_log import failure_warning, read_vector_failures, vector_retry_pending
+from vault_graph.indexing.vector_failure_log import (
+    VectorFailure,
+    failure_warning,
+    read_vector_failures,
+    record_vector_failure,
+    vector_retry_pending,
+)
 from vault_graph.interface.composition.adapters.session_capture_runner import capture_hook
 from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME
 from vault_graph.interface.composition.memory_candidate_sources import CandidateBacklogCounter
@@ -145,6 +154,7 @@ def session_start(
         _handoff(str(exc))
     # Only counts the cleanup backlog for one block D line. Cleanup itself is `curate_memory` (spec 2026-11-05 §4.4.4).
     ports = replace(ports, backlog=CandidateBacklogCounter(graph_home=state, vault_map_path=map_path))
+    failure_lines = _vector_failure_lines(state)
     bundle = recall(
         cwd,
         source=source,
@@ -152,6 +162,7 @@ def session_start(
         max_tokens=max_tokens,
         max_chars=DEFAULT_RECALL_MAX_CHARS,
         ports=ports,
+        index_failures=failure_lines,
     )
     for warning in bundle.warnings:
         typer.echo(f"{COMMAND}: warning: {warning}", err=True)
@@ -159,7 +170,8 @@ def session_start(
         _handoff(bundle.reason or "Recall is not possible.")
     if bundle.text:
         typer.echo(bundle.text, nl=False)
-    _warn_vector_failures(state)
+    for _, line in sorted(failure_lines.items()):
+        typer.echo(f"{COMMAND}: warning: {line}", err=True)
 
 
 def _sharable_notices(cwd: Path, map_path: Path) -> tuple[str, ...]:
@@ -174,12 +186,17 @@ def _sharable_notices(cwd: Path, map_path: Path) -> tuple[str, ...]:
     return vault_map.sharable_notices(vault.name for vault in vault_map.vaults_for(cwd))
 
 
-def _warn_vector_failures(graph_home: Path) -> None:
-    """One stderr line per Vault whose vectors keep failing (spec 2026-11-05 §4.3.1). Stdout is untouched."""
+def _vector_failure_lines(graph_home: Path) -> dict[str, str]:
+    """One line per Vault whose index keeps failing, by Vault id.
+
+    Every line goes to stderr (spec 2026-11-05 §4.3.1). Lines of the Vaults linked to the folder also go
+    in block D of the recall output, so the agent sees them (spec 2026-11-11 §4.4.1).
+    """
 
     now = datetime.now(UTC)
-    for _, failure in sorted(read_vector_failures(graph_home).items()):
-        typer.echo(f"{COMMAND}: warning: {failure_warning(failure, now=now)}", err=True)
+    return {
+        vault_id: failure_warning(failure, now=now) for vault_id, failure in read_vector_failures(graph_home).items()
+    }
 
 
 class CatchUp:
@@ -251,6 +268,7 @@ def run_catch_up_index() -> None:
     """Body of the detached process: ``sys.argv`` is ``-c <graph home> <gate fd> <plan json>``."""
 
     graph_home, gate, plan_json = sys.argv[1:4]
+    vault_id: str | None = None
     try:
         _wait_for_gate(int(gate), timeout_s=_GATE_TIMEOUT_S)
         plan = json.loads(plan_json)
@@ -262,6 +280,11 @@ def run_catch_up_index() -> None:
                 continue
             if vectors_need_catch_up(Path(graph_home), vault_id):
                 _run_vg_index(graph_home, vault_id)
+    except Exception as exc:
+        # The process dies, but the next session start shows why (spec 2026-11-11 §4.4.1).
+        if vault_id is not None:
+            _record_catch_up_failure(graph_home, vault_id, f"background catch-up stopped: {type(exc).__name__}: {exc}")
+        raise
     finally:
         pid_path = Path(graph_home) / CATCH_UP_PID
         if _read_pid(pid_path) == os.getpid():
@@ -274,7 +297,30 @@ def _run_vg_index(graph_home: str, vault_id: str, *, now: datetime | None = None
     arguments = [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id]
     if vector_retry_pending(Path(graph_home), vault_id, now=now or datetime.now(UTC)):
         arguments.append("--no-vector")
-    subprocess.run(arguments, stdin=subprocess.DEVNULL, check=False)
+    before = read_vector_failures(Path(graph_home)).get(vault_id)
+    try:
+        subprocess.run(arguments, stdin=subprocess.DEVNULL, check=True)
+    except subprocess.CalledProcessError as exc:
+        if _recorded_by_vg_index(before, read_vector_failures(Path(graph_home)).get(vault_id)):
+            return
+        code = exc.returncode
+        reason = f"was killed by signal {-code}" if code < 0 else f"exited with code {code}"
+        _record_catch_up_failure(graph_home, vault_id, f"background `vg index` {reason}")
+
+
+def _recorded_by_vg_index(before: VectorFailure | None, after: VectorFailure | None) -> bool:
+    """True when ``vg index`` itself wrote a vector failure during the run."""
+
+    return after is not None and (before is None or after.last_failed_at != before.last_failed_at)
+
+
+def _record_catch_up_failure(graph_home: str, vault_id: str, error: str) -> None:
+    """Keep a catch-up that died for a reason other than vectors in the same failure record."""
+
+    try:
+        record_vector_failure(Path(graph_home), vault_id, error, now=datetime.now(UTC))
+    except OSError as exc:
+        print(f"warning: cannot update the vector failure record: {exc}", flush=True)
 
 
 def _wait_for_gate(descriptor: int, *, timeout_s: float) -> bool:

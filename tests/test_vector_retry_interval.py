@@ -175,14 +175,15 @@ def test_vector_check_is_skipped_while_the_retry_interval_runs(tmp_path: Path, m
     assert indexed == ["other"]
 
 
-def test_session_start_warns_on_stderr_and_keeps_stdout(base: Path, graph_home: Path) -> None:  # noqa: F811
+def test_session_start_warns_on_stderr_and_adds_one_stdout_line(base: Path, graph_home: Path) -> None:  # noqa: F811
     before = hook(graph_home, base)
     record_vector_failure(graph_home, "main", SQL_ERROR, now=datetime.now(UTC) - timedelta(hours=3))
 
     after = hook(graph_home, base)
 
     assert after.exit_code == 0, after.output
-    assert after.stdout == before.stdout
+    added = [line for line in after.stdout.splitlines() if line not in before.stdout.splitlines()]
+    assert added == [f"- 벡터 색인이 main에서 3시간째 실패 중: {SQL_ERROR}"]
     warnings = [line for line in after.stderr.splitlines() if "벡터 색인이" in line]
     assert warnings == [f"vg hook session-start: warning: 벡터 색인이 main에서 3시간째 실패 중: {SQL_ERROR}"]
 

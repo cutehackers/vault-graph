@@ -6,10 +6,60 @@ from typing import Literal
 from vault_graph.errors import SearchError
 from vault_graph.operation.readiness.search_readiness import SearchStoreRevision as SearchStoreRevision
 from vault_graph.operation.scope.vault_catalog import QueryScope
-from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSeverity
+from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSeverity, RetrievalSignalKind
 
 SearchOutputFormat = Literal["text", "json"]
 SearchMode = Literal["knowledge", "evidence", "operating", "audit", "all"]
+
+
+@dataclass(frozen=True)
+class SignalRankTrace:
+    """One chunk's rank in one signal's candidate list (keyword, vector or graph)."""
+
+    kind: RetrievalSignalKind
+    vault_id: str
+    document_id: str
+    chunk_id: str
+    rank: int
+    score: float
+
+
+@dataclass(frozen=True)
+class FusedRankTrace:
+    """One chunk's rank after the signals are fused, before role filtering and the fold into documents."""
+
+    vault_id: str
+    document_id: str
+    chunk_id: str
+    rank: int
+    fused_score: float
+
+
+@dataclass(frozen=True)
+class DocumentRankTrace:
+    """One result's rank after chunks fold into documents, before the request limit cuts the list."""
+
+    rank: int
+    result_id: str
+    vault_id: str
+    document_id: str
+    path: str
+    evidence_document_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SearchStageTrace:
+    """Spec 2026-11-11 §4.1.2: ranks at each search stage, for the evaluation tool only.
+
+    Built only when a search asks for it. It describes the last candidate round, so after a refill it holds
+    the larger candidate lists. ``candidate_limit`` is the per-signal list size of that round.
+    """
+
+    signal_ranks: tuple[SignalRankTrace, ...]
+    fused_ranks: tuple[FusedRankTrace, ...]
+    document_ranks: tuple[DocumentRankTrace, ...]
+    candidate_limit: int
+    refilled: bool
 
 
 @dataclass(frozen=True)
@@ -43,6 +93,7 @@ class SearchRequest:
     include_cross_vault: bool = False
     mode: SearchMode = "knowledge"
     include_retired: bool = False
+    trace: bool = False
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -70,6 +121,7 @@ class SearchResponse:
     store_revisions: tuple[SearchStoreRevision, ...]
     generated_at: str
     result_family_duplication: float = 0.0
+    stage_trace: SearchStageTrace | None = None
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

@@ -5,7 +5,10 @@ one entry per Vault: ``{vault_id, error_digest, error_head, first_failed_at, las
 ``vg index`` records a vector failure and clears the entry when vectors succeed. The background
 catch-up of ``vg hook session-start`` skips vectors of a Vault (metadata and graph still run) until
 ``min(2^(count-1), 24)`` hours after its last failure. A person running ``vg index`` is never held
-back. The file is rebuildable: a missing or broken file means no recorded failure.
+back. The catch-up also records a ``vg index`` run that died for another reason (killed, or a
+non-zero exit with no vector failure written), so the same retry interval and session-start line
+cover it (spec 2026-11-11 §4.4.1). The file is rebuildable: a missing or broken file means no
+recorded failure.
 """
 
 from __future__ import annotations
