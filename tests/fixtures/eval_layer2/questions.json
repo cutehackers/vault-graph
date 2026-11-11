@@ -1,0 +1,1849 @@
+{
+  "format": "vg-search-eval/1",
+  "layer": 2,
+  "mode": "knowledge",
+  "questions": [
+    {
+      "id": "l2-title-01",
+      "question": "`Use EAS Build for Tidepool releases` 페이지 보여줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-eas-build-for-tidepool-releases.md"
+      ]
+    },
+    {
+      "id": "l2-title-02",
+      "question": "Store Tidepool reminders in SQLite 이거 뭐였지?",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/store-tidepool-reminders-in-sqlite.md"
+      ]
+    },
+    {
+      "id": "l2-title-03",
+      "question": "Use Zustand for Tidepool state 결정 다시 알려줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-zustand-for-tidepool-state.md"
+      ]
+    },
+    {
+      "id": "l2-title-04",
+      "question": "find `Use Redux Toolkit for Tidepool state`",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-redux-toolkit-for-tidepool-state.md"
+      ]
+    },
+    {
+      "id": "l2-title-05",
+      "question": "Replace Firebase Analytics with PostHog 내용 요약해줘유",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/replace-firebase-analytics-with-posthog.md"
+      ]
+    },
+    {
+      "id": "l2-title-06",
+      "question": "Keep Tidepool notifcations local-only는 어떤 내용이었나?",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/keep-tidepool-notifications-local-only.md"
+      ]
+    },
+    {
+      "id": "l2-title-07",
+      "question": "Pin React Native 0.74 for Tidepool 페이지 열어줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/pin-react-native-0-74-for-tidepool.md"
+      ]
+    },
+    {
+      "id": "l2-title-08",
+      "question": "Use Postgres row-level security for tenants 이거 뭐였지?",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-postgres-row-level-security-for-tenants.md"
+      ]
+    },
+    {
+      "id": "l2-title-09",
+      "question": "Require idempotency keys on invoice creation 다시 보여줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/require-idempotency-keys-on-invoice-creation.md"
+      ]
+    },
+    {
+      "id": "l2-title-10",
+      "question": "find `Run Ledgerline jobs on River`",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/run-ledgerline-jobs-on-river.md"
+      ]
+    },
+    {
+      "id": "l2-title-11",
+      "question": "Use Redis and Asynq for Ledgerline jobs 결정 내용 알려줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-redis-and-asynq-for-ledgerline-jobs.md"
+      ]
+    },
+    {
+      "id": "l2-title-12",
+      "question": "Store money as integer minor units 요약해줘",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/store-money-as-integer-minor-units.md"
+      ]
+    },
+    {
+      "id": "l2-title-13",
+      "question": "Use sqlc insted of an ORM 이거 뭐였더라",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-sqlc-instead-of-an-orm.md"
+      ]
+    },
+    {
+      "id": "l2-title-14",
+      "question": "Use cursor pagination for list endpoints 페이지 보여줘",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-cursor-pagination-for-list-endpoints.md"
+      ]
+    },
+    {
+      "id": "l2-title-15",
+      "question": "Shell out to git instead of libgit2 결정 다시 알려줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/shell-out-to-git-instead-of-libgit2.md"
+      ]
+    },
+    {
+      "id": "l2-title-16",
+      "question": "Link libgit2 through the git2 crate 이건 어떤 내용이었나?",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/link-libgit2-through-the-git2-crate.md"
+      ]
+    },
+    {
+      "id": "l2-title-17",
+      "question": "show me Ship gitcrumb with cargo-dist and Homebrew",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/ship-gitcrumb-with-cargo-dist-and-homebrew.md"
+      ]
+    },
+    {
+      "id": "l2-title-18",
+      "question": "Generate gitcrumb changelog with git-cliff 요약해줘유",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/generate-gitcrumb-changelog-with-git-cliff.md"
+      ]
+    },
+    {
+      "id": "l2-title-19",
+      "question": "Manage dotfiles with chezmoi 이거 뭐였지?",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/manage-dotfiles-with-chezmoi.md"
+      ]
+    },
+    {
+      "id": "l2-title-20",
+      "question": "Release Tidepool to TestFlight 페이지 보여줘",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/release-tidepool-to-testflight.md"
+      ]
+    },
+    {
+      "id": "l2-title-21",
+      "question": "Release Tidepool to Gogle Play internal track 절차 다시 보여줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/release-tidepool-to-google-play-internal-track.md"
+      ]
+    },
+    {
+      "id": "l2-title-22",
+      "question": "find `Run Ledgerline API locally`",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/run-ledgerline-api-locally.md"
+      ]
+    },
+    {
+      "id": "l2-title-23",
+      "question": "Roll back a Ledgerline producton deploy 내용 알려줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/roll-back-a-ledgerline-production-deploy.md"
+      ]
+    },
+    {
+      "id": "l2-title-24",
+      "question": "Cut a gitcrumb release 이거 다시 보여줘",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/cut-a-gitcrumb-release.md"
+      ]
+    },
+    {
+      "id": "l2-title-25",
+      "question": "Restore homelab data from restic 페이지 열어줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/restore-homelab-data-from-restic.md"
+      ]
+    },
+    {
+      "id": "l2-title-26",
+      "question": "Tidepool streak 개념 페이지 보여줘",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/tidepool-streak.md"
+      ]
+    },
+    {
+      "id": "l2-title-27",
+      "question": "Ledgerline invoce lifecycle 정리한거 보여줘",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-invoice-lifecycle.md"
+      ]
+    },
+    {
+      "id": "l2-title-28",
+      "question": "summarize the nook home server page",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/systems/nook-home-server.md"
+      ]
+    },
+    {
+      "id": "l2-title-29",
+      "question": "gitcrumb crate layout 이거 뭐였지?",
+      "kind": "title",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/systems/gitcrumb-crate-layout.md"
+      ]
+    },
+    {
+      "id": "l2-title-30",
+      "question": "show the Postgres RLS article notes",
+      "kind": "title",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/sources/postgres-rls-article-notes.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-01",
+      "question": "Tidepool에서 하루가 바뀌는 기준 시각이 자정 아니었나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/tidepool-streak.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-02",
+      "question": "grace day는 몇개까지 모을수있어?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/tidepool-streak.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-03",
+      "question": "물 목표량 기본값은 몸무게로 어떻게 계산하는거여?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/tidepool-daily-goal-calculation.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-04",
+      "question": "체중 안 넣은 사용자는 하루 목표가 얼마로 시작해?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/tidepool-daily-goal-calculation.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-05",
+      "question": "두 기기에서 마신 기록 합칠 때 규칙 정해둔거 있나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/tidepool-sync-conflict-rule.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-06",
+      "question": "tidepool 알림 기본 수면 시간이 몇 시부터 몇 시까지야?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/systems/tidepool-notification-scheduler.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-07",
+      "question": "tidepool 화면 코드가 sqlite를 직접 읽어도 되나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/systems/tidepool-app-architecture.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-08",
+      "question": "tidepool PR에 preview 라벨 붙이면 무슨 일이 일어나?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/systems/tidepool-ci-pipeline.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-09",
+      "question": "is OTA skipped when native code changes in tidepool?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/systems/tidepool-ci-pipeline.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-10",
+      "question": "ledgerline에서 한 사람이 여러 회사(org)에 속할 수 있나?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-tenant-model.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-11",
+      "question": "ledgerline 대시보드 멤버 role 종류가 뭐뭐 있었지?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-tenant-model.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-12",
+      "question": "이미 결제된 인보이스 금액은 고칠 수 있나? 안되면 뭘로 처리해?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-invoice-lifecycle.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-13",
+      "question": "보이드된 인보이스 번호 재사용 하나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-invoice-lifecycle.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-14",
+      "question": "웹훅 실패하면 몇 시간까지 재시도해?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-webhook-retry-schedule.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-15",
+      "question": "웹훅 endpoint가 계속 실패하며 ㄴ자동으로 꺼지나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-webhook-retry-schedule.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-16",
+      "question": "Ledgerline API 에러 응답의 request_id는 헤더에도 있나?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-error-response-format.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-17",
+      "question": "ledgerline 에러 type 종류 목록 어디 정리돼 있었지?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/ledgerline-error-response-format.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-18",
+      "question": "what's a crumb in gitcrumb?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/gitcrumb-crumb.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-19",
+      "question": "crumb kind는 몇 가지야?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/gitcrumb-crumb.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-20",
+      "question": "gitcrumb trail의 base 브랜치는 어떻게 정해져?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/gitcrumb-trail.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-21",
+      "question": "내 커밋 메시지 summary는 대문자로 시작해도 되나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/personal-commit-message-conventions.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-22",
+      "question": "river_job 테이블 vaccum 설정 바꾼게 있었나?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/concepts/postgres-mvcc-and-vacuum-notes.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-23",
+      "question": "gitcrumb core 크레이트는 에러를 thiserror로 만드나 anyhow로 만드나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/concepts/rust-error-handling-notes.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-24",
+      "question": "is ledgerline's postgres hosted on fly or somewhere else?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/systems/ledgerline-service-architecture.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-25",
+      "question": "인보이스 pdf 파일은 어디에 저장하고 있어?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/systems/ledgerline-service-architecture.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-26",
+      "question": "한 고객 웹훅 endpoint가 느리면 다른 고객 발송도 막히나?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/systems/ledgerline-webhook-dispatcher.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-27",
+      "question": "웹훅 응답 바디는 얼마나 저자ㅇ해 두나",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/systems/ledgerline-webhook-dispatcher.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-28",
+      "question": "ledgerline CI에서 제일 오래 걸리는 단계가 뭐야?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/systems/ledgerline-ci-pipeline.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-29",
+      "question": "gitcrumb에서 core 쪽이 git 명령을 직접 실행해?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/systems/gitcrumb-crate-layout.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-30",
+      "question": "how do i reach nook from outside, is port forwarding open?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/systems/nook-home-server.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-31",
+      "question": "홈서버 미디어 HDD도 백어ㅂ 되나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/systems/nook-home-server.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-32",
+      "question": "런타임 버전 관리 도구는 지금 뭐 쓰고 있지?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/systems/personal-dev-environment.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-33",
+      "question": "SDK 51로 올리면서 expo-sqlite import 바뀐거 있었나?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/sources/expo-sdk-51-upgrade-notes.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-34",
+      "question": "river에서 같은 인자 job 중복 막는 옵션 뭐였지?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/sources/river-queue-documentation-notes.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-35",
+      "question": "does gitcrumb respect NO_COLOR?",
+      "kind": "paraphrase",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/sources/command-line-interface-guidelines-notes.md"
+      ]
+    },
+    {
+      "id": "l2-paraphrase-36",
+      "question": "cargo-dist 워크플로 파일은 직접 고쳐도 되나?",
+      "kind": "paraphrase",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/sources/cargo-dist-documentation-notes.md"
+      ]
+    },
+    {
+      "id": "l2-decision-01",
+      "question": "tidepool 빌드는 왜 로컬 xcode 말고 클라우드로 돌리기로 했나?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-eas-build-for-tidepool-releases.md"
+      ]
+    },
+    {
+      "id": "l2-decision-02",
+      "question": "EAS 빌드 기다리는 동안 급한 hotfix는 어떻게 내보내기로 했지?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-eas-build-for-tidepool-releases.md"
+      ]
+    },
+    {
+      "id": "l2-decision-03",
+      "question": "intake 기록을 AsyncStorage에 안 두고 sqlite로 간 이유가 뭐였지?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/store-tidepool-reminders-in-sqlite.md"
+      ]
+    },
+    {
+      "id": "l2-decision-04",
+      "question": "WatermelonDB는 왜 안 썻더라?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/store-tidepool-reminders-in-sqlite.md"
+      ]
+    },
+    {
+      "id": "l2-decision-05",
+      "question": "zustand로 바꾼게 slice 파일이 너무 많아서였나?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-zustand-for-tidepool-state.md"
+      ]
+    },
+    {
+      "id": "l2-decision-06",
+      "question": "처음에 tidepool에 redux toolkit을 골랐던 이유는 뭐였어?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-redux-toolkit-for-tidepool-state.md"
+      ]
+    },
+    {
+      "id": "l2-decision-07",
+      "question": "firebase analytics 왜 뺐어? 프라이버시 때문인가?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/replace-firebase-analytics-with-posthog.md"
+      ]
+    },
+    {
+      "id": "l2-decision-08",
+      "question": "PostHog 이벤트에 섭취량 숫자는 안 넣기로 했었나?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/replace-firebase-analytics-with-posthog.md"
+      ]
+    },
+    {
+      "id": "l2-decision-09",
+      "question": "서버 푸시 안 쓰고 로컬 알림만 쓰기로 한 이유가 뭐였지?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/keep-tidepool-notifications-local-only.md"
+      ]
+    },
+    {
+      "id": "l2-decision-10",
+      "question": "RN 버전 왜 0.74에 무ㄲ어뒀어?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/pin-react-native-0-74-for-tidepool.md"
+      ]
+    },
+    {
+      "id": "l2-decision-11",
+      "question": "RN 고정 풀고 SDK 올리려면 어떤 조건이 맞아야 한다고 했지?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/pin-react-native-0-74-for-tidepool.md"
+      ]
+    },
+    {
+      "id": "l2-decision-12",
+      "question": "tidepool 크래시 리포트를 sentry로 정한 이유는 뭐야?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-sentry-for-tidepool-crash-reports.md"
+      ]
+    },
+    {
+      "id": "l2-decision-13",
+      "question": "ledgerline 테넌트 분리를 왜 RLS로 했지? 스키마 나누는건 왜 안햇어?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-postgres-row-level-security-for-tenants.md"
+      ]
+    },
+    {
+      "id": "l2-decision-14",
+      "question": "인보이스 생성에 Idempotency-Key를 필수로 바꾼 이유가 뭐였더라?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/require-idempotency-keys-on-invoice-creation.md"
+      ]
+    },
+    {
+      "id": "l2-decision-15",
+      "question": "같은 idempotency 키에 바디가 다르게 오면 몇 번 상태코드로 주기로 했나?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/require-idempotency-keys-on-invoice-creation.md"
+      ]
+    },
+    {
+      "id": "l2-decision-16",
+      "question": "redis 운영 안 하려고 river로 간거 맞지? upstash 비용 얘기도 있었나",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/run-ledgerline-jobs-on-river.md"
+      ]
+    },
+    {
+      "id": "l2-decision-17",
+      "question": "처음엔 왜 asynq를 골랐었지?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-redis-and-asynq-for-ledgerline-jobs.md"
+      ]
+    },
+    {
+      "id": "l2-decision-18",
+      "question": "API 버전을 헤더 말고 경로에 넣은 이유가 뭐야?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/version-ledgerline-api-in-url-path.md"
+      ]
+    },
+    {
+      "id": "l2-decision-19",
+      "question": "how long do we keep old ledgerline API versions alive? was that decided?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/version-ledgerline-api-in-url-path.md"
+      ]
+    },
+    {
+      "id": "l2-decision-20",
+      "question": "금액을 float이나 numeric 안 쓰고 정수로 저장하는 이유?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/store-money-as-integer-minor-units.md"
+      ]
+    },
+    {
+      "id": "l2-decision-21",
+      "question": "ORM 안쓰고 sqlc로 간 이유 뭐였더ㄹ라",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-sqlc-instead-of-an-orm.md"
+      ]
+    },
+    {
+      "id": "l2-decision-22",
+      "question": "why no offset pagination on ledgerline list endpoints?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-cursor-pagination-for-list-endpoints.md"
+      ]
+    },
+    {
+      "id": "l2-decision-23",
+      "question": "ledgerline 트레이싱은 왜 sentry 말고 opentelemetry로 했나?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/trace-ledgerline-with-opentelemetry.md"
+      ]
+    },
+    {
+      "id": "l2-decision-24",
+      "question": "ledgerline 체인지로그에 release-please 쓰는 이유가 뭐야?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/manage-ledgerline-changelog-with-release-please.md"
+      ]
+    },
+    {
+      "id": "l2-decision-25",
+      "question": "gitcrumb은 왜 release-please 안 쓰고 git-cliff 써?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/generate-gitcrumb-changelog-with-git-cliff.md"
+      ]
+    },
+    {
+      "id": "l2-decision-26",
+      "question": "clap builder 대신 derive로 간 이유?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-clap-derive-for-gitcrumb-cli.md"
+      ]
+    },
+    {
+      "id": "l2-decision-27",
+      "question": "why didn't we pick argh for gitcrumb?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/use-clap-derive-for-gitcrumb-cli.md"
+      ]
+    },
+    {
+      "id": "l2-decision-28",
+      "question": "crumb을 .gitcrumb 파일 말고 git notes에 넣은 이유가 뭐야?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/store-crumbs-in-git-notes.md"
+      ]
+    },
+    {
+      "id": "l2-decision-29",
+      "question": "libgit2 빼면 회사 저장소 notes push 인증 문제가 풀려서 그런거였나?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/shell-out-to-git-instead-of-libgit2.md"
+      ]
+    },
+    {
+      "id": "l2-decision-30",
+      "question": "처음에 git2 crate 쓰기로 했던 이유는 뭐였어?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/link-libgit2-through-the-git2-crate.md"
+      ]
+    },
+    {
+      "id": "l2-decision-31",
+      "question": "gitcrumb 설치 안내를 cargo install 말고 homebrew로 한 이유?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/ship-gitcrumb-with-cargo-dist-and-homebrew.md"
+      ]
+    },
+    {
+      "id": "l2-decision-32",
+      "question": "why isn't gitcrumb in homebrew-core?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/ship-gitcrumb-with-cargo-dist-and-homebrew.md"
+      ]
+    },
+    {
+      "id": "l2-decision-33",
+      "question": "gitcrumb 설정 파일을 ~/Library 말고 ~/.config에 두는 이유?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/keep-gitcrumb-config-in-xdg-toml.md"
+      ]
+    },
+    {
+      "id": "l2-decision-34",
+      "question": "dotfiles stow에서 chezmio로 바꾼 이유가 뭐였더라",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/manage-dotfiles-with-chezmoi.md"
+      ]
+    },
+    {
+      "id": "l2-decision-35",
+      "question": "why compose instead of k3s on the home server?",
+      "kind": "decision",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/decisions/run-homelab-services-with-docker-compose.md"
+      ]
+    },
+    {
+      "id": "l2-decision-36",
+      "question": "git notes는 GitHub 화면에 안 보이는데 그건 어떻게 하기로 했어?",
+      "kind": "decision",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/decisions/store-crumbs-in-git-notes.md"
+      ]
+    },
+    {
+      "id": "l2-how-01",
+      "question": "tidepool iOS 테스트플라이트 올리려면 뭐부터 해야되나?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/release-tidepool-to-testflight.md"
+      ]
+    },
+    {
+      "id": "l2-how-02",
+      "question": "eas submit 하다가 Missing Compliance에서 멈추면 어떻게 해?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/release-tidepool-to-testflight.md"
+      ]
+    },
+    {
+      "id": "l2-how-03",
+      "question": "안드로이드 internal track 배포 명령어 순서대로 알려줘",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/release-tidepool-to-google-play-internal-track.md"
+      ]
+    },
+    {
+      "id": "l2-how-04",
+      "question": "플레이스토어 production 롤아웃은 몇 퍼센트로 시작하나?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/release-tidepool-to-google-play-internal-track.md"
+      ]
+    },
+    {
+      "id": "l2-how-05",
+      "question": "실제 안드폰에 개발 빌드 띄우느 ㄴ법 알려줘",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/run-tidepool-on-a-physical-android-device.md"
+      ]
+    },
+    {
+      "id": "l2-how-06",
+      "question": "회사 와이파이에서 폰이 metro에 안 붙으면 어떻게 하지?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/run-tidepool-on-a-physical-android-device.md"
+      ]
+    },
+    {
+      "id": "l2-how-07",
+      "question": "시뮬레이터 sqlite db 초기화 어떻게 하나?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/reset-tidepool-local-database-on-simulator.md"
+      ]
+    },
+    {
+      "id": "l2-how-08",
+      "question": "how do i seed 30 days of intake logs on the simulator?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/reset-tidepool-local-database-on-simulator.md"
+      ]
+    },
+    {
+      "id": "l2-how-09",
+      "question": "tidepool 번역 문자열 새로 추가하려면 어디 고쳐야돼?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/add-a-translation-string-to-tidepool.md"
+      ]
+    },
+    {
+      "id": "l2-how-10",
+      "question": "알림 문구도 i18n json에 넣으면 되나?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/add-a-translation-string-to-tidepool.md"
+      ]
+    },
+    {
+      "id": "l2-how-11",
+      "question": "앱 아이콘 바꾸면 OTA로 나가나 스토어 빌드 다시 해야되ㄴ나?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/update-tidepool-app-icon-and-splash-screen.md"
+      ]
+    },
+    {
+      "id": "l2-how-12",
+      "question": "ledgerline 로컬에서 띄우는 순서 알려줘",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/run-ledgerline-api-locally.md"
+      ]
+    },
+    {
+      "id": "l2-how-13",
+      "question": "로컬에서 웹훅이랑 pdf job이 안 돌면 뭘 빠뜨린거야?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/run-ledgerline-api-locally.md"
+      ]
+    },
+    {
+      "id": "l2-how-14",
+      "question": "마이그레이션 새로 만들때 RLS는 어떻게 너어야 돼?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/create-and-apply-a-ledgerline-migration.md"
+      ]
+    },
+    {
+      "id": "l2-how-15",
+      "question": "운영 테이블에 NOT NULL 컬럼 추가는 어떻게 하나?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/create-and-apply-a-ledgerline-migration.md"
+      ]
+    },
+    {
+      "id": "l2-how-16",
+      "question": "sqlc 코드 다시 생성하는 명령 뭐였지?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/regenerate-sqlc-code-after-a-schema-change.md"
+      ]
+    },
+    {
+      "id": "l2-how-17",
+      "question": "머지된 worktree 한번에 정리하는 법?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/clean-up-stale-git-worktrees.md"
+      ]
+    },
+    {
+      "id": "l2-how-18",
+      "question": "ledgerline 스테이징 수동 배포 하려면 어떻게 해?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/deploy-ledgerline-to-staging.md"
+      ]
+    },
+    {
+      "id": "l2-how-19",
+      "question": "staging 배포하고 나서 스모크 테스트는 뭘로 돌려?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/deploy-ledgerline-to-staging.md"
+      ]
+    },
+    {
+      "id": "l2-how-20",
+      "question": "프로덕션 프로모트할 때 이미지 다시 빌드하나? 순서 알려줘",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/promote-a-ledgerline-release-to-production.md"
+      ]
+    },
+    {
+      "id": "l2-how-21",
+      "question": "프로모트하고 나서 뭘 지켜봐야 돼?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/promote-a-ledgerline-release-to-production.md"
+      ]
+    },
+    {
+      "id": "l2-how-22",
+      "question": "프로덕셔 ㄴ배포 되돌리려면 뭐부터 해야되나?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/roll-back-a-ledgerline-production-deploy.md"
+      ]
+    },
+    {
+      "id": "l2-how-23",
+      "question": "롤백할 때 마이그레이션도 같이 down 해야되나?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/roll-back-a-ledgerline-production-deploy.md"
+      ]
+    },
+    {
+      "id": "l2-how-24",
+      "question": "고객이 웹훅 못받았다고 하면 다시 보내는 법?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/replay-failed-ledgerline-webhooks.md"
+      ]
+    },
+    {
+      "id": "l2-how-25",
+      "question": "how do i replay failed webhooks for one org?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/replay-failed-ledgerline-webhooks.md"
+      ]
+    },
+    {
+      "id": "l2-how-26",
+      "question": "테넌트 API 키 교채 절차 알려줘",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/rotate-a-tenant-api-key.md"
+      ]
+    },
+    {
+      "id": "l2-how-27",
+      "question": "키 유출 의심되면 옛 키 바로 끊는 방법?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/rotate-a-tenant-api-key.md"
+      ]
+    },
+    {
+      "id": "l2-how-28",
+      "question": "gitcrumb release steps in order?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/cut-a-gitcrumb-release.md"
+      ]
+    },
+    {
+      "id": "l2-how-29",
+      "question": "gitcrumb 태그 잘못 찍었으면 어떻게 해?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/cut-a-gitcrumb-release.md"
+      ]
+    },
+    {
+      "id": "l2-how-30",
+      "question": "how do i run gitcrumb integration tests?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/run-gitcrumb-integration-tests.md"
+      ]
+    },
+    {
+      "id": "l2-how-31",
+      "question": "insta 스냅샷 바뀌었을 때 어떻게 승이ㄴ하나",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/run-gitcrumb-integration-tests.md"
+      ]
+    },
+    {
+      "id": "l2-how-32",
+      "question": "gitcrumb 디버그 로그 켜려면 RUST_LOG 쓰면 되나?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/debug-gitcrumb-with-verbose-tracing.md"
+      ]
+    },
+    {
+      "id": "l2-how-33",
+      "question": "gitcrumb에 서브커맨드 하나 추가하려면 어디부터 고쳐?",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/add-a-subcommand-to-gitcrumb.md"
+      ]
+    },
+    {
+      "id": "l2-how-34",
+      "question": "새 맥 세팅 순서 알려줘유",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/set-up-a-new-mac.md"
+      ]
+    },
+    {
+      "id": "l2-how-35",
+      "question": "restic으로 서비스 데이터 복원하는 법 알려줘",
+      "kind": "how",
+      "split": "dev",
+      "expected_pages": [
+        "eval2:wiki/workflows/restore-homelab-data-from-restic.md"
+      ]
+    },
+    {
+      "id": "l2-how-36",
+      "question": "how do i update the containers on nook safely?",
+      "kind": "how",
+      "split": "test",
+      "expected_pages": [
+        "eval2:wiki/workflows/update-homelab-containers.md"
+      ]
+    },
+    {
+      "id": "l2-session-01",
+      "question": "streak 서머타임 버그 원인 뭐였어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-02-df1f3499-7734-5f1a-a419-3c9185b52ec9-part1.md L19-L31"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-02",
+      "question": "streak DST 테스트 파일 어디에 넣었었지?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-02-df1f3499-7734-5f1a-a419-3c9185b52ec9-part1.md L33-L46"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-03",
+      "question": "streak 고친거 OTA로 나갔나? update id 뭐였어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-02-df1f3499-7734-5f1a-a419-3c9185b52ec9-part1.md L60-L71"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-04",
+      "question": "what was N-4 again?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-09-e5e8036f-95e1-5240-844d-13e77c95ca7e-part1.md L19-L30"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-05",
+      "question": "알림 멈추는 문제 background fetch는 왜 안하기로 했지?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-09-e5e8036f-95e1-5240-844d-13e77c95ca7e-part1.md L32-L41"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-06",
+      "question": "keepAlive 알림 문구는 어디 파일에 넣었어?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-09-e5e8036f-95e1-5240-844d-13e77c95ca7e-part1.md L43-L55"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-07",
+      "question": "acme 409 에러 원이 ㄴ뭐였더라?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-15-02784ca3-6476-566d-a5f4-9dc03b2df5a4-part1.md L19-L30"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-08",
+      "question": "async pdf 작업 브랜치 이름 뭐였지?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-15-02784ca3-6476-566d-a5f4-9dc03b2df5a4-part1.md L32-L45"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-09",
+      "question": "PDF 생성 실패하면 웹훅 이벤트 새로 만들었나?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-15-02784ca3-6476-566d-a5f4-9dc03b2df5a4-part1.md L47-L54"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-10",
+      "question": "async pdf 프로덕션에 바로 올렸었나?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-15-02784ca3-6476-566d-a5f4-9dc03b2df5a4-part1.md L56-L67"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-11",
+      "question": "testdb.AsOrg 이건 뭐야?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-22-28ca7faf-4fd1-5910-a0d8-83b9fac7126e-part1.md L19-L33"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-12",
+      "question": "what was R2 in the RLS risk list?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-22-28ca7faf-4fd1-5910-a0d8-83b9fac7126e-part1.md L35-L45"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-13",
+      "question": "lint_rls 스크립트 어디 있어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-22-28ca7faf-4fd1-5910-a0d8-83b9fac7126e-part1.md L47-L53"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-14",
+      "question": "credit_notes RLS 누락 고친거 머지됐나?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-09-22-28ca7faf-4fd1-5910-a0d8-83b9fac7126e-part1.md L55-L65"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-15",
+      "question": "shell-out 리팩터링 브랜치 이르 ㅁ뭐였지?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-01-60d3e4ef-3c81-5175-8b82-1d94dedf10c6-part1.md L19-L30"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-16",
+      "question": "git2 제거하면서 윈도우 테스트 깨진 원인이 뭐였어?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-01-60d3e4ef-3c81-5175-8b82-1d94dedf10c6-part1.md L32-L45"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-17",
+      "question": "gitcrumb 0.4.0 crates.io 배포 실패한거 원인 뭐였어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-01-60d3e4ef-3c81-5175-8b82-1d94dedf10c6-part1.md L59-L70"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-18",
+      "question": "todo 완료 표시 방법 옵션 몇 개 나왔었지?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-06-bd0b91ae-fb16-5608-b9ea-a36dcfc01a1c-part1.md L19-L28"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-19",
+      "question": "gitcrumb done 명령은 todo를 어떻게 가리키게 했어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-06-bd0b91ae-fb16-5608-b9ea-a36dcfc01a1c-part1.md L30-L37"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-20",
+      "question": "C3 이건 뭐였짖?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-06-bd0b91ae-fb16-5608-b9ea-a36dcfc01a1c-part1.md L39-L46"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-21",
+      "question": "젤리핀 업데이트 후 안 뜬 원인 뭐였어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-10-42df751a-ae9b-53ed-8dec-6cb4f63a49b0-part1.md L19-L30"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-22",
+      "question": "젤리핀 트랜스코딩 경로 어디로 옮겼지?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-10-42df751a-ae9b-53ed-8dec-6cb4f63a49b0-part1.md L32-L43"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-23",
+      "question": "which restic snapshot did we take before the jellyfin upgrade?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-10-42df751a-ae9b-53ed-8dec-6cb4f63a49b0-part1.md L45-L52"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-24",
+      "question": "which device flickered when we tried sdk 52?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-14-12554bed-f545-5e96-8c64-e42044a2540f-part1.md L19-L29"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-25",
+      "question": "물결 애니메이션 깜빡임 원인 뭐라고 했었지?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-14-12554bed-f545-5e96-8c64-e42044a2540f-part1.md L31-L38"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-26",
+      "question": "skia로 바꾸면 앱 용량 얼마나 늘어난다고 했어?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-14-12554bed-f545-5e96-8c64-e42044a2540f-part1.md L40-L50"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-27",
+      "question": "SDK 52 시험 결과 어느 이슈에 남겼더라?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-14-12554bed-f545-5e96-8c64-e42044a2540f-part1.md L52-L62"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-28",
+      "question": "globex 웹훅 이벤트 필터 컬럼 이름 뭐로 했지?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-20-61bd4bdb-eeee-5e02-bf63-34c7d88020f2-part1.md L19-L29"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-29",
+      "question": "invoice.* 같은 와일드카드는 왜 안 받기로 햇어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-20-61bd4bdb-eeee-5e02-bf63-34c7d88020f2-part1.md L31-L38"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-30",
+      "question": "enabled_events 마이그레이션 파일 이름 뭐였지?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-20-61bd4bdb-eeee-5e02-bf63-34c7d88020f2-part1.md L40-L50"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-31",
+      "question": "새 맥북에서 chezmio apply 실패한거 왜 그랬어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-27-2eeb2324-b308-5786-a40b-e8f2ee7f852d-part1.md L19-L30"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-32",
+      "question": "회사 맥에 docker desktop 왜 못 깔았지?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-27-2eeb2324-b308-5786-a40b-e8f2ee7f852d-part1.md L32-L44"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-33",
+      "question": "wt-new 스크립트 chezmoi 소스 경로 어디야?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-10-27-2eeb2324-b308-5786-a40b-e8f2ee7f852d-part1.md L55-L61"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-34",
+      "question": "gitcrumb json 출력 스키마 버전 문자열 뭐로 붙였어?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-02-91e92fa0-14c8-5d34-913e-cf870f17d5c5-part1.md L31-L37"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-35",
+      "question": "why did the gitcrumb 0.5.0 release fail at first?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-02-91e92fa0-14c8-5d34-913e-cf870f17d5c5-part1.md L39-L50"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-36",
+      "question": "HOMEBREW_TAP_TOKEN 만료 대비로 뭐 해뒀어?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-02-91e92fa0-14c8-5d34-913e-cf870f17d5c5-part1.md L52-L58"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-37",
+      "question": "PostHog에 보내는 이벤트 몇 개였지?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-06-23fdda05-a229-512d-8db6-bf69b8185c4b-part1.md L19-L30"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-38",
+      "question": "analytics 이벤트 정의 파일 어딧어?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-06-23fdda05-a229-512d-8db6-bf69b8185c4b-part1.md L40-L46"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-39",
+      "question": "posthog 이벤트 버킷 바꾼거 OTA update id 뭐였지?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-06-23fdda05-a229-512d-8db6-bf69b8185c4b-part1.md L48-L58"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-40",
+      "question": "E-17 알림 이건 뭐였지?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-09-92e9a253-cb9a-50b2-9c39-19096291512b-part1.md L19-L30"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-41",
+      "question": "ReconcilePayments 동시서 ㅇ몇으로 줄였어?",
+      "kind": "session",
+      "split": "dev",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-09-92e9a253-cb9a-50b2-9c39-19096291512b-part1.md L32-L42"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-session-42",
+      "question": "is the E-17 fix live in prod?",
+      "kind": "session",
+      "split": "test",
+      "expected_exchanges": [
+        "raw/sessions/claude-code/2026-11-09-92e9a253-cb9a-50b2-9c39-19096291512b-part1.md L44-L54"
+      ],
+      "mode": "evidence"
+    },
+    {
+      "id": "l2-no_answer-01",
+      "question": "tidepool 서버 푸시를 FCM으로 바꾸기로 했었나?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-02",
+      "question": "tidepool 다크모드 색상 토크ㄴ은 어디에 정의돼 있나?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-03",
+      "question": "tidepool 애플워치 앱 빌드는 어떻게 했었지?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-04",
+      "question": "tidepool 인앱 구독 가격 얼마로 정했었나?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-05",
+      "question": "Q-12 이건 뭐였지?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-06",
+      "question": "ledgerline 배포를 fly 말고 AWS ECS로 옮기기로 한거 맞지?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-07",
+      "question": "ledgerline GraphQL 스키마 파일 어디 있어?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-08",
+      "question": "ledgerline에서 MySQL도 지원하기로 했었나?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-09",
+      "question": "인보이스 다국어 PDF 템플릿 추가하는 버ㅂ 알려줘",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-10",
+      "question": "ledgerline rate limit 한도 숫자 얼마로 잡았지?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-11",
+      "question": "E-22 알림은 뭐였어?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-12",
+      "question": "ledgerline SOC2 감사 준비 어디까지 했나?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-13",
+      "question": "did we decide to publish gitcrumb on winget?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-14",
+      "question": "gitcrumb TUI 모드 넣는 작업 어느 브랜치였지?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-15",
+      "question": "gitcrumb 플러그인 시스템 설계 문서 어디 있어?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-16",
+      "question": "gitcrumb crumb을 GitLab 화면에서 보이게 하는 방법 정리한거 있나?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-17",
+      "question": "C7 이건 뭐였지?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-18",
+      "question": "nook에 Home Assistant 올린 설정 어디 있어?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-19",
+      "question": "홈랩 백업을 B2 말고 Wasabi로 옮기기로 햇나?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-20",
+      "question": "Proxmox 클러스터에 노드 추가하는 절차 알려줘",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-21",
+      "question": "tidepool 웹 버전을 next.js로 만들기로 한 이유가 뭐였지?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-22",
+      "question": "how did we set up the Kafka consumer for ledgerline?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-23",
+      "question": "what's the default value of crumb.autoPush?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-24",
+      "question": "did we move tidepool to Flutter?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-25",
+      "question": "ledgerline 고객 SDK는 파이썬 버전 먼저 냈었나?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-26",
+      "question": "sqlc 대신 pgx 직접 쓰기로 다시 바꾼거 맞지?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-27",
+      "question": "zsh 대신 fish로 갈아탄 이유 뭐였지?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-28",
+      "question": "Neovim 플러그인 매니저를 packer로 다시 바꿨었나?",
+      "kind": "no_answer",
+      "split": "test"
+    },
+    {
+      "id": "l2-no_answer-29",
+      "question": "tidepool 앱스토어 심사 리젝 사유 뭐였어?",
+      "kind": "no_answer",
+      "split": "dev"
+    },
+    {
+      "id": "l2-no_answer-30",
+      "question": "ledgerline 다중 통화 환율은 어디서 가져오기로 햇어?",
+      "kind": "no_answer",
+      "split": "test"
+    }
+  ]
+}
