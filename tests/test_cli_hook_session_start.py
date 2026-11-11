@@ -81,7 +81,12 @@ def catch_up(monkeypatch: pytest.MonkeyPatch) -> CatchUps:
     """Record the detached catch-up instead of starting a real process: (graph home, index, check)."""
     started: CatchUps = []
 
-    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+    def record(
+        graph_home: Path,
+        index_vault_ids: tuple[str, ...],
+        check_vault_ids: tuple[str, ...] = (),
+        first_vault_ids: tuple[str, ...] = (),
+    ) -> object:
         started.append((graph_home, index_vault_ids, check_vault_ids))
         return _RecordedCatchUp([])
 
@@ -439,7 +444,7 @@ def real_catch_up(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
     return started
 
 
-def test_registered_but_unindexed_vault_hands_off_with_all_vaults_hint_and_no_catch_up(
+def test_registered_but_unindexed_vault_hands_off_with_all_vaults_hint_and_starts_its_first_index(
     base: Path, real_catch_up: list[list[str]]
 ) -> None:
     home = base / "graph-home"
@@ -449,8 +454,9 @@ def test_registered_but_unindexed_vault_hands_off_with_all_vaults_hint_and_no_ca
 
     assert_handoff(result, home)
     assert "Run `vg index --all-vaults`." in result.stderr
-    assert real_catch_up == []
-    assert not (home / "logs" / "session-start-index.pid").exists()
+    # spec 2026-11-11 §4.4.2: a keyword index first, then the vectors (tests/test_catch_up_two_stage.py).
+    assert [json.loads(command[-1]) for command in real_catch_up] == [{"first": ["main"], "index": [], "check": []}]
+    assert (home / "logs" / "session-start-index.pid").exists()
 
 
 def test_partly_indexed_vaults_warn_with_all_vaults_hint_and_start_no_catch_up_for_the_unindexed_one(
@@ -467,7 +473,7 @@ def test_partly_indexed_vaults_warn_with_all_vaults_hint_and_start_no_catch_up_f
     warnings = [line for line in result.stderr.splitlines() if "other" in line]
     assert warnings == ["vg hook session-start: warning: Vault other has no index. Run `vg index --all-vaults`."]
     # The indexed Vault still gets its vector check. The unindexed one is never indexed in the background.
-    assert [json.loads(command[-1]) for command in real_catch_up] == [{"index": [], "check": ["main"]}]
+    assert [json.loads(command[-1]) for command in real_catch_up] == [{"first": [], "index": [], "check": ["main"]}]
 
 
 def test_startup_with_nothing_to_recall_hands_off(base: Path, graph_home: Path) -> None:
@@ -827,7 +833,12 @@ def fresh_note(base: Path, name: str = "fresh", vault: str = "main") -> None:
 def test_changed_vault_gets_a_catch_up_index_started_before_recall_is_printed(
     base: Path, graph_home: Path, catch_up: CatchUps, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+    def record(
+        graph_home: Path,
+        index_vault_ids: tuple[str, ...],
+        check_vault_ids: tuple[str, ...] = (),
+        first_vault_ids: tuple[str, ...] = (),
+    ) -> object:
         catch_up.append((graph_home, index_vault_ids, check_vault_ids))
         sys.stdout.write("<catch-up started>")
         return _RecordedCatchUp([])
@@ -873,7 +884,12 @@ def test_the_hook_releases_the_catch_up_after_the_refresh(
         events.append("published")
         real_commit(self, report)  # type: ignore[arg-type]
 
-    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+    def record(
+        graph_home: Path,
+        index_vault_ids: tuple[str, ...],
+        check_vault_ids: tuple[str, ...] = (),
+        first_vault_ids: tuple[str, ...] = (),
+    ) -> object:
         events.append("started")
         return _RecordedCatchUp(released)
 
@@ -1038,7 +1054,7 @@ def test_catch_up_runs_detached_with_the_lock_and_the_gate(
     command, kwargs = recording_popen[0]
     assert command[0] == sys.executable
     assert command[3] == str(home)
-    assert json.loads(command[5]) == {"index": ["main"], "check": ["other"]}
+    assert json.loads(command[5]) == {"first": [], "index": ["main"], "check": ["other"]}
     assert int(command[4]) in kwargs["pass_fds"]  # type: ignore[operator]
     assert len(kwargs["pass_fds"]) == 2  # type: ignore[arg-type]
     assert kwargs["start_new_session"] is True
