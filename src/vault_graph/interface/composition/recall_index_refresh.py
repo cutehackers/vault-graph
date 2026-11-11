@@ -14,8 +14,12 @@ changed. The run uses the same metadata indexer, graph indexer and generation pu
   chunks removed from the changed files so the published generation passes the same hygiene check
   as ``vg index``. This module only opens the stores; it reads and writes none of them itself.
 - Right after the scan, ``on_scanned`` receives the Vaults that need ``vg index`` (changed, or
-  unknown because the scan stopped) and the other linked Vaults, which need it only when
-  ``vectors_need_catch_up`` says so. The hook starts the background catch-up from there.
+  unknown because the scan stopped), the other linked Vaults, which need it only when
+  ``vectors_need_catch_up`` says so. The hook starts the background catch-up from there. Vaults
+  without an index are never refreshed. When none of the linked Vaults has an index, as at the first
+  session start after install, there is no scan and ``on_scanned`` receives them as the third
+  argument, so the catch-up builds their first index (spec 2026-11-11 §4.4.2). When some linked
+  Vaults have an index, the others stay unindexed until ``vg index`` (spec 2026-11-05 A-7).
 - A time limit. The scan compares each file's SHA-256 with the index and checks the limit after
   every file. The limit is checked again before staging and before publishing. A run past the
   limit publishes nothing and recall reads the current index. When another run holds the projection
@@ -87,8 +91,9 @@ QUICK_REFRESH_RECORD_MAX_AGE = timedelta(days=1)
 SLOW_RUNS_TO_SKIP = 2
 
 RefreshStatus = Literal["unchanged", "refreshed", "skipped", "failed"]
-# Called once after the change scan with (Vaults to index, Vaults to check for stale vectors).
-ScanCallback = Callable[[tuple[str, ...], tuple[str, ...]], None]
+# Called once after the change scan with (Vaults to index, Vaults to check for stale vectors,
+# Vaults without any index, which get a keyword index before their vectors).
+ScanCallback = Callable[[tuple[str, ...], tuple[str, ...], tuple[str, ...]], None]
 
 
 @dataclass(frozen=True)
@@ -123,6 +128,9 @@ def refresh_linked_vaults(
         scope = ports.scope.resolve(cwd)
         vault_ids = tuple(vault_id for vault_id in scope.vault_ids if ports.documents.is_indexed(vault_id))
         if not vault_ids:
+            if scope.vault_ids and on_scanned is not None:
+                # No linked Vault has an index yet: the catch-up builds a keyword index first.
+                on_scanned((), (), tuple(scope.vault_ids))
             return RecallIndexRefresh(status="skipped")
         return refresh_recall_index(
             graph_home_path=graph_home_path, vault_ids=vault_ids, budget_s=budget_s, on_scanned=on_scanned
@@ -153,7 +161,7 @@ def refresh_recall_index(
     if scan is None:
         # The scan did not finish, so any linked Vault may have changed.
         if on_scanned is not None:
-            on_scanned(vault_ids, ())
+            on_scanned(vault_ids, (), ())
         return RecallIndexRefresh(
             status="skipped", vault_ids=vault_ids, reason=_time_limit(budget_s), catch_up_vault_ids=vault_ids
         )
@@ -162,7 +170,9 @@ def refresh_recall_index(
     deleted = sum(len(paths) for _, paths in changes.values())
     changed_vault_ids = tuple(vault_id for vault_id in vault_ids if any(changes[vault_id]))
     if on_scanned is not None:
-        on_scanned(changed_vault_ids, tuple(vault_id for vault_id in vault_ids if vault_id not in changed_vault_ids))
+        on_scanned(
+            changed_vault_ids, tuple(vault_id for vault_id in vault_ids if vault_id not in changed_vault_ids), ()
+        )
     if not changed_vault_ids:
         return RecallIndexRefresh(status="unchanged", vault_ids=vault_ids)
 

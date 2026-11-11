@@ -14,6 +14,10 @@ catch-up process, so a hook killed later by its launcher still leaves it running
 until the hook's refresh is done (or the hook is gone), then runs a normal ``vg index`` (with
 embeddings) for Vaults with changed files, and for the other linked Vaults only when their vectors
 are stale or missing. A catch-up that was killed is therefore run again at the next session start.
+When none of the linked Vaults has an index, as at the first session start after install, the
+catch-up runs in two stages: ``vg index --no-vector`` for each of them first, so keyword search
+works with a ``vector_unavailable`` warning within minutes, then ``vg index`` with embeddings (spec
+2026-11-11 §4.4.2). Recall of that session still hands off, because the index is not there yet.
 The process holds an flock on ``logs/session-start-index.lock`` while it lives. A hook that finds
 the lock taken starts nothing, so session starts never pile up background runs. A ``vg index`` of the
 catch-up that exits non-zero without recording a vector failure, or a catch-up that stops on an
@@ -125,8 +129,10 @@ def session_start(
 
     catch_ups: list[CatchUp] = []
 
-    def start_catch_up(index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...]) -> None:
-        handle = _catch_up(state, index_vault_ids, check_vault_ids)
+    def start_catch_up(
+        index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...], first_vault_ids: tuple[str, ...]
+    ) -> None:
+        handle = _catch_up(state, index_vault_ids, check_vault_ids, first_vault_ids)
         if handle is not None:
             catch_ups.append(handle)
 
@@ -212,12 +218,17 @@ class CatchUp:
 
 
 def start_catch_up_index(
-    graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()
+    graph_home: Path,
+    index_vault_ids: tuple[str, ...],
+    check_vault_ids: tuple[str, ...] = (),
+    first_vault_ids: tuple[str, ...] = (),
 ) -> CatchUp | None:
     """Start the catch-up in a detached process, or return None when one runs or nothing is asked.
 
-    ``vg index --vault-id <id>`` runs for each of ``index_vault_ids``, then for each of
-    ``check_vault_ids`` whose vectors are stale or missing, one after another. The process has its
+    ``vg index --vault-id <id> --no-vector`` runs for each of ``first_vault_ids``, the Vaults without
+    an index. Then ``vg index --vault-id <id>`` runs for each of ``first_vault_ids`` and
+    ``index_vault_ids``, then for each of ``check_vault_ids`` whose vectors are stale or missing, one
+    after another. The process has its
     own session, reads nothing and writes to ``<graph home>/logs``, so the hook and its launcher
     never wait for it. It inherits this hook's flock on ``logs/session-start-index.lock`` and holds
     it until it ends, killed or not. A process ID left in ``logs/session-start-index.pid`` is only
@@ -227,7 +238,7 @@ def start_catch_up_index(
     ends, so its ``vg index`` never takes the projection lock before the hook's own refresh.
     """
 
-    if not index_vault_ids and not check_vault_ids:
+    if not index_vault_ids and not check_vault_ids and not first_vault_ids:
         return None
     logs = graph_home / CATCH_UP_LOCK.parent
     logs.mkdir(parents=True, exist_ok=True)
@@ -239,7 +250,9 @@ def start_catch_up_index(
             return None
         gate_read, gate_write = os.pipe()
         try:
-            plan = json.dumps({"index": list(index_vault_ids), "check": list(check_vault_ids)})
+            plan = json.dumps(
+                {"first": list(first_vault_ids), "index": list(index_vault_ids), "check": list(check_vault_ids)}
+            )
             log_path = graph_home / CATCH_UP_LOG
             mode = "wb" if log_path.exists() and log_path.stat().st_size > _CATCH_UP_LOG_MAX_BYTES else "ab"
             with log_path.open(mode) as log:
@@ -272,7 +285,12 @@ def run_catch_up_index() -> None:
     try:
         _wait_for_gate(int(gate), timeout_s=_GATE_TIMEOUT_S)
         plan = json.loads(plan_json)
-        for vault_id in plan["index"]:
+        # A plan written before the two stages has no "first".
+        first = plan.get("first", [])
+        for vault_id in first:
+            # Stage 1: metadata, keyword and graph, so search works before the embeddings are built.
+            _run_vg_index(graph_home, vault_id, no_vector=True)
+        for vault_id in [*first, *plan["index"]]:
             _run_vg_index(graph_home, vault_id)
         for vault_id in plan["check"]:
             # A check only ever leads to a vector run, which the retry interval holds back.
@@ -291,11 +309,11 @@ def run_catch_up_index() -> None:
             pid_path.unlink(missing_ok=True)
 
 
-def _run_vg_index(graph_home: str, vault_id: str, *, now: datetime | None = None) -> None:
-    """Run ``vg index`` for one Vault. During its vector retry interval, metadata and graph only."""
+def _run_vg_index(graph_home: str, vault_id: str, *, now: datetime | None = None, no_vector: bool = False) -> None:
+    """Run ``vg index`` for one Vault. With ``no_vector`` or in its vector retry interval, metadata and graph only."""
 
     arguments = [sys.executable, "-c", _VG_SCRIPT, "index", "--graph-home", graph_home, "--vault-id", vault_id]
-    if vector_retry_pending(Path(graph_home), vault_id, now=now or datetime.now(UTC)):
+    if no_vector or vector_retry_pending(Path(graph_home), vault_id, now=now or datetime.now(UTC)):
         arguments.append("--no-vector")
     before = read_vector_failures(Path(graph_home)).get(vault_id)
     try:
@@ -347,9 +365,14 @@ def _read_pid(pid_path: Path) -> int | None:
     return pid if pid > 0 else None
 
 
-def _catch_up(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...]) -> CatchUp | None:
+def _catch_up(
+    graph_home: Path,
+    index_vault_ids: tuple[str, ...],
+    check_vault_ids: tuple[str, ...],
+    first_vault_ids: tuple[str, ...],
+) -> CatchUp | None:
     try:
-        return start_catch_up_index(graph_home, index_vault_ids, check_vault_ids)
+        return start_catch_up_index(graph_home, index_vault_ids, check_vault_ids, first_vault_ids)
     except OSError as exc:
         typer.echo(f"{COMMAND}: warning: cannot start the background `vg index`: {exc}.", err=True)
         return None
