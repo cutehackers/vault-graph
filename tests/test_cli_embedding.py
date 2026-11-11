@@ -285,6 +285,7 @@ def test_help_adds_only_the_embedding_group() -> None:
         "session",
         "vault",
         "embedding",
+        "doctor",
     }
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0

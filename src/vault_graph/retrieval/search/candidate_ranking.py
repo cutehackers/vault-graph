@@ -9,7 +9,12 @@ from vault_graph.indexing.ingestion.document_snapshots import DocumentSnapshot
 from vault_graph.indexing.ingestion.hangul_terms import name_terms
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSignal, RetrievalSignalKind
-from vault_graph.retrieval.search.search_response import SearchMode
+from vault_graph.retrieval.search.search_response import (
+    DocumentRankTrace,
+    FusedRankTrace,
+    SearchMode,
+    SignalRankTrace,
+)
 from vault_graph.storage.interfaces.keyword_index import KeywordHit
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
 from vault_graph.storage.interfaces.vector_store import VectorHit
@@ -84,6 +89,52 @@ def fuse_candidates(*, candidates: tuple[RetrievalCandidate, ...]) -> tuple[Fuse
                 candidate.chunk_id,
             ),
         )
+    )
+
+
+def signal_rank_trace(candidates: tuple[RetrievalCandidate, ...]) -> tuple[SignalRankTrace, ...]:
+    """Every signal of every candidate, grouped by signal kind and ordered by rank inside each kind."""
+    entries = (
+        SignalRankTrace(
+            kind=signal.kind,
+            vault_id=candidate.vault_id,
+            document_id=candidate.document_id,
+            chunk_id=candidate.chunk_id,
+            rank=signal.rank,
+            score=signal.score,
+        )
+        for candidate in candidates
+        for signal in candidate.signals
+    )
+    return tuple(sorted(entries, key=lambda entry: (_signal_kind_order(entry.kind), entry.rank)))
+
+
+def fused_rank_trace(candidates: tuple[FusedCandidate, ...]) -> tuple[FusedRankTrace, ...]:
+    """``fuse_candidates`` output with its 1-based position as the rank."""
+    return tuple(
+        FusedRankTrace(
+            vault_id=candidate.vault_id,
+            document_id=candidate.document_id,
+            chunk_id=candidate.chunk_id,
+            rank=rank,
+            fused_score=candidate.fused_score,
+        )
+        for rank, candidate in enumerate(candidates, start=1)
+    )
+
+
+def document_rank_trace(results: tuple[RetrievalResult, ...]) -> tuple[DocumentRankTrace, ...]:
+    """Folded results in order. A result that folds several documents lists them all in evidence order."""
+    return tuple(
+        DocumentRankTrace(
+            rank=rank,
+            result_id=result.result_id,
+            vault_id=result.vault_id,
+            document_id=result.evidence[0].document_id,
+            path=result.evidence[0].path,
+            evidence_document_ids=tuple(dict.fromkeys(evidence.document_id for evidence in result.evidence)),
+        )
+        for rank, result in enumerate(results, start=1)
     )
 
 
