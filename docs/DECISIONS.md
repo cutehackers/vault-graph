@@ -825,6 +825,8 @@ source of truth.
 
 ## 2026-11-04 - Default To E5-Small After Measuring Arctic-L
 
+**Current note:** The default model was replaced by `2026-11-12 - Default To Arctic-M After Measuring On The User's Vaults`. `e5-small` stays as the alternative.
+
 **Current note:** `2026-11-04 - Keep One Embedding Model` removed `arctic-l` and `minilm` from the list.
 
 **Question:** The previous decision made `arctic-l` the default on estimated costs. A measured full re-index on the user's six Vaults (26,209 chunks, a computer with 36 GB of memory) did not finish in 1 hour 55 minutes and used about 40 GB of memory, which made the computer swap. Should `arctic-l` stay the default (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`, 결정13)?
@@ -839,6 +841,8 @@ source of truth.
 - Measurement 1 (`docs/SPEC.md` n-4) still has to compare the models on the user's own data.
 
 ## 2026-11-04 - Keep One Embedding Model
+
+**Current note:** `2026-11-12 - Default To Arctic-M After Measuring On The User's Vaults` added a second preset, `arctic-m`, and made it the default.
 
 **Question:** After `e5-small` became the default, the list still had `arctic-l` and `minilm`. Should users keep choosing among three models (spec `docs/specs/2026-11-04-embedding-model-selection/spec.md`, 결정14)?
 
@@ -974,3 +978,29 @@ source of truth.
 **Reason:** A retirement that cannot be undone or seen leads to duplicates. Both tools reuse validated Vault formats, so no new Vault feature is needed.
 
 **Implications:** Default search still leaves out only `retired` pages, as in `2026-11-02 - Leave Retired Pages Out Of Default Search As An INV-05 Exception`. Recall and L3 lists never use the option.
+
+## 2026-11-12 - Default To Arctic-M After Measuring On The User's Vaults
+
+**Question:** Search over the user's Vaults ranked Korean pages above English pages that answered the question better. Korean-body chunks were 4.6% of the knowledge-mode vectors but 53% of the vector top 10, and every failed knowledge question had a Korean-body result in the top 5. Should the fix remove the language component from `e5-small` vectors, or replace the model (spec `docs/specs/2026-11-11-search-and-memory-quality-2/spec.md`, report `docs/design/reports/2026-11-single-query-options.md`)?
+
+**Decision:** The user rejected removing the language component, because Korean pages will keep being added to the wiki, and asked for the more fundamental fix. The user then approved downloading `e5-base` and `arctic-m` for measurement, and approved `arctic-m` (`Snowflake/snowflake-arctic-embed-m-v2.0`, int8 ONNX, 768 dimensions, up to 512 tokens, CLS pooling, `query: ` prefix on questions only) as the default on one condition: LongMemEval-S on 150 questions must not fall more than 0.01 below 0.78. It measured 0.7733, so the default changed. `e5-small` stays as an alternative preset.
+
+**Reason:** On the 96 development questions with one query each, `arctic-m` found 86 against 79 for `e5-small` and 82 for `e5-base`, and the share of Korean-body results in the vector top 10 fell from 0.57 to 0.13 without any adjustment to the vectors. The fixture Vault result stayed at 0.961. A model that encodes language less strongly keeps working as the mix of languages in the wiki changes. A correction computed from today's mix does not.
+
+**Implications:**
+
+- A Graph Home whose `configs/embedding.json` names no model re-embeds every chunk with `arctic-m` at the next index. On six Vaults that took about 21 minutes against about 8 minutes for `e5-small`, with up to about 5 GB of memory.
+- `vg embedding use e5-small` keeps the earlier model.
+- The LongMemEval baseline in `tests/fixtures/longmemeval_baseline.json` stays at 0.78, measured with `e5-small`. Later runs are still compared against it.
+- Search targets in the spec are judged with one query per question.
+
+## 2026-11-13 - Compare Session Exchanges Of The Same Scope When Leaving Out v1 Copies
+
+**Question:** A v1 session exchange was left out of the index when its time overlapped any v2 exchange of the same session. On the user's Vaults this removed 78 main-agent exchanges that no v2 file holds, and a forked session's copy of the first part of an exchange took a second result slot (report `docs/design/reports/2026-11-single-query-options.md` §8.2, §8.4).
+
+**Decision:** The user approved three fixes with the report. A v1 exchange is compared only with v2 exchanges of the same scope (main agent, or the same subagent). A continued v2 copy (`continued=1`) removes a v1 exchange only when the turns the file holds cover that whole v1 exchange. A session unit that holds only the first part of another unit's exchange folds into it as a copy. The user also approved changing spec `docs/specs/2026-11-05-session-memory-indexing/spec.md` §4.2.7 to say so.
+
+**Reason:** The rule exists to drop a v1 exchange that a v2 file holds again. A v2 subagent exchange and a continued v2 copy do not hold the v1 main exchange, so dropping it loses the only copy.
+
+**Implications:** `SESSION_GROUP_VERSION` is `session-group-v3`, so an existing index reads every session file again once. Session recall@5 on the user's questions went from 50 to 54 of 60.
+
