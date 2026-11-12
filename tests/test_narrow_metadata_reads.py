@@ -9,6 +9,7 @@ import pytest
 
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.indexing.ingestion.document_snapshots import ChunkKind, DocumentRole
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.retrieval.search.context_expansion import ContextExpander
 from vault_graph.retrieval.search.evidence_result_assembly import _one_reference_per_document
@@ -28,11 +29,11 @@ class WholeDocumentStore:
         return self._store.list_document_chunks(vault_id=vault_id, document_id=document_id)
 
 
-def _document(path: str, role: str) -> DocumentSnapshot:
+def _document(path: str, role: DocumentRole) -> DocumentSnapshot:
     return replace(make_document("default", path, f"hash:{path}"), source_role=role, provenance_family_id=FAMILY)
 
 
-def _chunks(document: DocumentSnapshot, kinds: tuple[str, ...]) -> list[ChunkSnapshot]:
+def _chunks(document: DocumentSnapshot, kinds: tuple[ChunkKind, ...]) -> list[ChunkSnapshot]:
     # Orders repeat on purpose (2 and 2), so ties break on chunk_id as in the whole-document sort.
     orders = (0, 1, 2, 2, 3, 4, 5, 6)
     return [

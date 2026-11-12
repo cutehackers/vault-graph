@@ -543,6 +543,34 @@ class SQLiteMetadataStore:
             ).fetchall()
         return tuple(_chunk_snapshot_from_row(row) for row in (*reversed(before), matched, *after))
 
+    def list_parent_chunk_hashes(self, *, vault_id: str, document_id: str, parent_key: str) -> tuple[str, ...]:
+        """`content_hash` of every chunk of one parent unit (a session exchange), ordered by
+        ``(document_order, chunk_id)``. Reads no chunk text, so search can compare
+        whole exchanges without reading the session document (spec 2026-11-11 §4.2.6, 결정17)."""
+        if not self._database_path.exists():
+            return ()
+        with self._connect() as connection:
+            chunk_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
+            if "parent_key" not in chunk_columns:
+                return ()
+            rows = connection.execute(
+                """
+                SELECT c.content_hash
+                FROM chunks c
+                INNER JOIN documents d
+                  ON d.vault_id = c.vault_id
+                 AND d.document_id = c.document_id
+                 AND d.path = c.path
+                WHERE c.vault_id = ?
+                  AND c.document_id = ?
+                  AND c.parent_key = ?
+                  AND d.is_tombstoned = 0
+                ORDER BY c.document_order, c.chunk_id
+                """,
+                (vault_id, document_id, parent_key),
+            ).fetchall()
+        return tuple(str(row["content_hash"]) for row in rows)
+
     def resolve_document(self, document_id: str) -> DocumentSnapshot | None:
         if not self._database_path.exists():
             return None
