@@ -362,7 +362,10 @@ class ReadOnlyServiceFactory:
         )
 
     def _open_retrieval_components(self) -> _RetrievalComponents:
-        from vault_graph.operation.readiness.search_readiness_service import ReadOnlySearchReadiness
+        from vault_graph.operation.readiness.search_readiness_service import (
+            ReadOnlySearchReadiness,
+            sqlite_files_signature,
+        )
         from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
         from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
         from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
@@ -381,6 +384,9 @@ class ReadOnlyServiceFactory:
                 metadata_store=metadata_store,
                 vector_store=vector_store,
                 text_embeddings=text_embeddings,
+            ),
+            store_signature=lambda: sqlite_files_signature(
+                (catalog_service.metadata_path, catalog_service.vector_path / "chroma.sqlite3")
             ),
         )
         return _RetrievalComponents(

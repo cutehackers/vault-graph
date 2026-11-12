@@ -107,7 +107,11 @@ class EvidenceResultAssembly:
         if mode == "knowledge":
             groups = _fold_replacements(groups)
         groups = _fold_duplicate_content(groups, vault_order=vault_order)
-        results = tuple(self._result_for_group(group=group, rank=rank) for rank, group in enumerate(groups, start=1))
+        families: dict[tuple[str, str], tuple[EvidenceReference, ...]] = {}
+        results = tuple(
+            self._result_for_group(group=group, rank=rank, families=families)
+            for rank, group in enumerate(groups, start=1)
+        )
         if include_retired:
             # Spec 2026-11-05 §4.4.13-1: with `include_retired`, every result carries its page lifecycle.
             results = tuple(
@@ -121,7 +125,9 @@ class EvidenceResultAssembly:
             cache[document_id] = self._metadata_store.resolve_document(document_id)
         return cache[document_id]
 
-    def _result_for_group(self, *, group: _ParentGroup, rank: int) -> RetrievalResult:
+    def _result_for_group(
+        self, *, group: _ParentGroup, rank: int, families: dict[tuple[str, str], tuple[EvidenceReference, ...]]
+    ) -> RetrievalResult:
         candidate, evidence, summary = group.item
         warnings: list[RetrievalWarning] = []
         if group.chunk.parent_key is not None:
@@ -162,17 +168,34 @@ class EvidenceResultAssembly:
                     severity="info",
                 )
             )
-        result = self._result_for_candidate(candidate=candidate, evidence=evidence, summary=summary, rank=rank)
+        result = self._result_for_candidate(
+            candidate=candidate, evidence=evidence, summary=summary, rank=rank, families=families
+        )
         return replace(result, warnings=tuple(warnings))
 
     def _result_for_candidate(
-        self, *, candidate: FusedCandidate, evidence: EvidenceReference, summary: str, rank: int
+        self,
+        *,
+        candidate: FusedCandidate,
+        evidence: EvidenceReference,
+        summary: str,
+        rank: int,
+        families: dict[tuple[str, str], tuple[EvidenceReference, ...]],
     ) -> RetrievalResult:
         family_id = evidence.provenance_family_id or evidence.document_id
-        family_reader = getattr(self._metadata_store, "list_family_evidence", None)
-        family = (
-            family_reader(vault_id=evidence.vault_id, provenance_family_id=family_id) if callable(family_reader) else ()
-        )
+        family = families.get((evidence.vault_id, family_id))
+        if family is None:
+            # Only the first reference of each document is kept below, so a store that returns just those is enough.
+            # One search reads each family once (spec 2026-11-11 §4.2.6).
+            family_reader = getattr(self._metadata_store, "list_family_document_evidence", None) or getattr(
+                self._metadata_store, "list_family_evidence", None
+            )
+            family = (
+                family_reader(vault_id=evidence.vault_id, provenance_family_id=family_id)
+                if callable(family_reader)
+                else ()
+            )
+            families[(evidence.vault_id, family_id)] = family
         supporting = _one_reference_per_document(
             tuple(item for item in family if item.source_role in ("source_manifest", "raw_evidence"))
         )
