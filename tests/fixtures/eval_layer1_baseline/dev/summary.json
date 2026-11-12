@@ -2,29 +2,29 @@
   "by_kind": {
     "decision": {
       "failed": 0,
-      "mrr": 0.6505,
+      "mrr": 0.5412,
       "outcomes": {
         "candidate_loss": 0,
-        "hit": 16,
-        "rank_loss": 2
+        "hit": 13,
+        "rank_loss": 4
       },
-      "questions": 18,
-      "recall_at_10": 1.0,
-      "recall_at_5": 0.8889,
-      "scored": 18
+      "questions": 17,
+      "recall_at_10": 0.8824,
+      "recall_at_5": 0.7647,
+      "scored": 17
     },
     "how": {
       "failed": 0,
-      "mrr": 0.6772,
+      "mrr": 0.4891,
       "outcomes": {
         "candidate_loss": 1,
-        "hit": 15,
+        "hit": 11,
         "rank_loss": 4
       },
-      "questions": 20,
-      "recall_at_10": 0.9,
-      "recall_at_5": 0.75,
-      "scored": 20
+      "questions": 16,
+      "recall_at_10": 0.9375,
+      "recall_at_5": 0.6875,
+      "scored": 16
     },
     "no_answer": {
       "failed": 0,
@@ -41,16 +41,16 @@
     },
     "paraphrase": {
       "failed": 0,
-      "mrr": 0.667,
+      "mrr": 0.6343,
       "outcomes": {
-        "candidate_loss": 1,
-        "hit": 16,
-        "rank_loss": 3
+        "candidate_loss": 3,
+        "hit": 14,
+        "rank_loss": 1
       },
-      "questions": 20,
-      "recall_at_10": 0.8,
-      "recall_at_5": 0.8,
-      "scored": 20
+      "questions": 18,
+      "recall_at_10": 0.8333,
+      "recall_at_5": 0.7778,
+      "scored": 18
     },
     "session": {
       "failed": 0,
@@ -67,7 +67,7 @@
     },
     "title": {
       "failed": 0,
-      "mrr": 1.0,
+      "mrr": 0.9467,
       "outcomes": {
         "candidate_loss": 0,
         "hit": 15,
@@ -84,20 +84,20 @@
   "hit_limit": 5,
   "include_graph": false,
   "layer": 1,
-  "mrr": 0.6716,
+  "mrr": 0.6065,
   "outcomes": {
-    "candidate_loss": 5,
-    "hit": 84,
+    "candidate_loss": 7,
+    "hit": 75,
     "rank_loss": 14
   },
-  "questions": 118,
-  "recall_at_10": 0.8932,
-  "recall_at_5": 0.8155,
+  "questions": 111,
+  "recall_at_10": 0.8854,
+  "recall_at_5": 0.7812,
   "result_limit": 20,
-  "scored": 103,
+  "scored": 96,
   "seconds": {
-    "p50": 29.175,
-    "p95": 34.732
+    "p50": 28.467,
+    "p95": 32.662
   },
   "split": "dev",
   "vault_ids": [
