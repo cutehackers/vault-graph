@@ -172,7 +172,7 @@ Vault.
 Vault Graph builds local metadata, keyword, vector, and graph projections. It
 uses local storage and local embeddings by default; it does not require hosted
 services for normal use. The first indexing run may download the pinned local
-embedding model (`e5-small`, about 135 MB) and cache it outside your Vault, in
+embedding model (`arctic-m`, about 311 MB) and cache it outside your Vault, in
 `~/llm/models` by default. See [Embedding Model](#embedding-model). Restart
 your agent after MCP registration so it can load the new server.
 
@@ -188,7 +188,7 @@ your agent after MCP registration so it can load the new server.
 | Index all Vaults | `vg index --all-vaults --graph-home ~/.vault-graph` |
 | Check health | `vg status --graph-home ~/.vault-graph` |
 | Show embedding model | `vg embedding list --graph-home ~/.vault-graph` |
-| Change model folder | `vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph` |
+| Change model or model folder | `vg embedding use arctic-m --models-dir /path/to/models --graph-home ~/.vault-graph` |
 | Search evidence | `vg search --graph-home ~/.vault-graph "query"` |
 | Expand raw/source evidence | `vg search --mode evidence --graph-home ~/.vault-graph "query"` |
 | Audit projection duplication | `vg projection-audit --graph-home ~/.vault-graph` |
@@ -209,11 +209,18 @@ either option use the active Vault.
 
 ## Embedding Model
 
-Vault Graph embeds every chunk with a local model for semantic search. It uses
-one model, `e5-small` (`Xenova/multilingual-e5-small`, int8). The model suits
-Korean and English coding agent session transcripts, reads up to 512 tokens per
-chunk, and downloads about 135 MB. You do not need to set anything up: the
-first `vg setup` or `vg index` downloads it. `vg setup --no-index` does not.
+Vault Graph embeds every chunk with a local model for semantic search. The
+default model is `arctic-m` (`Snowflake/snowflake-arctic-embed-m-v2.0`, int8).
+It ranks pages by content when the question and the page are in different
+languages, for example a Korean question over English pages. It reads up to 512
+tokens per chunk and downloads about 311 MB. You do not need to set anything
+up: the first `vg setup` or `vg index` downloads it. `vg setup --no-index` does
+not.
+
+The alternative is `e5-small` (`Xenova/multilingual-e5-small`, int8, about
+135 MB). It indexes faster, but in a Vault that mixes Korean and English pages
+it ranks Korean pages above English pages that answer the question better. The
+models are listed in `EMBEDDING_PRESETS`.
 
 Model files live in `~/llm/models`, outside every registered Vault. The model
 folder is saved in `configs/embedding.json` under your Data Home
@@ -221,22 +228,26 @@ folder is saved in `configs/embedding.json` under your Data Home
 
 ```bash
 vg embedding list --graph-home ~/.vault-graph
-vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph
+vg embedding use arctic-m --models-dir /path/to/models --graph-home ~/.vault-graph
 ```
 
-`vg embedding list` shows the model, whether it is already downloaded, and the
-model folder. It never downloads anything. `vg embedding use e5-small` downloads
-the model into the folder if it is not there, then saves the folder. If the
-download fails, the saved settings do not change.
+`vg embedding list` shows the models, which one is selected, whether each is
+already downloaded, and the model folder. It never downloads anything.
+`vg embedding use arctic-m` downloads the model into the folder if it is not
+there, then saves the model name and the folder. If the download fails, the
+saved settings do not change. To stay on the earlier default, run
+`vg embedding use e5-small`.
 
-Re-indexing cost was measured on six Vaults with 26,209 chunks on a computer
-with 36 GB of memory: a full re-index took about 14 minutes, used up to about
-21 GB of memory without swapping, and the whole index folder was about 496 MB.
+Indexing cost was measured on six Vaults on a computer with 36 GB of memory
+(`docs/design/reports/2026-11-single-query-options.md` §7): a full index took
+about 21 minutes with `arctic-m` and about 8 minutes with `e5-small`, and both
+used up to about 5 GB of memory.
 
-Upgrading from a version that used MiniLM:
+Upgrading from a version whose default was `e5-small` or MiniLM, when
+`configs/embedding.json` does not name a model:
 
 1. The next `vg index`, or the background index at the next agent session
-   start, re-embeds every chunk with `e5-small`.
+   start, re-embeds every chunk with `arctic-m`.
 2. Search returns keyword results only until re-indexing finishes for that
    Vault, with a `vector_stale` warning. Vaults that finish first get semantic
    search back first.

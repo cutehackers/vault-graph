@@ -61,7 +61,7 @@ def test_readme_explains_embedding_model_selection() -> None:
     section = _readme_section(readme, "## Embedding Model")
     normalized = " ".join(section.split()).lower()
 
-    for text in ("e5-small", "~/llm/models", "vg embedding list", "vg embedding use", "EMBEDDING_PRESETS"):
+    for text in ("arctic-m", "e5-small", "~/llm/models", "vg embedding list", "vg embedding use", "EMBEDDING_PRESETS"):
         assert text in section
     assert "arctic-l" not in section
     assert "keyword results only until re-indexing finishes" in normalized
@@ -72,4 +72,4 @@ def test_readme_lists_embedding_commands_in_common_commands() -> None:
     common_commands = _readme_section(readme, "## Common Commands")
 
     assert "vg embedding list --graph-home ~/.vault-graph" in common_commands
-    assert "vg embedding use e5-small --models-dir /path/to/models --graph-home ~/.vault-graph" in common_commands
+    assert "vg embedding use arctic-m --models-dir /path/to/models --graph-home ~/.vault-graph" in common_commands

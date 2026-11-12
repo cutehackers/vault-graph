@@ -143,8 +143,8 @@ def test_doctor_reports_missing_model_files_with_download_command(
     exit_code, lines = _doctor(state, _claude_config(tmp_path, registered=True))
 
     assert exit_code == 1
-    fix = _fix_after(lines, "problem: embedding_model_missing model=e5-small")
-    assert fix.startswith("fix: vg embedding use e5-small --models-dir ")
+    fix = _fix_after(lines, "problem: embedding_model_missing model=arctic-m")
+    assert fix.startswith("fix: vg embedding use arctic-m --models-dir ")
     assert fix.endswith(f" --graph-home {state.resolve()}")
 
 
