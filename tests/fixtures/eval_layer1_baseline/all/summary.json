@@ -2,29 +2,29 @@
   "by_kind": {
     "decision": {
       "failed": 0,
-      "mrr": 0.6062,
+      "mrr": 0.5831,
       "outcomes": {
         "candidate_loss": 0,
-        "hit": 30,
+        "hit": 28,
         "rank_loss": 6
       },
-      "questions": 36,
-      "recall_at_10": 0.9444,
-      "recall_at_5": 0.8333,
-      "scored": 36
+      "questions": 34,
+      "recall_at_10": 0.9412,
+      "recall_at_5": 0.8235,
+      "scored": 34
     },
     "how": {
       "failed": 0,
-      "mrr": 0.5971,
+      "mrr": 0.5432,
       "outcomes": {
         "candidate_loss": 1,
-        "hit": 29,
-        "rank_loss": 10
+        "hit": 22,
+        "rank_loss": 9
       },
-      "questions": 40,
-      "recall_at_10": 0.9,
-      "recall_at_5": 0.725,
-      "scored": 40
+      "questions": 32,
+      "recall_at_10": 0.875,
+      "recall_at_5": 0.6875,
+      "scored": 32
     },
     "no_answer": {
       "failed": 0,
@@ -41,16 +41,16 @@
     },
     "paraphrase": {
       "failed": 0,
-      "mrr": 0.64,
+      "mrr": 0.6222,
       "outcomes": {
         "candidate_loss": 4,
-        "hit": 31,
+        "hit": 27,
         "rank_loss": 5
       },
-      "questions": 40,
-      "recall_at_10": 0.825,
-      "recall_at_5": 0.775,
-      "scored": 40
+      "questions": 36,
+      "recall_at_10": 0.8056,
+      "recall_at_5": 0.75,
+      "scored": 36
     },
     "session": {
       "failed": 0,
@@ -67,7 +67,7 @@
     },
     "title": {
       "failed": 0,
-      "mrr": 0.9511,
+      "mrr": 0.9733,
       "outcomes": {
         "candidate_loss": 0,
         "hit": 30,
@@ -84,20 +84,20 @@
   "hit_limit": 5,
   "include_graph": false,
   "layer": 1,
-  "mrr": 0.6642,
+  "mrr": 0.6552,
   "outcomes": {
     "candidate_loss": 11,
-    "hit": 165,
-    "rank_loss": 30
+    "hit": 152,
+    "rank_loss": 29
   },
-  "questions": 236,
-  "recall_at_10": 0.8883,
-  "recall_at_5": 0.801,
+  "questions": 222,
+  "recall_at_10": 0.8802,
+  "recall_at_5": 0.7917,
   "result_limit": 20,
-  "scored": 206,
+  "scored": 192,
   "seconds": {
-    "p50": 28.778,
-    "p95": 34.286
+    "p50": 28.581,
+    "p95": 32.515
   },
   "split": "all",
   "vault_ids": [
