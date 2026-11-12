@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date
 
@@ -28,8 +29,12 @@ from vault_graph.storage.interfaces.metadata_store import EvidenceReference, Met
 RETIRED_STATUS = "retired"
 PARENT_GROUPED_WARNING = "parent_grouped"
 DUPLICATE_CONTENT_WARNING = "duplicate_content"
+REPLACED_PAGES_WARNING = "replaced_pages_attached"
 
 ResolvedCandidate = tuple[FusedCandidate, EvidenceReference, str]
+# What makes two session exchanges the same content: the exchange keyword metadata and the `content_hash` of
+# every window of the exchange, in document order.
+ExchangeSignature = tuple[str | None, tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -38,6 +43,9 @@ class _ParentGroup:
 
     ``window_count`` is how many ranked chunks the unit stands for. ``duplicates`` names the same content
     in other Vaults (`<vault_id>:<path>`), folded into this unit (spec 2026-11-05 §10.2 원인4).
+    ``copies`` are the lower-ranked units of the same Vault that hold the same session exchange, and
+    ``replaced`` are the lower-ranked pages of this page's `supersedes`/`superseded_by` chain. Both stay
+    reachable as extra evidence of this unit's result (spec 2026-11-11 결정17).
     """
 
     item: ResolvedCandidate
@@ -46,6 +54,8 @@ class _ParentGroup:
     score: float = 0.0
     document: DocumentSnapshot | None = None
     duplicates: tuple[str, ...] = ()
+    copies: tuple[_ParentGroup, ...] = ()
+    replaced: tuple[_ParentGroup, ...] = ()
 
 
 class EvidenceResultAssembly:
@@ -70,6 +80,9 @@ class EvidenceResultAssembly:
         signal added once (원인5, ``title_signal_score``). Knowledge mode folds pages joined by
         `supersedes`/`superseded_by` (원인2). The same content in several Vaults returns once, from the
         earliest Vault of ``vault_order`` (원인4).
+
+        Spec 2026-11-11 결정17: the same session exchange in several files of one Vault returns once, at the
+        highest-ranked copy. Folded copies and replaced pages are listed after the result's own evidence.
         """
         dropped = 0
         warnings: list[SearchWarning] = []
@@ -106,6 +119,7 @@ class EvidenceResultAssembly:
         groups = _group_by_unit(ranked, chunks, documents=documents, mode=mode, query_text=query_text)
         if mode == "knowledge":
             groups = _fold_replacements(groups)
+        groups = _fold_exchange_copies(groups, signature=self._exchange_signature)
         groups = _fold_duplicate_content(groups, vault_order=vault_order)
         families: dict[tuple[str, str], tuple[EvidenceReference, ...]] = {}
         results = tuple(
@@ -124,6 +138,31 @@ class EvidenceResultAssembly:
         if document_id not in cache:
             cache[document_id] = self._metadata_store.resolve_document(document_id)
         return cache[document_id]
+
+    def _exchange_signature(self, group: _ParentGroup) -> ExchangeSignature | None:
+        """Content identity of the whole exchange a session unit stands for, or None when it cannot be read.
+
+        Window text is the exchange's turns without file positions, so the same exchange written into two
+        session files gives the same window hashes. One narrow read per asked unit (spec 2026-11-11 §4.2.6).
+        """
+        candidate = group.item[0]
+        parent_key = group.chunk.parent_key
+        if parent_key is None:
+            return None
+        reader = getattr(self._metadata_store, "list_parent_chunk_hashes", None)
+        if callable(reader):
+            hashes = tuple(
+                reader(vault_id=candidate.vault_id, document_id=candidate.document_id, parent_key=parent_key)
+            )
+        else:
+            hashes = tuple(
+                chunk.content_hash
+                for chunk in self._metadata_store.list_document_chunks(
+                    vault_id=candidate.vault_id, document_id=candidate.document_id
+                )
+                if chunk.parent_key == parent_key
+            )
+        return (group.chunk.keyword_metadata, hashes) if hashes else None
 
     def _result_for_group(
         self, *, group: _ParentGroup, rank: int, families: dict[tuple[str, str], tuple[EvidenceReference, ...]]
@@ -168,10 +207,33 @@ class EvidenceResultAssembly:
                     severity="info",
                 )
             )
+        if group.copies:
+            names = ", ".join(f"{copy.item[0].vault_id}:{copy.item[1].path}" for copy in group.copies)
+            warnings.append(
+                RetrievalWarning(
+                    code=DUPLICATE_CONTENT_WARNING,
+                    message=f"The same exchange is also in {names}; shown once from {evidence.path}.",
+                    severity="info",
+                )
+            )
+        if group.replaced:
+            names = ", ".join(page.item[1].path for page in group.replaced)
+            warnings.append(
+                RetrievalWarning(
+                    code=REPLACED_PAGES_WARNING,
+                    message=(
+                        f"Pages joined to {evidence.path} by supersedes/superseded_by are attached as "
+                        f"evidence: {names}."
+                    ),
+                    severity="info",
+                )
+            )
         result = self._result_for_candidate(
             candidate=candidate, evidence=evidence, summary=summary, rank=rank, families=families
         )
-        return replace(result, warnings=tuple(warnings))
+        # The result's own evidence stays first. Copies and replaced pages follow in rank order.
+        attached = (*(_unit_evidence(copy) for copy in group.copies), *(page.item[1] for page in group.replaced))
+        return replace(result, evidence=_unique_evidence((evidence, *attached)), warnings=tuple(warnings))
 
     def _result_for_candidate(
         self,
@@ -295,7 +357,9 @@ def _group_by_unit(
 def _fold_replacements(groups: tuple[_ParentGroup, ...]) -> tuple[_ParentGroup, ...]:
     """Keep the highest-ranked page of each `supersedes`/`superseded_by` chain (spec 2026-11-05 §10.2 원인2).
 
-    Pages that only share a `derived_from` or `canonical_source` target stay separate results.
+    The lower-ranked pages of the chain move into the kept unit's ``replaced``, in rank order, so the result
+    still names them (spec 2026-11-11 결정17). Pages that only share a `derived_from` or `canonical_source`
+    target stay separate results.
     """
     parent: dict[tuple[str, str], tuple[str, str]] = {}
 
@@ -315,16 +379,18 @@ def _fold_replacements(groups: tuple[_ParentGroup, ...]) -> tuple[_ParentGroup, 
                 parent[max(own, other)] = min(own, other)
                 own = min(own, other)
     kept: list[_ParentGroup] = []
-    seen: set[tuple[str, str]] = set()
+    position_by_root: dict[tuple[str, str], int] = {}
     for group in groups:
         evidence = group.item[1]
         if group.chunk.parent_key is not None:
             kept.append(group)
             continue
         root = find((evidence.vault_id, evidence.path))
-        if root in seen:
+        position = position_by_root.get(root)
+        if position is not None:
+            kept[position] = replace(kept[position], replaced=(*kept[position].replaced, group))
             continue
-        seen.add(root)
+        position_by_root[root] = len(kept)
         kept.append(group)
     return tuple(kept)
 
@@ -341,6 +407,61 @@ def _replacement_paths(document: DocumentSnapshot | None) -> tuple[str, ...]:
             targets.extend(item for item in value if isinstance(item, str))
     # `provenance_paths` normalizes wiki links and Vault-relative paths the same way the index does.
     return provenance_paths({"supersedes": targets})
+
+
+def _fold_exchange_copies(
+    groups: tuple[_ParentGroup, ...], *, signature: Callable[[_ParentGroup], ExchangeSignature | None]
+) -> tuple[_ParentGroup, ...]:
+    """Fold session exchanges with the same content inside one Vault into the highest-ranked copy.
+
+    Session files that continue one conversation hold the same exchange again. ``signature`` gives the
+    identity of a whole exchange. It is asked only for units that share the Vault and the exchange question
+    (the chunk `section`) with another unit, so a search with no copy candidates reads nothing extra. The
+    lower-ranked copies move into the kept unit's ``copies``, in rank order.
+
+    A forked session, or a file captured before the exchange ended, holds only the first part of the
+    exchange. Such a unit is a copy too (`_same_exchange`).
+    """
+    question_counts: dict[tuple[str, str | None], int] = {}
+    for group in groups:
+        if group.chunk.parent_key is not None:
+            key = (group.item[0].vault_id, group.chunk.section)
+            question_counts[key] = question_counts.get(key, 0) + 1
+    kept: list[_ParentGroup] = []
+    kept_contents: dict[tuple[str, str | None], list[tuple[ExchangeSignature, int]]] = {}
+    for group in groups:
+        vault_id = group.item[0].vault_id
+        if group.chunk.parent_key is None or question_counts[(vault_id, group.chunk.section)] < 2:
+            kept.append(group)
+            continue
+        content = signature(group)
+        seen = kept_contents.setdefault((vault_id, group.chunk.section), [])
+        position = (
+            next((index for other, index in seen if _same_exchange(content, other)), None)
+            if content is not None
+            else None
+        )
+        if position is not None:
+            kept[position] = replace(kept[position], copies=(*kept[position].copies, group))
+            continue
+        if content is not None:
+            seen.append((content, len(kept)))
+        kept.append(group)
+    return tuple(kept)
+
+
+def _same_exchange(first: ExchangeSignature, second: ExchangeSignature) -> bool:
+    """True for the same exchange, or for one exchange and a shorter copy of its first part.
+
+    The signatures are equal, or the shorter one's windows, all but its last, open the longer one. The last
+    window of the shorter copy is left out because it ends where that file stopped, so its text differs
+    from the same window in the longer copy. A one-window exchange has to be equal.
+    """
+    if first == second:
+        return True
+    shorter, longer = sorted((first[1], second[1]), key=len)
+    shared = len(shorter) - 1
+    return shared >= 1 and len(longer) > len(shorter) and longer[:shared] == shorter[:shared]
 
 
 def _fold_duplicate_content(
@@ -376,6 +497,21 @@ def _fold_duplicate_content(
         others = tuple(f"{member.item[0].vault_id}:{member.item[1].path}" for member in cluster if member is not shown)
         folded.append(replace(shown, duplicates=others))
     return tuple(folded)
+
+
+def _unit_evidence(group: _ParentGroup) -> EvidenceReference:
+    """Evidence of a unit as a result shows it: a session unit points at its whole exchange."""
+    evidence = group.item[1]
+    if group.chunk.parent_key is not None and group.chunk.parent_locators:
+        return replace(evidence, source_locators=group.chunk.parent_locators)
+    return evidence
+
+
+def _unique_evidence(evidence: tuple[EvidenceReference, ...]) -> tuple[EvidenceReference, ...]:
+    by_chunk: dict[tuple[str, str, str], EvidenceReference] = {}
+    for item in evidence:
+        by_chunk.setdefault((item.vault_id, item.document_id, item.chunk_id), item)
+    return tuple(by_chunk.values())
 
 
 def _one_reference_per_document(evidence: tuple[EvidenceReference, ...]) -> tuple[EvidenceReference, ...]:
