@@ -1,4 +1,4 @@
-"""Memory quality measurement: answer pages in session start recall and `build_context_pack`, metrics 1-6.
+"""Memory quality measurement: answer pages in session start recall and `build_context_pack`, metrics 1-8.
 
 Spec 2026-11-05-session-memory-indexing §4.4.10, A-28. Run from the repository root after `vg index`:
   uv run --python 3.12 --all-packages --all-extras python -m tests.benchmarks.measure_memory_recall \
@@ -44,8 +44,16 @@ Metrics. 1 and 2 read only the recall output and the index, so they do not depen
 6. Merge candidates of `memory_candidate_package`. 5 and 6 come from one in-process call without
    comparison material, so nothing is searched or written. Merge embeds the current pages with the
    configured local model only when it is already downloaded; otherwise the count is 0 with a warning.
+7. Share of memory pages with a summary (spec 2026-11-11 §4.3.4, goal 6): current `wiki/` memory
+   pages of the project (`is_current_memory_page`) whose frontmatter `summary` is not empty and not
+   only the title. `remember` without a summary writes the title there, so that does not count.
+   The total counts a page linked to several projects once.
+8. Share of sessions with a `fetched` event, from the same `usage/` log as metric 3: sessions are
+   the distinct `session_id` of the project's `injected` events, without this tool's. A `fetched`
+   event counts for the session it names. One that names no session counts for the session, of any
+   project, that last injected its item at or before the fetch.
 
-Metrics 3-6 are recorded only. `gate_passed` is true when metrics 1 and 2 are 0 and every project
+Metrics 3-8 are recorded only. `gate_passed` is true when metrics 1 and 2 are 0 and every project
 recall ran. Per-question rows go to `out_dir/results.jsonl`, per-project counts to
 `out_dir/projects.jsonl`, and `out_dir/summary.json` holds totals only. None holds question text
 or recall text.
@@ -182,6 +190,9 @@ class ProjectReport:
     backlog_ages: tuple[float, ...]
     merge_candidates: int
     warnings: tuple[str, ...]
+    memory_pages: frozenset[PageKey] = frozenset()
+    summary_pages: frozenset[PageKey] = frozenset()
+    sessions: Mapping[str, object] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -193,6 +204,8 @@ class ProjectReport:
             "metric3": dict(self.usage),
             "metric5": backlog_age(self.backlog_ages),
             "metric6": self.merge_candidates,
+            "metric7": summary_share(len(self.memory_pages), len(self.summary_pages)),
+            "metric8": dict(self.sessions),
             "warnings": len(self.warnings),
         }
 
@@ -373,6 +386,51 @@ def backlog_age(ages: Sequence[float]) -> dict[str, object]:
     }
 
 
+def has_summary(frontmatter: Mapping[str, object]) -> bool:
+    """True when the page has a summary of its own: not empty and not only its title."""
+    summary, title = frontmatter.get("summary"), frontmatter.get("title")
+    if not isinstance(summary, str) or not summary.strip():
+        return False
+    return not isinstance(title, str) or summary.strip() != title.strip()
+
+
+def summary_share(memory_pages: int, summary_pages: int) -> dict[str, object]:
+    """Metric 7: memory pages, those with a summary, and their share."""
+    share = round(summary_pages / memory_pages, 4) if memory_pages else None
+    return {"memory_pages": memory_pages, "summary_pages": summary_pages, "share": share}
+
+
+def fetch_sessions(events: Iterable[Mapping[str, object]], *, project_id: str) -> dict[str, object]:
+    """Metric 8 for one project: sessions with injected memory and those with a `fetched` event."""
+    injections: dict[str, list[tuple[datetime, str]]] = {}  # item id -> (injected at, session id), any project
+    sessions: set[str] = set()
+    fetches: list[tuple[datetime, str, object]] = []
+    for event in events:
+        at = _moment(event.get("at"))
+        item = event.get("item_id")
+        if at is None or not isinstance(item, str):
+            continue
+        session = event.get("session_id")
+        if event.get("event") == "injected":
+            if isinstance(session, str) and session and session != SESSION_ID:
+                injections.setdefault(item, []).append((at, session))
+                if event.get("project") == project_id:
+                    sessions.add(session)
+        elif event.get("event") == "fetched":
+            fetches.append((at, item, session))
+    fetched: set[str] = set()
+    for at, item, session in fetches:
+        if isinstance(session, str) and session:
+            fetched.add(session)
+            continue
+        before = [injection for injection in injections.get(item, ()) if injection[0] <= at]
+        if before:
+            fetched.add(max(before)[1])
+    with_fetch = len(fetched & sessions)
+    share = round(with_fetch / len(sessions), 4) if sessions else None
+    return {"sessions": len(sessions), "sessions_with_fetch": with_fetch, "share": share}
+
+
 def summarize(
     scores: Sequence[QuestionScore], projects: Sequence[ProjectReport], *, proposals: Iterable[Mapping[str, int]]
 ) -> dict[str, object]:
@@ -403,6 +461,8 @@ def summarize(
     other = sum(injection.unsharable_other for injection in injections)
     injected = sum(_int(project.usage.get("injected_items")) for project in projects)
     opened = sum(_int(project.usage.get("opened_items")) for project in projects)
+    sessions = sum(_int(project.sessions.get("sessions")) for project in projects)
+    with_fetch = sum(_int(project.sessions.get("sessions_with_fetch")) for project in projects)
     failed_projects = sum(1 for project in projects if project.error is not None)
     metric2 = round(other / pages, 4) if pages else None
     return {
@@ -427,6 +487,15 @@ def summarize(
         "metric4_inferred_acceptance": acceptance_rate(proposals),
         "metric5_backlog_age": backlog_age([age for project in projects for age in project.backlog_ages]),
         "metric6_merge_candidates": sum(project.merge_candidates for project in projects),
+        "metric7_summary_share": summary_share(
+            len(frozenset().union(*(project.memory_pages for project in projects))),
+            len(frozenset().union(*(project.summary_pages for project in projects))),
+        ),
+        "metric8_fetch_session_share": {
+            "sessions": sessions,
+            "sessions_with_fetch": with_fetch,
+            "share": round(with_fetch / sessions, 4) if sessions else None,
+        },
         "gate_passed": failed_projects == 0 and metric1 == 0 and not metric2,
     }
 
@@ -443,6 +512,8 @@ class _ProjectView:
     vault_roots: dict[str, Path]
     facts_by_page: dict[PageKey, PageFacts]
     names: dict[str, str] = field(default_factory=dict)
+    memory_pages: frozenset[PageKey] = frozenset()
+    summary_pages: frozenset[PageKey] = frozenset()
 
     def resolve(self, label: str | None) -> str | None:
         if label is None:
@@ -457,6 +528,7 @@ class _ProjectView:
 
 def _open_view(graph_home: Path, vault_map: Path, cwd: Path) -> _ProjectView:
     from vault_graph.context.memory.claims import SUPERSEDED_CLAIM_STATUS, read_claim_table
+    from vault_graph.context.memory.memory_candidates import MemoryPage, is_current_memory_page
     from vault_graph.context.memory.project_scope import UNMAPPED_VAULT_SCOPE, page_in_project
     from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
     from vault_graph.operation.scope.catalog_service import CatalogService
@@ -468,11 +540,18 @@ def _open_view(graph_home: Path, vault_map: Path, cwd: Path) -> _ProjectView:
     indexed = tuple(vault_id for vault_id in scope.vault_ids if ports.documents.is_indexed(vault_id))
     catalog = CatalogService(graph_home_path=graph_home).load_catalog()
     facts: dict[PageKey, PageFacts] = {}
+    memory_pages: set[PageKey] = set()
+    summary_pages: set[PageKey] = set()
     for vault_id in indexed:
         vault_scope = scope.vault_scopes.get(vault_id, UNMAPPED_VAULT_SCOPE)
         for document in ports.documents.documents(vault_id):
             if not document.path.startswith("wiki/"):
                 continue
+            page = MemoryPage(vault_id, document.path, "", document.frontmatter, vault_scope)
+            if is_current_memory_page(page, scope.project_id):
+                memory_pages.add(page.key)
+                if has_summary(document.frontmatter):
+                    summary_pages.add(page.key)
             status = document.frontmatter.get("status")
             table = read_claim_table(ports.documents.body_text(vault_id, document.document_id))
             rows = table.rows if table is not None and table.problem is None else ()
@@ -491,6 +570,8 @@ def _open_view(graph_home: Path, vault_map: Path, cwd: Path) -> _ProjectView:
         vault_roots={vault_id: catalog.resolve(vault_id).root_path for vault_id in indexed},
         facts_by_page=facts,
         names=dict(scope.vault_names),
+        memory_pages=frozenset(memory_pages),
+        summary_pages=frozenset(summary_pages),
     )
 
 
@@ -569,6 +650,9 @@ def _measure_project(
         backlog_ages=backlog_ages(exchanges, now=now),
         merge_candidates=package.count("merge"),
         warnings=package.warnings,
+        memory_pages=view.memory_pages,
+        summary_pages=view.summary_pages,
+        sessions=fetch_sessions(events, project_id=view.project_id) if view.project_id else {},
     )
     return _ProjectRun(view, recalled, report)
 

@@ -55,6 +55,9 @@ def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, 
     Kind ``project`` is the project brief: its file name is the project id, not the title, because the
     Vault accepts ``type: project`` only at ``wiki/projects/<project>.md`` (spec 2026-11-05 §4.4.7).
     ``validate_remember`` has already checked that a brief request has a project id.
+
+    ``summary`` and ``aliases`` are the agent's own words (spec 2026-11-11 §4.3.1). The Vault requires a
+    ``summary``, so a request without one keeps the title there.
     """
     title = request.title.strip()
     evidence = _evidence(request.evidence)
@@ -68,7 +71,7 @@ def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, 
         "created": day,
         "updated": day,
         "owner": "agent",
-        "summary": title,
+        "summary": request.summary.strip() if request.summary is not None else title,
         "source_count": len(evidence),
         "tags": [request.memory_kind] if request.memory_kind in TAGGED_MEMORY_KINDS else [],
         "related": [],
@@ -82,6 +85,8 @@ def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, 
     }
     if request.project_id is not None:
         frontmatter["project"] = request.project_id
+    if request.aliases:
+        frontmatter["aliases"] = _aliases(request.aliases)
     _set_memory_fields(frontmatter, pin=True if request.pin else None, memory_kind=request.memory_kind)
     return {
         "version": 1,
@@ -101,6 +106,9 @@ def build_remember_draft(request: RememberRequest, *, today: date) -> dict[str, 
 def build_update_draft(request: UpdateRequest, current: PageText, *, today: date) -> dict[str, object]:
     """Build the ``upsert-page`` draft that keeps the current frontmatter and replaces the body (결정S8).
 
+    A new title also replaces a ``summary`` that only repeated the old title. A summary the agent or a
+    person wrote stays until the request gives a new one.
+
     Raises ``ValueError`` when the current page has no frontmatter to keep.
     """
     current_frontmatter = parse_frontmatter(current.text)
@@ -109,8 +117,15 @@ def build_update_draft(request: UpdateRequest, current: PageText, *, today: date
     frontmatter = dict(current_frontmatter)
     evidence = _evidence(request.evidence)
     if request.title is not None:
+        if frontmatter.get("summary") in (None, "", frontmatter.get("title")):
+            frontmatter["summary"] = request.title.strip()
         frontmatter["title"] = request.title.strip()
-        frontmatter["summary"] = request.title.strip()
+    if request.summary is not None:
+        frontmatter["summary"] = request.summary.strip()
+    if request.aliases:
+        frontmatter["aliases"] = _aliases(request.aliases)
+    elif request.aliases is not None:
+        frontmatter.pop("aliases", None)
     frontmatter["updated"] = today.isoformat()
     frontmatter["source_count"] = len(evidence)
     _set_memory_fields(frontmatter, pin=request.pin, memory_kind=request.memory_kind)
@@ -242,6 +257,10 @@ def _body(title: str, body: str, basis: str, evidence: tuple[str, ...]) -> str:
 
 def _evidence(items: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(item.strip() for item in items)
+
+
+def _aliases(items: tuple[str, ...]) -> list[str]:
+    return [item.strip() for item in items]
 
 
 def _link_target(path: str) -> str:

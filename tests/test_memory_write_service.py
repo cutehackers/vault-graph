@@ -811,3 +811,217 @@ def test_writes_create_no_file_under_the_vault_root(tmp_path: Path) -> None:
     assert len(writer.calls) == 3
     assert not any(path.is_relative_to(main.path) for path in writer.draft_paths)
     assert file_bytes(main.path) == before
+
+
+# Summary and aliases (spec 2026-11-11 §4.3.1, A-9)
+
+
+def test_remember_puts_the_agents_summary_and_aliases_in_the_frontmatter(tmp_path: Path) -> None:
+    writer = RecordingWriter()
+
+    result = make_service(tmp_path, writer).remember(
+        remember_request(summary=" 색인은 SQLite 파일 하나에 둔다. ", aliases=("SQLite 색인", " sqlite index "))
+    )
+
+    assert result.status == "published"
+    assert result.warnings == ()
+    frontmatter = writer.drafts[0]["frontmatter"]
+    assert isinstance(frontmatter, dict)
+    assert frontmatter["summary"] == "색인은 SQLite 파일 하나에 둔다."
+    assert frontmatter["aliases"] == ["SQLite 색인", "sqlite index"]
+
+
+def test_inferred_remember_proposes_the_same_summary_and_aliases(tmp_path: Path) -> None:
+    writer = RecordingWriter()
+
+    result = make_service(tmp_path, writer).remember(
+        remember_request(basis="inferred", summary="One file, no server.", aliases=("단일 색인",))
+    )
+
+    assert result.status == "proposed"
+    assert result.warnings == ()
+    assert writer.calls == []
+    frontmatter = writer.drafts[0]["frontmatter"]
+    assert isinstance(frontmatter, dict)
+    assert (frontmatter["summary"], frontmatter["aliases"]) == ("One file, no server.", ["단일 색인"])
+
+
+def test_stated_remember_without_summary_is_published_with_a_warning(tmp_path: Path) -> None:
+    from vault_graph.operation.memory.memory_write_service import NO_SUMMARY_WARNING
+
+    writer = RecordingWriter()
+
+    result = make_service(tmp_path, writer).remember(remember_request())
+
+    assert result.status == "published"
+    assert result.warnings == (NO_SUMMARY_WARNING,)
+    frontmatter = writer.drafts[0]["frontmatter"]
+    assert isinstance(frontmatter, dict)
+    # The Vault requires a summary, so the title stays there. vault-graph writes no sentence of its own.
+    assert frontmatter["summary"] == "Use SQLite"
+    assert "aliases" not in frontmatter
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"basis": "inferred"}, {"summary": "One file."}],
+)
+def test_no_summary_warning_is_only_for_stated_remember_without_summary(
+    tmp_path: Path, overrides: dict[str, object]
+) -> None:
+    result = make_service(tmp_path, RecordingWriter()).remember(remember_request(**overrides))
+
+    assert result.warnings == ()
+
+
+def test_vault_rejection_of_the_new_fields_is_returned_unchanged_without_a_second_try(tmp_path: Path) -> None:
+    rejection = WriteOutcome(
+        status="rejected",
+        messages=("The Vault rejected the draft (invalid-draft).", "[error] unknown-field - aliases"),
+        reason="invalid-draft",
+    )
+    writer = RecordingWriter(rejection)
+
+    result = make_service(tmp_path, writer).remember(remember_request(summary="One file.", aliases=("단일 색인",)))
+
+    assert result.status == "rejected"
+    assert result.messages == rejection.messages
+    assert result.warnings == ()
+    assert len(writer.calls) == 1
+    frontmatter = writer.drafts[0]["frontmatter"]
+    assert isinstance(frontmatter, dict)
+    assert frontmatter["aliases"] == ["단일 색인"]
+
+
+@pytest.mark.parametrize(
+    ("overrides", "reason"),
+    [
+        ({"summary": "  "}, "summary"),
+        ({"summary": "line one\nline two"}, "summary"),
+        ({"aliases": ("ok", " ")}, "aliases"),
+        ({"aliases": ("two\nlines",)}, "aliases"),
+        ({"aliases": "not a list"}, "aliases"),
+    ],
+)
+@pytest.mark.parametrize("operation", ["remember", "update"])
+def test_bad_summary_or_aliases_are_rejected_without_calling_the_writer(
+    tmp_path: Path, operation: str, overrides: dict[str, object], reason: str
+) -> None:
+    writer = RecordingWriter()
+    service = make_service(tmp_path, writer)
+
+    if operation == "remember":
+        result = service.remember(remember_request(**overrides))
+    else:
+        result = service.update(update_request(**overrides))
+
+    assert result.status == "rejected"
+    assert any(reason in message for message in result.messages)
+    assert writer.calls == []
+
+
+def test_update_sets_summary_and_aliases_and_keeps_them_when_left_out(tmp_path: Path) -> None:
+    main = make_vault(tmp_path, "main")
+    add_page(main)
+    writer = RecordingWriter()
+    service = make_service(tmp_path, writer, vaults=(main,))
+
+    service.update(update_request(summary="색인은 SQLite에 둔다.", aliases=("SQLite 색인",)))
+    frontmatter = writer.drafts[0]["frontmatter"]
+    assert isinstance(frontmatter, dict)
+    assert (frontmatter["summary"], frontmatter["aliases"]) == ("색인은 SQLite에 둔다.", ["SQLite 색인"])
+
+    add_page(main, text=PAGE.replace("summary: Use SQLite", "summary: Kept sentence.\naliases:\n  - 색인"))
+    service.update(update_request(title="Use one SQLite file"))
+    kept = writer.drafts[1]["frontmatter"]
+    assert isinstance(kept, dict)
+    assert (kept["title"], kept["summary"], kept["aliases"]) == ("Use one SQLite file", "Kept sentence.", ["색인"])
+
+    service.update(update_request(aliases=()))
+    assert "aliases" not in writer.drafts[2]["frontmatter"]  # type: ignore[operator]
+
+
+def test_update_title_still_replaces_a_summary_that_only_repeated_the_title(tmp_path: Path) -> None:
+    main = make_vault(tmp_path, "main")
+    add_page(main)
+    writer = RecordingWriter()
+
+    make_service(tmp_path, writer, vaults=(main,)).update(update_request(title="Use one SQLite file"))
+
+    frontmatter = writer.drafts[0]["frontmatter"]
+    assert isinstance(frontmatter, dict)
+    assert frontmatter["summary"] == "Use one SQLite file"
+
+
+# Similar existing pages (backlog MEMORY-01)
+
+
+class FakeSimilarPages:
+    def __init__(self, pages: tuple[Any, ...] = (), *, error: Exception | None = None) -> None:
+        self.pages = pages
+        self.error = error
+        self.calls: list[tuple[Path | None, str, int]] = []
+
+    def find(self, cwd: Path | None, query: str, *, limit: int) -> tuple[Any, ...]:
+        self.calls.append((cwd, query, limit))
+        if self.error is not None:
+            raise self.error
+        return self.pages
+
+
+def _similar_service(tmp_path: Path, writer: RecordingWriter, lookup: FakeSimilarPages) -> MemoryWriteService:
+    temp_root = tmp_path / "os-temp"
+    temp_root.mkdir(exist_ok=True)
+    return MemoryWriteService(
+        vault_map=FakeVaultMap((make_vault(tmp_path, "main"),), {}),
+        writer=writer,
+        page_reader=DiskPageReader(),
+        today=lambda: TODAY,
+        drafts=TemporaryDraftFiles(temp_root=temp_root),
+        similar_pages=lookup,
+    )
+
+
+def test_remember_lists_at_most_3_similar_pages_with_status_and_still_publishes(tmp_path: Path) -> None:
+    from vault_graph.operation.memory.memory_requests import SimilarMemoryPage
+    from vault_graph.operation.memory.memory_write_service import SIMILAR_PAGES_MESSAGE
+
+    pages = tuple(
+        SimilarMemoryPage(vault_id="main", path=f"wiki/decisions/p{number}.md", title=f"P{number}", status=status)
+        for number, status in enumerate(("active", "retired", "deprecated", "active"))
+    )
+    lookup = FakeSimilarPages(pages)
+    writer = RecordingWriter()
+
+    result = _similar_service(tmp_path, writer, lookup).remember(remember_request(cwd=str(tmp_path)))
+
+    assert result.status == "published"
+    assert len(writer.calls) == 1
+    assert result.similar_pages == pages[:3]
+    assert [page.status for page in result.similar_pages] == ["active", "retired", "deprecated"]
+    assert SIMILAR_PAGES_MESSAGE in result.messages
+    assert "update_memory" in SIMILAR_PAGES_MESSAGE and "retire_memory(replaced_by=...)" in SIMILAR_PAGES_MESSAGE
+    assert lookup.calls == [(tmp_path, "Use SQLite\n\nWe keep the index in SQLite.", 3)]
+
+
+@pytest.mark.parametrize("lookup", [FakeSimilarPages(), FakeSimilarPages(error=RuntimeError("search is down"))])
+def test_remember_publishes_without_similar_pages_when_none_are_found_or_search_fails(
+    tmp_path: Path, lookup: FakeSimilarPages
+) -> None:
+    from vault_graph.operation.memory.memory_write_service import SIMILAR_PAGES_MESSAGE
+
+    result = _similar_service(tmp_path, RecordingWriter(), lookup).remember(remember_request())
+
+    assert result.status == "published"
+    assert result.similar_pages == ()
+    assert SIMILAR_PAGES_MESSAGE not in result.messages
+    assert len(lookup.calls) == 1
+
+
+def test_invalid_remember_does_not_search_for_similar_pages(tmp_path: Path) -> None:
+    lookup = FakeSimilarPages()
+
+    result = _similar_service(tmp_path, RecordingWriter(), lookup).remember(remember_request(title=" "))
+
+    assert result.status == "rejected"
+    assert lookup.calls == []

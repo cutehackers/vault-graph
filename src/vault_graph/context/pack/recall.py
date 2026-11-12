@@ -262,7 +262,7 @@ def recall(
         items = _block_b_items(library)
         if not items and not notices and not pins.text and not project_summary:
             return _handoff("No memory to recall for this project.", warnings)
-        backlog = backlog_lines(ports.backlog, cwd, warnings, budget_s=ports.backlog_budget_s)
+        alert, backlog = backlog_lines(ports.backlog, cwd, warnings, budget_s=ports.backlog_budget_s)
         backlog.extend(_brief_lines(ports.documents, indexed, scope, warnings))
         layout = _layout(
             library,
@@ -275,6 +275,7 @@ def recall(
             max_chars=max_chars,
             proposals=_pending_proposals(ports.proposals, indexed, warnings),
             backlog=backlog,
+            alert=alert,
             failures=_failure_lines(index_failures or {}, scope.vault_ids),
         )
 
@@ -734,6 +735,7 @@ def _layout(
     proposals: Mapping[str, int] | None = None,
     project_summary: str = "",
     backlog: Sequence[str] = (),
+    alert: Sequence[str] = (),
     failures: Sequence[str] = (),
 ) -> _Layout:
     def fits(text: str) -> bool:
@@ -766,7 +768,10 @@ def _layout(
     item_lines = [_item_line(library, entry) for entry in items]
 
     def render(shown_items: int, shown_notices: int) -> str:
-        blocks: list[str] = [pins.text] if pins is not None and pins.text else []
+        # An overdue cleanup backlog line comes before every block (spec 2026-11-11 §4.3.3).
+        blocks: list[str] = ["".join(line + "\n" for line in alert)] if alert else []
+        if pins is not None and pins.text:
+            blocks.append(pins.text)
         if project_summary:
             blocks.append(project_summary)
         if items:

@@ -6,6 +6,7 @@ reads a current page and never writes. ``DraftFiles`` turns a draft into the fil
 outside every Vault, and removes it afterwards, so the M18 service writes no file itself.
 ``VaultImporter`` runs Vault ``import-source`` to keep a copy of an auto-memory note (path 4, spec
 2026-11-05 §4.4.5). ``ReviewedLog`` records processed cleanup candidates in the Graph Home (§4.4.4).
+``SimilarPagesLookup`` searches the index for existing pages like a new memory (backlog MEMORY-01).
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
+
+from vault_graph.operation.memory.memory_requests import SimilarMemoryPage
 
 WriteStatus = Literal["published", "proposed", "rejected", "error"]
 
@@ -78,10 +81,20 @@ class ReviewedLog(Protocol):
         ...
 
 
+class SimilarPagesLookup(Protocol):
+    def find(self, cwd: Path | None, query: str, *, limit: int) -> Sequence[SimilarMemoryPage]:
+        """Existing pages of the ``cwd`` project like ``query``, best first, retired pages included.
+
+        Reads the index only. Returns nothing when there is no index or no project.
+        """
+        ...
+
+
 __all__ = [
     "DraftFiles",
     "PageText",
     "ReviewedLog",
+    "SimilarPagesLookup",
     "VaultImporter",
     "VaultPageReader",
     "VaultWriter",
