@@ -105,7 +105,11 @@ class SQLiteKeywordIndex:
                 _keyword_hit_from_row(
                     rank=rank,
                     row=row,
-                    matched_fields=_matched_fields(connection, rowid=int(row["rowid"]), tokens=tokens),
+                    matched_fields=(
+                        _matched_fields(connection, rowid=int(row["rowid"]), tokens=tokens)
+                        if query.with_matched_fields
+                        else ()
+                    ),
                 )
                 for rank, row in enumerate(rows, start=1)
             )

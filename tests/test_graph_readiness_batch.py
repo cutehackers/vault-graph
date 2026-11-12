@@ -186,7 +186,9 @@ def test_document_state_chunker_selection_matches_previous_join(
     store.apply_metadata_revision(index_revision="metadata-1", documents=[document], chunks=chunks, tombstones=[])
     with store.connect_for_tests() as connection:
         previous = connection.execute(
-            """SELECT c.chunk_id, c.chunker_version FROM documents d LEFT JOIN chunks c
+            # MIN() makes SQLite take the bare chunker_version from the first chunk's row. A plain GROUP BY took the
+            # row the scan met first, which changes with the indexes the planner picks.
+            """SELECT MIN(c.chunk_id) AS chunk_id, c.chunker_version FROM documents d LEFT JOIN chunks c
                ON c.vault_id = d.vault_id AND c.document_id = d.document_id
                WHERE d.vault_id = ? GROUP BY d.vault_id, d.path""",
             ("default",),

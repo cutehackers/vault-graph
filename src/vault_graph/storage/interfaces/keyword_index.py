@@ -15,6 +15,9 @@ class KeywordQuery:
     scope: QueryScope
     limit: int
     source_roles: tuple[DocumentRole, ...] = ()
+    # False leaves KeywordHit.matched_fields empty. Search ranks without them, and finding them costs one FTS query
+    # per hit and field, up to 1.4 s on a long question (spec 2026-11-11 §4.2.6).
+    with_matched_fields: bool = True
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

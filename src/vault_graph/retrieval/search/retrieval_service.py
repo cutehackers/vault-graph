@@ -284,6 +284,7 @@ class RetrievalService:
                             scope=scope,
                             limit=candidate_limit,
                             source_roles=SEARCH_MODE_ROLES[request.mode],
+                            with_matched_fields=False,
                         )
                     )
                 )
