@@ -5,8 +5,12 @@ before the metadata apply, `reprocess_session_groups` runs two rules on each gro
 
 1. The same v2 exchange id in two files stays in one file: the whole (not continued) copy first,
    then the lower part number, then the path (§4.2.6-9, `drop_duplicate_exchanges`).
-2. A v1 exchange whose time range overlaps a v2 exchange's `started`~`ended` is left out (§4.2.7 last
-   bullet). Only index rows change. Vault files are never touched.
+2. A v1 exchange whose time range overlaps a v2 exchange's `started`~`ended` in the same scope (main
+   agent, or the same subagent) is left out (§4.2.7 last bullet). A v2 subagent exchange never removes a
+   v1 main exchange: the v2 file does not hold that main exchange, so removing it would lose the text.
+   A continued v2 copy (`continued=1`) holds only the turns after the cut, so it removes a v1 exchange
+   only when the turns it holds cover that whole v1 exchange.
+   Only index rows change. Vault files are never touched.
 
 Both only remove chunks, and both are pure functions of the group's files, so a run that reads the
 whole group gives the same chunks as a full run.
@@ -35,11 +39,15 @@ SESSION_SCHEMA_V1 = "vault-session/v1"
 SESSION_SCHEMA_V2 = "vault-session/v2"
 # Part of the metadata index code: a store written before session groups reads every file once, so
 # each session file gets its stored group key. v2: v1 exchanges that only touch a v2 range are kept, so
-# a store written by v1 reads every file again to bring them back.
-SESSION_GROUP_VERSION = "session-group-v2"
+# a store written by v1 reads every file again to bring them back. v3: the overlap rule compares
+# exchanges of the same scope only, so a store written by v2 reads every file again to bring back the
+# v1 main exchanges that overlapped a v2 subagent exchange or a continued v2 copy.
+SESSION_GROUP_VERSION = "session-group-v3"
 
 Key = tuple[str, str]
-TimeRange = tuple[str, str]
+# (first time, last time, scope, whole). Scope is `main` or `subagent:<id>`. `whole` is False for a
+# continued v2 copy, whose times are those of the turns the file holds.
+TimeRange = tuple[str, str, str, bool]
 ExchangeRanges = Mapping[str, TimeRange | None]
 
 
@@ -56,7 +64,7 @@ def session_group_key(frontmatter: Mapping[str, object]) -> str | None:
 
 
 def exchange_ranges(document: ExtractedDocument) -> dict[str, TimeRange | None]:
-    """Time range of each exchange by chunk `parent_key`. Empty for a file that is not a v1 or v2 session."""
+    """Time range and scope of each exchange by chunk `parent_key`. Empty for a file that is not a v1 or v2 session."""
     schema = document.frontmatter.data.get("schema")
     if schema == SESSION_SCHEMA_V1:
         return dict(v1_exchange_time_ranges(document))
@@ -120,7 +128,7 @@ def _reprocess_group(
             "kept every v1 exchange"
         )
         return deduplicated, warnings
-    v2_ranges: list[tuple[datetime, datetime]] = []
+    v2_ranges: dict[str, list[tuple[datetime, datetime, bool]]] = {}
     for item in v2:
         for parent_key, time_range in sorted(ranges[_key(item)].items()):
             parsed = _parse_range(time_range)
@@ -130,7 +138,7 @@ def _reprocess_group(
                     f"{item.document.path} has no started/ended time; kept every v1 exchange"
                 )
                 return deduplicated, warnings
-            v2_ranges.append(parsed)
+            v2_ranges.setdefault(parsed[2], []).append((parsed[0], parsed[1], parsed[3]))
     kept: list[NormalizedDocument] = []
     for item in deduplicated:
         if _schema(item) != SESSION_SCHEMA_V1:
@@ -139,7 +147,7 @@ def _reprocess_group(
         overlapped = {
             parent_key
             for parent_key, time_range in ranges[_key(item)].items()
-            if (parsed := _parse_range(time_range)) is not None and _overlaps(parsed, v2_ranges)
+            if (parsed := _parse_range(time_range)) is not None and _overlaps(parsed[:2], v2_ranges.get(parsed[2], []))
         }
         if not overlapped:
             kept.append(item)
@@ -149,23 +157,31 @@ def _reprocess_group(
     return tuple(kept), warnings
 
 
-def _overlaps(time_range: tuple[datetime, datetime], others: list[tuple[datetime, datetime]]) -> bool:
+def _overlaps(time_range: tuple[datetime, datetime], others: list[tuple[datetime, datetime, bool]]) -> bool:
     """True when the ranges share time, or start at the same moment (the same exchange).
+
+    A continued copy (`whole` False) counts only when its turns cover the whole range.
 
     Ranges that only touch at one end do not overlap. A continued v1 part opens with the last turn of the
     previous exchange, so its first v1 exchange touches the last v2 range without being in any v2 file.
     """
     start, end = time_range
-    return any((start < other_end and other_start < end) or start == other_start for other_start, other_end in others)
+    return any(
+        ((start < other_end and other_start < end) or start == other_start)
+        if whole
+        else (other_start <= start and end <= other_end)
+        for other_start, other_end, whole in others
+    )
 
 
-def _parse_range(time_range: TimeRange | None) -> tuple[datetime, datetime] | None:
+def _parse_range(time_range: TimeRange | None) -> tuple[datetime, datetime, str, bool] | None:
     if time_range is None:
         return None
-    start, end = (_parse_time(value) for value in time_range)
+    start, end = (_parse_time(value) for value in time_range[:2])
     if start is None or end is None:
         return None
-    return (start, end) if start <= end else (end, start)
+    scope, whole = time_range[2], time_range[3]
+    return (start, end, scope, whole) if start <= end else (end, start, scope, whole)
 
 
 def _parse_time(value: str) -> datetime | None:

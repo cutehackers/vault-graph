@@ -92,7 +92,9 @@ def session_vault(root: Path, *, with_v2: bool = True) -> Path:
     return root
 
 
-def load(root: Path) -> tuple[tuple[NormalizedDocument, ...], dict[tuple[str, str], dict[str, tuple[str, str] | None]]]:
+def load(
+    root: Path,
+) -> tuple[tuple[NormalizedDocument, ...], dict[tuple[str, str], dict[str, tuple[str, str, str, bool] | None]]]:
     catalog = catalog_for(root)
     entry = catalog.resolve("main")
     normalizer = DocumentNormalizer()
@@ -128,12 +130,16 @@ def test_exchange_ranges_read_v1_turn_times_and_v2_meta_times(tmp_path: Path) ->
     assert v1[f"{V1_PART1_PATH}:2026-11-03T14:00:00.000Z user:1"] == (
         "2026-11-03T14:00:00.000Z",
         "2026-11-03T14:06:01.000Z",
+        "main",
+        True,
     )
-    assert v1[KEPT_V1_PART1_EXCHANGE] == ("2026-11-03T14:07:00.000Z", "2026-11-03T14:07:05.000Z")
+    assert v1[KEPT_V1_PART1_EXCHANGE] == ("2026-11-03T14:07:00.000Z", "2026-11-03T14:07:05.000Z", "main", True)
+    subagent_range = v1[f"{V1_PART1_PATH}:2026-11-03T14:00:02.000Z subagent a7f3 user:1"]
+    assert subagent_range is not None and subagent_range[2] == "subagent:a7f3"
     v2 = ranges[("main", V2_PART3_PATH)]
     assert v2 == {
-        f"{SESSION}:u-201": ("2026-11-03T14:00:00.000Z", "2026-11-03T14:06:01.000Z"),
-        f"{SESSION}:s-301": ("2026-11-03T14:00:02.000Z", "2026-11-03T14:00:05.000Z"),
+        f"{SESSION}:u-201": ("2026-11-03T14:00:00.000Z", "2026-11-03T14:06:01.000Z", "main", True),
+        f"{SESSION}:s-301": ("2026-11-03T14:00:02.000Z", "2026-11-03T14:00:05.000Z", "subagent:a7f3", True),
     }
     assert ranges[("main", NOTE_PATH)] == {}
 
@@ -255,3 +261,46 @@ def test_v1_part_starting_at_the_last_v2_turn_keeps_its_later_exchange(tmp_path:
     result, _ = reprocess_session_groups(documents, ranges)
 
     assert parents(result, V1_PART2_PATH) == parents(documents, V1_PART2_PATH)
+
+
+def test_v2_subagent_exchange_does_not_remove_a_v1_main_exchange(tmp_path: Path) -> None:
+    """The v2 subagent exchange runs from 14:09 to 14:11, over the v1 main exchange at 14:10. The v2 file
+    holds no main exchange for that time, so the v1 main exchange is the only copy and stays searchable."""
+    root = session_vault(tmp_path / "vault")
+    write(
+        root,
+        V2_PART3_PATH,
+        v2_part3_text().replace(
+            "scope=subagent:a7f3 started=2026-11-03T14:00:02.000Z ended=2026-11-03T14:00:05.000Z",
+            "scope=subagent:a7f3 started=2026-11-03T14:09:00.000Z ended=2026-11-03T14:11:00.000Z",
+        ),
+    )
+    documents, ranges = load(root)
+    assert parents(documents, V1_PART2_PATH)
+
+    result, _ = reprocess_session_groups(documents, ranges)
+
+    assert parents(result, V1_PART2_PATH) == parents(documents, V1_PART2_PATH)
+
+
+def test_continued_v2_copy_removes_only_v1_exchanges_its_turns_cover(tmp_path: Path) -> None:
+    """The v2 part starts inside the main exchange (`continued=1`). Its meta times still say 14:00 to
+    14:06:01, but the file holds no turn of that exchange before the cut, so the v1 main exchange at
+    14:00 is the only copy of those turns and stays searchable."""
+    root = session_vault(tmp_path / "vault")
+    text = v2_part3_text()
+    meta = "<!-- vg:exchange id=u-201 scope=main started=2026-11-03T14:00:00.000Z ended=2026-11-03T14:06:01.000Z"
+    assert meta in text
+    start = text.index(meta)
+    end = text.index("\n", start)
+    first_turn = text.index("\n### ", end)
+    second_turn = text.index("\n### ", first_turn + 1)
+    line = text[start:end].replace(" -->", " continued=1 -->")
+    write(root, V2_PART3_PATH, text[:start] + line + "\n" + text[second_turn:])
+    documents, ranges = load(root)
+    main_exchange = f"{V1_PART1_PATH}:2026-11-03T14:00:00.000Z user:1"
+    assert main_exchange in parents(documents, V1_PART1_PATH)
+
+    result, _ = reprocess_session_groups(documents, ranges)
+
+    assert main_exchange in parents(result, V1_PART1_PATH)
