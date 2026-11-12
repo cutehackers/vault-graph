@@ -15,6 +15,11 @@ not in recall or search until it is accepted and the next index run picks up the
 ``proposed``, so the cleanup bundle does not offer it again. One cleanup sends at most
 ``INFERRED_PROPOSAL_LIMIT`` inferred proposals: a cleanup runs from one ``start_curation`` call
 (``list_memory_candidates``) to the next in one server process.
+
+``remember`` also lists up to ``SIMILAR_PAGE_LIMIT`` existing pages like the new one, retired pages
+included, so the agent can update or replace a page instead of keeping the fact twice (backlog
+MEMORY-01). The list is advice: it never blocks the write, and without an index it is empty. A stated
+``remember`` without a ``summary`` is published with a warning (spec 2026-11-11 §4.3.1).
 """
 
 from __future__ import annotations
@@ -35,6 +40,7 @@ from vault_graph.operation.memory.memory_drafts import (
 from vault_graph.operation.memory.memory_ports import (
     DraftFiles,
     ReviewedLog,
+    SimilarPagesLookup,
     VaultImporter,
     VaultPageReader,
     VaultWriter,
@@ -47,6 +53,7 @@ from vault_graph.operation.memory.memory_requests import (
     RememberRequest,
     RestoreRequest,
     RetireRequest,
+    SimilarMemoryPage,
     SupersedeClaimRequest,
     UpdateRequest,
     VaultCandidate,
@@ -82,6 +89,15 @@ PROPOSAL_LIMIT_MESSAGE = (
 SUPERSEDE_REJECTED_HINT = "To replace the whole page instead of one claim row, use retire_memory(replaced_by=...)."
 NO_IMPORTER_MESSAGE = "This vault-graph server has no Vault import-source runner, so the note was not imported."
 RECORDED_OUTCOMES = frozenset({"published", "proposed"})
+SIMILAR_PAGE_LIMIT = 3
+SIMILAR_PAGES_MESSAGE = (
+    "similar_pages lists existing pages like this one. If one holds the same fact, consider update_memory "
+    "on it or retire_memory(replaced_by=...) instead of keeping the fact twice."
+)
+NO_SUMMARY_WARNING = (
+    "The page was published without a summary, so search matches it less well. "
+    "Add one or two sentences with update_memory(summary=...)."
+)
 
 _LOCKS_GUARD = threading.Lock()
 _VAULT_LOCKS: dict[str, threading.Lock] = {}
@@ -134,6 +150,7 @@ class MemoryWriteService:
         importer: VaultImporter | None = None,
         reviewed_log: ReviewedLog | None = None,
         proposal_budget: InferredProposalBudget | None = None,
+        similar_pages: SimilarPagesLookup | None = None,
     ) -> None:
         self._vault_map = vault_map
         self._writer = writer
@@ -147,6 +164,7 @@ class MemoryWriteService:
         # Composition passes one budget per server process (spec §6 "한 정리"). Without it the limit counts
         # this service's proposals only.
         self._proposal_budget = proposal_budget if proposal_budget is not None else InferredProposalBudget()
+        self._similar_pages = similar_pages
 
     def start_curation(self) -> None:
         """Start a new cleanup: the inferred proposal count goes back to zero."""
@@ -178,21 +196,29 @@ class MemoryWriteService:
 
         draft = build_remember_draft(request, today=self._today())
         target = str(draft["path"])
+        # Searched before the write and outside the Vault lock: the index does not hold the new page yet.
+        similar = self._find_similar(request)
         # The existence check runs under the lock so concurrent calls for one page cannot both pass it.
         with _vault_lock(chosen.path):
             if self._page_reader.read(chosen.path, target) is not None:
-                return _result(
-                    chosen,
-                    WriteOutcome(
-                        "rejected",
-                        messages=(
-                            f"A page already exists at {target}. remember only adds new pages; "
-                            "use update_memory to change it.",
+                return _with_similar(
+                    _result(
+                        chosen,
+                        WriteOutcome(
+                            "rejected",
+                            messages=(
+                                f"A page already exists at {target}. remember only adds new pages; "
+                                "use update_memory to change it.",
+                            ),
                         ),
                     ),
+                    similar,
                 )
             outcome = self._send(chosen.path, draft, request.basis, f"Add memory: {request.title.strip()}")
-        return self._recorded(_result(chosen, outcome), request.candidate_key)
+        result = _with_similar(self._recorded(_result(chosen, outcome), request.candidate_key), similar)
+        if result.status == "published" and request.basis == "stated" and request.summary is None:
+            result = replace(result, warnings=(*result.warnings, NO_SUMMARY_WARNING))
+        return result
 
     def update(self, request: UpdateRequest) -> MemoryWriteResult:
         refused = _refuse_input(validate_update(request), request.vault)
@@ -326,6 +352,17 @@ class MemoryWriteService:
                 outcome = WriteOutcome("error", messages=(f"import-source could not run: {exc}",))
         return self._recorded(_result(chosen, outcome), request.candidate_key)
 
+    def _find_similar(self, request: RememberRequest) -> tuple[SimilarMemoryPage, ...]:
+        """Existing pages like the new memory. Any lookup failure gives none, so the write goes on."""
+        if self._similar_pages is None:
+            return ()
+        query = f"{request.title.strip()}\n\n{request.body.strip()}"
+        try:
+            found = self._similar_pages.find(_cwd(request.cwd), query, limit=SIMILAR_PAGE_LIMIT)
+        except Exception:  # noqa: BLE001 - the list is advice; a failed search must not stop the write.
+            return ()
+        return tuple(found)[:SIMILAR_PAGE_LIMIT]
+
     def _recorded(self, result: MemoryWriteResult, candidate_key: str | None) -> MemoryWriteResult:
         """Record ``candidate_key`` for a published or proposed result. A failed record keeps the result."""
         if candidate_key is None or result.status not in RECORDED_OUTCOMES:
@@ -399,6 +436,12 @@ def _refuse_input(problems: tuple[str, ...], vault: str | None) -> MemoryWriteRe
     return None
 
 
+def _with_similar(result: MemoryWriteResult, similar: tuple[SimilarMemoryPage, ...]) -> MemoryWriteResult:
+    if not similar:
+        return result
+    return replace(result, similar_pages=similar, messages=(*result.messages, SIMILAR_PAGES_MESSAGE))
+
+
 def _cwd(cwd: str | None) -> Path | None:
     return None if cwd is None else Path(cwd)
 
@@ -460,10 +503,13 @@ __all__ = [
     "INFERRED_PROPOSAL_LIMIT",
     "NEXT_INDEX_MESSAGE",
     "NO_IMPORTER_MESSAGE",
+    "NO_SUMMARY_WARNING",
     "PAGE_CHANGED_MESSAGE",
     "PROPOSAL_LIMIT_MESSAGE",
     "PROPOSED_MESSAGE",
     "PUBLISH_TIMEOUT_SECONDS",
+    "SIMILAR_PAGES_MESSAGE",
+    "SIMILAR_PAGE_LIMIT",
     "SUPERSEDE_REJECTED_HINT",
     "InferredProposalBudget",
     "MemoryWriteService",

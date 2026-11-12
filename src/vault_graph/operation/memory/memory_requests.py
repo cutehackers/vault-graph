@@ -48,6 +48,10 @@ class RememberRequest:
     project_id: str | None = None
     # The cleanup candidate this write handles, recorded when the write is published or proposed (§4.4.4).
     candidate_key: str | None = None
+    # Written by the calling agent, never made by vault-graph (spec 2026-11-11 §4.3.1). Without a summary
+    # the page gets its title as the frontmatter ``summary`` the Vault requires.
+    summary: str | None = None
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,9 @@ class UpdateRequest:
     pin: bool | None = None
     memory_kind: str | None = None
     candidate_key: str | None = None
+    summary: str | None = None
+    # None keeps the page's aliases. A list replaces them, and an empty list removes them.
+    aliases: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -126,6 +133,21 @@ class VaultCandidate:
 
 
 @dataclass(frozen=True)
+class SimilarMemoryPage:
+    """An existing page that looks like the one ``remember`` was asked to add (backlog MEMORY-01).
+
+    ``status`` is the page frontmatter status, so a retired or deprecated page is shown as such.
+    """
+
+    vault_id: str
+    path: str
+    title: str
+    status: str | None = None
+    superseded_by: str | None = None
+    retired_reason: str | None = None
+
+
+@dataclass(frozen=True)
 class MemoryWriteResult:
     status: MemoryWriteStatus
     vault: str | None
@@ -137,6 +159,10 @@ class MemoryWriteResult:
     # Set by import_auto_memory: the Vault copy under raw/imports/ and its source page.
     raw_path: str | None = None
     source_page: str | None = None
+    # Advice that does not change the status, such as a stated memory without a summary.
+    warnings: tuple[str, ...] = ()
+    # Set by remember: at most ``SIMILAR_PAGE_LIMIT`` existing pages like the new one. Never blocks the write.
+    similar_pages: tuple[SimilarMemoryPage, ...] = ()
 
 
 def validate_remember(request: RememberRequest) -> tuple[str, ...]:
@@ -156,6 +182,8 @@ def validate_remember(request: RememberRequest) -> tuple[str, ...]:
         problems.append("pin must be true or false.")
     problems.extend(_memory_kind_problems(request.memory_kind))
     problems.extend(_candidate_key_problems(request.candidate_key))
+    problems.extend(_summary_problems(request.summary))
+    problems.extend(_aliases_problems(request.aliases))
     return tuple(problems)
 
 
@@ -172,6 +200,9 @@ def validate_update(request: UpdateRequest) -> tuple[str, ...]:
         problems.append("pin must be true or false when given.")
     problems.extend(_memory_kind_problems(request.memory_kind))
     problems.extend(_candidate_key_problems(request.candidate_key))
+    problems.extend(_summary_problems(request.summary))
+    if request.aliases is not None:
+        problems.extend(_aliases_problems(request.aliases))
     return tuple(problems)
 
 
@@ -234,6 +265,23 @@ def _candidate_key_problems(candidate_key: object) -> tuple[str, ...]:
     return ("candidate_key must be a non-empty single-line string when given.",)
 
 
+def _summary_problems(summary: object) -> tuple[str, ...]:
+    """A frontmatter value is one line: the Vault renders it without escaping line breaks."""
+    if summary is None or _is_single_line(summary):
+        return ()
+    return ("summary must be a non-empty single-line string when given.",)
+
+
+def _aliases_problems(aliases: object) -> tuple[str, ...]:
+    if (
+        not isinstance(aliases, str)
+        and isinstance(aliases, Sequence)
+        and all(_is_single_line(alias) for alias in aliases)
+    ):
+        return ()
+    return ("aliases must be a list of non-empty single-line strings.",)
+
+
 def _basis_problems(basis: object) -> tuple[str, ...]:
     if basis in BASES:
         return ()
@@ -294,6 +342,7 @@ __all__ = [
     "RememberRequest",
     "RestoreRequest",
     "RetireRequest",
+    "SimilarMemoryPage",
     "SupersedeClaimRequest",
     "UpdateRequest",
     "VaultCandidate",

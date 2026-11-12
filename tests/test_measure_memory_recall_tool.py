@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -224,6 +225,41 @@ def test_metric_5_is_the_age_of_waiting_session_exchanges_in_days() -> None:
     assert tool.backlog_age(()) == {"exchanges": 0, "oldest_days": None, "median_days": None}
 
 
+def test_metric_7_is_the_share_of_memory_pages_with_a_summary_of_their_own() -> None:
+    assert tool.has_summary({"title": "Use SQLite", "summary": "SQLite holds the metadata store."}) is True
+    assert tool.has_summary({"title": "Use SQLite", "summary": " Use SQLite "}) is False  # only the title
+    assert tool.has_summary({"title": "Use SQLite", "summary": "  "}) is False
+    assert tool.has_summary({"title": "Use SQLite"}) is False
+    assert tool.summary_share(4, 3) == {"memory_pages": 4, "summary_pages": 3, "share": 0.75}
+    assert tool.summary_share(0, 0) == {"memory_pages": 0, "summary_pages": 0, "share": None}
+
+
+def test_metric_8_is_the_share_of_sessions_with_a_fetched_event() -> None:
+    def event(kind: str, item: str, at: datetime, **extra: object) -> dict[str, object]:
+        return {"event": kind, "item_id": item, "at": at.isoformat(), **extra}
+
+    events = [
+        event("injected", "m:a", NOW, project="alpha", session_id="s1"),
+        event("injected", "m:a", NOW + timedelta(hours=1), project="alpha", session_id="s2"),
+        event("injected", "m:b", NOW + timedelta(hours=2), project="alpha", session_id="s3"),
+        event("injected", "m:c", NOW + timedelta(hours=3), project="alpha", session_id="s4"),
+        event("injected", "m:d", NOW, project="beta", session_id="s5"),
+        event("injected", "m:c", NOW + timedelta(hours=5), project="beta", session_id="s6"),
+        event("injected", "m:e", NOW, project="alpha", session_id=tool.SESSION_ID),
+        # No session named: it counts for s2, the last session that injected the item before the fetch.
+        event("fetched", "m:a", NOW + timedelta(hours=1, minutes=5)),
+        event("fetched", "m:b", NOW + timedelta(hours=1)),  # opened before it was injected
+        event("fetched", "m:zzz", NOW + timedelta(hours=4), session_id="s4"),  # the event names its session
+        event("fetched", "m:d", NOW + timedelta(minutes=1)),  # another project
+        event("fetched", "m:c", NOW + timedelta(hours=6)),  # s6 of beta injected it last, not s4
+        event("fetched", "m:e", NOW + timedelta(minutes=1)),  # this tool's run
+    ]
+
+    assert tool.fetch_sessions(events, project_id="alpha") == {"sessions": 4, "sessions_with_fetch": 2, "share": 0.5}
+    assert tool.fetch_sessions(events, project_id="beta") == {"sessions": 2, "sessions_with_fetch": 2, "share": 1.0}
+    assert tool.fetch_sessions([], project_id="alpha") == {"sessions": 0, "sessions_with_fetch": 0, "share": None}
+
+
 def test_summary_holds_totals_and_the_gate_without_question_text() -> None:
     scores = [
         tool.QuestionScore("q1", "정보 추출", "alpha", 1, 1, 1, 1, 0.5, None),
@@ -240,9 +276,15 @@ def test_summary_holds_totals_and_the_gate_without_question_text() -> None:
         backlog_ages=(5.0, 1.0),
         merge_candidates=1,
         warnings=(),
+        memory_pages=frozenset(("main", f"wiki/decisions/d{number}.md") for number in range(10)),
+        summary_pages=frozenset(("main", f"wiki/decisions/d{number}.md") for number in range(9)),
+        sessions={"sessions": 4, "sessions_with_fetch": 1, "share": 0.25},
     )
+    # A page linked to two projects counts once in the total.
+    other = replace(project, project="beta", injection=None, usage={}, backlog_ages=(), merge_candidates=0, sessions={})
 
-    summary = tool.summarize(scores, [project], proposals=[{"accepted": 1, "rejected": 1, "pending": 0, "resolved": 0}])
+    proposals = [{"accepted": 1, "rejected": 1, "pending": 0, "resolved": 0}]
+    summary = tool.summarize(scores, [project, other], proposals=proposals)
 
     assert summary["questions"] == 5 and summary["failed"] == 1 and summary["scored"] == 3
     assert summary["recall_hit_rate"] == round(1 / 3, 4)
@@ -265,6 +307,8 @@ def test_summary_holds_totals_and_the_gate_without_question_text() -> None:
     }
     assert summary["metric5_backlog_age"] == {"exchanges": 2, "oldest_days": 5.0, "median_days": 3.0}
     assert summary["metric6_merge_candidates"] == 1
+    assert summary["metric7_summary_share"] == {"memory_pages": 10, "summary_pages": 9, "share": 0.9}
+    assert summary["metric8_fetch_session_share"] == {"sessions": 4, "sessions_with_fetch": 1, "share": 0.25}
     assert summary["gate_passed"] is True
     assert "which" not in json.dumps(summary, ensure_ascii=False)
 
@@ -403,6 +447,12 @@ def test_end_to_end_run_on_the_fixture_vaults(fixture_base: Path, tmp_path: Path
     )
     assert merges >= 1
     assert summary["metric6_merge_candidates"] == merges
+    metric7 = summary["metric7_summary_share"]
+    assert isinstance(metric7, dict) and metric7["memory_pages"] >= 1
+    assert 0 <= metric7["summary_pages"] <= metric7["memory_pages"]
+    assert metric7["share"] == round(metric7["summary_pages"] / metric7["memory_pages"], 4)
+    # The fixture's injected events name no session.
+    assert summary["metric8_fetch_session_share"] == {"sessions": 0, "sessions_with_fetch": 0, "share": None}
     assert summary["gate_passed"] is True
     projects = [json.loads(line) for line in (out / "projects.jsonl").read_text().splitlines()]
     assert sorted(project["project"] for project in projects) == ["alpha", "both"]

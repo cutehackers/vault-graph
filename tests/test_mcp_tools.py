@@ -318,6 +318,11 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
         key_schema = schema["properties"].pop("candidate_key")
         assert key_schema["default"] is None
         assert "candidate_key" not in schema["required"]
+        if name != "retire_memory":
+            # Spec 2026-11-11 §4.3.1 adds two optional inputs `summary` and `aliases` to these two tools (A-9).
+            for added in ("summary", "aliases"):
+                assert schema["properties"].pop(added)["default"] is None
+                assert added not in schema["required"]
         assert set(schema["properties"]) == set(required) | set(optional)
         assert schema["required"] == list(required)
         assert "default" not in schema["properties"]["basis"]
