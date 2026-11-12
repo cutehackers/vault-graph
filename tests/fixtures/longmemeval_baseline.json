@@ -1,0 +1,68 @@
+{
+  "format": "vg-longmemeval-baseline/1",
+  "measured_on": "2026-11-12",
+  "data": {
+    "name": "LongMemEval-S cleaned",
+    "file": "longmemeval_s_cleaned.json",
+    "sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "source": "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned/resolve/main/longmemeval_s_cleaned.json"
+  },
+  "settings": {
+    "limit": 150,
+    "scope": "sample-150",
+    "search": "vg search --mode evidence --limit 5",
+    "embedding_model": "Xenova/multilingual-e5-small",
+    "metric": "recall_all_at_5"
+  },
+  "commit": "aca3188",
+  "questions": 150,
+  "failed": 0,
+  "recall_all_at_5": 0.78,
+  "recall_any_at_5": 0.9867,
+  "by_type": {
+    "knowledge-update": {
+      "questions": 16,
+      "recall_all_at_5": 1.0,
+      "recall_any_at_5": 1.0
+    },
+    "multi-session": {
+      "questions": 36,
+      "recall_all_at_5": 0.5278,
+      "recall_any_at_5": 1.0
+    },
+    "single-session-assistant": {
+      "questions": 22,
+      "recall_all_at_5": 1.0,
+      "recall_any_at_5": 1.0
+    },
+    "single-session-preference": {
+      "questions": 7,
+      "recall_all_at_5": 1.0,
+      "recall_any_at_5": 1.0
+    },
+    "single-session-user": {
+      "questions": 19,
+      "recall_all_at_5": 1.0,
+      "recall_any_at_5": 1.0
+    },
+    "temporal-reasoning": {
+      "questions": 50,
+      "recall_all_at_5": 0.68,
+      "recall_any_at_5": 0.96
+    }
+  },
+  "seconds_per_question": {
+    "max": 45.314,
+    "mean": 23.813,
+    "p50": 22.908,
+    "total": 3571.96
+  },
+  "seconds_by_step_mean": {
+    "capture": 5.159,
+    "convert": 0.017,
+    "index": 17.007,
+    "prepare": 0.696,
+    "search": 0.934
+  },
+  "estimated_hours_470": 3.11
+}
