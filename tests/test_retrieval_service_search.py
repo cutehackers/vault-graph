@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from tests.fakes.search_readiness import ready_report
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from tests.test_vector_indexer import SPEC
 from vault_graph.errors import SearchError
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.indexing.vector_index_adapter import stable_vector_id
 from vault_graph.operation.readiness.search_readiness import SearchReadinessReport, SearchScopeReadiness
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
@@ -700,3 +702,166 @@ def test_refill_round_finds_a_second_document_and_trace_describes_that_round(tmp
         crowded.document_id,
         other.document_id,
     ]
+
+
+class ReversingReranker:
+    preset = "fake-reversing"
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, list[str]]] = []
+
+    def rerank(self, query: str, passages: Sequence[str]) -> list[int]:
+        self.calls.append((query, list(passages)))
+        return list(reversed(range(len(passages))))
+
+
+class CountingMetadataStore(SQLiteMetadataStore):
+    resolve_chunk_calls = 0
+
+    def resolve_chunk(self, *, vault_id: str, chunk_id: str) -> ChunkSnapshot | None:
+        self.resolve_chunk_calls += 1
+        return super().resolve_chunk(vault_id=vault_id, chunk_id=chunk_id)
+
+
+def _four_pages(store: SQLiteMetadataStore) -> list[ChunkSnapshot]:
+    documents = [make_document("default", f"wiki/page-{index}.md", f"hash-{index}") for index in range(1, 5)]
+    chunks = [
+        make_chunk("default", document.document_id, document.path, chunk_id=f"chunk-{index}", text=f"text {index}")
+        for index, document in enumerate(documents, start=1)
+    ]
+    store.apply_metadata_revision(index_revision="metadata-1", documents=documents, chunks=chunks, tombstones=[])
+    return chunks
+
+
+def _ranked_service(
+    catalog: VaultCatalog,
+    store: SQLiteMetadataStore,
+    chunks: list[ChunkSnapshot],
+    reranker: ReversingReranker | None,
+) -> RetrievalService:
+    return RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=InMemoryKeywordIndex(
+            tuple(_keyword_hit(chunk.document_id, chunk.chunk_id, rank=rank) for rank, chunk in enumerate(chunks, 1))
+        ),
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+        reranker=reranker,
+    )
+
+
+def test_reranking_reorders_before_the_limit_and_trace_follows_the_final_order(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    chunks = _four_pages(store)
+    reranker = ReversingReranker()
+
+    response = _ranked_service(catalog, store, chunks, reranker).search(
+        query_text="text", requested_scope=catalog.default_scope(), limit=2, trace=True
+    )
+
+    # The model reverses four results. RRF with equal weights gives 1, 4, 2, 3, so page 4 makes the cut.
+    assert reranker.calls == [("text", ["text 1", "text 2", "text 3", "text 4"])]
+    assert [result.evidence[0].chunk_id for result in response.results] == ["chunk-1", "chunk-4"]
+    assert [result.rank for result in response.results] == [1, 2]
+    assert response.results[1].result_id == "default:chunk-4:rank-2"
+    assert response.stage_trace is not None
+    assert [entry.path for entry in response.stage_trace.document_ranks] == [
+        "wiki/page-1.md",
+        "wiki/page-4.md",
+        "wiki/page-2.md",
+        "wiki/page-3.md",
+    ]
+    assert [entry.rank for entry in response.stage_trace.document_ranks] == [1, 2, 3, 4]
+    assert response.stage_trace.document_ranks[1].result_id == "default:chunk-4:rank-2"
+    rerank = response.stage_trace.rerank
+    assert rerank is not None
+    assert rerank.preset == reranker.preset
+    assert rerank.reranked_count == 4
+    assert [(entry.before_rank, entry.model_rank, entry.rank) for entry in rerank.entries] == [
+        (1, 4, 1),
+        (4, 1, 2),
+        (2, 3, 3),
+        (3, 2, 4),
+    ]
+
+
+def test_search_without_reranker_keeps_the_search_order(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    chunks = _four_pages(store)
+
+    response = _ranked_service(catalog, store, chunks, None).search(
+        query_text="text", requested_scope=catalog.default_scope(), limit=2, trace=True
+    )
+
+    assert [result.evidence[0].chunk_id for result in response.results] == ["chunk-1", "chunk-2"]
+    assert response.stage_trace is not None
+    assert [entry.path for entry in response.stage_trace.document_ranks] == [
+        "wiki/page-1.md",
+        "wiki/page-2.md",
+        "wiki/page-3.md",
+        "wiki/page-4.md",
+    ]
+    assert response.stage_trace.rerank is None
+
+
+def test_reranked_search_reads_no_extra_chunks(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = CountingMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    chunks = _four_pages(store)
+
+    _ranked_service(catalog, store, chunks, None).search(
+        query_text="text", requested_scope=catalog.default_scope(), limit=10
+    )
+    plain_calls = store.resolve_chunk_calls
+    store.resolve_chunk_calls = 0
+    _ranked_service(catalog, store, chunks, ReversingReranker()).search(
+        query_text="text", requested_scope=catalog.default_scope(), limit=10
+    )
+
+    assert store.resolve_chunk_calls == plain_calls
+
+
+def test_single_result_search_does_not_ask_the_reranker(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store, document_id, chunk_id = _metadata_store(tmp_path)
+    reranker = ReversingReranker()
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=InMemoryKeywordIndex((_keyword_hit(document_id, chunk_id),)),
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+        reranker=reranker,
+    )
+
+    response = service.search(query_text="Body", requested_scope=catalog.default_scope(), limit=10, trace=True)
+
+    assert reranker.calls == []
+    assert response.result_count == 1
+    assert response.results[0].rank == 1
+
+
+def test_evidence_mode_reranks_session_exchanges_by_their_quoted_window(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    session = replace(make_document("default", "raw/sessions/s.md", "session"), source_role="raw_evidence")
+    windows = [
+        replace(
+            make_chunk("default", session.document_id, session.path, chunk_id=f"window-{index}", text=f"turn {index}"),
+            parent_key=f"exchange-{index}",
+            section=f"question {index}",
+            source_role="raw_evidence",
+        )
+        for index in range(1, 4)
+    ]
+    store.apply_metadata_revision(index_revision="metadata-1", documents=[session], chunks=windows, tombstones=[])
+    reranker = ReversingReranker()
+    service = _ranked_service(catalog, store, windows, reranker)
+
+    response = service.search(query_text="turn", requested_scope=catalog.default_scope(), limit=10, mode="evidence")
+
+    assert reranker.calls == [("turn", ["turn 1", "turn 2", "turn 3"])]
+    # Three reversed results with equal weights: 1 and 3 tie above 2, and search rank 1 wins the tie.
+    assert [result.evidence[0].chunk_id for result in response.results] == ["window-1", "window-3", "window-2"]
+    assert [result.rank for result in response.results] == [1, 2, 3]

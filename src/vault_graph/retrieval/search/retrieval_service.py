@@ -27,6 +27,7 @@ from vault_graph.retrieval.search.candidate_ranking import (
 from vault_graph.retrieval.search.context_expansion import ContextExpander
 from vault_graph.retrieval.search.evidence_result_assembly import EvidenceResultAssembly
 from vault_graph.retrieval.search.graph_candidates import GraphCandidateProvider, GraphCandidateResult
+from vault_graph.retrieval.search.reranker import Reranker, rerank_results
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult
 from vault_graph.retrieval.search.search_response import (
@@ -83,7 +84,10 @@ class RetrievalService:
         context_expander: ContextExpander | None = None,
         context_max_tokens: int = DEFAULT_CONTEXT_EXPANSION_MAX_TOKENS,
         context_neighbor_radius: int = DEFAULT_CONTEXT_NEIGHBOR_RADIUS,
+        reranker: Reranker | None = None,
     ) -> None:
+        """``reranker`` reorders the top results after the candidate rounds (spec 2026-11-13 D6). Without it
+        the search order stays as ranked."""
         self._catalog = catalog
         self._metadata_store = metadata_store
         self._evidence_results = EvidenceResultAssembly(metadata_store)
@@ -99,6 +103,7 @@ class RetrievalService:
         self._context_expander = context_expander
         self._context_max_tokens = context_max_tokens
         self._context_neighbor_radius = context_neighbor_radius
+        self._reranker = reranker
 
     def search(
         self,
@@ -159,7 +164,7 @@ class RetrievalService:
             graph_result = self._graph_candidates(request=request, candidate_limit=candidate_limit)
             signal_candidates = keyword_candidates + vector_candidates + graph_result.candidates
             candidates = fuse_candidates(candidates=signal_candidates)
-            results, dropped, missing_warnings = self._evidence_results.resolve_results(
+            results, passages, dropped, missing_warnings = self._evidence_results.resolve_results(
                 candidates=candidates,
                 mode=request.mode,
                 allowed_roles=SEARCH_MODE_ROLES[request.mode],
@@ -171,6 +176,14 @@ class RetrievalService:
             if refill or len(results) >= request.limit or not saturated:
                 break
             candidate_limit *= CANDIDATE_REFILL_FACTOR
+        rerank_trace = None
+        if self._reranker is not None:
+            # After the refill decision and before the limit, so the candidate rounds stay as they are.
+            reranked = rerank_results(
+                query_text=request.query_text, results=results, passages=passages, reranker=self._reranker
+            )
+            results = reranked.results
+            rerank_trace = reranked.trace
         warnings.extend(round_warnings)
         warnings.extend(graph_result.warnings)
         warnings.extend(missing_warnings)
@@ -200,6 +213,7 @@ class RetrievalService:
                     document_ranks=document_rank_trace(tuple(results)),
                     candidate_limit=candidate_limit,
                     refilled=refilled,
+                    rerank=rerank_trace,
                 )
                 if request.trace
                 else None
