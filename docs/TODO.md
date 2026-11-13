@@ -343,6 +343,24 @@ Required validation:
   projections
 - cross-Vault exports preserve Vault IDs and never merge by title alone
 
+## Search And Memory Quality Follow-Ups
+
+Status: left open after the 2026-11-13 final measurement
+(`docs/design/reports/2026-11-single-query-options.md` §8). Codes match the
+`남은N` codes used when the work was closed.
+
+- 남은1 Korean aliases for existing wiki pages. Memory recall on the memory
+  question set is 0.92 (34/37) against the 0.95 target. The user chose not to
+  add Korean `aliases` to all wiki pages before the release. Vault Graph does
+  not write this content. It goes through the Vault's own tools.
+- 남은4 Three inferred memory proposals wait in the Vault review queues. A
+  person accepts or rejects each one with the Vault's review resolve.
+- 남은5 One memory candidate is held, not published and not skipped. It needs a
+  user decision.
+- 남은7 Median age of pending session exchanges is 6.62 days against the 7 day
+  target, with 546 pending. It passes the target again only if "기억 정리해"
+  runs regularly.
+
 ## CLI And Operations
 
 ### Reset Index Command
