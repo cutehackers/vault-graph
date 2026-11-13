@@ -15,7 +15,8 @@ from typing import Protocol
 from vault_graph.errors import VaultGraphError
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult
 
-# Draft values. Task 7 of spec 2026-11-13 fixes them from the development questions (D8, D16).
+# Fixed on the layer-1 development questions (spec 2026-11-13 D8, D16), compared with k 10 and weights 0.5 and 2:
+# docs/design/reports/2026-11-reranker-measurement.md §8.
 RERANK_DEPTH = 30
 RRF_K = 60
 RERANK_WEIGHT = 1.0
