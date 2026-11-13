@@ -219,11 +219,23 @@ def test_forked_session_copy_of_the_first_part_of_an_exchange_folds_into_one_res
     assert sorted(item.path for item in response.results[0].evidence) == sorted([FIRST_PATH, SECOND_PATH])
 
 
+def _folded_shape(response: SearchResponse) -> list[tuple[object, ...]]:
+    """What folding decides for each result: its rank, its evidence and its warnings."""
+    return [
+        (
+            result.rank,
+            tuple((item.chunk_id, item.path, item.source_locators) for item in result.evidence),
+            tuple((warning.code, warning.message) for warning in result.warnings),
+        )
+        for result in response.results
+    ]
+
+
 def test_copy_folding_is_the_same_without_the_narrow_read_and_on_repeat(tmp_path: Path) -> None:
     documents, chunks = _copied_sessions()
 
-    # One store per search: applying the same revision to one keyword index again changes its BM25
-    # statistics on some SQLite builds, and the keyword score is part of a result.
+    # One store per search. The comparison leaves out signal scores: BM25 statistics of equal keyword
+    # indexes differ on some SQLite builds, and folding does not depend on the score.
     folders = [tmp_path / name for name in ("narrow", "again", "whole")]
     for folder in folders:
         folder.mkdir()
@@ -231,7 +243,7 @@ def test_copy_folding_is_the_same_without_the_narrow_read_and_on_repeat(tmp_path
     again = _search(folders[1], documents, chunks, QUERY, mode="evidence")
     whole = _search(folders[2], documents, chunks, QUERY, mode="evidence", narrow_reads=False)
 
-    assert narrow.results == again.results == whole.results
+    assert _folded_shape(narrow) == _folded_shape(again) == _folded_shape(whole)
 
 
 def test_parent_chunk_hashes_are_the_exchange_windows_in_document_order(tmp_path: Path) -> None:
