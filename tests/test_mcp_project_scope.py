@@ -53,6 +53,7 @@ from vault_graph.operation.memory.memory_ports import WriteOutcome
 from vault_graph.operation.memory.memory_requests import BASES, MEMORY_KINDS, REMEMBER_KINDS, MemoryWriteResult
 from vault_graph.operation.memory.memory_write_service import NEXT_INDEX_MESSAGE, MemoryWriteService
 from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.search.search_response import SearchMode
 
 PAGE = "wiki/decisions/use-sqlite.md"
 
@@ -632,6 +633,25 @@ def test_project_read_tool_descriptions_explain_cwd(tmp_path: Path, tool_name: s
 
     assert "cwd" in description
     assert "scope" in description
+
+
+SEARCH_TOOLS = ("search_vault", "ask_vault", "build_context_pack")
+
+
+@pytest.mark.parametrize("tool_name", SEARCH_TOOLS)
+def test_search_tool_descriptions_explain_the_query_form(tmp_path: Path, tool_name: str) -> None:
+    """Search audit 2026-11-12 X-6: an agent gets no hint on query language or form without a description."""
+    description = _fastmcp_tools(tmp_path)[tool_name].description or ""
+
+    for text in ("keywords", "language", "Example", "cwd", "scope"):
+        assert text in description, text
+
+
+def test_search_vault_description_lists_the_modes(tmp_path: Path) -> None:
+    description = _fastmcp_tools(tmp_path)["search_vault"].description or ""
+
+    for mode in get_args(SearchMode):
+        assert f'"{mode}"' in description, mode
 
 
 def test_published_page_outcome_from_writer_is_unchanged_by_index_message(
