@@ -6,6 +6,7 @@ from typing import Literal
 from vault_graph.errors import SearchError
 from vault_graph.operation.readiness.search_readiness import SearchStoreRevision as SearchStoreRevision
 from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.search.reranker import RerankTrace
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSeverity, RetrievalSignalKind
 
 SearchOutputFormat = Literal["text", "json"]
@@ -60,6 +61,7 @@ class SearchStageTrace:
     document_ranks: tuple[DocumentRankTrace, ...]
     candidate_limit: int
     refilled: bool
+    rerank: RerankTrace | None = None
 
 
 @dataclass(frozen=True)

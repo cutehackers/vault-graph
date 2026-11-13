@@ -72,8 +72,11 @@ class EvidenceResultAssembly:
         include_retired: bool = False,
         vault_order: tuple[str, ...] = (),
         query_text: str = "",
-    ) -> tuple[tuple[RetrievalResult, ...], int, tuple[SearchWarning, ...]]:
+    ) -> tuple[tuple[RetrievalResult, ...], tuple[str, ...], int, tuple[SearchWarning, ...]]:
         """Resolve fused chunk candidates into ranked results, one per document or session exchange.
+
+        Returns the results, the reranking text of each result in the same order (`_rerank_passage`), the
+        number of dropped candidates and the warnings. The reranking text stays inside search.
 
         Spec 2026-11-05 §10.2: chunks group per unit and the unit score is ``document_score`` times the
         mode's role weight (원인1·3). A unit whose page title or alias the query names gets the title
@@ -126,13 +129,14 @@ class EvidenceResultAssembly:
             self._result_for_group(group=group, rank=rank, families=families)
             for rank, group in enumerate(groups, start=1)
         )
+        passages = tuple(_rerank_passage(group) for group in groups)
         if include_retired:
             # Spec 2026-11-05 §4.4.13-1: with `include_retired`, every result carries its page lifecycle.
             results = tuple(
                 replace(result, lifecycle=_lifecycle(self._document(result.evidence[0].document_id, documents)))
                 for result in results
             )
-        return results, dropped, tuple(warnings)
+        return results, passages, dropped, tuple(warnings)
 
     def _document(self, document_id: str, cache: dict[str, DocumentSnapshot | None]) -> DocumentSnapshot | None:
         if document_id not in cache:
@@ -280,6 +284,20 @@ class EvidenceResultAssembly:
             supporting_evidence=supporting,
             audit_records=audit,
         )
+
+
+def _rerank_passage(group: _ParentGroup) -> str:
+    """Text the reranking model reads for a unit, from text this search already read (spec 2026-11-13 D7, I6).
+
+    A session exchange gives its quoted window. A document gives its frontmatter title and summary, when
+    present, then the full text of its best chunk. A best chunk that is the page card already holds those
+    values, so it is used alone.
+    """
+    if group.chunk.parent_key is not None or group.chunk.chunk_kind == "page_card" or group.document is None:
+        return group.chunk.text
+    frontmatter = group.document.frontmatter
+    parts = (_frontmatter_text(frontmatter.get("title")), _frontmatter_text(frontmatter.get("summary")))
+    return "\n".join((*(part for part in parts if part is not None), group.chunk.text))
 
 
 def _is_retired(document: DocumentSnapshot | None) -> bool:
