@@ -222,9 +222,14 @@ def test_forked_session_copy_of_the_first_part_of_an_exchange_folds_into_one_res
 def test_copy_folding_is_the_same_without_the_narrow_read_and_on_repeat(tmp_path: Path) -> None:
     documents, chunks = _copied_sessions()
 
-    narrow = _search(tmp_path, documents, chunks, QUERY, mode="evidence")
-    again = _search(tmp_path, documents, chunks, QUERY, mode="evidence")
-    whole = _search(tmp_path, documents, chunks, QUERY, mode="evidence", narrow_reads=False)
+    # One store per search: applying the same revision to one keyword index again changes its BM25
+    # statistics on some SQLite builds, and the keyword score is part of a result.
+    folders = [tmp_path / name for name in ("narrow", "again", "whole")]
+    for folder in folders:
+        folder.mkdir()
+    narrow = _search(folders[0], documents, chunks, QUERY, mode="evidence")
+    again = _search(folders[1], documents, chunks, QUERY, mode="evidence")
+    whole = _search(folders[2], documents, chunks, QUERY, mode="evidence", narrow_reads=False)
 
     assert narrow.results == again.results == whole.results
 
