@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from vault_graph.retrieval.graph.graph_resource_service import GraphResourceService
     from vault_graph.retrieval.graph.graph_retrieval_service import GraphRetrievalService
     from vault_graph.retrieval.search.graph_candidates import GraphSearchCandidateProvider
+    from vault_graph.retrieval.search.reranker import Reranker
     from vault_graph.retrieval.search.retrieval_service import RetrievalService
     from vault_graph.storage.interfaces.keyword_index import KeywordIndex
     from vault_graph.storage.interfaces.text_embeddings import TextEmbeddings
@@ -408,6 +409,7 @@ class ReadOnlyServiceFactory:
         from vault_graph.retrieval.search.context_expansion import ContextExpander
         from vault_graph.retrieval.search.retrieval_service import RetrievalService
 
+        reranker, reranker_config_error = search_reranker_for(components.catalog_service)
         return RetrievalService(
             catalog=components.catalog,
             metadata_store=components.metadata_store,
@@ -417,6 +419,8 @@ class ReadOnlyServiceFactory:
             readiness=components.readiness,
             graph_candidate_provider=(self.open_graph_search_candidate_provider() if include_graph else None),
             context_expander=ContextExpander(metadata_store=components.metadata_store),
+            reranker=reranker,
+            reranker_config_error=reranker_config_error,
         )
 
     def _build_context_pack_builder(
@@ -446,6 +450,40 @@ class ReadOnlyServiceFactory:
         from vault_graph.interface.composition.adapters.text_embeddings import text_embeddings_for
 
         return text_embeddings_for(catalog_service, local_files_only=True)
+
+
+def search_reranker_for(catalog_service: CatalogService) -> tuple[Reranker | None, str | None]:
+    """The reranker search uses, from ``configs/reranker.json`` (spec 2026-11-13 D9, D11).
+
+    No file, or ``enabled: false``, gives no reranker and no error, so search is unchanged (I3). A file that
+    cannot be read or names an unknown preset gives no reranker and the reason, which search reports as
+    ``reranker_config_invalid``. Nothing is loaded or downloaded here: the adapter finds the model files with
+    ``local_files_only=True`` on its first rerank (I2).
+    """
+    import os
+
+    from vault_graph.errors import CatalogError
+    from vault_graph.interface.composition.adapters.rerank_presets import RERANK_PRESETS
+    from vault_graph.interface.composition.adapters.text_cross_encoder import TextCrossEncoderReranker
+    from vault_graph.operation.scope.embedding_selection import load_embedding_selection
+    from vault_graph.operation.scope.reranker_selection import load_reranker_selection, reranker_config_path
+
+    path = reranker_config_path(catalog_service.graph_home_path)
+    try:
+        selection = load_reranker_selection(path)
+    except CatalogError as exc:
+        return None, str(exc)
+    if not selection.enabled:
+        return None, None
+    preset = RERANK_PRESETS.get(selection.model or "")
+    if preset is None:
+        available = ", ".join(RERANK_PRESETS)
+        return None, f"reranker settings file names unknown model {selection.model!r}; available: {available}: {path}"
+    try:
+        models_dir = load_embedding_selection(catalog_service.embedding_config_path).models_dir
+    except CatalogError as exc:
+        return None, str(exc)
+    return TextCrossEncoderReranker(preset, Path(os.path.abspath(models_dir.expanduser()))), None
 
 
 @dataclass(frozen=True)

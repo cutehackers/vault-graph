@@ -17,10 +17,11 @@ from vault_graph.operation.readiness.search_readiness import SearchReadinessRepo
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.retrieval.search.context_expansion import ContextExpander
 from vault_graph.retrieval.search.graph_candidates import GraphCandidateResult
+from vault_graph.retrieval.search.reranker import Reranker, RerankError, RerankerUnavailableError
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.search.retrieval_result import RetrievalSignal
 from vault_graph.retrieval.search.retrieval_service import RetrievalService
-from vault_graph.retrieval.search.search_response import SearchStoreRevision, SearchWarning
+from vault_graph.retrieval.search.search_response import SearchResponse, SearchStoreRevision, SearchWarning
 from vault_graph.storage.interfaces.keyword_index import KeywordHit
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingVector
@@ -737,7 +738,9 @@ def _ranked_service(
     catalog: VaultCatalog,
     store: SQLiteMetadataStore,
     chunks: list[ChunkSnapshot],
-    reranker: ReversingReranker | None,
+    reranker: Reranker | None,
+    *,
+    reranker_config_error: str | None = None,
 ) -> RetrievalService:
     return RetrievalService(
         catalog=catalog,
@@ -747,6 +750,7 @@ def _ranked_service(
         ),
         readiness=StaticReadiness(ready_report(vector_ok=False)),
         reranker=reranker,
+        reranker_config_error=reranker_config_error,
     )
 
 
@@ -865,3 +869,82 @@ def test_evidence_mode_reranks_session_exchanges_by_their_quoted_window(tmp_path
     # Three reversed results with equal weights: 1 and 3 tie above 2, and search rank 1 wins the tie.
     assert [result.evidence[0].chunk_id for result in response.results] == ["window-1", "window-3", "window-2"]
     assert [result.rank for result in response.results] == [1, 2, 3]
+
+
+class FailingReranker:
+    """Raises a queued error per call, then reverses like `ReversingReranker` once the queue is empty."""
+
+    preset = "fake-failing"
+
+    def __init__(self, *errors: Exception) -> None:
+        self.errors = list(errors)
+        self.calls = 0
+
+    def rerank(self, query: str, passages: Sequence[str]) -> list[int]:
+        self.calls += 1
+        if self.errors:
+            raise self.errors.pop(0)
+        return list(reversed(range(len(passages))))
+
+
+RERANKER_WARNING_CODES = {"reranker_unavailable", "rerank_failed", "reranker_config_invalid"}
+
+
+def _search_four(service: RetrievalService, catalog: VaultCatalog) -> SearchResponse:
+    return service.search(query_text="text", requested_scope=catalog.default_scope(), limit=2, trace=True)
+
+
+def _reranker_warnings(response: SearchResponse) -> list[SearchWarning]:
+    """The fixture searches without vectors, so other warnings are present too."""
+    return [warning for warning in response.warnings if warning.code in RERANKER_WARNING_CODES]
+
+
+@pytest.mark.parametrize(
+    ("error", "code"),
+    [
+        (RerankerUnavailableError("model files missing"), "reranker_unavailable"),
+        (RerankError("inference failed"), "rerank_failed"),
+    ],
+)
+def test_reranker_failure_keeps_the_search_order_with_one_warning(tmp_path: Path, error: Exception, code: str) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    chunks = _four_pages(store)
+    reranker = FailingReranker(error)
+    service = _ranked_service(catalog, store, chunks, reranker)
+
+    failed = _search_four(service, catalog)
+    retried = _search_four(service, catalog)
+
+    assert [result.evidence[0].chunk_id for result in failed.results] == ["chunk-1", "chunk-2"]
+    assert [warning.code for warning in _reranker_warnings(failed)] == [code]
+    assert failed.stage_trace is not None
+    assert failed.stage_trace.rerank is None
+    # The failure applies to that query only: the next query asks the model again.
+    assert reranker.calls == 2
+    assert [result.evidence[0].chunk_id for result in retried.results] == ["chunk-1", "chunk-4"]
+    assert _reranker_warnings(retried) == []
+
+
+def test_unavailable_warning_names_the_use_command(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    chunks = _four_pages(store)
+    service = _ranked_service(catalog, store, chunks, FailingReranker(RerankerUnavailableError("missing")))
+
+    response = _search_four(service, catalog)
+
+    assert "vg reranker use fake-failing" in _reranker_warnings(response)[0].message
+
+
+def test_reranker_config_error_searches_without_reranking_and_warns(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    chunks = _four_pages(store)
+    service = _ranked_service(catalog, store, chunks, None, reranker_config_error="unknown model 'nope'")
+
+    response = _search_four(service, catalog)
+
+    assert [result.evidence[0].chunk_id for result in response.results] == ["chunk-1", "chunk-2"]
+    assert [warning.code for warning in _reranker_warnings(response)] == ["reranker_config_invalid"]
+    assert "unknown model 'nope'" in _reranker_warnings(response)[0].message

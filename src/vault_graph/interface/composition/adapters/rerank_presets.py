@@ -11,10 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
-from vault_graph.errors import VaultGraphError
+from vault_graph.retrieval.search.reranker import RerankerUnavailableError
 
 
-class RerankModelUnavailableError(VaultGraphError):
+class RerankModelUnavailableError(RerankerUnavailableError):
     """The preset's pinned files are not in the model folder, or downloading them failed."""
 
 
