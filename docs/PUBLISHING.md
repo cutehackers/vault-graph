@@ -3,20 +3,20 @@
 ## Release Quick Flow
 
 1. Open a release candidate PR with the version bump:
-   `./publish.sh -v 0.5.0`
+   `./publish.sh -v 0.6.0`
    Run this from a clean `main` checkout, or from the `release-vX.Y.Z` branch
    when a previous run stopped before opening the PR. The script stops on any
    other branch and on a detached HEAD.
 2. Review and merge the release candidate PR into `main`.
 3. In GitHub Actions, run `release` manually:
-   - `version`: `0.5.0`
+   - `version`: `0.6.0`
    - `target_ref`: `main`
    - `release_notes`: leave empty for generated notes, or write a manual override
-4. Confirm the GitHub Release `v0.5.0` and its tag exist.
+4. Confirm the GitHub Release `v0.6.0` and its tag exist.
 5. Verify the tagged install:
 
 ```bash
-uv tool install --force --python 3.12 git+https://github.com/cutehackers/vault-graph.git@v0.5.0
+uv tool install --force --python 3.12 git+https://github.com/cutehackers/vault-graph.git@v0.6.0
 vg --help
 vg setup --help
 vg ask --help
