@@ -6,9 +6,11 @@ Every CLI test replaces `huggingface_hub` with a fake module, so no model file i
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import types
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
 
@@ -17,7 +19,12 @@ from typer.testing import CliRunner
 
 from vault_graph.errors import CatalogError
 from vault_graph.interface.cli.main import app
-from vault_graph.interface.composition.adapters.rerank_presets import RERANK_PRESETS
+from vault_graph.interface.composition.adapters.rerank_presets import (
+    RERANK_PRESETS,
+    RerankModelUnavailableError,
+    RerankPreset,
+)
+from vault_graph.interface.composition.adapters.text_cross_encoder import TextCrossEncoderReranker
 from vault_graph.operation.scope.reranker_selection import (
     RerankerSelection,
     load_reranker_selection,
@@ -268,6 +275,61 @@ def test_use_requires_an_initialized_graph_home(hub: FakeHub, tmp_path: Path) ->
     assert result.exit_code == 1
     assert "graph_home_not_initialized" in result.output
     assert hub.calls == []
+
+
+class _ScoreByLength:
+    def rerank(self, query: str, documents: Iterable[str]) -> list[float]:
+        return [float(len(document)) for document in documents]
+
+
+class _WordTokenizer:
+    def encode(self, text: str, add_special_tokens: bool = True) -> types.SimpleNamespace:
+        return types.SimpleNamespace(offsets=[match.span() for match in re.finditer(r"\S+", text)])
+
+
+def _search_adapter(models_dir: Path, built: list[tuple[str, Path]]) -> TextCrossEncoderReranker:
+    def encoder_factory(preset: RerankPreset, snapshot: Path) -> _ScoreByLength:
+        built.append((preset.name, snapshot))
+        return _ScoreByLength()
+
+    return TextCrossEncoderReranker(
+        RERANK_PRESETS["mmarco"],
+        models_dir,
+        encoder_factory=encoder_factory,
+        tokenizer_loader=lambda snapshot: _WordTokenizer(),
+    )
+
+
+# A8, I2: search only looks up local files and never swaps in another model.
+def test_search_adapter_without_model_files_does_not_download_or_fall_back(hub: FakeHub, tmp_path: Path) -> None:
+    built: list[tuple[str, Path]] = []
+    reranker = _search_adapter(tmp_path / "models", built)
+
+    with pytest.raises(RerankModelUnavailableError, match="mmarco"):
+        reranker.rerank("query", ["a", "bb"])
+
+    assert hub.calls
+    assert all(call["local_files_only"] is True for call in hub.calls)
+    assert {call["repo_id"] for call in hub.calls} == {RERANK_PRESETS["mmarco"].repo_id}
+    assert {call["revision"] for call in hub.calls} == {_MMARCO_REVISION}
+    assert built == []
+
+
+def test_search_adapter_finds_files_from_use_without_downloading(hub: FakeHub, home: Path, tmp_path: Path) -> None:
+    models_dir = tmp_path / "models"
+    _use_embedding_models_dir(home, models_dir)
+    assert runner.invoke(app, ["reranker", "use", "mmarco", "--graph-home", str(home)]).exit_code == 0
+    assert runner.invoke(app, ["reranker", "off", "--graph-home", str(home)]).exit_code == 0
+    downloads_before = len(hub.download_calls())
+    built: list[tuple[str, Path]] = []
+
+    order = _search_adapter(models_dir, built).rerank("query", ["a", "bbb", "bb"])
+
+    assert order == [1, 2, 0]
+    assert built == [("mmarco", tmp_path / "snapshot")]
+    assert len(hub.download_calls()) == downloads_before
+    assert hub.calls[-1]["local_files_only"] is True
+    assert hub.calls[-1]["cache_dir"] == str(models_dir)
 
 
 # D10: importing the modules prepares no model and touches no network.
