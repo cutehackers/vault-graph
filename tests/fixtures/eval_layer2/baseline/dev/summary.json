@@ -1,0 +1,106 @@
+{
+  "by_kind": {
+    "decision": {
+      "failed": 0,
+      "mrr": 1.0,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 18,
+        "rank_loss": 0
+      },
+      "questions": 18,
+      "recall_at_10": 1.0,
+      "recall_at_5": 1.0,
+      "scored": 18
+    },
+    "how": {
+      "failed": 0,
+      "mrr": 0.8861,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 18,
+        "rank_loss": 0
+      },
+      "questions": 18,
+      "recall_at_10": 1.0,
+      "recall_at_5": 1.0,
+      "scored": 18
+    },
+    "no_answer": {
+      "failed": 0,
+      "mrr": null,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 0,
+        "rank_loss": 0
+      },
+      "questions": 15,
+      "recall_at_10": null,
+      "recall_at_5": null,
+      "scored": 0
+    },
+    "paraphrase": {
+      "failed": 0,
+      "mrr": 0.7746,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 16,
+        "rank_loss": 2
+      },
+      "questions": 18,
+      "recall_at_10": 0.9444,
+      "recall_at_5": 0.8889,
+      "scored": 18
+    },
+    "session": {
+      "failed": 0,
+      "mrr": 0.8492,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 21,
+        "rank_loss": 0
+      },
+      "questions": 21,
+      "recall_at_10": 1.0,
+      "recall_at_5": 1.0,
+      "scored": 21
+    },
+    "title": {
+      "failed": 0,
+      "mrr": 1.0,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 15,
+        "rank_loss": 0
+      },
+      "questions": 15,
+      "recall_at_10": 1.0,
+      "recall_at_5": 1.0,
+      "scored": 15
+    }
+  },
+  "commit": "08af575",
+  "failed": 0,
+  "hit_limit": 5,
+  "include_graph": false,
+  "layer": 2,
+  "mrr": 0.897,
+  "outcomes": {
+    "candidate_loss": 0,
+    "hit": 88,
+    "rank_loss": 2
+  },
+  "questions": 105,
+  "recall_at_10": 0.9889,
+  "recall_at_5": 0.9778,
+  "result_limit": 20,
+  "scored": 90,
+  "seconds": {
+    "p50": 0.085,
+    "p95": 0.099
+  },
+  "split": "dev",
+  "vault_ids": [
+    "eval2"
+  ]
+}

@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -52,12 +52,14 @@ from vault_graph.context.memory.memory_candidates import (
     WikiPageText,
     build_memory_candidates,
     is_current_memory_page,
+    similar_project_pages,
 )
 from vault_graph.context.memory.project_scope import UNMAPPED_VAULT_SCOPE, VaultProjectScope
 from vault_graph.errors import VaultGraphError
 from vault_graph.indexing.ingestion.document_authority import classify_document_role
 from vault_graph.indexing.ingestion.session_exchange_v1_chunker import SESSION_EXCHANGE_V1_VERSION
 from vault_graph.indexing.ingestion.session_exchange_v2_chunker import SESSION_EXCHANGE_V2_VERSION
+from vault_graph.operation.memory.memory_requests import SimilarMemoryPage
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
 
@@ -286,28 +288,45 @@ class CandidateBacklogCounter:
     counted by ``memory_candidate_package`` like ``list_memory_candidates``, without comparison material.
 
     It never searches, embeds or writes. ``l1_notes`` is None when the L1 folder is missing or unreadable.
+    ``session_median_age_days`` is the median age of the counted exchanges at ``clock()``, the time of the count.
     """
 
-    def __init__(self, *, graph_home: Path, vault_map_path: Path, environ: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        graph_home: Path,
+        vault_map_path: Path,
+        environ: Mapping[str, str] | None = None,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
         self._graph_home = graph_home
         self._vault_map_path = vault_map_path
         self._environ = environ
+        self._clock = clock
 
     def count(self, cwd: Path) -> MemoryBacklog:
-        from vault_graph.context.pack.recall_backlog import MemoryBacklog
+        from vault_graph.context.pack.recall_backlog import MemoryBacklog, median_age_days
 
+        now = self._clock()
         package = memory_candidate_package(
             self._graph_home,
             cwd,
             kinds=BACKLOG_KINDS,
             vault_map_file=self._vault_map_path,
             environ=self._environ,
+            now=now,
             with_comparison=False,
+        )
+        started = (
+            candidate.started_at
+            for candidate in package.candidates
+            if candidate.kind == "session_exchange" and candidate.started_at is not None
         )
         return MemoryBacklog(
             l1_notes=None if package.l1_unavailable else package.count("l1_note"),
             session_exchanges=package.count("session_exchange"),
             warnings=package.warnings,
+            session_median_age_days=median_age_days(started, now=now),
         )
 
 
@@ -763,6 +782,75 @@ class _LazySearchFinder(SearchSimilarPageFinder):
         return super().find_similar(query, limit=limit)
 
 
+class ProjectSimilarPages:
+    """``SimilarPagesLookup`` for ``remember`` (backlog MEMORY-01): existing pages like a new memory.
+
+    Uses the same finder and project scope rule as the cleanup comparison material, over the Vaults
+    of the ``cwd`` map project. Reads only. Without a Graph Home, an index or a map project it
+    returns nothing and opens no search. ``search`` replaces the search service in tests.
+    """
+
+    def __init__(
+        self,
+        *,
+        graph_home: Path,
+        vault_map_file: Path | None = None,
+        environ: Mapping[str, str] | None = None,
+        search: SearchService | None = None,
+    ) -> None:
+        self._graph_home = graph_home
+        self._vault_map_file = vault_map_file
+        self._environ = environ
+        self._search = search
+
+    def find(self, cwd: Path | None, query: str, *, limit: int) -> Sequence[SimilarMemoryPage]:
+        from vault_graph.interface.composition.query_scope_resolution import resolve_project_vaults
+        from vault_graph.interface.composition.read_only_service_factory import map_vault_scopes
+        from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
+        from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+
+        if cwd is None:
+            return ()
+        descriptor = GraphHomeResolver().resolve(self._graph_home)
+        if not descriptor.initialized:
+            return ()
+        catalog_service = CatalogService(graph_home_path=descriptor.root_path)
+        if not catalog_service.metadata_path.is_file():
+            return ()
+        catalog = catalog_service.load_catalog()
+        vault_map = open_vault_map(vault_map_path(self._vault_map_file, environ=self._environ)).vault_map
+        resolution = resolve_project_vaults(cwd, vault_map=vault_map, vault_catalog=catalog)
+        if vault_map is None or resolution.project_id is None or not resolution.vault_ids:
+            return ()
+        metadata = SQLiteMetadataStore(catalog_service.metadata_path, initialize=False)
+        documents = {
+            vault_id: metadata.list_documents(catalog.scope_for_vault_ids((vault_id,)))
+            for vault_id in resolution.vault_ids
+        }
+        scope = catalog.scope_for_vault_ids(resolution.vault_ids)
+        vault_scopes = map_vault_scopes(vault_map, catalog)
+        finder: SearchSimilarPageFinder
+        if self._search is not None:
+            finder = SearchSimilarPageFinder(
+                search=self._search, scope=scope, documents=documents, vault_scopes=vault_scopes
+            )
+        else:
+            finder = _LazySearchFinder(
+                graph_home=descriptor.root_path, scope=scope, documents=documents, vault_scopes=vault_scopes
+            )
+        return tuple(
+            SimilarMemoryPage(
+                vault_id=page.vault_id,
+                path=page.path,
+                title=page.title,
+                status=page.status,
+                superseded_by=page.superseded_by,
+                retired_reason=page.retired_reason,
+            )
+            for page in similar_project_pages(finder, query, resolution.project_id, limit=limit)
+        )
+
+
 # Small helpers ----------------------------------------------------------------------------------
 
 
@@ -815,6 +903,7 @@ __all__ = [
     "CandidateBacklogCounter",
     "CodeReference",
     "MemoryCandidatePackage",
+    "ProjectSimilarPages",
     "ProjectedCode",
     "SearchSimilarPageFinder",
     "code_references",

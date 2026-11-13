@@ -80,6 +80,25 @@ def test_alias_match_ranks_above_body_match(tmp_path: Path) -> None:
     assert hits[0].matched_fields == ("aliases",)
 
 
+def test_search_without_matched_fields_keeps_the_same_hits(tmp_path: Path) -> None:
+    index = _store(
+        tmp_path,
+        [
+            (_page("wiki/body.md", {"title": "Notes"}), "rrf rrf rrf merges ranked lists"),
+            (
+                _page("wiki/aliased.md", {"title": "Reciprocal Rank Fusion", "aliases": ["RRF"]}),
+                "a long page body about many other topics and words",
+            ),
+        ],
+    )
+
+    full = index.search(KeywordQuery(query_text="RRF", scope=SCOPE, limit=10))
+    bare = index.search(KeywordQuery(query_text="RRF", scope=SCOPE, limit=10, with_matched_fields=False))
+
+    assert [hit.matched_fields for hit in bare] == [(), ()]
+    assert [replace(hit, matched_fields=()) for hit in full] == list(bare)
+
+
 def test_file_name_match_ranks_above_body_match(tmp_path: Path) -> None:
     index = _store(
         tmp_path,

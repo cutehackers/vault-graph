@@ -16,7 +16,7 @@ import stat
 import subprocess
 import sys
 from collections.abc import Iterator
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,6 +25,7 @@ from typer.testing import CliRunner, Result
 
 from tests.test_cli_setup import _deterministic_text_embeddings
 from vault_graph.context.pack.recall import estimate_recall_tokens, memory_item_id
+from vault_graph.indexing.vector_failure_log import clear_vector_failure, read_vector_failures, record_vector_failure
 from vault_graph.interface.cli import hook_commands
 from vault_graph.interface.cli.main import app
 from vault_graph.interface.composition.adapters.auto_memory_reader import memory_folder_key
@@ -80,7 +81,12 @@ def catch_up(monkeypatch: pytest.MonkeyPatch) -> CatchUps:
     """Record the detached catch-up instead of starting a real process: (graph home, index, check)."""
     started: CatchUps = []
 
-    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+    def record(
+        graph_home: Path,
+        index_vault_ids: tuple[str, ...],
+        check_vault_ids: tuple[str, ...] = (),
+        first_vault_ids: tuple[str, ...] = (),
+    ) -> object:
         started.append((graph_home, index_vault_ids, check_vault_ids))
         return _RecordedCatchUp([])
 
@@ -438,7 +444,7 @@ def real_catch_up(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
     return started
 
 
-def test_registered_but_unindexed_vault_hands_off_with_all_vaults_hint_and_no_catch_up(
+def test_registered_but_unindexed_vault_hands_off_with_all_vaults_hint_and_starts_its_first_index(
     base: Path, real_catch_up: list[list[str]]
 ) -> None:
     home = base / "graph-home"
@@ -448,8 +454,9 @@ def test_registered_but_unindexed_vault_hands_off_with_all_vaults_hint_and_no_ca
 
     assert_handoff(result, home)
     assert "Run `vg index --all-vaults`." in result.stderr
-    assert real_catch_up == []
-    assert not (home / "logs" / "session-start-index.pid").exists()
+    # spec 2026-11-11 §4.4.2: a keyword index first, then the vectors (tests/test_catch_up_two_stage.py).
+    assert [json.loads(command[-1]) for command in real_catch_up] == [{"first": ["main"], "index": [], "check": []}]
+    assert (home / "logs" / "session-start-index.pid").exists()
 
 
 def test_partly_indexed_vaults_warn_with_all_vaults_hint_and_start_no_catch_up_for_the_unindexed_one(
@@ -466,7 +473,7 @@ def test_partly_indexed_vaults_warn_with_all_vaults_hint_and_start_no_catch_up_f
     warnings = [line for line in result.stderr.splitlines() if "other" in line]
     assert warnings == ["vg hook session-start: warning: Vault other has no index. Run `vg index --all-vaults`."]
     # The indexed Vault still gets its vector check. The unindexed one is never indexed in the background.
-    assert [json.loads(command[-1]) for command in real_catch_up] == [{"index": [], "check": ["main"]}]
+    assert [json.loads(command[-1]) for command in real_catch_up] == [{"first": [], "index": [], "check": ["main"]}]
 
 
 def test_startup_with_nothing_to_recall_hands_off(base: Path, graph_home: Path) -> None:
@@ -826,7 +833,12 @@ def fresh_note(base: Path, name: str = "fresh", vault: str = "main") -> None:
 def test_changed_vault_gets_a_catch_up_index_started_before_recall_is_printed(
     base: Path, graph_home: Path, catch_up: CatchUps, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+    def record(
+        graph_home: Path,
+        index_vault_ids: tuple[str, ...],
+        check_vault_ids: tuple[str, ...] = (),
+        first_vault_ids: tuple[str, ...] = (),
+    ) -> object:
         catch_up.append((graph_home, index_vault_ids, check_vault_ids))
         sys.stdout.write("<catch-up started>")
         return _RecordedCatchUp([])
@@ -872,7 +884,12 @@ def test_the_hook_releases_the_catch_up_after_the_refresh(
         events.append("published")
         real_commit(self, report)  # type: ignore[arg-type]
 
-    def record(graph_home: Path, index_vault_ids: tuple[str, ...], check_vault_ids: tuple[str, ...] = ()) -> object:
+    def record(
+        graph_home: Path,
+        index_vault_ids: tuple[str, ...],
+        check_vault_ids: tuple[str, ...] = (),
+        first_vault_ids: tuple[str, ...] = (),
+    ) -> object:
         events.append("started")
         return _RecordedCatchUp(released)
 
@@ -1037,7 +1054,7 @@ def test_catch_up_runs_detached_with_the_lock_and_the_gate(
     command, kwargs = recording_popen[0]
     assert command[0] == sys.executable
     assert command[3] == str(home)
-    assert json.loads(command[5]) == {"index": ["main"], "check": ["other"]}
+    assert json.loads(command[5]) == {"first": [], "index": ["main"], "check": ["other"]}
     assert int(command[4]) in kwargs["pass_fds"]  # type: ignore[operator]
     assert len(kwargs["pass_fds"]) == 2  # type: ignore[arg-type]
     assert kwargs["start_new_session"] is True
@@ -1411,3 +1428,115 @@ def test_only_vg_index_runs_memory_scan_not_the_session_start_refresh(
     result = hook(graph_home, base)
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
+
+
+# Index failure line in block D (spec 2026-11-11 §4.4.1, A-1) ---------------------------------
+
+INDEX_ERROR = "Error executing plan: Internal error: too many SQL variables"
+
+
+def test_vector_failure_of_a_linked_vault_is_one_block_d_line_and_still_warns_on_stderr(
+    base: Path, graph_home: Path
+) -> None:
+    before = hook(graph_home, base)
+    record_vector_failure(graph_home, "main", INDEX_ERROR, now=datetime.now(UTC) - timedelta(hours=3))
+
+    after = hook(graph_home, base)
+
+    assert after.exit_code == 0, after.output
+    expected = f"벡터 색인이 main에서 3시간째 실패 중: {INDEX_ERROR}"
+    assert section(after.stdout, "## 가져오는 방법") == [
+        section(before.stdout, "## 가져오는 방법")[0],
+        f"- {expected}",
+        *section(before.stdout, "## 가져오는 방법")[1:],
+    ]
+    assert [line for line in after.stderr.splitlines() if "벡터 색인이" in line] == [
+        f"vg hook session-start: warning: {expected}"
+    ]
+    assert estimate_recall_tokens(after.stdout) <= 1500
+    assert len(after.stdout) <= 9000
+
+
+def test_vector_failure_of_an_unlinked_vault_stays_out_of_recall(base: Path, graph_home: Path) -> None:
+    before = hook(graph_home, base)
+    record_vector_failure(graph_home, "other", INDEX_ERROR, now=datetime.now(UTC))
+
+    after = hook(graph_home, base)
+
+    assert after.stdout == before.stdout
+    assert any("벡터 색인이 other에서" in line for line in after.stderr.splitlines())
+
+
+def test_without_a_failure_record_the_output_is_unchanged(base: Path, graph_home: Path) -> None:
+    before = hook(graph_home, base)
+    record_vector_failure(graph_home, "main", INDEX_ERROR, now=datetime.now(UTC))
+    clear_vector_failure(graph_home, "main")
+
+    after = hook(graph_home, base)
+
+    assert after.stdout == before.stdout
+    assert "벡터 색인이" not in after.stderr
+
+
+def exiting_run(monkeypatch: pytest.MonkeyPatch, returncode: int, *, record: str | None = None) -> None:
+    """``subprocess.run`` of the catch-up stands in for a ``vg index`` that exits with ``returncode``."""
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        graph_home, vault_id = Path(command[command.index("--graph-home") + 1]), command[-1]
+        if record is not None:
+            record_vector_failure(graph_home, vault_id, record, now=datetime.now(UTC))
+        if returncode and kwargs.get("check"):
+            raise subprocess.CalledProcessError(returncode, command)
+        return subprocess.CompletedProcess(command, returncode)
+
+    monkeypatch.setattr("vault_graph.interface.cli.hook_commands.subprocess.run", run)
+
+
+@pytest.mark.parametrize(
+    ("returncode", "error"),
+    [(2, "background `vg index` exited with code 2"), (-9, "background `vg index` was killed by signal 9")],
+)
+def test_catch_up_vg_index_that_dies_for_another_reason_is_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, returncode: int, error: str
+) -> None:
+    exiting_run(monkeypatch, returncode)
+
+    hook_commands._run_vg_index(str(tmp_path), "main")
+
+    failure = read_vector_failures(tmp_path)["main"]
+    assert (failure.error_head, failure.count) == (error, 1)
+
+
+def test_catch_up_keeps_the_vector_failure_vg_index_recorded_itself(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exiting_run(monkeypatch, 1, record=INDEX_ERROR)
+
+    hook_commands._run_vg_index(str(tmp_path), "main")
+
+    failure = read_vector_failures(tmp_path)["main"]
+    assert (failure.error_head, failure.count) == (INDEX_ERROR, 1)
+
+
+def test_catch_up_vg_index_that_succeeds_records_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    exiting_run(monkeypatch, 0)
+
+    hook_commands._run_vg_index(str(tmp_path), "main")
+
+    assert read_vector_failures(tmp_path) == {}
+
+
+def test_catch_up_process_that_dies_records_the_vault_it_was_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken_check(graph_home: Path, vault_id: str) -> bool:
+        raise RuntimeError("index catalog is unreadable")
+
+    monkeypatch.setattr(hook_commands, "vectors_need_catch_up", broken_check)
+
+    with pytest.raises(RuntimeError):
+        run_script(tmp_path, monkeypatch, {"index": ["main"], "check": ["other"]})
+
+    failures = read_vector_failures(tmp_path)
+    assert set(failures) == {"other"}
+    assert failures["other"].error_head == "background catch-up stopped: RuntimeError: index catalog is unreadable"

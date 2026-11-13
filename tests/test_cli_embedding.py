@@ -181,7 +181,7 @@ def test_use_failures_exit_non_zero_and_leave_settings_bytes_unchanged(
     assert result.exit_code != 0
     assert _settings_bytes(home) == before
     if case == "unknown-name":
-        assert "available: e5-small" in result.output
+        assert "available: arctic-m, e5-small" in result.output
         assert hub.calls == []
     if case == "models-dir-inside-vault":
         assert hub.calls == []
@@ -203,10 +203,10 @@ def test_list_json_shows_the_model_and_writes_nothing(hub: FakeHub, home: Path, 
     assert payload["settings_path"] == str(_settings(home))
     assert payload["models_dir"] == str(models_dir)
     models = payload["models"]
-    assert [model["name"] for model in models] == ["e5-small"]
-    assert [model["role"] for model in models] == ["recommended"]
-    assert [model["selected"] for model in models] == [True]
-    assert [model["downloaded"] for model in models] == [True]
+    assert [model["name"] for model in models] == ["arctic-m", "e5-small"]
+    assert [model["role"] for model in models] == ["recommended", "alternative"]
+    assert [model["selected"] for model in models] == [False, True]
+    assert [model["downloaded"] for model in models] == [False, True]
     for model in models:
         preset = EMBEDDING_PRESETS[model["name"]]
         assert model["dimensions"] == preset.dimensions
@@ -226,7 +226,7 @@ def test_list_without_settings_file_selects_the_default_and_creates_nothing(
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert payload["models_dir"] == str(tmp_path / "user-home" / "llm" / "models")
-    assert [model["selected"] for model in payload["models"]] == [True]
+    assert [model["selected"] for model in payload["models"]] == [True, False]
     assert not _settings(home).exists()
     assert not (tmp_path / "user-home").exists()
 
@@ -239,7 +239,7 @@ def test_list_text_shows_settings_path_folder_and_the_model(hub: FakeHub, home: 
     assert lines[0] == f"embedding_settings: {_settings(home)}"
     assert lines[1].startswith("models_dir: ")
     model_lines = [line for line in lines if line.startswith("model: ")]
-    assert [line.split()[1] for line in model_lines] == ["e5-small"]
+    assert [line.split()[1] for line in model_lines] == ["arctic-m", "e5-small"]
     assert "recommended" in model_lines[0] and "selected=yes" in model_lines[0]
     assert all("downloaded=no" in line for line in model_lines)
 
@@ -285,6 +285,7 @@ def test_help_adds_only_the_embedding_group() -> None:
         "session",
         "vault",
         "embedding",
+        "doctor",
     }
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0

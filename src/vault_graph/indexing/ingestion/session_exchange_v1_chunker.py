@@ -141,17 +141,22 @@ def chunk_session_v1(document: ExtractedDocument) -> tuple[ChunkDraft, ...]:
     return tuple(drafts)
 
 
-def exchange_time_ranges(document: ExtractedDocument) -> dict[str, tuple[str, str]]:
-    """First and last turn time of each exchange by its chunk `parent_key` (spec §4.2.7 last bullet)."""
+def exchange_time_ranges(document: ExtractedDocument) -> dict[str, tuple[str, str, str, bool]]:
+    """First and last turn time and the scope of each exchange by its chunk `parent_key` (spec §4.2.7 last bullet).
+
+    The scope is `main` or `subagent:<id>`, the same form as the v2 exchange meta line.
+    """
 
     path = document.source.path
-    ranges: dict[str, tuple[str, str]] = {}
+    ranges: dict[str, tuple[str, str, str, bool]] = {}
     occurrences: dict[str, int] = {}
     for exchange in _exchanges(_read_turns(document)):
         occurrence = occurrences.get(exchange.first.heading, 0) + 1
         occurrences[exchange.first.heading] = occurrence
         times = sorted((turn.heading.split(" ", 1)[0] for turn in exchange.turns), key=_heading_time)
-        ranges[f"{path}:{exchange.first.heading}:{occurrence}"] = (times[0], times[-1])
+        agent_id = exchange.first.agent_id
+        scope = "main" if agent_id is None else f"subagent:{agent_id}"
+        ranges[f"{path}:{exchange.first.heading}:{occurrence}"] = (times[0], times[-1], scope, True)
     return ranges
 
 

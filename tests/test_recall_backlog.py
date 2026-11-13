@@ -5,12 +5,14 @@ from __future__ import annotations
 import shutil
 import time
 from dataclasses import replace
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from pytest import MonkeyPatch
 
 from tests.test_memory_candidates_merge_retire import (  # noqa: F401  (pytest fixture)
     BACKLOG_KINDS,
+    NOW,
     _Project,
     _tree_hashes,
     project,
@@ -18,7 +20,12 @@ from tests.test_memory_candidates_merge_retire import (  # noqa: F401  (pytest f
 from tests.test_recall_budget import blocks, check_limits, crowded
 from tests.test_session_recall import CWD, doc, ports, run
 from vault_graph.context.pack.recall import recall
-from vault_graph.context.pack.recall_backlog import MemoryBacklog, backlog_line
+from vault_graph.context.pack.recall_backlog import (
+    BACKLOG_ALERT_MEDIAN_DAYS,
+    MemoryBacklog,
+    backlog_line,
+    median_age_days,
+)
 from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
 from vault_graph.interface.composition.memory_candidate_sources import (
     CandidateBacklogCounter,
@@ -67,6 +74,74 @@ def test_one_nonzero_count_still_gives_the_line_with_both_numbers() -> None:
     line = backlog_line(MemoryBacklog(l1_notes=0, session_exchanges=2))
     assert line is not None
     assert "L1 노트 0개" in line and "세션 교환 2개" in line
+
+
+def test_line_gives_the_median_age_of_the_waiting_session_exchanges() -> None:
+    line = backlog_line(MemoryBacklog(l1_notes=3, session_exchanges=5, session_median_age_days=3.1))
+    assert line == (
+        "- 정리 대기: L1 노트 3개, 근거로 쓰이지 않은 세션 교환 5개(나이 중앙값 3.1일). "
+        '정리하려면 "기억 정리해"라고 말하세요.'
+    )
+    # No waiting exchange has no age to show.
+    assert backlog_line(MemoryBacklog(l1_notes=3, session_exchanges=0, session_median_age_days=None)) == (
+        '- 정리 대기: L1 노트 3개, 근거로 쓰이지 않은 세션 교환 0개. 정리하려면 "기억 정리해"라고 말하세요.'
+    )
+
+
+def test_line_over_goal_7_says_cleanup_is_needed_now() -> None:
+    at_goal = backlog_line(
+        MemoryBacklog(l1_notes=None, session_exchanges=5, session_median_age_days=BACKLOG_ALERT_MEDIAN_DAYS)
+    )
+    over = backlog_line(MemoryBacklog(l1_notes=None, session_exchanges=5, session_median_age_days=9.3))
+
+    assert BACKLOG_ALERT_MEDIAN_DAYS == 7.0
+    assert at_goal is not None and "지금 정리가 필요합니다" not in at_goal
+    assert over == (
+        "- 정리 대기: 근거로 쓰이지 않은 세션 교환 5개(나이 중앙값 9.3일). 나이 중앙값이 기준 7일을 넘었습니다. "
+        '지금 정리가 필요합니다. "기억 정리해"라고 말하세요.'
+    )
+
+
+def test_median_age_is_in_days_with_one_decimal() -> None:
+    now = datetime(2026, 11, 12, 12, 0, tzinfo=NOW.tzinfo)
+    started = (now - timedelta(days=10), now - timedelta(days=2), now - timedelta(days=4, hours=6))
+
+    assert median_age_days(started, now=now) == 4.2
+    assert median_age_days((), now=now) is None
+
+
+def test_recall_keeps_a_backlog_inside_goal_7_in_block_d() -> None:
+    counter = FakeCounter(MemoryBacklog(l1_notes=3, session_exchanges=5, session_median_age_days=7.0))
+
+    bundle = run(replace(ports(_documents()), backlog=counter))
+
+    line = backlog_line(counter.backlog)
+    assert line is not None and "나이 중앙값 7일" in line
+    assert line in blocks(bundle.text)["## 가져오는 방법"].splitlines()
+    assert not bundle.text.startswith("- 정리 대기")
+
+
+def test_recall_puts_an_overdue_backlog_first_and_not_in_block_d() -> None:
+    counter = FakeCounter(MemoryBacklog(l1_notes=3, session_exchanges=5, session_median_age_days=7.1))
+
+    bundle = run(replace(ports(_documents()), backlog=counter))
+
+    line = backlog_line(counter.backlog)
+    assert line is not None and "지금 정리가 필요합니다" in line
+    assert bundle.text.splitlines()[0] == line
+    assert bundle.text.count("정리 대기") == 1
+    assert "정리 대기" not in blocks(bundle.text)["## 가져오는 방법"]
+    assert bundle.warnings == ()
+
+
+def test_overdue_backlog_stays_inside_the_recall_budget() -> None:
+    documents, bodies = crowded()
+    counter = FakeCounter(MemoryBacklog(l1_notes=12, session_exchanges=40, session_median_age_days=30.0))
+
+    bundle = run(replace(ports(documents, bodies=bodies, proposals={"main": 3}), backlog=counter))
+
+    check_limits(bundle)
+    assert bundle.text.startswith("- 정리 대기")
 
 
 def test_recall_puts_the_line_in_block_d() -> None:
@@ -143,15 +218,21 @@ def test_line_counts_match_the_full_cleanup_package_and_recall_writes_no_vault_o
     for name, value in project.environ.items():
         monkeypatch.setenv(name, value)
     map_file = Path(project.environ["VAULT_GRAPH_VAULT_MAP"])
-    full = memory_candidate_package(project.graph_home, project.repo)
-    expected = MemoryBacklog(l1_notes=full.count("l1_note"), session_exchanges=full.count("session_exchange"))
+    full = memory_candidate_package(project.graph_home, project.repo, now=NOW)
+    started = [candidate.started_at for candidate in full.candidates if candidate.kind == "session_exchange"]
+    expected = MemoryBacklog(
+        l1_notes=full.count("l1_note"),
+        session_exchanges=full.count("session_exchange"),
+        session_median_age_days=median_age_days((at for at in started if at is not None), now=NOW),
+    )
     assert expected.l1_notes and expected.session_exchanges
+    assert expected.session_median_age_days == 5.1
     before = _tree_hashes(project.vault, project.memory)
 
     recall_ports = ReadOnlyServiceFactory(graph_home_path=project.graph_home).open_session_recall(
         vault_map_path=map_file
     )
-    counter = CandidateBacklogCounter(graph_home=project.graph_home, vault_map_path=map_file)
+    counter = CandidateBacklogCounter(graph_home=project.graph_home, vault_map_path=map_file, clock=lambda: NOW)
     bundle = recall(project.repo, source="startup", session_id="s-1", ports=replace(recall_ports, backlog=counter))
 
     line = backlog_line(expected)
@@ -200,6 +281,7 @@ def test_backlog_counter_counts_like_the_full_package_without_search_or_embeddin
     ).count(project.repo)
 
     assert (counted.l1_notes, counted.session_exchanges) == (full.count("l1_note"), full.count("session_exchange"))
+    assert counted.session_median_age_days is not None and counted.session_median_age_days > 0
     assert counted.warnings == ()
 
 

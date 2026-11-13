@@ -5,7 +5,9 @@ from __future__ import annotations
 import math
 import sqlite3
 import struct
+import threading
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,22 @@ from vector_search.errors import VectorSearchError
 
 Predicate = Callable[[Metadata], bool]
 TieKey = Callable[[Metadata, str], tuple[Any, ...]]
+# inode, size and modification time of the database file and its `-wal` file. Any committed write changes one.
+FileSignature = tuple[tuple[int, int, int] | None, ...]
+
+
+@dataclass
+class _Snapshot:
+    """What one database file held when ``signature`` was read: the unfiltered manifest and the vectors read so far,
+    each with its norm. Spec 2026-11-11 §4.2.6: reads repeat only when the files change."""
+
+    signature: FileSignature
+    manifest: tuple[ManifestRecord, ...] | None = None
+    vectors: dict[str, dict[str, tuple[tuple[float, ...], float]]] = field(default_factory=dict)
+
+
+_SNAPSHOTS: dict[tuple[str, str, str, bool], _Snapshot] = {}
+_SNAPSHOT_LOCK = threading.Lock()
 
 
 class ChromaSQLiteReader:
@@ -37,6 +55,15 @@ class ChromaSQLiteReader:
         self._payload_key_by_collection = payload_key_by_collection
         self._dimension_metadata_key = dimension_metadata_key
         self._default_distance_metric = default_distance_metric
+
+    def _snapshot(self, signature: FileSignature) -> _Snapshot:
+        key = (str(self._database_path), self._prefix, self._payload_table, self._payload_key_by_collection)
+        with _SNAPSHOT_LOCK:
+            snapshot = _SNAPSHOTS.get(key)
+            if snapshot is None or snapshot.signature != signature:
+                snapshot = _Snapshot(signature)
+                _SNAPSHOTS[key] = snapshot
+            return snapshot
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(f"file:{self._database_path}?mode=ro", uri=True)
@@ -102,6 +129,19 @@ class ChromaSQLiteReader:
     def export_manifest(self, predicate: Predicate | None = None) -> tuple[ManifestRecord, ...]:
         if not self._database_path.exists():
             return ()
+        return self._filtered_manifest(self._snapshot(_file_signature(self._database_path)), predicate)
+
+    def _filtered_manifest(self, snapshot: _Snapshot, predicate: Predicate | None) -> tuple[ManifestRecord, ...]:
+        # The signature is read before the rows, so a write that lands during the read changes it for the next call.
+        manifest = snapshot.manifest
+        if manifest is None:
+            manifest = self._read_manifest()
+            if manifest is None:
+                return ()
+            snapshot.manifest = manifest
+        return tuple(row for row in manifest if predicate is None or predicate(row.metadata))
+
+    def _read_manifest(self) -> tuple[ManifestRecord, ...] | None:
         try:
             with self._connect() as connection:
                 missing = _missing_tables(connection, {"collections", "segments", "embeddings", "embedding_metadata"})
@@ -119,15 +159,13 @@ class ChromaSQLiteReader:
                     (f"{self._prefix}_%",),
                 ).fetchall()
         except sqlite3.Error:
-            return ()
+            return None
         grouped: dict[tuple[str, str], dict[str, Any]] = {}
         for row in rows:
             key = (str(row["collection_name"]), str(row["embedding_id"]))
             grouped.setdefault(key, {})[str(row["key"])] = _metadata_value(row)
         return tuple(
-            ManifestRecord(name, record_id, metadata)
-            for (name, record_id), metadata in sorted(grouped.items())
-            if predicate is None or predicate(metadata)
+            ManifestRecord(name, record_id, metadata) for (name, record_id), metadata in sorted(grouped.items())
         )
 
     def search(
@@ -147,17 +185,24 @@ class ChromaSQLiteReader:
                 return ()
         except sqlite3.Error as exc:
             raise VectorSearchError(f"vector search unavailable: {exc}") from exc
-        manifest = tuple(row for row in self.export_manifest(predicate) if row.collection_name == spec.name)
+        snapshot = self._snapshot(_file_signature(self._database_path))
+        manifest = tuple(
+            row for row in self._filtered_manifest(snapshot, predicate) if row.collection_name == spec.name
+        )
         if not manifest:
             return ()
-        ids = tuple(row.record_id for row in manifest)
-        vectors = self._vectors(spec.name, ids, vector_id_batch_size)
+        cached = snapshot.vectors.setdefault(spec.name, {})
+        missing = tuple(row.record_id for row in manifest if row.record_id not in cached)
+        if missing:
+            loaded = self._vectors(spec.name, missing, vector_id_batch_size)
+            cached.update({record_id: (vector, _norm(vector)) for record_id, vector in loaded.items()})
+        query_norm = _norm(values)
         scored = []
         for row in manifest:
-            vector = vectors.get(row.record_id)
-            if vector is None:
+            entry = cached.get(row.record_id)
+            if entry is None:
                 raise VectorSearchError(f"vector search unavailable: missing vector payload for {row.record_id}")
-            scored.append((_cosine(values, vector), row))
+            scored.append((_cosine_with_norms(values, query_norm, *entry), row))
         scored.sort(
             key=lambda item: (
                 -item[0],
@@ -270,11 +315,27 @@ def _decode(value: object, encoding: str) -> tuple[float, ...]:
     return tuple(float(item) for item in struct.unpack(f"<{len(value) // 4}f", value))
 
 
-def _cosine(left: tuple[float, ...], right: tuple[float, ...]) -> float:
+def _norm(values: tuple[float, ...]) -> float:
+    return math.sqrt(math.sumprod(values, values))
+
+
+def _cosine_with_norms(left: tuple[float, ...], left_norm: float, right: tuple[float, ...], right_norm: float) -> float:
+    """Cosine similarity from norms computed once per vector. ``math.sumprod`` sums in extended precision, so a score
+    can differ from a plain left-to-right sum in the last bits (about 1e-16)."""
     if len(left) != len(right):
         raise VectorSearchError(f"embedding dimension mismatch: expected {len(left)}, got {len(right)}")
-    left_norm = math.sqrt(sum(value * value for value in left))
-    right_norm = math.sqrt(sum(value * value for value in right))
     if left_norm == 0 or right_norm == 0:
         return 0.0
-    return sum(a * b for a, b in zip(left, right, strict=True)) / (left_norm * right_norm)
+    return math.sumprod(left, right) / (left_norm * right_norm)
+
+
+def _file_signature(database_path: Path) -> FileSignature:
+    signature: list[tuple[int, int, int] | None] = []
+    for path in (database_path, database_path.with_name(f"{database_path.name}-wal")):
+        try:
+            stat = path.stat()
+        except OSError:
+            signature.append(None)
+            continue
+        signature.append((stat.st_ino, stat.st_size, stat.st_mtime_ns))
+    return tuple(signature)

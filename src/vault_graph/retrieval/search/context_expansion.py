@@ -64,7 +64,9 @@ class ContextExpander:
         if not _chunk_in_scope(matched_chunk, scope):
             raise RetrievalContractError("matched chunk is outside QueryScope")
 
-        ordered_chunks = self._ordered_document_chunks(matched_chunk=matched_chunk, scope=scope)
+        ordered_chunks = self._ordered_document_chunks(
+            matched_chunk=matched_chunk, scope=scope, neighbor_radius=neighbor_radius
+        )
         matched_index = _find_chunk_index(ordered_chunks, matched_chunk.chunk_id)
         if matched_index is None:
             return ContextExpansion(
@@ -127,11 +129,23 @@ class ContextExpander:
         *,
         matched_chunk: ChunkSnapshot,
         scope: QueryScope,
+        neighbor_radius: int,
     ) -> tuple[ChunkSnapshot, ...]:
-        stored = self._metadata_store.list_document_chunks(
-            vault_id=matched_chunk.vault_id,
-            document_id=matched_chunk.document_id,
-        )
+        # Spec 2026-11-11 §4.2.6: a store that can return just the matched chunk and its neighbors saves reading a
+        # whole session document. The neighbors it returns are the ones this method would pick from the whole list.
+        window_reader = getattr(self._metadata_store, "list_document_chunk_window", None)
+        if callable(window_reader):
+            stored = window_reader(
+                vault_id=matched_chunk.vault_id,
+                document_id=matched_chunk.document_id,
+                chunk_id=matched_chunk.chunk_id,
+                radius=neighbor_radius,
+            )
+        else:
+            stored = self._metadata_store.list_document_chunks(
+                vault_id=matched_chunk.vault_id,
+                document_id=matched_chunk.document_id,
+            )
         # The page card is never context for another chunk. A matched card stays, so its page's first
         # body windows become its context.
         body_ids = {chunk.chunk_id for chunk in page_body_chunks(stored)}

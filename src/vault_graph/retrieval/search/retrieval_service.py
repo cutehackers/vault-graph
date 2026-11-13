@@ -18,8 +18,11 @@ from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.search.candidate_ranking import (
     candidate_from_keyword_hit,
     candidate_from_vector_hit,
+    document_rank_trace,
     family_duplication,
     fuse_candidates,
+    fused_rank_trace,
+    signal_rank_trace,
 )
 from vault_graph.retrieval.search.context_expansion import ContextExpander
 from vault_graph.retrieval.search.evidence_result_assembly import EvidenceResultAssembly
@@ -31,6 +34,7 @@ from vault_graph.retrieval.search.search_response import (
     SearchOutputFormat,
     SearchRequest,
     SearchResponse,
+    SearchStageTrace,
     SearchWarning,
 )
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordIndex, KeywordQuery
@@ -107,7 +111,11 @@ class RetrievalService:
         include_cross_vault: bool = False,
         mode: SearchMode = "knowledge",
         include_retired: bool = False,
+        trace: bool = False,
     ) -> SearchResponse:
+        """Search the scope. ``trace`` adds ``SearchResponse.stage_trace`` for the evaluation tool (spec
+        2026-11-11 §4.1.2). It only records ranks the search computes anyway, so results and their order do
+        not change."""
         normalized_query = query_text.strip()
         graph_requested_scope = _requested_scope_for_search(
             requested_scope=requested_scope,
@@ -124,6 +132,7 @@ class RetrievalService:
             include_cross_vault=include_cross_vault,
             mode=mode,
             include_retired=include_retired,
+            trace=trace,
         )
         return self._search_request(request)
 
@@ -135,7 +144,9 @@ class RetrievalService:
             raise fatal
         warnings = list(_warnings_for_readiness(readiness, request.actual_scopes))
         query_vector = self._query_vector(request=request, readiness=readiness, warnings=warnings)
+        refilled = False
         for refill in (False, True):
+            refilled = refill
             round_warnings: list[SearchWarning] = []
             keyword_candidates = self._keyword_candidates(request=request, candidate_limit=candidate_limit)
             vector_candidates = self._vector_candidates(
@@ -182,6 +193,17 @@ class RetrievalService:
             store_revisions=readiness.store_revisions + graph_result.store_revisions,
             generated_at=datetime.now(UTC).isoformat(),
             result_family_duplication=family_duplication(results),
+            stage_trace=(
+                SearchStageTrace(
+                    signal_ranks=signal_rank_trace(signal_candidates),
+                    fused_ranks=fused_rank_trace(candidates),
+                    document_ranks=document_rank_trace(tuple(results)),
+                    candidate_limit=candidate_limit,
+                    refilled=refilled,
+                )
+                if request.trace
+                else None
+            ),
         )
 
     def _expand_context(
@@ -262,6 +284,7 @@ class RetrievalService:
                             scope=scope,
                             limit=candidate_limit,
                             source_roles=SEARCH_MODE_ROLES[request.mode],
+                            with_matched_fields=False,
                         )
                     )
                 )

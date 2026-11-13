@@ -46,6 +46,7 @@ NO_HUMAN_QUESTION = "(사람 턴 없음)"
 
 _EXCHANGE_HEADING_RE = re.compile(r"^## +(?P<title>\S.*?)\s*$")
 _TURN_HEADING_RE = re.compile(r"^### +(?P<role>[^ ·]+)")
+_TURN_TIME_RE = re.compile(r"^### +[^ ·]+ · (?P<time>\d{4}-\d{2}-\d{2}T[0-9:.]+Z) · ")
 _META_PREFIX = "<!-- vg:"
 _META_RE = re.compile(r"^<!-- vg:exchange (?P<body>.*) -->$")
 _SUBAGENT_HEADING_RE = re.compile(r"^Subagent (?P<agent>\S+) · ")
@@ -460,15 +461,19 @@ def _continued(section_path: tuple[str, ...]) -> bool:
     return len(section_path) > 1 and section_path[1] == f"Q: {CONTINUED_QUESTION}"
 
 
-def exchange_time_ranges(document: ExtractedDocument) -> dict[str, tuple[str, str] | None]:
-    """`started`·`ended` of each exchange by its chunk `parent_key` (spec §4.2.7 last bullet).
+def exchange_time_ranges(document: ExtractedDocument) -> dict[str, tuple[str, str, str, bool] | None]:
+    """`started`·`ended`·`scope` of each exchange by its chunk `parent_key` (spec §4.2.7 last bullet).
+
+    The fourth value is False for a continued copy (`continued=1`). Its times are then the first and last
+    turn time the file holds, because the meta line times cover the turns before the cut too. A continued
+    copy without a readable turn time gets no entry.
 
     None when the meta line lacks either time or is broken (§6: the overlap pass then removes no v1
     exchange). Keys follow `SessionExchangeV2Chunker.plan`; an exchange id seen again keeps its first range.
     """
     path = document.source.path
     session_id = _text(document.frontmatter.data.get("session_id"))
-    ranges: dict[str, tuple[str, str] | None] = {}
+    ranges: dict[str, tuple[str, str, str, bool] | None] = {}
     heading_counts: dict[str, int] = {}
     for exchange in _exchanges(source_lines(document)):
         occurrence = heading_counts.get(exchange.title, 0)
@@ -477,8 +482,17 @@ def exchange_time_ranges(document: ExtractedDocument) -> dict[str, tuple[str, st
         if meta is None or not session_id:
             ranges.setdefault(f"{path}:{exchange.title}:{occurrence}", None)
             continue
-        times = (meta.started, meta.ended) if meta.started and meta.ended else None
-        ranges.setdefault(f"{session_id}:{meta.exchange_id}", times)
+        key = f"{session_id}:{meta.exchange_id}"
+        if not (meta.started and meta.ended):
+            ranges.setdefault(key, None)
+        elif not meta.continued:
+            ranges.setdefault(key, (meta.started, meta.ended, meta.scope, True))
+        else:
+            turn_times = sorted(
+                match.group("time") for line in exchange.lines if (match := _TURN_TIME_RE.match(line.text)) is not None
+            )
+            if turn_times:
+                ranges.setdefault(key, (turn_times[0], turn_times[-1], meta.scope, False))
     return ranges
 
 

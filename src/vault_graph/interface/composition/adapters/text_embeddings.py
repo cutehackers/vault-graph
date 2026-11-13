@@ -80,10 +80,32 @@ EMBEDDING_PRESETS: Mapping[str, EmbeddingPreset] = MappingProxyType(
                 query_prefix="query: ",
                 document_prefix="passage: ",
             ),
+            # Pinned from Hugging Face API metadata on 2026-11-12. CLS pooling and the query-only prefix are
+            # from the model card: https://huggingface.co/Snowflake/snowflake-arctic-embed-m-v2.0
+            # Measured against e5-small in docs/design/reports/2026-11-single-query-options.md §7.
+            EmbeddingPreset(
+                name="arctic-m",
+                model_name="Snowflake/snowflake-arctic-embed-m-v2.0",
+                revision="95c2741480856aa9666782eb4afe11959938017f",
+                dimensions=768,
+                spec_version="fastembed-arctic-embed-m-v2-int8-cls-qprefix-v1",
+                repo_id="Snowflake/snowflake-arctic-embed-m-v2.0",
+                source_model_revision="",
+                files=("onnx/model_int8.onnx", *_TOKENIZER_FILES),
+                fastembed_registration="custom",
+                model_file="onnx/model_int8.onnx",
+                pooling="CLS",
+                normalization=True,
+                max_tokens=512,
+                download_mb=311,
+                summary="Korean questions over English pages and sessions, ranks by content across languages",
+                query_prefix="query: ",
+                document_prefix="",
+            ),
         )
     }
 )
-DEFAULT_EMBEDDING_PRESET = "e5-small"
+DEFAULT_EMBEDDING_PRESET = "arctic-m"
 
 _REGISTERED_CUSTOM_MODELS: set[str] = set()
 _REGISTRATION_LOCK = threading.Lock()

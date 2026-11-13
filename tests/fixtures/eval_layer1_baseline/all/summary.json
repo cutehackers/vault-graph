@@ -1,0 +1,111 @@
+{
+  "by_kind": {
+    "decision": {
+      "failed": 0,
+      "mrr": 0.5831,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 28,
+        "rank_loss": 6
+      },
+      "questions": 34,
+      "recall_at_10": 0.9412,
+      "recall_at_5": 0.8235,
+      "scored": 34
+    },
+    "how": {
+      "failed": 0,
+      "mrr": 0.5432,
+      "outcomes": {
+        "candidate_loss": 1,
+        "hit": 22,
+        "rank_loss": 9
+      },
+      "questions": 32,
+      "recall_at_10": 0.875,
+      "recall_at_5": 0.6875,
+      "scored": 32
+    },
+    "no_answer": {
+      "failed": 0,
+      "mrr": null,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 0,
+        "rank_loss": 0
+      },
+      "questions": 30,
+      "recall_at_10": null,
+      "recall_at_5": null,
+      "scored": 0
+    },
+    "paraphrase": {
+      "failed": 0,
+      "mrr": 0.6222,
+      "outcomes": {
+        "candidate_loss": 4,
+        "hit": 27,
+        "rank_loss": 5
+      },
+      "questions": 36,
+      "recall_at_10": 0.8056,
+      "recall_at_5": 0.75,
+      "scored": 36
+    },
+    "session": {
+      "failed": 0,
+      "mrr": 0.6165,
+      "outcomes": {
+        "candidate_loss": 6,
+        "hit": 45,
+        "rank_loss": 9
+      },
+      "questions": 60,
+      "recall_at_10": 0.8333,
+      "recall_at_5": 0.75,
+      "scored": 60
+    },
+    "title": {
+      "failed": 0,
+      "mrr": 0.9733,
+      "outcomes": {
+        "candidate_loss": 0,
+        "hit": 30,
+        "rank_loss": 0
+      },
+      "questions": 30,
+      "recall_at_10": 1.0,
+      "recall_at_5": 1.0,
+      "scored": 30
+    }
+  },
+  "commit": "08af575",
+  "failed": 0,
+  "hit_limit": 5,
+  "include_graph": false,
+  "layer": 1,
+  "mrr": 0.6552,
+  "outcomes": {
+    "candidate_loss": 11,
+    "hit": 152,
+    "rank_loss": 29
+  },
+  "questions": 222,
+  "recall_at_10": 0.8802,
+  "recall_at_5": 0.7917,
+  "result_limit": 20,
+  "scored": 192,
+  "seconds": {
+    "p50": 28.581,
+    "p95": 32.515
+  },
+  "split": "all",
+  "vault_ids": [
+    "personal",
+    "vault-graph",
+    "981park-flutter-app",
+    "bake",
+    "sgp-981-app",
+    "vault-builder"
+  ]
+}

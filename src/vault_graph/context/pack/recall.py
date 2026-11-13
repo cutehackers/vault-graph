@@ -4,7 +4,8 @@
 opens embeddings or a vector store. Blocks print in order A (pinned memory, ``recall_pins``),
 L3 (project summary), B (memory list), C (change notices), D (how to open a page and, on startup,
 how many inferred facts wait in the Vault review queues, F11, the cleanup backlog line,
-``recall_backlog``, and the brief update line, spec 2026-11-05 §4.4.7). Block A takes current in-scope pages
+``recall_backlog``, the brief update line, spec 2026-11-05 §4.4.7, and one line per linked Vault whose
+index keeps failing, spec 2026-11-11 §4.4.1). Block A takes current in-scope pages
 with ``pin: true`` from every linked Vault, has its own 400-token budget, and its pages are not
 repeated in block B (spec 2026-11-02 V4, 결정14).
 
@@ -206,7 +207,9 @@ def recall(
     max_chars: int = DEFAULT_RECALL_MAX_CHARS,
     ports: RecallPorts,
     now: datetime | None = None,
+    index_failures: Mapping[str, str] | None = None,
 ) -> RecallBundle:
+    """``index_failures`` maps a Vault id to its index failure line. Block D shows those of linked Vaults."""
     moment = now or datetime.now(UTC)
     scope = ports.scope.resolve(cwd)
     if not scope.vault_ids:
@@ -259,7 +262,7 @@ def recall(
         items = _block_b_items(library)
         if not items and not notices and not pins.text and not project_summary:
             return _handoff("No memory to recall for this project.", warnings)
-        backlog = backlog_lines(ports.backlog, cwd, warnings, budget_s=ports.backlog_budget_s)
+        alert, backlog = backlog_lines(ports.backlog, cwd, warnings, budget_s=ports.backlog_budget_s)
         backlog.extend(_brief_lines(ports.documents, indexed, scope, warnings))
         layout = _layout(
             library,
@@ -272,6 +275,8 @@ def recall(
             max_chars=max_chars,
             proposals=_pending_proposals(ports.proposals, indexed, warnings),
             backlog=backlog,
+            alert=alert,
+            failures=_failure_lines(index_failures or {}, scope.vault_ids),
         )
 
     events = [
@@ -730,6 +735,8 @@ def _layout(
     proposals: Mapping[str, int] | None = None,
     project_summary: str = "",
     backlog: Sequence[str] = (),
+    alert: Sequence[str] = (),
+    failures: Sequence[str] = (),
 ) -> _Layout:
     def fits(text: str) -> bool:
         return estimate_recall_tokens(text) <= max_tokens and len(text) <= max_chars
@@ -740,7 +747,10 @@ def _layout(
         else (BLOCK_C_MAX_TOKENS, max_chars)
     )
     block_d = (
-        _block(BLOCK_D_TITLE, [_how_to_open(library), *_proposal_lines(library, proposals or {}), *backlog])
+        _block(
+            BLOCK_D_TITLE,
+            [_how_to_open(library), *failures, *_proposal_lines(library, proposals or {}), *backlog],
+        )
         if full
         else ""
     )
@@ -758,7 +768,10 @@ def _layout(
     item_lines = [_item_line(library, entry) for entry in items]
 
     def render(shown_items: int, shown_notices: int) -> str:
-        blocks: list[str] = [pins.text] if pins is not None and pins.text else []
+        # An overdue cleanup backlog line comes before every block (spec 2026-11-11 §4.3.3).
+        blocks: list[str] = ["".join(line + "\n" for line in alert)] if alert else []
+        if pins is not None and pins.text:
+            blocks.append(pins.text)
         if project_summary:
             blocks.append(project_summary)
         if items:
@@ -831,6 +844,11 @@ def _how_to_open(library: _Library) -> str:
         prefix = " 경로 앞 이름이 vault_id다. vault_id:" if library.many_vaults else " vault_id:"
         ids = ", ".join(library.vault_ids)
     return f"- 본문은 MCP 리소스 `vault://{{vault_id}}/pages/{{path}}`로 연다(path의 `/`는 `%2F`).{prefix} {ids}"
+
+
+def _failure_lines(index_failures: Mapping[str, str], vault_ids: Sequence[str]) -> list[str]:
+    """Block D lines for linked Vaults whose index keeps failing, in link order (spec 2026-11-11 §4.4.1)."""
+    return [f"- {_one_line(index_failures[vault_id])}" for vault_id in vault_ids if vault_id in index_failures]
 
 
 def _pending_proposals(

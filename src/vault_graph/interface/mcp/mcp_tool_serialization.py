@@ -59,7 +59,8 @@ def memory_write_result_to_payload(result: MemoryWriteResult) -> dict[str, objec
     """Serialize the result of one memory write tool (spec 2026-11-02 V3, spec 2026-11-05 §4.4.5).
 
     ``candidates`` is filled for ``vault_required``. ``review_path``, ``raw_path`` and ``source_page``
-    appear only when they are set; ``import_auto_memory`` sets the last two.
+    appear only when they are set; ``import_auto_memory`` sets the last two. ``warnings`` and
+    ``similar_pages`` (set by ``remember``, backlog MEMORY-01) appear only when they are not empty.
     """
     payload: dict[str, object] = {
         "status": result.status,
@@ -75,6 +76,20 @@ def memory_write_result_to_payload(result: MemoryWriteResult) -> dict[str, objec
         payload["raw_path"] = result.raw_path
     if result.source_page is not None:
         payload["source_page"] = result.source_page
+    if result.warnings:
+        payload["warnings"] = list(result.warnings)
+    if result.similar_pages:
+        payload["similar_pages"] = [
+            {
+                "vault_id": page.vault_id,
+                "path": page.path,
+                "title": page.title,
+                "status": page.status,
+                "superseded_by": page.superseded_by,
+                "retired_reason": page.retired_reason,
+            }
+            for page in result.similar_pages
+        ]
     return payload
 
 

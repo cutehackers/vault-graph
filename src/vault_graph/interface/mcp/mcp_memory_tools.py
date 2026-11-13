@@ -41,6 +41,8 @@ class RememberInput:
     pin: bool = False
     memory_kind: str | None = None
     candidate_key: str | None = None
+    summary: str | None = None
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,8 @@ class UpdateMemoryInput:
     pin: bool | None = None
     memory_kind: str | None = None
     candidate_key: str | None = None
+    summary: str | None = None
+    aliases: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -126,6 +130,8 @@ class McpMemoryTools:
                     memory_kind=request.memory_kind,
                     project_id=_project_id(cwd),
                     candidate_key=request.candidate_key,
+                    summary=request.summary,
+                    aliases=request.aliases,
                 )
             ),
         )
@@ -149,6 +155,8 @@ class McpMemoryTools:
                     pin=request.pin,
                     memory_kind=request.memory_kind,
                     candidate_key=request.candidate_key,
+                    summary=request.summary,
+                    aliases=request.aliases,
                 )
             ),
         )
@@ -299,6 +307,8 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         pin: bool = False,
         memory_kind: MemoryKind | None = None,
         candidate_key: str | None = None,
+        summary: str | None = None,
+        aliases: list[str] | None = None,
     ) -> dict[str, object]:
         """Add one new memory page to a Vault. To change an existing page use update_memory.
 
@@ -310,6 +320,17 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         ``memory_kind`` is optional and says what sort of memory it is: ``rule``, ``correction``, ``decision``
         or ``preference``. It does not choose the Vault or the folder. ``evidence`` lists at least one source
         such as a file path, URL or quote. ``pin`` puts the page first in session-start recall.
+
+        ``summary`` (one or two sentences, one line) and ``aliases`` (other names and keywords for the page)
+        go into the page frontmatter and search matches them. You write them; the tool never makes them up.
+        Search matches keywords in the language the user asks in, so when that differs from the page's language
+        write them in both: for an English page of a Korean-speaking user, add a Korean summary sentence and
+        Korean aliases, such as ``aliases=["SQLite 색인", "sqlite index"]``. A ``stated`` page without
+        ``summary`` is still published, with a warning in ``warnings``.
+
+        The result may hold ``similar_pages``: up to 3 existing pages like this one, with their ``status``
+        (``retired`` and ``deprecated`` pages included). It never blocks the write. If one holds the same
+        fact, consider update_memory on it or retire_memory(replaced_by=...).
 
         ``basis`` (required): ``stated`` when the user said the fact; the page is published and the tool
         returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
@@ -335,6 +356,8 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
             pin=pin,
             memory_kind=memory_kind,
             candidate_key=candidate_key,
+            summary=summary,
+            aliases=aliases,
         )
         return registry.remember(request).to_json_dict()
 
@@ -350,6 +373,8 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         pin: bool | None = None,
         memory_kind: MemoryKind | None = None,
         candidate_key: str | None = None,
+        summary: str | None = None,
+        aliases: list[str] | None = None,
     ) -> dict[str, object]:
         """Replace the body of one existing memory page.
 
@@ -357,6 +382,13 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         ``written_paths`` or by search. ``title``, ``pin`` and ``memory_kind`` (``rule``, ``correction``,
         ``decision`` or ``preference``) are optional; leaving them out keeps the page's current value.
         Without ``vault``, the tool looks for ``path`` in the project's Vaults.
+
+        ``summary`` (one or two sentences, one line) and ``aliases`` (other names and keywords for the page)
+        are optional and replace the page's current values; leaving them out keeps them, and ``aliases=[]``
+        removes the aliases. You write them; the tool never makes them up. Search matches keywords in the
+        language the user asks in, so when that differs from the page's language write them in both: for an
+        English page of a Korean-speaking user, add a Korean summary sentence and Korean aliases, such as
+        ``aliases=["SQLite 색인", "sqlite index"]``.
 
         ``basis`` (required): ``stated`` when the user said the fact; the page is published and the tool
         returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
@@ -382,6 +414,8 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
             pin=pin,
             memory_kind=memory_kind,
             candidate_key=candidate_key,
+            summary=summary,
+            aliases=aliases,
         )
         return registry.update_memory(request).to_json_dict()
 
@@ -563,11 +597,15 @@ def parse_remember_input(
     pin: bool = False,
     memory_kind: str | None = None,
     candidate_key: str | None = None,
+    summary: str | None = None,
+    aliases: list[str] | None = None,
 ) -> RememberInput:
     """Check only types here. Empty fields, unknown kinds and bases come back as a ``rejected`` result."""
 
     _require_strings(title=title, kind=kind, body=body, basis=basis)
-    _require_optional_strings(cwd=cwd, vault=vault, memory_kind=memory_kind, candidate_key=candidate_key)
+    _require_optional_strings(
+        cwd=cwd, vault=vault, memory_kind=memory_kind, candidate_key=candidate_key, summary=summary
+    )
     if not isinstance(pin, bool):
         raise invalid_arguments("pin must be a boolean")
     return RememberInput(
@@ -581,6 +619,8 @@ def parse_remember_input(
         pin=pin,
         memory_kind=memory_kind,
         candidate_key=candidate_key,
+        summary=summary,
+        aliases=() if aliases is None else _aliases_tuple(aliases),
     )
 
 
@@ -596,11 +636,15 @@ def parse_update_memory_input(
     pin: bool | None = None,
     memory_kind: str | None = None,
     candidate_key: str | None = None,
+    summary: str | None = None,
+    aliases: list[str] | None = None,
 ) -> UpdateMemoryInput:
     """Check only types here. Bad paths and empty fields come back as a ``rejected`` result."""
 
     _require_strings(path=path, body=body, basis=basis)
-    _require_optional_strings(vault=vault, cwd=cwd, title=title, memory_kind=memory_kind, candidate_key=candidate_key)
+    _require_optional_strings(
+        vault=vault, cwd=cwd, title=title, memory_kind=memory_kind, candidate_key=candidate_key, summary=summary
+    )
     if pin is not None and not isinstance(pin, bool):
         raise invalid_arguments("pin must be a boolean")
     return UpdateMemoryInput(
@@ -614,6 +658,8 @@ def parse_update_memory_input(
         pin=pin,
         memory_kind=memory_kind,
         candidate_key=candidate_key,
+        summary=summary,
+        aliases=None if aliases is None else _aliases_tuple(aliases),
     )
 
 
@@ -715,6 +761,12 @@ def _evidence_tuple(evidence: object) -> tuple[str, ...]:
     if not isinstance(evidence, list | tuple) or not all(isinstance(item, str) for item in evidence):
         raise invalid_arguments("evidence must be a list of strings")
     return tuple(evidence)
+
+
+def _aliases_tuple(aliases: object) -> tuple[str, ...]:
+    if not isinstance(aliases, list | tuple) or not all(isinstance(item, str) for item in aliases):
+        raise invalid_arguments("aliases must be a list of strings")
+    return tuple(aliases)
 
 
 __all__ = [

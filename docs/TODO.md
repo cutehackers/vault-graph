@@ -51,9 +51,9 @@ Promote each item to its own spec before starting.
 - [ ] **n차-2:** Interpret memory frontmatter and add `get_profile` (needs 의존5)
 - [ ] **n차-3:** Code and memory in one query, MCP `explain_symbol`, decide on
   code chunk indexing (needs first pass)
-- [ ] **n차-4:** The default embedding model (`e5-small`) was chosen by a person
-  (DECISIONS 2026-11-04). Still open: check `e5-small` against the previous
-  MiniLM model with measurement 1
+- [x] **n차-4:** The default embedding model is `arctic-m`, chosen from a
+  measurement on the user's own Vaults against `e5-small` and `e5-base`
+  (DECISIONS 2026-11-12)
 - [ ] **n차-5:** Replace polling watch with file change events (`watchfiles`)
 - [ ] **n차-6:** Classify `raw/sessions/<agent>/` by source and search them in
   evidence mode (needs 의존2)
@@ -342,6 +342,24 @@ Required validation:
 - adapter failures do not break search, context packs, graph, or memory
   projections
 - cross-Vault exports preserve Vault IDs and never merge by title alone
+
+## Search And Memory Quality Follow-Ups
+
+Status: left open after the 2026-11-13 final measurement
+(`docs/design/reports/2026-11-single-query-options.md` §8). Codes match the
+`남은N` codes used when the work was closed.
+
+- 남은1 Korean aliases for existing wiki pages. Memory recall on the memory
+  question set is 0.92 (34/37) against the 0.95 target. The user chose not to
+  add Korean `aliases` to all wiki pages before the release. Vault Graph does
+  not write this content. It goes through the Vault's own tools.
+- 남은4 Three inferred memory proposals wait in the Vault review queues. A
+  person accepts or rejects each one with the Vault's review resolve.
+- 남은5 One memory candidate is held, not published and not skipped. It needs a
+  user decision.
+- 남은7 Median age of pending session exchanges is 6.62 days against the 7 day
+  target, with 546 pending. It passes the target again only if "기억 정리해"
+  runs regularly.
 
 ## CLI And Operations
 

@@ -172,6 +172,16 @@ CREATE TABLE IF NOT EXISTS document_source_stats (
 """
 
 
+# Search reads one document's chunks around a match and one provenance family's first chunks (spec 2026-11-11
+# §4.2.6). Without these indexes each read scans the Vault's chunks. Like chunks_blob_hash, a writable open adds them
+# to older databases and health does not require them. They run after _upgrade_schema, which adds document_order to
+# a v2 database.
+_SEARCH_INDEXES = """
+CREATE INDEX IF NOT EXISTS chunks_document_order ON chunks(vault_id, document_id, document_order);
+CREATE INDEX IF NOT EXISTS chunks_provenance_family ON chunks(vault_id, provenance_family_id);
+"""
+
+
 class SQLiteMetadataStore:
     def __init__(self, database_path: Path, *, initialize: bool = False) -> None:
         self._database_path = database_path.expanduser().resolve()
@@ -182,6 +192,7 @@ class SQLiteMetadataStore:
                 connection.executescript(SCHEMA)
                 connection.execute(_SOURCE_STATS_TABLE)
                 _upgrade_schema(connection)
+                connection.executescript(_SEARCH_INDEXES)
                 ensure_keyword_schema(connection)
 
     def apply_metadata_revision(
@@ -488,6 +499,78 @@ class SQLiteMetadataStore:
             ).fetchall()
         return tuple(_chunk_snapshot_from_row(row) for row in rows)
 
+    def list_document_chunk_window(
+        self, *, vault_id: str, document_id: str, chunk_id: str, radius: int
+    ) -> tuple[ChunkSnapshot, ...]:
+        """The chunk ``chunk_id`` and up to ``radius`` page-body chunks on each side of it, ordered by
+        ``(document_order, chunk_id)``: the slice of ``list_document_chunks`` that context expansion reads, without
+        reading the whole document (spec 2026-11-11 §4.2.6). Empty when the chunk is not in a live document."""
+        if not self._database_path.exists():
+            return ()
+        with self._connect() as connection:
+            chunk_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
+            kind = "c.chunk_kind" if "chunk_kind" in chunk_columns else "'body'"
+            select = f"""
+                SELECT c.vault_id, c.chunk_id, c.document_id, c.path, c.section, c.anchor,
+                       b.text, c.token_count, c.content_hash, c.chunker_version, c.index_revision,
+                       c.source_role, c.provenance_family_id, c.section_path_json,
+                       c.source_locators_json, c.document_order, {_optional_chunk_select(connection)}
+                FROM chunks c
+                INNER JOIN content_blobs b ON b.blob_hash = c.blob_hash
+                INNER JOIN documents d
+                  ON d.vault_id = c.vault_id
+                 AND d.document_id = c.document_id
+                 AND d.path = c.path
+                WHERE c.vault_id = ?
+                  AND c.document_id = ?
+                  AND d.is_tombstoned = 0
+            """
+            matched = connection.execute(f"{select} AND c.chunk_id = ?", (vault_id, document_id, chunk_id)).fetchone()
+            if matched is None:
+                return ()
+            order = matched["document_order"]
+            before = connection.execute(
+                f"""{select} AND {kind} != 'page_card'
+                  AND (c.document_order < ? OR (c.document_order = ? AND c.chunk_id < ?))
+                ORDER BY c.document_order DESC, c.chunk_id DESC LIMIT ?""",
+                (vault_id, document_id, order, order, chunk_id, radius),
+            ).fetchall()
+            after = connection.execute(
+                f"""{select} AND {kind} != 'page_card'
+                  AND (c.document_order > ? OR (c.document_order = ? AND c.chunk_id > ?))
+                ORDER BY c.document_order, c.chunk_id LIMIT ?""",
+                (vault_id, document_id, order, order, chunk_id, radius),
+            ).fetchall()
+        return tuple(_chunk_snapshot_from_row(row) for row in (*reversed(before), matched, *after))
+
+    def list_parent_chunk_hashes(self, *, vault_id: str, document_id: str, parent_key: str) -> tuple[str, ...]:
+        """`content_hash` of every chunk of one parent unit (a session exchange), ordered by
+        ``(document_order, chunk_id)``. Reads no chunk text, so search can compare
+        whole exchanges without reading the session document (spec 2026-11-11 §4.2.6, 결정17)."""
+        if not self._database_path.exists():
+            return ()
+        with self._connect() as connection:
+            chunk_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
+            if "parent_key" not in chunk_columns:
+                return ()
+            rows = connection.execute(
+                """
+                SELECT c.content_hash
+                FROM chunks c
+                INNER JOIN documents d
+                  ON d.vault_id = c.vault_id
+                 AND d.document_id = c.document_id
+                 AND d.path = c.path
+                WHERE c.vault_id = ?
+                  AND c.document_id = ?
+                  AND c.parent_key = ?
+                  AND d.is_tombstoned = 0
+                ORDER BY c.document_order, c.chunk_id
+                """,
+                (vault_id, document_id, parent_key),
+            ).fetchall()
+        return tuple(str(row["content_hash"]) for row in rows)
+
     def resolve_document(self, document_id: str) -> DocumentSnapshot | None:
         if not self._database_path.exists():
             return None
@@ -697,6 +780,42 @@ class SQLiteMetadataStore:
                   AND c.provenance_family_id = ?
                   AND d.is_tombstoned = 0
                 ORDER BY d.path, c.document_order, c.chunk_id
+                """,
+                (vault_id, provenance_family_id),
+            ).fetchall()
+        return tuple(_evidence_reference_from_row(row) for row in rows)
+
+    def list_family_document_evidence(
+        self, *, vault_id: str, provenance_family_id: str
+    ) -> tuple[EvidenceReference, ...]:
+        """For each document and role of the family, its first chunk in ``list_family_evidence`` order, in that same
+        order. Readers that keep one reference per document get the same references without decoding every chunk
+        (spec 2026-11-11 §4.2.6)."""
+        if not self._database_path.exists():
+            return ()
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM (
+                    SELECT d.vault_id, d.document_id, c.chunk_id, d.path, c.section, c.anchor,
+                           c.content_hash, d.raw_sha256, c.index_revision, d.vault_revision,
+                           c.source_role, c.provenance_family_id, c.section_path_json,
+                           c.source_locators_json, c.document_order,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY d.vault_id, d.document_id, c.source_role
+                               ORDER BY c.document_order, c.chunk_id
+                           ) AS document_rank
+                    FROM documents d
+                    INNER JOIN chunks c
+                      ON c.vault_id = d.vault_id
+                     AND c.document_id = d.document_id
+                     AND c.path = d.path
+                    WHERE d.vault_id = ?
+                      AND c.provenance_family_id = ?
+                      AND d.is_tombstoned = 0
+                )
+                WHERE document_rank = 1
+                ORDER BY path, document_order, chunk_id
                 """,
                 (vault_id, provenance_family_id),
             ).fetchall()

@@ -668,8 +668,24 @@ def _comparison_page(page: MemoryPage | SimilarPage) -> ComparisonPage:
     )
 
 
+def similar_project_pages(
+    finder: SimilarPageFinder, query: str, project_id: str | None, *, limit: int = COMPARISON_PAGE_LIMIT
+) -> tuple[ComparisonPage, ...]:
+    """At most ``limit`` pages of the project similar to ``query``, best first, retired pages included.
+
+    The same rule as the comparison material of a cleanup candidate; ``remember`` uses it to list
+    existing pages like a new memory (backlog MEMORY-01).
+    """
+    return _comparison(finder, query, project_id, limit=limit)
+
+
 def _comparison(
-    finder: SimilarPageFinder, query: str, project_id: str | None, *, excluded: Collection[PageKey] = ()
+    finder: SimilarPageFinder,
+    query: str,
+    project_id: str | None,
+    *,
+    excluded: Collection[PageKey] = (),
+    limit: int = COMPARISON_PAGE_LIMIT,
 ) -> tuple[ComparisonPage, ...]:
     if not query.strip():
         return ()
@@ -680,7 +696,7 @@ def _comparison(
         if not page_in_project(page.frontmatter, project_id, vault_scope=page.vault_scope):
             continue
         material.append(_comparison_page(page))
-        if len(material) == COMPARISON_PAGE_LIMIT:
+        if len(material) == limit:
             break
     return tuple(material)
 
@@ -718,4 +734,5 @@ __all__ = [
     "build_memory_candidates",
     "exchange_location",
     "is_current_memory_page",
+    "similar_project_pages",
 ]

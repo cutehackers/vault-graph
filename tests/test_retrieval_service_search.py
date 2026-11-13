@@ -657,3 +657,46 @@ def test_retrieval_candidate_seam_preserves_signal_explanations(tmp_path: Path) 
     assert response.results[0].signals[-1].explanation == "GraphRAG -> Search via depends_on"
     assert any(warning.code == "graph_test_warning" for warning in response.warnings)
     assert any(revision.kind == "graph" for revision in response.store_revisions)
+
+
+def test_refill_round_finds_a_second_document_and_trace_describes_that_round(tmp_path: Path) -> None:
+    catalog = _catalog(tmp_path)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    crowded = make_document("default", "wiki/crowded.md", "crowded")
+    other = make_document("default", "wiki/other.md", "other")
+    crowded_chunks = [
+        make_chunk("default", crowded.document_id, crowded.path, chunk_id=f"crowded-{index}", text=f"c{index}")
+        for index in range(20)
+    ]
+    other_chunk = make_chunk("default", other.document_id, other.path, chunk_id="other-0", text="other")
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[crowded, other],
+        chunks=[*crowded_chunks, other_chunk],
+        tombstones=[],
+    )
+    hits = tuple(
+        _keyword_hit(chunk.document_id, chunk.chunk_id, rank=rank)
+        for rank, chunk in enumerate([*crowded_chunks, other_chunk], start=1)
+    )
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=InMemoryKeywordIndex(hits),
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+    )
+
+    plain = service.search(query_text="c", requested_scope=catalog.default_scope(), limit=2)
+    traced = service.search(query_text="c", requested_scope=catalog.default_scope(), limit=2, trace=True)
+
+    assert [result.evidence[0].document_id for result in plain.results] == [crowded.document_id, other.document_id]
+    assert plain.stage_trace is None
+    assert traced.results == plain.results
+    assert traced.stage_trace is not None
+    assert traced.stage_trace.refilled is True
+    assert traced.stage_trace.candidate_limit == 80
+    assert len(traced.stage_trace.signal_ranks) == 21
+    assert [entry.document_id for entry in traced.stage_trace.document_ranks] == [
+        crowded.document_id,
+        other.document_id,
+    ]
