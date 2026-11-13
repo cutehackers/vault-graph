@@ -344,3 +344,88 @@ def test_importing_reranker_modules_does_not_load_model_libraries() -> None:
     completed = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
 
     assert completed.stdout.strip() == "[]"
+
+
+# Task 5 (D11, F1, F3, I3): which reranker the search services get from the settings file.
+def _search_reranker(home: Path) -> tuple[object, str | None]:
+    from vault_graph.interface.composition.read_only_service_factory import search_reranker_for
+    from vault_graph.operation.scope.catalog_service import CatalogService
+
+    return search_reranker_for(CatalogService(graph_home_path=home))
+
+
+def test_search_gets_no_reranker_without_settings(home: Path) -> None:
+    assert _search_reranker(home) == (None, None)
+    assert not _settings(home).exists()
+
+
+def test_search_gets_no_reranker_when_turned_off(home: Path) -> None:
+    save_reranker_selection(_settings(home), RerankerSelection(enabled=False, model="mmarco"))
+
+    assert _search_reranker(home) == (None, None)
+
+
+def test_search_gets_the_preset_adapter_on_the_embedding_models_dir(home: Path, tmp_path: Path) -> None:
+    models_dir = tmp_path / "models"
+    _use_embedding_models_dir(home, models_dir)
+    save_reranker_selection(_settings(home), RerankerSelection(enabled=True, model="mmarco"))
+
+    reranker, error = _search_reranker(home)
+
+    assert error is None
+    assert isinstance(reranker, TextCrossEncoderReranker)
+    assert reranker.preset == "mmarco"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "{not json",
+        json.dumps({"version": 99, "enabled": True, "model": "mmarco"}),
+        json.dumps({"version": 1, "enabled": True, "model": "bge-reranker-v2-m3"}),
+    ],
+)
+def test_broken_settings_turn_reranking_off_with_a_reason(home: Path, payload: str) -> None:
+    _settings(home).write_text(payload, encoding="utf-8")
+
+    reranker, error = _search_reranker(home)
+
+    assert reranker is None
+    assert error is not None
+    assert "reranker.json" in error
+
+
+def test_missing_model_files_reach_search_as_reranker_unavailable(hub: FakeHub, tmp_path: Path) -> None:
+    from vault_graph.retrieval.search.reranker import RerankerUnavailableError
+
+    assert issubclass(RerankModelUnavailableError, RerankerUnavailableError)
+
+
+def test_graph_home_init_does_not_download_the_rerank_model(hub: FakeHub, home: Path) -> None:
+    assert hub.download_calls() == []
+    assert not _settings(home).exists()
+
+
+def test_cli_search_reads_the_settings_file_and_warns_when_broken(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.test_cli_search import _deterministic_text_embeddings, write_page
+
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    vault_root = tmp_path / "vault"
+    write_page(vault_root, "wiki/page.md", "# Page\nGraphRAG evidence\n")
+    graph_home = tmp_path / "state"
+    assert runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home)]).exit_code == 0
+    assert runner.invoke(app, ["index", "--graph-home", str(graph_home)]).exit_code == 0
+
+    def search_codes() -> list[str]:
+        result = runner.invoke(app, ["search", "--graph-home", str(graph_home), "--format", "json", "GraphRAG"])
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.stdout)
+        assert [item["title"] for item in payload["results"]][:1] == ["wiki/page.md#page"]
+        return [warning["code"] for warning in payload["warnings"]]
+
+    assert "reranker_config_invalid" not in search_codes()
+    _settings(graph_home).write_text("{not json", encoding="utf-8")
+    assert search_codes().count("reranker_config_invalid") == 1

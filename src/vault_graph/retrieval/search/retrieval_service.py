@@ -27,7 +27,12 @@ from vault_graph.retrieval.search.candidate_ranking import (
 from vault_graph.retrieval.search.context_expansion import ContextExpander
 from vault_graph.retrieval.search.evidence_result_assembly import EvidenceResultAssembly
 from vault_graph.retrieval.search.graph_candidates import GraphCandidateProvider, GraphCandidateResult
-from vault_graph.retrieval.search.reranker import Reranker, rerank_results
+from vault_graph.retrieval.search.reranker import (
+    Reranker,
+    RerankError,
+    RerankerUnavailableError,
+    rerank_results,
+)
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult
 from vault_graph.retrieval.search.search_response import (
@@ -85,9 +90,11 @@ class RetrievalService:
         context_max_tokens: int = DEFAULT_CONTEXT_EXPANSION_MAX_TOKENS,
         context_neighbor_radius: int = DEFAULT_CONTEXT_NEIGHBOR_RADIUS,
         reranker: Reranker | None = None,
+        reranker_config_error: str | None = None,
     ) -> None:
         """``reranker`` reorders the top results after the candidate rounds (spec 2026-11-13 D6). Without it
-        the search order stays as ranked."""
+        the search order stays as ranked. ``reranker_config_error`` is why the settings turned reranking off;
+        each search then carries a ``reranker_config_invalid`` warning (D11)."""
         self._catalog = catalog
         self._metadata_store = metadata_store
         self._evidence_results = EvidenceResultAssembly(metadata_store)
@@ -104,6 +111,7 @@ class RetrievalService:
         self._context_max_tokens = context_max_tokens
         self._context_neighbor_radius = context_neighbor_radius
         self._reranker = reranker
+        self._reranker_config_error = reranker_config_error
 
     def search(
         self,
@@ -177,13 +185,28 @@ class RetrievalService:
                 break
             candidate_limit *= CANDIDATE_REFILL_FACTOR
         rerank_trace = None
+        if self._reranker_config_error is not None:
+            warnings.append(_reranker_warning(request, "reranker_config_invalid", self._reranker_config_error))
         if self._reranker is not None:
             # After the refill decision and before the limit, so the candidate rounds stay as they are.
-            reranked = rerank_results(
-                query_text=request.query_text, results=results, passages=passages, reranker=self._reranker
-            )
-            results = reranked.results
-            rerank_trace = reranked.trace
+            # A failure keeps the search order for this query only; the next query asks the model again.
+            try:
+                reranked = rerank_results(
+                    query_text=request.query_text, results=results, passages=passages, reranker=self._reranker
+                )
+            except RerankerUnavailableError as exc:
+                warnings.append(
+                    _reranker_warning(
+                        request,
+                        "reranker_unavailable",
+                        f"{exc}. Run `vg reranker use {self._reranker.preset}` to download it, or `vg reranker off`",
+                    )
+                )
+            except RerankError as exc:
+                warnings.append(_reranker_warning(request, "rerank_failed", str(exc)))
+            else:
+                results = reranked.results
+                rerank_trace = reranked.trace
         warnings.extend(round_warnings)
         warnings.extend(graph_result.warnings)
         warnings.extend(missing_warnings)
@@ -391,6 +414,15 @@ def _merge_scope_hits[Hit: (KeywordHit, VectorHit)](
         key=lambda entry: entry[:5],
     )
     return tuple(replace(entry[5], rank=rank) for rank, entry in enumerate(ordered[:limit], start=1))
+
+
+def _reranker_warning(request: SearchRequest, code: str, detail: str) -> SearchWarning:
+    return SearchWarning(
+        code=code,
+        message=f"Reranking skipped; results keep the search order: {detail}",
+        severity="warning",
+        affected_vault_ids=_affected_vault_ids(request.actual_scopes),
+    )
 
 
 def _vector_query_failed(request: SearchRequest, exc: Exception) -> SearchWarning:

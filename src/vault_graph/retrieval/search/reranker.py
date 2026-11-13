@@ -25,6 +25,10 @@ class RerankError(VaultGraphError):
     """The reranking model could not order the passages."""
 
 
+class RerankerUnavailableError(VaultGraphError):
+    """The reranking model files are not in the model folder. Search never downloads them (I2)."""
+
+
 class Reranker(Protocol):
     """Orders passages by relevance to a query with a local model.
 

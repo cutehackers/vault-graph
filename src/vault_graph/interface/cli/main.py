@@ -161,12 +161,14 @@ def _read_only_search_components(
     catalog: VaultCatalog,
     include_graph: bool = False,
 ) -> tuple[SQLiteMetadataStore, RetrievalService]:
+    from vault_graph.interface.composition.read_only_service_factory import search_reranker_for
     from vault_graph.retrieval.search.context_expansion import ContextExpander
 
     metadata_store = SQLiteMetadataStore(config.metadata_path, initialize=False)
     keyword_index = SQLiteKeywordIndex(config.metadata_path)
     vector_store = ChromaVectorStore(config.vector_path, initialize=False, read_only=True)
     text_embeddings = _search_text_embeddings(config)
+    reranker, reranker_config_error = search_reranker_for(config)
     graph_candidate_provider = None
     if include_graph:
         _, _, graph_service = _graph_retrieval_service(state)
@@ -192,6 +194,8 @@ def _read_only_search_components(
             ),
             graph_candidate_provider=graph_candidate_provider,
             context_expander=ContextExpander(metadata_store=metadata_store),
+            reranker=reranker,
+            reranker_config_error=reranker_config_error,
         ),
     )
 
