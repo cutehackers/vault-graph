@@ -645,6 +645,8 @@ def test_search_tool_descriptions_explain_the_query_form(tmp_path: Path, tool_na
 
     for text in ("keywords", "language", "Example", "cwd", "scope"):
         assert text in description, text
+    # Vaults hold pages in any language, so the description must not say which language they are in.
+    assert "mostly English" not in description
 
 
 def test_search_vault_description_lists_the_modes(tmp_path: Path) -> None:
