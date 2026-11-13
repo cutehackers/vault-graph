@@ -828,6 +828,17 @@ def register_mcp_tools(
         include_cross_vault: bool = False,
         cwd: str | None = None,
     ) -> dict[str, object]:
+        """Answer ``question`` with evidence cited from the Vault pages it was built from.
+
+        The question is matched against the pages by keywords and meaning. Matching works best when the
+        question is in the language the Vault pages are written in. Wiki pages are mostly English, so put
+        a question asked in another language into 3 to 4 English keywords. Example: "정리해 달라고 하면 어디까지
+        지워야 해?" becomes "cleanup remove every trace".
+
+        ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
+        project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
+        active Vault is used. ``scope`` with ``vault_ids`` or ``all_vaults`` overrides the project choice.
+        """
         request = parse_ask_vault_input(
             question=question,
             scope=scope,
@@ -851,6 +862,24 @@ def register_mcp_tools(
         cwd: str | None = None,
         include_retired: bool = False,
     ) -> dict[str, object]:
+        """Search Vault pages and return ranked paths with line ranges to read.
+
+        ``query`` is matched by keywords and meaning. Write 3 to 4 core keywords, not a full sentence, in the
+        language the Vault pages are written in. Wiki pages are mostly English, so put a question asked in
+        another language into English keywords. Example: "임베딩 기본 모델을 왜 바꿨지?" becomes "default
+        embedding model decision". Several narrow searches find more than one broad search.
+
+        ``mode`` picks which pages are searched:
+        "knowledge" (default): wiki pages such as decisions, rules and concepts, plus source pages.
+        "evidence": source pages and raw evidence, including session transcripts.
+        "operating": operating rules of the Vault.
+        "audit": generated views, operation logs and audit records.
+        "all": every page.
+
+        ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
+        project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
+        active Vault is used. ``scope`` with ``vault_ids`` or ``all_vaults`` overrides the project choice.
+        """
         request = parse_search_vault_input(
             query=query,
             scope=scope,
@@ -873,6 +902,17 @@ def register_mcp_tools(
         include_cross_vault: bool = False,
         cwd: str | None = None,
     ) -> dict[str, object]:
+        """Build a token-bounded pack of Vault evidence for ``goal``, the task about to start.
+
+        ``goal`` is matched against the pages by keywords and meaning. Matching works best when the goal is
+        in the language the Vault pages are written in. Wiki pages are mostly English, so put a goal stated
+        in another language into 3 to 4 English keywords. Example: "검색 도구 설명 고치기" becomes "search tool
+        description query".
+
+        ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
+        project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
+        active Vault is used. ``scope`` with ``vault_ids`` or ``all_vaults`` overrides the project choice.
+        """
         request = parse_build_context_pack_input(
             goal=goal,
             scope=scope,
