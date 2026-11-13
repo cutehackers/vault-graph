@@ -831,9 +831,10 @@ def register_mcp_tools(
         """Answer ``question`` with evidence cited from the Vault pages it was built from.
 
         The question is matched against the pages by keywords and meaning. Matching works best when the
-        question is in the language the Vault pages are written in. Wiki pages are mostly English, so put
-        a question asked in another language into 3 to 4 English keywords. Example: "정리해 달라고 하면 어디까지
-        지워야 해?" becomes "cleanup remove every trace".
+        question is in the language the Vault pages are written in. When the question's language differs
+        from the pages, put it into 3 to 4 keywords in the pages' language. When the pages are in several
+        languages, ask once per language. Example for English pages: "정리해 달라고 하면 어디까지 지워야 해?"
+        becomes "cleanup remove every trace".
 
         ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
         project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
@@ -865,9 +866,10 @@ def register_mcp_tools(
         """Search Vault pages and return ranked paths with line ranges to read.
 
         ``query`` is matched by keywords and meaning. Write 3 to 4 core keywords, not a full sentence, in the
-        language the Vault pages are written in. Wiki pages are mostly English, so put a question asked in
-        another language into English keywords. Example: "임베딩 기본 모델을 왜 바꿨지?" becomes "default
-        embedding model decision". Several narrow searches find more than one broad search.
+        language the Vault pages are written in. When the question's language differs from the pages, put it
+        into keywords in the pages' language. When the pages are in several languages, search once per
+        language. Example for English pages: "임베딩 기본 모델을 왜 바꿨지?" becomes "default embedding model
+        decision". Several narrow searches find more than one broad search.
 
         ``mode`` picks which pages are searched:
         "knowledge" (default): wiki pages such as decisions, rules and concepts, plus source pages.
@@ -905,9 +907,9 @@ def register_mcp_tools(
         """Build a token-bounded pack of Vault evidence for ``goal``, the task about to start.
 
         ``goal`` is matched against the pages by keywords and meaning. Matching works best when the goal is
-        in the language the Vault pages are written in. Wiki pages are mostly English, so put a goal stated
-        in another language into 3 to 4 English keywords. Example: "검색 도구 설명 고치기" becomes "search tool
-        description query".
+        in the language the Vault pages are written in. When the goal's language differs from the pages, put
+        it into 3 to 4 keywords in the pages' language. When the pages are in several languages, ask once per
+        language. Example for English pages: "검색 도구 설명 고치기" becomes "search tool description query".
 
         ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
         project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
