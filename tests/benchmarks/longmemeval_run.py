@@ -3,13 +3,15 @@
 Spec 2026-11-11 §4.1.4, A-6, 결정10. Run from the repository root:
   uv run --python 3.12 --all-packages --all-extras python -m tests.benchmarks.longmemeval_run \
     --data <longmemeval_s_cleaned.json> --vault-builder <vault-builder checkout> \
-    --work-dir <new empty folder> --out-dir <out dir> [--limit N] [--keep]
+    --work-dir <new empty folder> --out-dir <out dir> [--limit N] [--keep] [--reranker <preset>]
 
 For each non-abstention question (fixed order, see ``longmemeval_convert.select_questions``):
 
 1. A new workspace under ``work_dir`` gets its own HOME, ``vault-map.json``, a project folder and a
    Vault installed and linked as the project's role project Vault by vault-builder's
-   ``tools/vault_migration/cli.py``. ``vg setup --no-index`` registers it in a new Graph Home.
+   ``tools/vault_migration/cli.py``. ``vg setup --no-index`` registers it in a new Graph Home. With
+   ``--reranker <preset>`` that Graph Home also gets ``configs/reranker.json`` turning reranking on with the
+   preset (spec 2026-11-13 D15). Without it no such file is written and search runs as before.
 2. Each haystack session becomes one ``vg-session-jsonl/1`` file outside the Vault, and the Vault's own
    ``tools/wiki/cli.py sessions capture --normalized <file>`` writes it into the Vault. vault-graph
    never writes Vault files.
@@ -52,9 +54,15 @@ from tests.benchmarks.longmemeval_convert import (
     select_questions,
     write_question_sessions,
 )
+from vault_graph.interface.composition.adapters.rerank_presets import RERANK_PRESETS
 from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.graph_home import DEFAULT_GRAPH_HOME
+from vault_graph.operation.scope.reranker_selection import (
+    RerankerSelection,
+    reranker_config_path,
+    save_reranker_selection,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOP = 5
@@ -355,9 +363,17 @@ def capture_command(vault: Path, normalized: Path) -> list[str]:
 
 @dataclass(frozen=True)
 class LocalTools:
-    """Runs vault-builder, the Vault tool and vg as subprocesses inside one workspace."""
+    """Runs vault-builder, the Vault tool and vg as subprocesses inside one workspace.
+
+    ``reranker`` names a rerank preset to turn on in each new Graph Home. ``None`` leaves reranking off.
+    """
 
     vault_builder: Path
+    reranker: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.reranker is not None and self.reranker not in RERANK_PRESETS:
+            raise ValueError(f"unknown rerank preset {self.reranker!r}; choose one of {sorted(RERANK_PRESETS)}")
 
     def prepare(self, workspace: Workspace) -> None:
         for folder in (workspace.config_dir, workspace.project):
@@ -398,6 +414,10 @@ class LocalTools:
             env=self._vg_env(workspace),
             cwd=workspace.project,
         )
+        if self.reranker is not None:
+            save_reranker_selection(
+                reranker_config_path(workspace.graph_home), RerankerSelection(enabled=True, model=self.reranker)
+            )
 
     def capture(self, workspace: Workspace, normalized: Path) -> str:
         completed = _run(
@@ -510,6 +530,11 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--limit", type=int, help="Run the first N questions of the fixed order (20, 150).")
     parser.add_argument("--keep", action="store_true", help="Keep each question's workspace.")
+    parser.add_argument(
+        "--reranker",
+        choices=sorted(RERANK_PRESETS),
+        help="Turn reranking on with this preset in each Graph Home. Leave out to keep reranking off.",
+    )
     return parser.parse_args(argv)
 
 
@@ -519,7 +544,7 @@ if __name__ == "__main__":
         arguments.data,
         work_dir=arguments.work_dir,
         out_dir=arguments.out_dir,
-        tools=LocalTools(vault_builder=arguments.vault_builder.expanduser().resolve()),
+        tools=LocalTools(vault_builder=arguments.vault_builder.expanduser().resolve(), reranker=arguments.reranker),
         limit=arguments.limit,
         keep=arguments.keep,
     )
