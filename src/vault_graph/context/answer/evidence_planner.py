@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import date
 from typing import Protocol
 
 from vault_graph.context.answer.answer_plan import AnswerPlan, AnswerRequest, EvidencePlanStep, PlannedEvidence
@@ -40,6 +41,8 @@ class AnswerRetrievalService(Protocol):
         output_format: SearchOutputFormat = "text",
         include_graph: bool = False,
         include_cross_vault: bool = False,
+        since: date | None = None,
+        until: date | None = None,
     ) -> SearchResponse: ...
 
 
@@ -138,6 +141,8 @@ class EvidencePlanner:
                     output_format="json",
                     include_graph=step.include_graph,
                     include_cross_vault=step.include_cross_vault,
+                    since=plan.request.since,
+                    until=plan.request.until,
                 )
                 actual_scopes = search_response.actual_scopes
                 mapped_warnings = tuple(

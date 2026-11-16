@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -70,6 +71,7 @@ from vault_graph.retrieval.graph.projection.graph_projection import (
     DEFAULT_GRAPH_RESULT_LIMIT,
     MAX_GRAPH_PROJECTION_DEPTH,
 )
+from vault_graph.retrieval.search.date_expression import DateArgumentError, date_range_from_arguments
 from vault_graph.retrieval.search.search_response import SearchMode
 
 if TYPE_CHECKING:
@@ -94,6 +96,8 @@ class AskVaultInput:
     include_graph: bool = False
     include_cross_vault: bool = False
     cwd: str | None = None
+    since: date | None = None
+    until: date | None = None
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,8 @@ class SearchVaultInput:
     mode: SearchMode = "knowledge"
     cwd: str | None = None
     include_retired: bool = False
+    since: date | None = None
+    until: date | None = None
 
 
 @dataclass(frozen=True)
@@ -117,6 +123,8 @@ class BuildContextPackInput:
     include_graph: bool = False
     include_cross_vault: bool = False
     cwd: str | None = None
+    since: date | None = None
+    until: date | None = None
 
 
 @dataclass(frozen=True)
@@ -274,6 +282,8 @@ class McpToolRegistry:
                     max_evidence_tokens=request.max_evidence_tokens,
                     include_graph=request.include_graph,
                     include_cross_vault=request.include_cross_vault,
+                    since=request.since,
+                    until=request.until,
                 )
             )
             records = explanation_records_for_answer(response)
@@ -329,6 +339,8 @@ class McpToolRegistry:
                 include_cross_vault=request.include_cross_vault,
                 mode=request.mode,
                 include_retired=request.include_retired,
+                since=request.since,
+                until=request.until,
             )
             records = explanation_records_for_search(response)
             payload = search_response_to_payload(response, labels=selection.labels)
@@ -367,6 +379,8 @@ class McpToolRegistry:
                 retrieval_limit=request.limit,
                 include_graph=request.include_graph,
                 include_cross_vault=request.include_cross_vault,
+                since=request.since,
+                until=request.until,
             )
             builder = (
                 self._service_factory.open_context_pack_builder(include_graph=True)
@@ -827,6 +841,8 @@ def register_mcp_tools(
         include_graph: bool = False,
         include_cross_vault: bool = False,
         cwd: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
     ) -> dict[str, object]:
         """Answer ``question`` with evidence cited from the Vault pages it was built from.
 
@@ -835,6 +851,13 @@ def register_mcp_tools(
         from the pages, put it into 3 to 4 keywords in the pages' language. When the pages are in several
         languages, ask once per language. Example for English pages: "정리해 달라고 하면 어디까지 지워야 해?"
         becomes "cleanup remove every trace".
+
+        ``since`` and ``until`` keep only results dated in that range. Each is a YYYY-MM-DD date, both ends are
+        included, and dates are read in this computer's time zone. Either may be left out. When either is given,
+        results without a date are left out. To search a time span, turn relative dates such as "last week",
+        "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
+        ``until``, and leave them out of the question. Example: on 2026-11-16, "what did we decide last week about
+        search" becomes question "what did we decide about search" with since "2026-11-09" and until "2026-11-15".
 
         ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
         project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
@@ -849,6 +872,8 @@ def register_mcp_tools(
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
             cwd=cwd,
+            since=since,
+            until=until,
         )
         return registry.ask_vault(request).to_json_dict()
 
@@ -862,6 +887,8 @@ def register_mcp_tools(
         mode: str = "knowledge",
         cwd: str | None = None,
         include_retired: bool = False,
+        since: str | None = None,
+        until: str | None = None,
     ) -> dict[str, object]:
         """Search Vault pages and return ranked paths with line ranges to read.
 
@@ -870,6 +897,13 @@ def register_mcp_tools(
         into keywords in the pages' language. When the pages are in several languages, search once per
         language. Example for English pages: "임베딩 기본 모델을 왜 바꿨지?" becomes "default embedding model
         decision". Several narrow searches find more than one broad search.
+
+        ``since`` and ``until`` keep only results dated in that range. Each is a YYYY-MM-DD date, both ends are
+        included, and dates are read in this computer's time zone. Either may be left out. When either is given,
+        results without a date are left out. To search a time span, turn relative dates such as "last week",
+        "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
+        ``until``, and leave them out of the query. Example: on 2026-11-16, "what did we decide last week about
+        search" becomes query "search decision" with since "2026-11-09" and until "2026-11-15".
 
         ``mode`` picks which pages are searched:
         "knowledge" (default): wiki pages such as decisions, rules and concepts, plus source pages.
@@ -891,6 +925,8 @@ def register_mcp_tools(
             mode=mode,
             cwd=cwd,
             include_retired=include_retired,
+            since=since,
+            until=until,
         )
         return registry.search_vault(request).to_json_dict()
 
@@ -903,6 +939,8 @@ def register_mcp_tools(
         include_graph: bool = False,
         include_cross_vault: bool = False,
         cwd: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
     ) -> dict[str, object]:
         """Build a token-bounded pack of Vault evidence for ``goal``, the task about to start.
 
@@ -910,6 +948,13 @@ def register_mcp_tools(
         in the language the Vault pages are written in. When the goal's language differs from the pages, put
         it into 3 to 4 keywords in the pages' language. When the pages are in several languages, ask once per
         language. Example for English pages: "검색 도구 설명 고치기" becomes "search tool description query".
+
+        ``since`` and ``until`` keep only results dated in that range. Each is a YYYY-MM-DD date, both ends are
+        included, and dates are read in this computer's time zone. Either may be left out. When either is given,
+        results without a date are left out. To search a time span, turn relative dates such as "last week",
+        "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
+        ``until``, and leave them out of the goal. Example: on 2026-11-16, "what did we decide last week about
+        search" becomes goal "search decision" with since "2026-11-09" and until "2026-11-15".
 
         ``cwd`` is the project folder. Without ``scope``, the tool reads every registered Vault linked to that
         project in vault-map.json. Without ``cwd``, the server working folder is used. Outside a project the
@@ -923,6 +968,8 @@ def register_mcp_tools(
             include_graph=include_graph,
             include_cross_vault=include_cross_vault,
             cwd=cwd,
+            since=since,
+            until=until,
         )
         return registry.build_context_pack(request).to_json_dict()
 
@@ -1162,7 +1209,10 @@ def parse_ask_vault_input(
     include_graph: bool = False,
     include_cross_vault: bool = False,
     cwd: str | None = None,
+    since: object = None,
+    until: object = None,
 ) -> AskVaultInput:
+    parsed_since, parsed_until = _date_arguments(since, until)
     request = AskVaultInput(
         question=_required_string(question, "question"),
         scope=mcp_scope_input_from_raw(scope, include_cross_vault=include_cross_vault),
@@ -1172,6 +1222,8 @@ def parse_ask_vault_input(
         include_graph=_required_bool(include_graph, "include_graph"),
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
         cwd=_optional_cwd(cwd),
+        since=parsed_since,
+        until=parsed_until,
     )
     _validate_ask_vault_request(request)
     return request
@@ -1187,7 +1239,10 @@ def parse_search_vault_input(
     mode: str = "knowledge",
     cwd: str | None = None,
     include_retired: bool = False,
+    since: object = None,
+    until: object = None,
 ) -> SearchVaultInput:
+    parsed_since, parsed_until = _date_arguments(since, until)
     request = SearchVaultInput(
         query=_required_string(query, "query"),
         scope=mcp_scope_input_from_raw(scope, include_cross_vault=include_cross_vault),
@@ -1197,6 +1252,8 @@ def parse_search_vault_input(
         mode=cast(SearchMode, mode),
         cwd=_optional_cwd(cwd),
         include_retired=_required_bool(include_retired, "include_retired"),
+        since=parsed_since,
+        until=parsed_until,
     )
     _validate_search_vault_request(request)
     return request
@@ -1211,7 +1268,10 @@ def parse_build_context_pack_input(
     include_graph: bool = False,
     include_cross_vault: bool = False,
     cwd: str | None = None,
+    since: object = None,
+    until: object = None,
 ) -> BuildContextPackInput:
+    parsed_since, parsed_until = _date_arguments(since, until)
     request = BuildContextPackInput(
         goal=_required_string(goal, "goal"),
         scope=mcp_scope_input_from_raw(scope, include_cross_vault=include_cross_vault),
@@ -1220,6 +1280,8 @@ def parse_build_context_pack_input(
         include_graph=_required_bool(include_graph, "include_graph"),
         include_cross_vault=_required_bool(include_cross_vault, "include_cross_vault"),
         cwd=_optional_cwd(cwd),
+        since=parsed_since,
+        until=parsed_until,
     )
     _validate_build_context_pack_request(request)
     return request
@@ -1353,6 +1415,7 @@ def _validate_search_vault_request(request: SearchVaultInput) -> None:
     _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
     if request.mode not in ("knowledge", "evidence", "operating", "audit", "all"):
         raise _invalid_arguments("unsupported search mode")
+    _date_order(request.since, request.until)
 
 
 def _validate_ask_vault_request(request: AskVaultInput) -> None:
@@ -1362,6 +1425,7 @@ def _validate_ask_vault_request(request: AskVaultInput) -> None:
     _limit(request.limit)
     _evidence_token_budget(request.max_evidence_tokens)
     _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
+    _date_order(request.since, request.until)
 
 
 def _validate_build_context_pack_request(request: BuildContextPackInput) -> None:
@@ -1369,6 +1433,27 @@ def _validate_build_context_pack_request(request: BuildContextPackInput) -> None
     _limit(request.limit)
     _optional_positive_int(request.max_tokens, "max_tokens")
     _reject_cross_vault_without_graph(request.include_cross_vault, include_graph=request.include_graph)
+    _date_order(request.since, request.until)
+
+
+def _date_arguments(since: object, until: object) -> tuple[date | None, date | None]:
+    """Parse the ``since``/``until`` tool inputs (spec 2026-11-16 D10, F5).
+
+    The calling agent turns relative dates into these dates. This path never resolves date expressions (D12).
+    """
+    for value, name in ((since, "since"), (until, "until")):
+        if value is not None and not isinstance(value, str):
+            raise _invalid_arguments(f"{name} must be a YYYY-MM-DD date string")
+    try:
+        date_range = date_range_from_arguments(cast(str | None, since), cast(str | None, until))
+    except DateArgumentError as exc:
+        raise _invalid_arguments(str(exc)) from exc
+    return (None, None) if date_range is None else (date_range.since, date_range.until)
+
+
+def _date_order(since: date | None, until: date | None) -> None:
+    if since is not None and until is not None and since > until:
+        raise _invalid_arguments(f"since {since.isoformat()} is after until {until.isoformat()}")
 
 
 def _validate_find_related_request(request: FindRelatedInput) -> None:
