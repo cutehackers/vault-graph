@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
+import sqlite3
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from tests.fakes.search_readiness import ready_report
+from tests.test_vector_embedding_key_plan import CountingEmbeddings
+from tests.test_vector_embedding_key_plan import open_store as open_vector_store
+from tests.test_vector_indexer import ChunkStore as VectorChunkStore
+from vault_graph.indexing import metadata_indexer
 from vault_graph.indexing.ingestion.chunker_selection import CHUNKER_VERSIONS, embedding_input_for, select_chunker
 from vault_graph.indexing.ingestion.document_models import ExtractedDocument, SourceDocument
-from vault_graph.indexing.ingestion.document_normalizer import DocumentNormalizer, NormalizedDocument
+from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentNormalizer, NormalizedDocument
 from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
 from vault_graph.indexing.ingestion.session_exchange_v2_chunker import (
+    CHUNK_TIME_VERSION,
     CONTINUED_QUESTION,
     SESSION_EXCHANGE_V2_VERSION,
     SESSION_WINDOW_MAX_TOKENS,
@@ -24,12 +32,13 @@ from vault_graph.indexing.ingestion.session_exchange_v2_chunker import (
     model_limit_warning,
     pack_exchange_windows,
 )
-from vault_graph.indexing.metadata_indexer import INDEX_CODE_PARTS
+from vault_graph.indexing.metadata_indexer import INDEX_CODE_PARTS, MetadataIndexer
+from vault_graph.indexing.vector_index_adapter import VectorIndexer
 from vault_graph.operation.readiness.search_readiness import SearchReadinessReport
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.retrieval.search.retrieval_service import RetrievalService
 from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
-from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
+from vault_graph.storage.local.sqlite_metadata_store import SCHEMA_VERSION, SQLiteMetadataStore
 
 FIXTURES = Path(__file__).parent / "fixtures" / "session_v2"
 SESSIONS = "raw/sessions/claude-code"
@@ -391,3 +400,221 @@ def test_edited_file_path_finds_the_exchange_but_is_not_in_window_text_or_embedd
     for chunk in normalized.chunks:
         assert edited_file not in chunk.text
         assert edited_file not in embedding_input_for(chunk)
+
+
+# Spec 2026-11-16 D8, I1, F4, A3, A7: exchange start and end times in the `chunks` table.
+
+# Taken from the chunker before the time columns were added: 10 windows over ALL_FIXTURES.
+_PINNED_WINDOW_COUNT = 10
+_PINNED_WINDOW_DIGEST = "66165c0c97c960aeb5af4c5730a6535d8e95f20e894dc19a56a1454169251dcb"
+
+
+def _window_digest() -> tuple[int, str]:
+    rows = [
+        [
+            chunk.chunk_id,
+            chunk.text,
+            [locator.to_dict() for locator in chunk.source_locators],
+            embedding_input_for(chunk),
+        ]
+        for path in ALL_FIXTURES
+        for chunk in _normalized(path).chunks
+    ]
+    payload = json.dumps(rows, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return len(rows), hashlib.sha256(payload).hexdigest()
+
+
+def _times(normalized: NormalizedDocument) -> list[tuple[str | None, str | None]]:
+    return [(chunk.started_at, chunk.ended_at) for chunk in normalized.chunks]
+
+
+def _time_warnings(normalized: NormalizedDocument) -> list[str]:
+    return [warning for warning in normalized.warnings if warning.startswith("session_exchange_time_missing: ")]
+
+
+def _without_meta_times(text: str) -> str:
+    return re.sub(r" (started|ended)=\S+", "", text)
+
+
+def test_window_text_ids_locators_and_embedding_input_match_the_pinned_values() -> None:
+    assert _window_digest() == (_PINNED_WINDOW_COUNT, _PINNED_WINDOW_DIGEST)
+
+
+def test_times_come_from_the_exchange_meta_line() -> None:
+    normalized = _normalized(SUBAGENT)
+
+    assert _times(normalized) == [
+        ("2026-11-03T14:00:00.000Z", "2026-11-03T14:06:01.000Z"),
+        ("2026-11-03T14:00:02.000Z", "2026-11-03T14:00:05.000Z"),
+    ]
+    assert _time_warnings(normalized) == []
+
+
+def test_continued_exchange_uses_the_meta_line_times() -> None:
+    chunks = _normalized(LONG_PART3).chunks
+
+    continued = [chunk for chunk in chunks if chunk.parent_key and chunk.parent_key.endswith(":u-410")]
+    assert [(chunk.started_at, chunk.ended_at) for chunk in continued] == [
+        ("2026-11-04T09:01:03.000Z", "2026-11-04T09:01:04.000Z")
+    ]
+
+
+def test_without_meta_times_the_frontmatter_turn_range_is_used() -> None:
+    text = _without_meta_times((FIXTURES / WITH_ORIGIN).read_text(encoding="utf-8"))
+
+    normalized = _normalized(WITH_ORIGIN, text)
+
+    assert _times(normalized) == [("2026-11-01T10:00:00.000Z", "2026-11-01T10:00:10.000Z")]
+    assert _time_warnings(normalized) == []
+
+
+def test_without_last_turn_at_the_first_turn_time_is_both_ends() -> None:
+    text = _without_meta_times((FIXTURES / WITH_ORIGIN).read_text(encoding="utf-8"))
+    text = re.sub(r"\nlast_turn_at: [^\n]*", "", text)
+
+    normalized = _normalized(WITH_ORIGIN, text)
+
+    assert _times(normalized) == [("2026-11-01T10:00:00.000Z", "2026-11-01T10:00:00.000Z")]
+
+
+def test_without_meta_and_frontmatter_times_the_file_name_date_is_the_whole_utc_day() -> None:
+    text = _without_meta_times((FIXTURES / WITH_ORIGIN).read_text(encoding="utf-8"))
+    text = re.sub(r"\n(first|last)_turn_at: [^\n]*", "", text)
+
+    normalized = _normalized(WITH_ORIGIN, text)
+
+    assert _times(normalized) == [("2026-11-01T00:00:00Z", "2026-11-01T23:59:59Z")]
+    assert _time_warnings(normalized) == []
+
+
+def test_without_any_time_the_columns_stay_empty_with_one_warning_per_file() -> None:
+    text = _without_meta_times((FIXTURES / LONG_PART1).read_text(encoding="utf-8"))
+    text = re.sub(r"\n(first|last)_turn_at: [^\n]*", "", text)
+    path = LONG_PART1.replace("2026-11-04-", "undated-")
+
+    normalized = _normalized(path, text)
+
+    assert normalized.chunks
+    assert all(times == (None, None) for times in _times(normalized))
+    warnings = _time_warnings(normalized)
+    assert len(warnings) == 1
+    assert "\n" not in warnings[0]
+    assert path in warnings[0]
+    assert "3 exchanges" in warnings[0]
+
+
+def test_unreadable_meta_time_falls_back_to_the_next_source() -> None:
+    text = (
+        (FIXTURES / WITH_ORIGIN)
+        .read_text(encoding="utf-8")
+        .replace("started=2026-11-01T10:00:00.000Z", "started=soon", 1)
+    )
+
+    normalized = _normalized(WITH_ORIGIN, text)
+
+    assert _times(normalized) == [("2026-11-01T10:00:00.000Z", "2026-11-01T10:00:10.000Z")]
+
+
+def test_metadata_store_writes_and_reads_the_time_columns(tmp_path: Path) -> None:
+    normalized = _normalized(SUBAGENT)
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+
+    store.apply_metadata_revision(
+        index_revision="metadata-1", documents=[normalized.document], chunks=list(normalized.chunks), tombstones=[]
+    )
+
+    stored = store.list_document_chunks(vault_id="project", document_id=normalized.document.document_id)
+    assert [(chunk.chunk_id, chunk.started_at, chunk.ended_at) for chunk in stored] == [
+        (chunk.chunk_id, chunk.started_at, chunk.ended_at) for chunk in normalized.chunks
+    ]
+    with store.connect_for_tests() as connection:
+        row = connection.execute("SELECT started_at, ended_at FROM chunks ORDER BY document_order LIMIT 1").fetchone()
+    assert tuple(row) == ("2026-11-03T14:00:00.000Z", "2026-11-03T14:06:01.000Z")
+    assert store.health().ok
+    assert SCHEMA_VERSION == "metadata-v4"
+
+
+def test_store_written_before_the_time_columns_is_upgraded_on_a_writable_open(tmp_path: Path) -> None:
+    database = tmp_path / "metadata.sqlite3"
+    normalized = _normalized(SUBAGENT)
+    store = SQLiteMetadataStore(database, initialize=True)
+    store.apply_metadata_revision(
+        index_revision="metadata-1", documents=[normalized.document], chunks=list(normalized.chunks), tombstones=[]
+    )
+    with sqlite3.connect(database) as connection:
+        connection.execute("ALTER TABLE chunks DROP COLUMN started_at")
+        connection.execute("ALTER TABLE chunks DROP COLUMN ended_at")
+        connection.execute("UPDATE metadata_projection_metadata SET value = 'metadata-v3' WHERE key = 'schema_version'")
+
+    old = SQLiteMetadataStore(database)
+    assert not old.health().ok
+    stored = old.list_document_chunks(vault_id="project", document_id=normalized.document.document_id)
+    assert {(chunk.started_at, chunk.ended_at) for chunk in stored} == {(None, None)}
+
+    upgraded = SQLiteMetadataStore(database, initialize=True)
+    assert upgraded.health().ok
+
+
+def test_incremental_index_after_the_bump_fills_the_times_of_unchanged_session_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "vault"
+    target = root / SUBAGENT
+    target.parent.mkdir(parents=True)
+    target.write_bytes((FIXTURES / SUBAGENT).read_bytes())
+    catalog = VaultCatalog.from_entries(
+        entries=[VaultCatalogEntry.from_root(vault_id="main", root_path=root)], active_vault_id="main"
+    )
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    indexer = MetadataIndexer(catalog=catalog, metadata_store=store)
+    # A store written before the time columns: the old index code and empty time columns.
+    monkeypatch.setattr(
+        metadata_indexer,
+        "INDEX_CODE_PARTS",
+        tuple(part for part in metadata_indexer.INDEX_CODE_PARTS if part != CHUNK_TIME_VERSION),
+    )
+    indexer.apply(scope=catalog.default_scope(), full=False)
+    with store.connect_for_tests() as connection:
+        connection.execute("UPDATE chunks SET started_at = NULL, ended_at = NULL")
+        before = connection.execute("SELECT chunk_id, content_hash FROM chunks ORDER BY chunk_id").fetchall()
+    monkeypatch.undo()
+    assert CHUNK_TIME_VERSION in INDEX_CODE_PARTS
+
+    plan = indexer.apply(scope=catalog.default_scope(), full=False)
+
+    assert plan.changed_paths == (("main", SUBAGENT),)
+    with store.connect_for_tests() as connection:
+        after = connection.execute("SELECT chunk_id, content_hash FROM chunks ORDER BY chunk_id").fetchall()
+        times = connection.execute("SELECT started_at, ended_at FROM chunks ORDER BY document_order").fetchall()
+    assert [tuple(row) for row in after] == [tuple(row) for row in before]
+    assert [tuple(row) for row in times] == [
+        ("2026-11-03T14:00:00.000Z", "2026-11-03T14:06:01.000Z"),
+        ("2026-11-03T14:00:02.000Z", "2026-11-03T14:00:05.000Z"),
+    ]
+
+    again = indexer.apply(scope=catalog.default_scope(), full=False)
+    assert again.changed_paths == ()
+
+
+def test_filling_the_time_columns_does_not_re_embed_any_window(tmp_path: Path) -> None:
+    scopes = (QueryScope(vault_ids=("project",), content_scopes=("raw",)),)
+    # Part 3 repeats an exchange of part 1, and the session group rules keep it once.
+    timed = tuple(chunk for path in (WITH_ORIGIN, SUBAGENT, LONG_PART1) for chunk in _normalized(path).chunks)
+    assert all(chunk.started_at is not None for chunk in timed)
+    untimed = tuple(replace(chunk, started_at=None, ended_at=None, index_revision="metadata-1") for chunk in timed)
+    refilled = tuple(replace(chunk, index_revision="metadata-2") for chunk in timed)
+
+    def model_inputs(chunks: tuple[ChunkSnapshot, ...]) -> int:
+        embeddings = CountingEmbeddings()
+        store = open_vector_store(tmp_path / "vectors")
+        try:
+            result = VectorIndexer(
+                chunk_store=VectorChunkStore(chunks), vector_store=store, text_embeddings=embeddings
+            ).apply(scopes=scopes)
+        finally:
+            store.close()
+        assert result.failed is False, result.error
+        return len(embeddings.inputs)
+
+    assert model_inputs(untimed) == len(timed)
+    assert model_inputs(refilled) == 0

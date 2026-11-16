@@ -79,6 +79,8 @@ class DocumentNormalizer:
                 parent_locators=draft.parent_locators,
                 keyword_metadata=draft.keyword_metadata,
                 chunk_kind=draft.chunk_kind,
+                started_at=draft.started_at,
+                ended_at=draft.ended_at,
             )
             for draft in plan.drafts
         )

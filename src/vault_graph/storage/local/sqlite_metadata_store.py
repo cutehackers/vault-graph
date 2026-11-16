@@ -23,7 +23,8 @@ from vault_graph.storage.interfaces.metadata_store import (
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.local.sqlite_keyword_index import apply_keyword_revision, ensure_keyword_schema
 
-SCHEMA_VERSION = "metadata-v3"
+# v4 adds the exchange time columns `chunks.started_at`·`ended_at` (spec 2026-11-16 D8).
+SCHEMA_VERSION = "metadata-v4"
 _EVIDENCE_LOOKUP_BATCH_SIZE = 300
 
 SCHEMA = """
@@ -80,6 +81,8 @@ CREATE TABLE IF NOT EXISTS chunks (
   parent_locators_json TEXT NOT NULL DEFAULT '[]',
   keyword_metadata TEXT,
   chunk_kind TEXT NOT NULL DEFAULT 'body',
+  started_at TEXT,
+  ended_at TEXT,
   PRIMARY KEY (vault_id, chunk_id)
 );
 
@@ -151,6 +154,9 @@ _OPTIONAL_CHUNK_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("parent_locators_json", "TEXT NOT NULL DEFAULT '[]'", "'[]'"),
     ("keyword_metadata", "TEXT", "NULL"),
     ("chunk_kind", "TEXT NOT NULL DEFAULT 'body'", "'body'"),
+    # Exchange start and end as ISO UTC strings (spec 2026-11-16 D8). NULL when unknown.
+    ("started_at", "TEXT", "NULL"),
+    ("ended_at", "TEXT", "NULL"),
 )
 
 
@@ -278,9 +284,9 @@ class SQLiteMetadataStore:
                       vault_id, chunk_id, document_id, path, section, anchor, blob_hash,
                       token_count, content_hash, chunker_version, index_revision, source_role,
                       provenance_family_id, section_path_json, source_locators_json, document_order,
-                      parent_key, parent_locators_json, keyword_metadata, chunk_kind
+                      parent_key, parent_locators_json, keyword_metadata, chunk_kind, started_at, ended_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         chunk.vault_id,
@@ -303,6 +309,8 @@ class SQLiteMetadataStore:
                         _source_locators_json(chunk.parent_locators),
                         chunk.keyword_metadata,
                         chunk.chunk_kind,
+                        chunk.started_at,
+                        chunk.ended_at,
                     ),
                 )
             for vault_id, path in tombstones:
@@ -1079,6 +1087,8 @@ def _chunk_snapshot_from_row(row: sqlite3.Row) -> ChunkSnapshot:
         parent_locators=_decode_source_locators(row["parent_locators_json"]),
         keyword_metadata=str(row["keyword_metadata"]) if row["keyword_metadata"] is not None else None,
         chunk_kind=_chunk_kind(row["chunk_kind"]),
+        started_at=str(row["started_at"]) if row["started_at"] is not None else None,
+        ended_at=str(row["ended_at"]) if row["ended_at"] is not None else None,
     )
 
 

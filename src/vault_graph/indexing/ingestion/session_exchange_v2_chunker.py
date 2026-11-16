@@ -40,6 +40,9 @@ from vault_graph.indexing.ingestion.markdown_parser import make_anchor
 SESSION_EXCHANGE_V2_VERSION = "session-exchange-v2-w96"
 SESSION_WINDOW_MAX_TOKENS = 96
 MODEL_TOKEN_LIMIT = 512
+# Exchange start and end times in the chunk rows (spec 2026-11-16 D8). Not in the chunk id. In the index code,
+# so a store written before the time columns reads every file once and fills them.
+CHUNK_TIME_VERSION = "session-exchange-time-v1"
 QUESTION_CHARS = 80
 CONTINUED_QUESTION = "(이전 파트에서 이어짐)"
 NO_HUMAN_QUESTION = "(사람 턴 없음)"
@@ -154,6 +157,8 @@ class SessionExchangeV2Chunker:
         frontmatter = document.frontmatter.data
         session_id = _text(frontmatter.get("session_id"))
         session_label = _session_label(frontmatter, path)
+        file_times = _file_time_range(frontmatter, path)
+        untimed = 0
         warnings: list[str] = []
         if not session_id:
             warnings.append(f"session_exchange_meta_invalid: {path}: frontmatter has no session_id; chunked by heading")
@@ -177,16 +182,25 @@ class SessionExchangeV2Chunker:
                     f"session_exchange_meta_invalid: {path} line {exchange.heading.number}: {problem}; "
                     "chunked by heading"
                 )
-            drafts.extend(
-                self._exchange_drafts(
-                    exchange,
-                    meta=meta if session_id else None,
-                    session_id=session_id,
-                    session_label=session_label,
-                    path=path,
-                    occurrence=occurrence,
-                    first_order=len(drafts),
-                )
+            times = _meta_time_range(meta) or file_times
+            exchange_drafts = self._exchange_drafts(
+                exchange,
+                meta=meta if session_id else None,
+                session_id=session_id,
+                session_label=session_label,
+                path=path,
+                occurrence=occurrence,
+                first_order=len(drafts),
+            )
+            if times is None:
+                untimed += 1 if exchange_drafts else 0
+            else:
+                exchange_drafts = [replace(draft, started_at=times[0], ended_at=times[1]) for draft in exchange_drafts]
+            drafts.extend(exchange_drafts)
+        if untimed:
+            warnings.append(
+                f"session_exchange_time_missing: {path}: {untimed} exchanges have no time in the meta line, "
+                "first_turn_at or the file name; their time columns are empty"
             )
         return DocumentChunkPlan(drafts=tuple(drafts), warnings=tuple(warnings))
 
@@ -660,6 +674,34 @@ def _session_label(frontmatter: dict[str, object], path: str) -> str:
     date = match.group(0) if match else "unknown-date"
     part = _text(frontmatter.get("part"))
     return f"Session {date} part{part}" if part else f"Session {date}"
+
+
+def _meta_time_range(meta: _ExchangeMeta | None) -> tuple[str, str] | None:
+    """`started`·`ended` of the meta line as given, also for a continued copy (spec 2026-11-16 A3)."""
+    if meta is None or not (_is_time(meta.started) and _is_time(meta.ended)):
+        return None
+    return meta.started, meta.ended
+
+
+def _file_time_range(frontmatter: dict[str, object], path: str) -> tuple[str, str] | None:
+    """Fallback for exchanges without meta times (spec 2026-11-16 D8).
+
+    First the frontmatter turn range: `first_turn_at` to `last_turn_at`, or `first_turn_at` alone. It covers the
+    whole file, so it is wider than the exchange but never misses it. Then the file name date as that whole UTC day.
+    """
+    first = _text(frontmatter.get("first_turn_at"))
+    if _is_time(first):
+        last = _text(frontmatter.get("last_turn_at"))
+        return first, last if _is_time(last) else first
+    match = _DATE_RE.match(path.rsplit("/", 1)[-1])
+    if match is None:
+        return None
+    # The file name has no time zone. The range is that day in UTC.
+    return f"{match.group(0)}T00:00:00Z", f"{match.group(0)}T23:59:59Z"
+
+
+def _is_time(value: str) -> bool:
+    return _DATE_RE.match(value) is not None
 
 
 def _text(value: object) -> str:

@@ -106,6 +106,9 @@ class ChunkSnapshot:
     parent_locators: tuple[SourceLocator, ...] = ()
     keyword_metadata: str | None = None
     chunk_kind: ChunkKind = "body"
+    # Start and end of a session exchange as ISO UTC strings (spec 2026-11-16 D8). None when unknown.
+    started_at: str | None = None
+    ended_at: str | None = None
 
     @property
     def document_kind(self) -> DocumentKind:

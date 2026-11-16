@@ -15,6 +15,7 @@ from vault_graph.indexing.ingestion.document_normalizer import (
 )
 from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentReader
 from vault_graph.indexing.ingestion.markdown_parser import PARSER_VERSION
+from vault_graph.indexing.ingestion.session_exchange_v2_chunker import CHUNK_TIME_VERSION
 from vault_graph.indexing.ingestion.session_group import (
     SESSION_GROUP_VERSION,
     ExchangeRanges,
@@ -32,11 +33,13 @@ from vault_graph.storage.interfaces.metadata_store import DocumentState, Metadat
 # parser version here. Chunker versions come from chunker_selection.CHUNKER_VERSIONS, so a newly
 # registered chunker makes every file read again once. SESSION_GROUP_VERSION makes a store written before
 # session groups read every file once, so each session file gets its stored group key (§4.2.13).
+# CHUNK_TIME_VERSION does the same for the exchange time columns (spec 2026-11-16 D8).
 INDEX_CODE_PARTS: tuple[str, ...] = (
     PARSER_VERSION,
     *CHUNKER_VERSIONS,
     MarkdownDocumentReader.version,
     SESSION_GROUP_VERSION,
+    CHUNK_TIME_VERSION,
 )
 
 Key = tuple[str, str]
@@ -403,16 +406,24 @@ class MetadataIndexer:
         """Whether ``item`` differs from its stored row, chunks of a session file included.
 
         Session group rules can remove chunks of a file whose bytes did not change, so a session file
-        also compares its chunk ids with the stored ones.
+        also compares its chunk ids with the stored ones. Their exchange times are compared too, so a
+        store written before the time columns gets them (spec 2026-11-16 D8).
         """
         if _document_changed(current=current, item=item):
             return True
-        if session_group_key(item.document.frontmatter) is None:
+        timed = any(chunk.started_at is not None for chunk in item.chunks)
+        if session_group_key(item.document.frontmatter) is None and not timed:
             return False
         stored = self._metadata_store.list_document_chunks(
             vault_id=item.document.vault_id, document_id=item.document.document_id
         )
-        return sorted(chunk.chunk_id for chunk in stored) != sorted(chunk.chunk_id for chunk in item.chunks)
+        return sorted(_chunk_time_key(chunk) for chunk in stored) != sorted(
+            _chunk_time_key(chunk) for chunk in item.chunks
+        )
+
+
+def _chunk_time_key(chunk: ChunkSnapshot) -> tuple[str, str, str]:
+    return (chunk.chunk_id, chunk.started_at or "", chunk.ended_at or "")
 
 
 def _document_changed(*, current: DocumentState, item: NormalizedDocument) -> bool:
