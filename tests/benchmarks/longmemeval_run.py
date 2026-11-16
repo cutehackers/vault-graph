@@ -3,7 +3,10 @@
 Spec 2026-11-11 §4.1.4, A-6, 결정10. Run from the repository root:
   uv run --python 3.12 --all-packages --all-extras python -m tests.benchmarks.longmemeval_run \
     --data <longmemeval_s_cleaned.json> --vault-builder <vault-builder checkout> \
-    --work-dir <new empty folder> --out-dir <out dir> [--limit N] [--keep] [--reranker <preset>]
+    --work-dir <new empty folder> --out-dir <out dir> [--limit N] [--keep] [--reranker <preset>] [--date-rules]
+
+Run measurement commands with ``TZ=UTC`` in front (spec 2026-11-16 R4): LongMemEval dates have no time zone and
+the converter writes them as UTC, while vg compares date ranges on this computer's calendar.
 
 For each non-abstention question (fixed order, see ``longmemeval_convert.select_questions``):
 
@@ -16,7 +19,14 @@ For each non-abstention question (fixed order, see ``longmemeval_convert.select_
    ``tools/wiki/cli.py sessions capture --normalized <file>`` writes it into the Vault. vault-graph
    never writes Vault files.
 3. ``vg index --all-vaults`` builds keyword and vector indexes. ``vg search --mode evidence --limit 5``
-   runs with the question text.
+   runs with the question text. With ``--date-rules`` (spec 2026-11-16 D15) the runner acts as an agent that
+   fills in the date range: ``question_date_range`` picks one date expression of research X15 out of the
+   question with fixed patterns and resolves it with ``resolve_date_expression(expression, question date)``.
+   Only a question that resolves gets ``--since``/``--until``, and its search runs with ``TZ=UTC`` (R4).
+   Other questions search as without the option. vg itself never reads a range out of the query (D13);
+   this picking lives only in this measurement tool. ``results.jsonl`` then records ``date_range`` per
+   question and ``summary.json`` records ``date_rules`` and ``date_range_questions_by_type``. Without
+   ``--date-rules`` the commands and output are as before.
 4. The question counts as found when the sessions of the top 5 results hold every
    ``answer_session_ids`` entry (recall_all@5); recall_any@5 is recorded too. This is stricter than
    LongMemEval's own session-level recall: several exchanges of one session take several of the 5 places.
@@ -47,6 +57,7 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Protocol
 
@@ -65,6 +76,11 @@ from vault_graph.operation.scope.reranker_selection import (
     RerankerSelection,
     reranker_config_path,
     save_reranker_selection,
+)
+from vault_graph.retrieval.search.date_expression import (
+    DateArgumentError,
+    DateRange,
+    resolve_date_expression,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -123,7 +139,9 @@ class Tools(Protocol):
 
     def index(self, workspace: Workspace) -> None: ...
 
-    def search(self, workspace: Workspace, query: str) -> list[list[str]]: ...
+    def search(self, workspace: Workspace, query: str) -> list[list[str]]:
+        """Search the question. With ``--date-rules`` and a range, the runner adds ``date_range=<DateRange>``."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -146,9 +164,11 @@ class QuestionRun:
     score: TopScore | None
     seconds: dict[str, float] = field(default_factory=dict)
     error: str | None = None
+    date_rules: bool = False
+    date_range: DateRange | None = None
 
     def to_json(self) -> dict[str, object]:
-        return {
+        row: dict[str, object] = {
             "id": self.question_id,
             "type": self.question_type,
             "answer_session_ids": list(self.answer_session_ids),
@@ -159,6 +179,17 @@ class QuestionRun:
             "seconds": {name: round(value, 3) for name, value in self.seconds.items()},
             "error": self.error,
         }
+        if self.date_rules:
+            row["date_range"] = (
+                None
+                if self.date_range is None
+                else {"since": _iso(self.date_range.since), "until": _iso(self.date_range.until)}
+            )
+        return row
+
+
+def _iso(day: date | None) -> str | None:
+    return None if day is None else day.isoformat()
 
 
 # Scoring --------------------------------------------------------------------------------------------
@@ -194,6 +225,44 @@ def scope_for(mean_seconds: float) -> str:
         if mean_seconds * FULL_QUESTIONS <= TIME_BUDGET_SECONDS
         else f"sample-{SAMPLE_QUESTIONS}"
     )
+
+
+# Date rules -----------------------------------------------------------------------------------------
+
+# The expression forms of spec 2026-11-16 research X15, longest form first at each position. The runner only
+# picks the span; ``resolve_date_expression`` decides the range. Month names must be whole words after "in" or
+# "during", or be followed by a day, so "May I ..." is not a month.
+_MONTH_WORDS = r"(?:january|february|march|april|may|june|july|august|september|october|november|december)"
+_WEEKDAY_WORDS = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+_COUNT_WORDS = r"(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+_DATE_FORMS = "|".join(
+    (
+        rf"(?:the )?{_WEEKDAY_WORDS} {_COUNT_WORDS} (?:week|month)s? ago",
+        r"(?:a couple of|a few|couple of|few) days ago",
+        rf"{_COUNT_WORDS} (?:day|week|month)s? ago",
+        rf"last (?:{_WEEKDAY_WORDS}|week|month)",
+        rf"(?:in|during|over|within) the (?:past|last) (?:{_COUNT_WORDS} )?(?:day|week|month)s?",
+        rf"(?:in|during) {_MONTH_WORDS} and {_MONTH_WORDS}",
+        rf"(?:in|during) {_MONTH_WORDS}(?:,? \d{{4}})?",
+        rf"{_MONTH_WORDS} \d{{1,2}}(?:st|nd|rd|th)?(?:,? \d{{4}})?",
+    )
+)
+_DATE_EXPRESSION = re.compile(rf"\b(?:{_DATE_FORMS})\b")
+
+
+def question_date_range(question: str, asked_on: date) -> DateRange | None:
+    """The range of the first date expression in ``question`` that resolves from ``asked_on``, else None.
+
+    This emulates an agent that turns "two weeks ago" into dates before it searches (spec 2026-11-16 D15). It
+    belongs to this measurement tool only: vg does not read ranges out of query text (D13).
+    """
+    text = " ".join(question.lower().split())
+    for match in _DATE_EXPRESSION.finditer(text):
+        try:
+            return resolve_date_expression(match.group(0), asked_on)
+        except DateArgumentError:
+            continue
+    return None
 
 
 # Target folder refusal ------------------------------------------------------------------------------
@@ -242,7 +311,12 @@ def _resolve(path: Path) -> Path:
 
 
 def run_question(
-    question: LmeQuestion, *, workspace: Workspace, tools: Tools, clock: Callable[[], float] = time.perf_counter
+    question: LmeQuestion,
+    *,
+    workspace: Workspace,
+    tools: Tools,
+    clock: Callable[[], float] = time.perf_counter,
+    date_rules: bool = False,
 ) -> QuestionRun:
     seconds: dict[str, float] = {}
     started = clock()
@@ -256,6 +330,7 @@ def run_question(
 
     score: TopScore | None = None
     error: str | None = None
+    date_range = question_date_range(question.question, question.asked_on) if date_rules else None
     try:
         tools.prepare(workspace)
         lap("prepare")
@@ -266,7 +341,10 @@ def run_question(
         lap("capture")
         tools.index(workspace)
         lap("index")
-        ranked = tools.search(workspace, question.question)
+        if date_range is None:
+            ranked = tools.search(workspace, question.question)
+        else:
+            ranked = tools.search(workspace, question.question, date_range=date_range)  # type: ignore[call-arg]
         lap("search")
         score = score_top5(question.answer_session_ids, ranked, written.haystack_ids)
     except (StepError, ValueError, OSError, subprocess.SubprocessError) as exc:
@@ -274,7 +352,16 @@ def run_question(
     seconds["total"] = clock() - started
     for name in STEPS:
         seconds.setdefault(name, 0.0)
-    return QuestionRun(question.question_id, question.question_type, question.answer_session_ids, score, seconds, error)
+    return QuestionRun(
+        question.question_id,
+        question.question_type,
+        question.answer_session_ids,
+        score,
+        seconds,
+        error,
+        date_rules=date_rules,
+        date_range=date_range,
+    )
 
 
 def main(
@@ -288,6 +375,7 @@ def main(
     registered: Iterable[Path] | None = None,
     default_graph_home: Path = DEFAULT_GRAPH_HOME,
     clock: Callable[[], float] = time.perf_counter,
+    date_rules: bool = False,
 ) -> dict[str, object]:
     roots = (
         list(registered) if registered is not None else registered_vault_roots(default_graph_home=default_graph_home)
@@ -301,7 +389,7 @@ def main(
         for number, question in enumerate(questions, start=1):
             workspace = Workspace(work_dir / f"q{number:04d}")
             try:
-                result = run_question(question, workspace=workspace, tools=tools, clock=clock)
+                result = run_question(question, workspace=workspace, tools=tools, clock=clock, date_rules=date_rules)
             finally:
                 if not keep:
                     shutil.rmtree(workspace.root, ignore_errors=True)
@@ -309,6 +397,14 @@ def main(
             stream.write(json.dumps(result.to_json(), ensure_ascii=False, sort_keys=True) + "\n")
             stream.flush()
     summary = summarize(runs)
+    if date_rules:
+        summary.update(
+            date_rules=True,
+            date_range_questions_by_type={
+                name: sum(1 for run in runs if run.question_type == name and run.date_range is not None)
+                for name in sorted({run.question_type for run in runs})
+            },
+        )
     summary.update(data_file=data.name, data_sha256=_sha256(data), limit=limit, commit=_repository_commit())
     (out_dir / "summary.json").write_text(json.dumps(summary, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return summary
@@ -458,7 +554,14 @@ class LocalTools:
             cwd=workspace.project,
         )
 
-    def search(self, workspace: Workspace, query: str) -> list[list[str]]:
+    def search(self, workspace: Workspace, query: str, date_range: DateRange | None = None) -> list[list[str]]:
+        dates: list[str] = []
+        env = self._vg_env(workspace)
+        if date_range is not None:
+            for option, day in (("--since", date_range.since), ("--until", date_range.until)):
+                if day is not None:
+                    dates.extend((option, day.isoformat()))
+            env["TZ"] = "UTC"  # R4: the converter writes LongMemEval times, which have no zone, as UTC.
         completed = _run(
             [
                 *_VG,
@@ -471,11 +574,12 @@ class LocalTools:
                 str(TOP),
                 "--mode",
                 "evidence",
+                *dates,
                 "--",
                 query,
             ],
             label="vg search",
-            env=self._vg_env(workspace),
+            env=env,
             cwd=workspace.project,
         )
         return result_paths(json.loads(completed.stdout))
@@ -553,6 +657,12 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         choices=sorted(RERANK_PRESETS),
         help="Turn reranking on with this preset in each Graph Home. Leave out to keep reranking off.",
     )
+    parser.add_argument(
+        "--date-rules",
+        action="store_true",
+        help="Pass --since/--until for questions whose date expression resolves from the question date. "
+        "Run with TZ=UTC.",
+    )
     return parser.parse_args(argv)
 
 
@@ -565,5 +675,6 @@ if __name__ == "__main__":
         tools=LocalTools(vault_builder=arguments.vault_builder.expanduser().resolve(), reranker=arguments.reranker),
         limit=arguments.limit,
         keep=arguments.keep,
+        date_rules=arguments.date_rules,
     )
     print(json.dumps(result, sort_keys=True, indent=2))
