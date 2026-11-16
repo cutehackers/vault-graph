@@ -9,6 +9,7 @@ import hashlib
 import shutil
 from pathlib import Path
 
+from tests.fakes.search_readiness import ready_report
 from vault_graph.indexing.ingestion.chunker_selection import (
     CHUNKER_VERSIONS,
     chunker_selection,
@@ -20,7 +21,13 @@ from vault_graph.indexing.ingestion.document_readers import MarkdownDocumentRead
 from vault_graph.indexing.ingestion.session_facts_chunker import SESSION_FACTS_VERSION, SessionFactsChunker
 from vault_graph.indexing.ingestion.session_group import exchange_ranges, reprocess_session_groups, session_group_key
 from vault_graph.indexing.metadata_indexer import INDEX_CODE_PARTS, MetadataIndexer
-from vault_graph.operation.scope.vault_catalog import VaultCatalog, VaultCatalogEntry
+from vault_graph.operation.readiness.search_readiness import SearchReadinessReport
+from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
+from vault_graph.retrieval.search.candidate_ranking import FACT_KEY_WEIGHT, SIGNAL_WEIGHTS, fact_key_score
+from vault_graph.retrieval.search.retrieval_service import RetrievalService
+from vault_graph.retrieval.search.search_response import SearchResponse
+from vault_graph.storage.interfaces.keyword_index import KeywordHit
+from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 FIXTURES = Path(__file__).parent / "fixtures" / "session_v2"
@@ -190,3 +197,183 @@ def test_part_windows_are_byte_identical_when_an_attachment_sits_next_to_the_par
     ]
     parent_keys = {window[4] for window in windows(attached_store)}
     assert {row[0] for row in facts} <= parent_keys
+
+
+# Search: fact chunks are keys that lead to the original exchange (spec 2026-11-16 D21, I3, I6, F12, A18).
+
+FACT_ONLY_QUERY = "데이터베이스 비밀번호"
+FACT_TEXTS = ("The user fixed the failing test in src/app.py.", "사용자는 데이터베이스 비밀번호를 .env에 둔다.")
+
+
+class _ReadySearch:
+    def check(self, *, actual_scopes: tuple[QueryScope, ...]) -> SearchReadinessReport:
+        return ready_report(vector_ok=False)
+
+
+def _service(tmp_path: Path, *, part: bool = True, facts: bool = True) -> tuple[RetrievalService, QueryScope]:
+    root = tmp_path / "root"
+    root.mkdir()
+    items = []
+    if part:
+        part_text = (FIXTURES / PART).read_text(encoding="utf-8")
+        items.append(DocumentNormalizer().normalize(extracted(PART, part_text)))
+    if facts:
+        items.append(normalized(facts_text()))
+    database = tmp_path / "metadata.sqlite3"
+    store = SQLiteMetadataStore(database, initialize=True)
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[item.document for item in items],
+        chunks=[chunk for item in items for chunk in item.chunks],
+        tombstones=[],
+    )
+    catalog = VaultCatalog.from_entries(
+        entries=[VaultCatalogEntry.from_root(vault_id="main", root_path=root)], active_vault_id="main"
+    )
+    service = RetrievalService(
+        catalog=catalog, metadata_store=store, keyword_index=SQLiteKeywordIndex(database), readiness=_ReadySearch()
+    )
+    return service, catalog.default_scope()
+
+
+def _search(
+    tmp_path: Path, query: str, *, part: bool = True, facts: bool = True, include_fact_keys: bool = True
+) -> SearchResponse:
+    service, scope = _service(tmp_path, part=part, facts=facts)
+    return service.search(
+        query_text=query,
+        requested_scope=scope,
+        limit=10,
+        mode="evidence",
+        include_fact_keys=include_fact_keys,
+        trace=True,
+    )
+
+
+def _shown(response: SearchResponse) -> list[tuple[object, ...]]:
+    return [
+        (
+            result.title,
+            result.summary,
+            tuple((item.path, item.chunk_id, item.source_locators) for item in result.evidence),
+            tuple(warning.code for warning in result.warnings),
+        )
+        for result in response.results
+    ]
+
+
+def _assert_no_fact_text(response: SearchResponse) -> None:
+    for result in response.results:
+        shown = [result.title, result.summary, *(item.path for item in result.evidence)]
+        shown += [item.section or "" for item in result.evidence]
+        for fact in FACT_TEXTS:
+            assert all(fact not in text for text in shown)
+        assert all(item.path != FACTS for item in result.evidence)
+    for warning in response.warnings:
+        assert all(fact not in warning.message for fact in FACT_TEXTS)
+
+
+def test_fact_key_weight_starts_below_keyword_and_vector() -> None:
+    assert 0 < FACT_KEY_WEIGHT < SIGNAL_WEIGHTS["keyword"]
+    assert FACT_KEY_WEIGHT < SIGNAL_WEIGHTS["vector"]
+    assert fact_key_score(1.0) == FACT_KEY_WEIGHT
+
+
+def test_a_fact_only_match_returns_the_original_exchange_first_window(tmp_path: Path) -> None:
+    response = _search(tmp_path, FACT_ONLY_QUERY)
+
+    assert len(response.results) == 1
+    result = response.results[0]
+    first = result.evidence[0]
+    assert first.path == PART
+    part_text = (FIXTURES / PART).read_text(encoding="utf-8")
+    window = DocumentNormalizer().normalize(extracted(PART, part_text)).chunks
+    exchange = sorted(
+        (chunk for chunk in window if chunk.parent_key == f"{SESSION_ID}:u-001"), key=lambda c: c.document_order
+    )
+    assert first.chunk_id == exchange[0].chunk_id
+    assert first.source_locators == exchange[0].parent_locators
+    assert result.summary and " ".join(exchange[0].text.split()).startswith(result.summary.removesuffix("..."))
+    assert result.title.startswith(PART)
+    _assert_no_fact_text(response)
+    assert response.stage_trace is not None
+    assert [entry.path for entry in response.stage_trace.document_ranks] == [PART]
+
+
+def test_fact_and_window_matches_of_one_exchange_return_it_once(tmp_path: Path) -> None:
+    response = _search(tmp_path, "failing test src/app.py")
+
+    assert [result.evidence[0].path for result in response.results] == [PART]
+    _assert_no_fact_text(response)
+
+
+def test_a_fact_whose_exchange_is_not_indexed_is_dropped_with_a_warning(tmp_path: Path) -> None:
+    response = _search(tmp_path, FACT_ONLY_QUERY, part=False)
+
+    assert response.results == ()
+    codes = [warning.code for warning in response.warnings]
+    assert "fact_source_missing" in codes
+    _assert_no_fact_text(response)
+
+
+def test_without_fact_keys_the_results_are_as_without_attachments(tmp_path: Path) -> None:
+    (tmp_path / "alone").mkdir()
+    (tmp_path / "off").mkdir()
+    (tmp_path / "alone-fact").mkdir()
+    (tmp_path / "off-fact").mkdir()
+    (tmp_path / "on").mkdir()
+    query = "failing test src/app.py"
+    alone = _search(tmp_path / "alone", query, facts=False)
+    off = _search(tmp_path / "off", query, include_fact_keys=False)
+    on = _search(tmp_path / "on", query)
+    # With fact keys on, the fact chunk is a keyword candidate too, so leaving it out is what keeps `off` equal.
+    assert on.stage_trace is not None and alone.stage_trace is not None
+    assert len(on.stage_trace.signal_ranks) > len(alone.stage_trace.signal_ranks)
+
+    assert alone.results
+    assert _shown(off) == _shown(alone)
+    assert off.warnings == alone.warnings
+    assert off.stage_trace is not None and alone.stage_trace is not None
+    assert [(e.chunk_id, e.rank) for e in off.stage_trace.signal_ranks] == [
+        (e.chunk_id, e.rank) for e in alone.stage_trace.signal_ranks
+    ]
+
+    assert _search(tmp_path / "alone-fact", FACT_ONLY_QUERY, facts=False).results == ()
+    assert _search(tmp_path / "off-fact", FACT_ONLY_QUERY, include_fact_keys=False).results == ()
+
+
+def test_without_fact_keys_a_signal_list_fills_up_past_the_facts_and_ranks_again(tmp_path: Path) -> None:
+    service, _ = _service(tmp_path)
+    with service._metadata_store.connect_for_tests() as connection:  # type: ignore[attr-defined]
+        rows = connection.execute(
+            "SELECT document_id, chunk_id, chunker_version FROM chunks ORDER BY chunker_version DESC, chunk_id"
+        ).fetchall()
+    # Fact chunks first, then the part's windows: every fact takes a slot ahead of a window.
+    hits = tuple(
+        KeywordHit(
+            vault_id="main",
+            document_id=row[0],
+            chunk_id=row[1],
+            rank=rank,
+            score=float(rank),
+            backend="test",
+            index_revision="metadata-1",
+            matched_fields=(),
+            provenance_family_id="family",
+        )
+        for rank, row in enumerate(rows, start=1)
+    )
+    facts = sum(1 for row in rows if row[2] == SESSION_FACTS_VERSION)
+    windows = len(rows) - facts
+    assert facts == 2 and windows >= 1
+    asked: list[int] = []
+
+    def fetch(limit: int) -> tuple[KeywordHit, ...]:
+        asked.append(limit)
+        return hits[:limit]
+
+    kept = service._hits(fetch, limit=1, include_fact_keys=False)
+
+    assert [(hit.chunk_id, hit.rank) for hit in kept] == [(rows[facts][1], 1)]
+    assert asked == [1, 2, 3]
+    assert service._hits(fetch, limit=1, include_fact_keys=True) == hits[:1]

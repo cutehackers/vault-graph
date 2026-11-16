@@ -13,6 +13,8 @@ from vault_graph.retrieval.search.candidate_ranking import (
     FusedCandidate,
     document_names,
     document_score,
+    fact_key_score,
+    is_fact_key,
     role_weight,
     sort_resolved_candidates,
     title_match_rank,
@@ -32,6 +34,8 @@ PARENT_GROUPED_WARNING = "parent_grouped"
 DUPLICATE_CONTENT_WARNING = "duplicate_content"
 REPLACED_PAGES_WARNING = "replaced_pages_attached"
 SESSION_EXCHANGES_WARNING = "session_exchanges_attached"
+FACT_SOURCE_MISSING_WARNING = "fact_source_missing"
+FACT_ATTACHMENT_SUFFIX = ".facts.md"
 # Other exchanges of one session attached to its result as evidence references (spec 2026-11-16 D5).
 SESSION_EXCHANGE_LIMIT = 3
 
@@ -80,6 +84,7 @@ class EvidenceResultAssembly:
         include_retired: bool = False,
         vault_order: tuple[str, ...] = (),
         query_text: str = "",
+        include_fact_keys: bool = True,
     ) -> tuple[tuple[RetrievalResult, ...], tuple[str, ...], int, tuple[SearchWarning, ...]]:
         """Resolve fused chunk candidates into ranked results, one per document or session exchange.
 
@@ -97,6 +102,12 @@ class EvidenceResultAssembly:
 
         Spec 2026-11-16 D2: the exchanges of one session in one Vault return once, at the highest-ranked
         exchange. Up to three other exchanges are listed after its own evidence and copies.
+
+        Spec 2026-11-16 D21, I3, F12: a session fact chunk is a key for its original exchange. Its fused score
+        is lowered by ``FACT_KEY_WEIGHT`` and it groups with the exchange's windows by ``parent_key``. A unit
+        matched only by facts shows the exchange's first window instead (`_fact_source_window`). When that
+        window is not in the index the unit is dropped with a ``fact_source_missing`` warning. Fact text is
+        never a summary, title or evidence. With ``include_fact_keys`` False fact chunks are skipped.
         """
         dropped = 0
         warnings: list[SearchWarning] = []
@@ -126,11 +137,29 @@ class EvidenceResultAssembly:
                 continue
             if evidence.source_role not in allowed_roles:
                 continue
+            if is_fact_key(chunk):
+                if not include_fact_keys:
+                    continue
+                candidate = replace(candidate, fused_score=fact_key_score(candidate.fused_score))
             resolved.append((candidate, evidence, _excerpt(chunk.text)))
             chunks[(candidate.vault_id, candidate.chunk_id)] = chunk
 
         ranked = sort_resolved_candidates(resolved)
-        groups = _group_by_unit(ranked, chunks, documents=documents, mode=mode, query_text=query_text)
+        missing_sources: list[ResolvedCandidate] = []
+
+        def source_window(fact: ResolvedCandidate) -> tuple[ResolvedCandidate, ChunkSnapshot] | None:
+            found = self._fact_source_window(fact, chunks[(fact[0].vault_id, fact[0].chunk_id)], documents)
+            if found is None or found[0][1].source_role not in allowed_roles:
+                missing_sources.append(fact)
+                return None
+            return found
+
+        groups = _group_by_unit(
+            ranked, chunks, documents=documents, mode=mode, query_text=query_text, source_window=source_window
+        )
+        for fact in missing_sources:
+            dropped += 1
+            warnings.append(_fact_source_missing(fact, chunks[(fact[0].vault_id, fact[0].chunk_id)]))
         if mode == "knowledge":
             groups = _fold_replacements(groups)
         groups = _fold_exchange_copies(groups, signature=self._exchange_signature)
@@ -154,6 +183,47 @@ class EvidenceResultAssembly:
         if document_id not in cache:
             cache[document_id] = self._metadata_store.resolve_document(document_id)
         return cache[document_id]
+
+    def _fact_source_window(
+        self,
+        fact: ResolvedCandidate,
+        fact_chunk: ChunkSnapshot,
+        documents: dict[str, DocumentSnapshot | None],
+    ) -> tuple[ResolvedCandidate, ChunkSnapshot] | None:
+        """The first window of a fact's original exchange, standing in for the fact, or None when not indexed.
+
+        The exchange is in the part file the attachment names (`<part name>.facts.md` next to `<part name>.md`).
+        Only that file is read, and only for a unit that no window of the exchange matched (spec 2026-11-16
+        D21). The window takes the fact's fused score and signals, so the unit ranks where the fact did.
+        """
+        candidate = fact[0]
+        path = _fact_source_path(fact_chunk.path)
+        if path is None or fact_chunk.parent_key is None:
+            return None
+        state = self._metadata_store.document_state(candidate.vault_id, path)
+        if state.document_id is None or state.is_tombstoned:
+            return None
+        windows = sorted(
+            (
+                chunk
+                for chunk in self._metadata_store.list_document_chunks(
+                    vault_id=candidate.vault_id, document_id=state.document_id
+                )
+                if chunk.parent_key == fact_chunk.parent_key and not is_fact_key(chunk)
+            ),
+            key=lambda chunk: chunk.document_order,
+        )
+        if not windows:
+            return None
+        window = windows[0]
+        evidence = self._evidence_linker.resolve_evidence(((candidate.vault_id, window.document_id, window.chunk_id),))[
+            0
+        ].evidence
+        if evidence is None:
+            return None
+        self._document(window.document_id, documents)
+        stand_in = replace(candidate, document_id=window.document_id, chunk_id=window.chunk_id)
+        return (stand_in, evidence, _excerpt(window.text)), window
 
     def _exchange_signature(self, group: _ParentGroup) -> ExchangeSignature | None:
         """Content identity of the whole exchange a session unit stands for, or None when it cannot be read.
@@ -370,8 +440,13 @@ def _group_by_unit(
     documents: dict[str, DocumentSnapshot | None],
     mode: SearchMode,
     query_text: str = "",
+    source_window: Callable[[ResolvedCandidate], tuple[ResolvedCandidate, ChunkSnapshot] | None] | None = None,
 ) -> tuple[_ParentGroup, ...]:
     """Fold ranked chunks into one unit per session exchange (`parent_key`) or per document, best chunk first.
+
+    Session fact chunks share the `parent_key` of their exchange, so they fold into its unit, add to its
+    score and never become its shown chunk. A unit of facts only shows ``source_window`` of its best fact
+    instead, and is left out when that gives None (spec 2026-11-16 D21, F12). ``window_count`` counts windows.
 
     Units are ordered by ``document_score`` of their chunks' fused scores plus the title signal, times the
     role weight, then by the best chunk's ranking key, so equal scores keep the chunk order. The title
@@ -390,7 +465,15 @@ def _group_by_unit(
         members.setdefault(key, []).append(item)
     groups: list[tuple[int, _ParentGroup]] = []
     for position, items in enumerate(members.values()):
-        best = items[0]
+        shown = [item for item in items if not is_fact_key(chunks[(item[0].vault_id, item[0].chunk_id)])]
+        if shown:
+            best = shown[0]
+            best_chunk = chunks[(best[0].vault_id, best[0].chunk_id)]
+        else:
+            found = source_window(items[0]) if source_window is not None else None
+            if found is None:
+                continue
+            best, best_chunk = found
         document = documents.get(best[0].document_id)
         score = document_score(tuple(item[0].fused_score for item in items))
         score += title_signal_score(title_match_rank(query_text, document_names(document)))
@@ -399,8 +482,8 @@ def _group_by_unit(
                 position,
                 _ParentGroup(
                     item=best,
-                    chunk=chunks[(best[0].vault_id, best[0].chunk_id)],
-                    window_count=len(items),
+                    chunk=best_chunk,
+                    window_count=max(len(shown), 1),
                     score=score * role_weight(mode, best[1].source_role),
                     document=document,
                 ),
@@ -582,6 +665,29 @@ def _fold_duplicate_content(
         others = tuple(f"{member.item[0].vault_id}:{member.item[1].path}" for member in cluster if member is not shown)
         folded.append(replace(shown, duplicates=others))
     return tuple(folded)
+
+
+def _fact_source_path(path: str) -> str | None:
+    """`<part name>.md` for a `<part name>.facts.md` attachment path (contract vault-session-facts-v1 §3)."""
+    if not path.endswith(FACT_ATTACHMENT_SUFFIX):
+        return None
+    return f"{path.removesuffix(FACT_ATTACHMENT_SUFFIX)}.md"
+
+
+def _fact_source_missing(fact: ResolvedCandidate, chunk: ChunkSnapshot) -> SearchWarning:
+    """Spec 2026-11-16 F12. Names the fact chunk and its exchange, never the fact text."""
+    candidate = fact[0]
+    return SearchWarning(
+        code=FACT_SOURCE_MISSING_WARNING,
+        message=(
+            f"Fact key {candidate.chunk_id} in {chunk.path} points at exchange {chunk.parent_key}, which is not in "
+            "the index; the fact key was dropped."
+        ),
+        severity="warning",
+        affected_vault_ids=(candidate.vault_id,),
+        document_id=candidate.document_id,
+        chunk_id=candidate.chunk_id,
+    )
 
 
 def _unit_evidence(group: _ParentGroup) -> EvidenceReference:
