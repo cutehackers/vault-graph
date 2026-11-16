@@ -3,57 +3,57 @@
 <!-- bake: index -->
 | ID | title | status | relations | covered by | area | hash | tasks |
 |---|---|---|---|---|---|---|---|
-| I1 | 원문 창은 바이트 단위로 같다 |  | basis X6, X10 | A3 | global | ac598858 |  |
-| I2 | 검색 시점에는 모델을 부르지 않는다 |  | basis X10 | A15 | global | 2d2374a9 |  |
-| I3 | 결과는 원 세션 교환을 가리킨다 |  | basis X2, X10 | A18 | 검색 | ad8a6998 |  |
-| I4 | 한 검색에서 세션 하나는 결과 하나다 |  | basis X1, X4 | A1 | 검색 | 0059fc43 |  |
-| I5 | 날짜 인자가 없으면 지금과 같다 |  | basis X7 | A6 | 검색 | 1705699f |  |
-| I6 | 사실 키가 없거나 빼는 모드면 지금과 같다 |  | basis X10 | A18 | 검색 | 17231e43 |  |
-| I7 | vault-graph는 Vault 파일을 직접 쓰지 않는다 |  | basis X9, X10, X11 | A19 | global | e58d0c5b |  |
-| I8 | 수집 훅은 사실 추출을 기다리지 않는다 |  | basis X9 | A12 | 수집 | ff209635 |  |
-| I9 | 추출용 Claude 세션은 기억에 닿지 않는다 |  | basis X9, X12 | A13, A14 | 수집 | bcdad32a |  |
-| D1 | A → C → B 순서로 하고 부분마다 따로 잰다 | decided | basis X3, X5 | A21 | global | 23bd7913 |  |
-| D2 | 같은 세션의 교환은 가장 높은 교환 결과에 접는다 | decided | basis X1, X2, I4 | A1 | 검색 | aacb69b0 |  |
-| D3 | 세션 키는 Vault 안의 `<agent>:<session_id>`다 | proposed | basis X4 | A1 | 검색 | 8b868d3f |  |
-| D4 | 접힌 결과는 가장 높은 교환의 점수와 자리를 그대로 쓴다 | proposed | basis X2; depends D2 | A1 | 검색 | 4f990a43 |  |
-| D5 | 붙는 교환은 근거 참조만, 결과마다 3개까지다 | proposed | basis X2, I3; depends D2 | A2 | 검색 | a5bbf8e6 |  |
-| D6 | 세션 단위 결과를 기본 동작으로 한다 | decided | basis X1, X3, X5; depends D2, D24 | A4 | 검색 | 167a0f1b |  |
-| D7 | LongMemEval 실행기는 기존 채점을 두고 서로 다른 세션 수를 더 적는다 | proposed | basis X3, X5 | A5 | 측정 | 374f295c |  |
-| D8 | 교환마다 시작·끝 시각을 메타데이터 저장소에 색인한다 | proposed | basis X6, I1 | A3, A7 | 색인 | b58cbf05 |  |
-| D9 | 날짜 범위는 후보 단계에서 거른다 | proposed | basis X6, X7, I5; depends D8 | A6 | 검색 | e1ec5515 |  |
-| D10 | 날짜 인자는 `since`·`until`, `YYYY-MM-DD`, 양 끝 포함, 이 컴퓨터 시간대다 | decided | basis X7, X8 | A8 | 검색, 인터페이스 | 9229092a |  |
-| D11 | 날짜 범위를 주면 날짜 없는 결과는 빼고 경고 하나를 붙인다 | decided | basis X6, X7; depends D9 | A6 | 검색 | 51bdc1dd |  |
-| D12 | MCP 도구 설명이 상대 날짜를 오늘 기준 날짜로 바꿔 넘기라고 알린다 | decided | basis X7 | A9 | 인터페이스 | ddb0675c |  |
-| D13 | CLI는 `--when` 날짜 표현 하나를 고정 규칙으로 푼다 | proposed | basis X14, X15, X17 | A8 | 인터페이스 | 035122fe |  |
-| D14 | CLI에 Haiku 상대 날짜 해석을 이번에는 더하지 않는다 | decided | basis X14, X15, X16, X17, X18, I2; depends D13 | A10 | 인터페이스 | 427cc23d |  |
-| D15 | LongMemEval의 C 측정은 같은 규칙 해석기를 질문 날짜 기준으로 쓴다 | proposed | basis X8, X15; depends D13 | A11 | 측정 | 068b43b3 |  |
-| D16 | 수집 뒤 분리된 사실 작업자 하나가 Graph Home 대기열을 처리한다 | proposed | basis X9, I8 | A12 | 수집 | 97ff208b |  |
-| D17 | Claude CLI 추출기는 로그인된 Claude Code로 돌고 자식 세션은 훅을 건너뛴다 | decided | basis X9, X12, I2, I9 | A13 | 수집 | d4ceef9d |  |
-| D18 | 추출기는 설정으로 고르고, 차이가 작을 때만 기본값을 로컬로 바꾼다 | proposed | basis X13 | A17, A22 | 수집, 설정 | 49c31d16 |  |
-| D19 | 사실 추출은 기본으로 켜져 있고 `vg facts off`로 끈다 | decided | basis X13; depends D18 | A17, A25 | 설정, 측정 | aed3b1a7 |  |
-| D20 | 추출 결과는 교환 내용 해시로 Graph Home에 캐시한다 | proposed | basis X11, X13 | A16 | 수집, 측정 | d29ba3b5 |  |
-| D21 | 사실은 원 교환으로 접히는 낮은 가중치 키로만 색인한다 | proposed | basis X1, X10, I1, I3, I6; depends D2, D28 | A18 | 색인, 검색 | c7555edf |  |
-| D22 | 원칙 문장을 사실 첨부 하나만 허용하도록 좁게 고친다 | decided | basis X10, I2, I7 | A20 | global | 146a8ac0 |  |
-| D23 | B는 시범 20문항으로 먼저 재고, 그 뒤 multi-session·temporal-reasoning 문항으로 넓힌다 | decided | basis X5, X13; depends D20 | A22 | 측정 | 41060f00 |  |
-| D24 | 부분마다 세 관문을 넘어야 들인다 | proposed | basis X5, 2026-11-13-cross-encoder-rerank:D17; depends D1 | A21 | 측정 | 29403845 |  |
-| D25 | vault-builder: Vault 명령 `sessions attach-facts`를 더한다 | decided | basis X11, I7 | A23 | vault-builder | a6296784 |  |
-| D26 | vault-builder: 첨부는 세션 part 파일 옆 `<part 이름>.facts.md`다 | decided | basis X4, X11 | A23 | vault-builder | d0fc44b6 |  |
-| D27 | vault-builder: 첨부 명령은 원 part 파일과 맞을 때만 쓴다 | decided | basis X11; depends D25, D26 | A23 | vault-builder | e1e4dbb8 |  |
-| D28 | vault-builder 계약: vault-graph는 `vault-session-facts/v1` 첨부를 이렇게 읽는다 | proposed | basis X4, X6, I1; depends D26 | A18 | vault-builder, 색인 | 5e841adc |  |
-| D29 | vault-builder task는 별도 세션이 하고, 이 세션은 결과를 기다려 B를 통합한다 | decided | basis X11; depends D25, D26, D27, D28 | A24 | vault-builder, global | f3d8e06f |  |
-| F1 | 한 세션이 여러 Vault에 있다 |  | basis D3 | A1 |  | 984c30b4 |  |
-| F2 | 세션 파일에 `agent`나 `session_id`가 없다 |  | basis D3 | A1 |  | 597c4149 |  |
-| F3 | 한 세션에서 맞은 교환이 상한보다 많다 |  | basis D5 | A2 |  | f5efea57 |  |
-| F4 | 교환의 시각을 하나도 읽을 수 없다 |  | basis D8, D11 | A7 |  | 312536e0 |  |
-| F5 | 날짜 인자가 틀렸다 |  | basis D10, D13 | A8 |  | dec1dfae |  |
-| F6 | 범위 안 결과가 `limit`보다 적거나 없다 |  | basis D9, D11 | A6 |  | fd8d5e19 |  |
-| F7 | 추출기를 쓸 수 없다 |  | basis D16, D17, D18 | A16 |  | 3e35d1e8 |  |
-| F8 | 추출 출력이 스키마와 다르거나 없는 교환을 가리킨다 |  | basis D17, D21 | A16 |  | a5a72f8f |  |
-| F9 | Vault에 사실 첨부 명령이 없거나 거부한다 |  | basis D20, D25, D27 | A16 |  | 6de4a82e |  |
-| F10 | 여러 세션이 동시에 끝나거나 작업자가 죽는다 |  | basis D16 | A12 |  | 9730692f |  |
-| F11 | 추출용 Claude 세션이 훅을 부른다 |  | basis D17 | A13, A14 |  | cf308491 |  |
-| F12 | 사실 조각만 맞고 원 교환의 창이 색인에 없다 |  | basis D21, D28 | A18 |  | 7f7ce33e |  |
-| F13 | 기존 설치가 올린 뒤부터 Claude 호출을 시작한다 |  | basis D19 | A17 |  | 7059415b |  |
+| I1 | 원문 창은 바이트 단위로 같다 |  | basis X6, X10 | A3 | global | ac598858 | 6-time-columns.md, 15-facts-index.md |
+| I2 | 검색 시점에는 모델을 부르지 않는다 |  | basis X10 | A15 | global | 2d2374a9 | 14-fact-extractors.md, 17-fact-worker.md |
+| I3 | 결과는 원 세션 교환을 가리킨다 |  | basis X2, X10 | A18 | 검색 | ad8a6998 | 16-facts-search.md |
+| I4 | 한 검색에서 세션 하나는 결과 하나다 |  | basis X1, X4 | A1 | 검색 | 0059fc43 | 1-session-fold.md |
+| I5 | 날짜 인자가 없으면 지금과 같다 |  | basis X7 | A6 | 검색 | 1705699f | 7-date-filter.md |
+| I6 | 사실 키가 없거나 빼는 모드면 지금과 같다 |  | basis X10 | A18 | 검색 | 17231e43 | 16-facts-search.md |
+| I7 | vault-graph는 Vault 파일을 직접 쓰지 않는다 |  | basis X9, X10, X11 | A19 | global | e58d0c5b | 17-fact-worker.md |
+| I8 | 수집 훅은 사실 추출을 기다리지 않는다 |  | basis X9 | A12 | 수집 | ff209635 | 18-hook-facts.md |
+| I9 | 추출용 Claude 세션은 기억에 닿지 않는다 |  | basis X9, X12 | A13, A14 | 수집 | bcdad32a | 14-fact-extractors.md, 18-hook-facts.md |
+| D1 | A → C → B 순서로 하고 부분마다 따로 잰다 | decided | basis X3, X5 | A21 | global | 23bd7913 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
+| D2 | 같은 세션의 교환은 가장 높은 교환 결과에 접는다 | decided | basis X1, X2, I4 | A1 | 검색 | aacb69b0 | 1-session-fold.md |
+| D3 | 세션 키는 Vault 안의 `<agent>:<session_id>`다 | proposed | basis X4 | A1 | 검색 | 8b868d3f | 1-session-fold.md |
+| D4 | 접힌 결과는 가장 높은 교환의 점수와 자리를 그대로 쓴다 | proposed | basis X2; depends D2 | A1 | 검색 | 4f990a43 | 1-session-fold.md |
+| D5 | 붙는 교환은 근거 참조만, 결과마다 3개까지다 | proposed | basis X2, I3; depends D2 | A2 | 검색 | a5bbf8e6 | 1-session-fold.md |
+| D6 | 세션 단위 결과를 기본 동작으로 한다 | decided | basis X1, X3, X5; depends D2, D24 | A4 | 검색 | 167a0f1b | 2-session-default.md |
+| D7 | LongMemEval 실행기는 기존 채점을 두고 서로 다른 세션 수를 더 적는다 | proposed | basis X3, X5 | A5 | 측정 | 374f295c | 3-lme-session-count.md |
+| D8 | 교환마다 시작·끝 시각을 메타데이터 저장소에 색인한다 | proposed | basis X6, I1 | A3, A7 | 색인 | b58cbf05 | 6-time-columns.md |
+| D9 | 날짜 범위는 후보 단계에서 거른다 | proposed | basis X6, X7, I5; depends D8 | A6 | 검색 | e1ec5515 | 7-date-filter.md |
+| D10 | 날짜 인자는 `since`·`until`, `YYYY-MM-DD`, 양 끝 포함, 이 컴퓨터 시간대다 | decided | basis X7, X8 | A8 | 검색, 인터페이스 | 9229092a | 7-date-filter.md, 9-cli-date-args.md |
+| D11 | 날짜 범위를 주면 날짜 없는 결과는 빼고 경고 하나를 붙인다 | decided | basis X6, X7; depends D9 | A6 | 검색 | 51bdc1dd | 7-date-filter.md |
+| D12 | MCP 도구 설명이 상대 날짜를 오늘 기준 날짜로 바꿔 넘기라고 알린다 | decided | basis X7 | A9 | 인터페이스 | ddb0675c | 8-mcp-date-args.md |
+| D13 | CLI는 `--when` 날짜 표현 하나를 고정 규칙으로 푼다 | proposed | basis X14, X15, X17 | A8 | 인터페이스 | 035122fe | 5-date-expression.md, 9-cli-date-args.md |
+| D14 | CLI에 Haiku 상대 날짜 해석을 이번에는 더하지 않는다 | decided | basis X14, X15, X16, X17, X18, I2; depends D13 | A10 | 인터페이스 | 427cc23d | 5-date-expression.md |
+| D15 | LongMemEval의 C 측정은 같은 규칙 해석기를 질문 날짜 기준으로 쓴다 | proposed | basis X8, X15; depends D13 | A11 | 측정 | 068b43b3 | 10-lme-date-rules.md |
+| D16 | 수집 뒤 분리된 사실 작업자 하나가 Graph Home 대기열을 처리한다 | proposed | basis X9, I8 | A12 | 수집 | 97ff208b | 17-fact-worker.md, 18-hook-facts.md |
+| D17 | Claude CLI 추출기는 로그인된 Claude Code로 돌고 자식 세션은 훅을 건너뛴다 | decided | basis X9, X12, I2, I9 | A13 | 수집 | d4ceef9d | 14-fact-extractors.md |
+| D18 | 추출기는 설정으로 고르고, 차이가 작을 때만 기본값을 로컬로 바꾼다 | proposed | basis X13 | A17, A22 | 수집, 설정 | 49c31d16 | 13-facts-config.md, 22-measure-b.md |
+| D19 | 사실 추출은 기본으로 켜져 있고 `vg facts off`로 끈다 | decided | basis X13; depends D18 | A17, A25 | 설정, 측정 | aed3b1a7 | 13-facts-config.md, 19-lme-facts-args.md |
+| D20 | 추출 결과는 교환 내용 해시로 Graph Home에 캐시한다 | proposed | basis X11, X13 | A16 | 수집, 측정 | d29ba3b5 | 17-fact-worker.md, 19-lme-facts-args.md |
+| D21 | 사실은 원 교환으로 접히는 낮은 가중치 키로만 색인한다 | proposed | basis X1, X10, I1, I3, I6; depends D2, D28 | A18 | 색인, 검색 | c7555edf | 16-facts-search.md |
+| D22 | 원칙 문장을 사실 첨부 하나만 허용하도록 좁게 고친다 | decided | basis X10, I2, I7 | A20 | global | 146a8ac0 | 20-principle-text.md |
+| D23 | B는 시범 20문항으로 먼저 재고, 그 뒤 multi-session·temporal-reasoning 문항으로 넓힌다 | decided | basis X5, X13; depends D20 | A22 | 측정 | 41060f00 | 22-measure-b.md |
+| D24 | 부분마다 세 관문을 넘어야 들인다 | proposed | basis X5, 2026-11-13-cross-encoder-rerank:D17; depends D1 | A21 | 측정 | 29403845 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
+| D25 | vault-builder: Vault 명령 `sessions attach-facts`를 더한다 | decided | basis X11, I7 | A23 | vault-builder | a6296784 | 12-vault-builder-track.md |
+| D26 | vault-builder: 첨부는 세션 part 파일 옆 `<part 이름>.facts.md`다 | decided | basis X4, X11 | A23 | vault-builder | d0fc44b6 | 12-vault-builder-track.md |
+| D27 | vault-builder: 첨부 명령은 원 part 파일과 맞을 때만 쓴다 | decided | basis X11; depends D25, D26 | A23 | vault-builder | e1e4dbb8 | 12-vault-builder-track.md |
+| D28 | vault-builder 계약: vault-graph는 `vault-session-facts/v1` 첨부를 이렇게 읽는다 | proposed | basis X4, X6, I1; depends D26 | A18 | vault-builder, 색인 | 5e841adc | 15-facts-index.md |
+| D29 | vault-builder task는 별도 세션이 하고, 이 세션은 결과를 기다려 B를 통합한다 | decided | basis X11; depends D25, D26, D27, D28 | A24 | vault-builder, global | f3d8e06f | 21-b-integration.md |
+| F1 | 한 세션이 여러 Vault에 있다 |  | basis D3 | A1 |  | 984c30b4 | 1-session-fold.md |
+| F2 | 세션 파일에 `agent`나 `session_id`가 없다 |  | basis D3 | A1 |  | 597c4149 | 1-session-fold.md |
+| F3 | 한 세션에서 맞은 교환이 상한보다 많다 |  | basis D5 | A2 |  | f5efea57 | 1-session-fold.md |
+| F4 | 교환의 시각을 하나도 읽을 수 없다 |  | basis D8, D11 | A7 |  | 312536e0 | 6-time-columns.md |
+| F5 | 날짜 인자가 틀렸다 |  | basis D10, D13 | A8 |  | dec1dfae | 5-date-expression.md, 8-mcp-date-args.md, 9-cli-date-args.md |
+| F6 | 범위 안 결과가 `limit`보다 적거나 없다 |  | basis D9, D11 | A6 |  | fd8d5e19 | 7-date-filter.md |
+| F7 | 추출기를 쓸 수 없다 |  | basis D16, D17, D18 | A16 |  | 3e35d1e8 | 17-fact-worker.md |
+| F8 | 추출 출력이 스키마와 다르거나 없는 교환을 가리킨다 |  | basis D17, D21 | A16 |  | a5a72f8f | 17-fact-worker.md |
+| F9 | Vault에 사실 첨부 명령이 없거나 거부한다 |  | basis D20, D25, D27 | A16 |  | 6de4a82e | 17-fact-worker.md |
+| F10 | 여러 세션이 동시에 끝나거나 작업자가 죽는다 |  | basis D16 | A12 |  | 9730692f | 17-fact-worker.md, 18-hook-facts.md |
+| F11 | 추출용 Claude 세션이 훅을 부른다 |  | basis D17 | A13, A14 |  | cf308491 | 14-fact-extractors.md, 18-hook-facts.md |
+| F12 | 사실 조각만 맞고 원 교환의 창이 색인에 없다 |  | basis D21, D28 | A18 |  | 7f7ce33e | 16-facts-search.md |
+| F13 | 기존 설치가 올린 뒤부터 Claude 호출을 시작한다 |  | basis D19 | A17 |  | 7059415b | 13-facts-config.md, 18-hook-facts.md |
 | R1 | layer-1 세션 정답이 교환 단위면 접기가 recall을 떨어뜨릴 수 있다 |  | basis X5, D2, D5 |  |  | c22052e5 |  |
 | R2 | `build_context_pack`이 붙은 근거마다 본문을 읽으면 토큰이 늘 수 있다 |  | basis D5 |  |  | e636cfdc |  |
 | R3 | 벡터 저장소가 조각 id 집합으로 싸게 거르지 못할 수 있다 |  | basis D9 |  |  | 2a708d39 |  |
@@ -63,31 +63,31 @@
 | R7 | B 측정 시간과 사용량 한도가 추정보다 클 수 있다 |  | basis X13, D23 |  |  | 4875e938 |  |
 | R8 | 기준선 실패 분류가 A의 효과를 작게 보일 수 있다 |  | basis X3, D1, D4, D6 |  |  | 241d1fc7 |  |
 | R9 | 한국어 세션에서 사실 품질과 날짜 규칙을 재지 못한다 |  | basis X17, D13, D17 |  |  | ad1e4c17 |  |
-| A1 | 한 세션은 결과 하나이고 나머지 교환은 근거로 붙는다 |  | covers D2, D3, D4, I4, F1, F2 |  |  | c8bee8a5 |  |
-| A2 | 붙는 교환은 참조만이고 3개까지다 |  | covers D5, F3 |  |  | fa6d4a8c |  |
-| A3 | 원문 창, 조각 id, 임베딩 입력이 바뀌지 않는다 |  | covers I1, D8 |  |  | 9dfe2593 |  |
-| A4 | 세션 단위 결과는 인자 없이 기본으로 동작한다 |  | covers D6 |  |  | fd8746c3 |  |
-| A5 | LongMemEval 실행기가 서로 다른 세션 수를 적고 기존 채점은 같다 |  | covers D7 |  |  | 1705fe07 |  |
-| A6 | 날짜 범위는 후보 단계에서 거르고, 없으면 지금과 같다 |  | covers D9, D11, I5, F6 |  |  | 125ba9ad |  |
-| A7 | 교환 시각은 정한 순서로 읽고, 못 읽으면 비운다 |  | covers D8, F4 |  |  | 3aea14e8 |  |
-| A8 | 날짜 인자와 `--when` 규칙이 정한 형식대로 동작한다 |  | covers D10, D13, F5 |  |  | 1fd926e8 |  |
-| A9 | MCP 검색 도구 셋이 날짜 인자와 설명을 갖는다 |  | covers D12 |  |  | 8b409fc7 |  |
-| A10 | CLI 날짜 해석은 모델을 부르지 않는다 |  | covers D14 |  |  | b505ff3e |  |
-| A11 | LongMemEval 실행기가 질문 날짜로 범위를 넘길 수 있다 |  | covers D15 |  |  | 5d9bc725 |  |
-| A12 | 수집 훅은 작업 파일만 두고 기다리지 않으며 작업자는 하나다 |  | covers D16, I8, F10 |  |  | fc2faca4 |  |
-| A13 | Claude 추출기는 정한 명령으로만 돌고 자식 세션은 훅을 건너뛴다 |  | covers D17, I9, F11 |  |  | 3216e3ac |  |
-| A14 | 실제 Claude Code에서 추출용 세션이 Vault에 남지 않는다 |  | covers I9, F11 |  |  | 5a04eb1c |  |
-| A15 | 검색, 색인, 회상은 모델을 부르지 않는다 |  | covers I2 |  |  | f9b10fbc |  |
-| A16 | 작업자는 실패를 기록하고 캐시로 다시 부르지 않는다 |  | covers D20, F7, F8, F9 |  |  | 32245f7c |  |
-| A17 | 추출기 설정과 켜고 끄기가 정한 대로 동작한다 |  | covers D18, D19, F13 |  |  | a85325bd |  |
-| A25 | 테스트와 LongMemEval 실행기는 실제 추출기를 부르지 않는다 |  | covers D19 |  |  | ba627286 |  |
-| A18 | 사실 키는 원 교환을 돌려주고 빼는 모드에서는 지금과 같다 |  | covers D21, D28, I3, I6, F12 |  |  | c8a3ac70 |  |
-| A19 | 사실 첨부는 Vault 명령으로만 쓰고 수집한 Vault에 간다 |  | covers I7 |  |  | a42532bd |  |
-| A20 | 원칙 문장이 승인된 문장으로 바뀐다 |  | covers D22 |  |  | a1696d78 |  |
-| A21 | A, C, B 각각이 세 관문을 넘는다 |  | covers D1, D24 |  |  | 5ee43a63 |  |
-| A22 | B 측정은 정한 범위에서 두 추출기를 같은 문항으로 비교한다 |  | covers D23, D18 |  |  | 6d7ea051 |  |
-| A23 | vault-builder: 첨부 명령이 정한 형식과 검증을 따른다 |  | covers D25, D26, D27 |  |  | 327f21da |  |
-| A24 | B 통합은 vault-builder 결과를 받은 뒤 실제 명령으로 돈다 |  | covers D29 |  |  | a9aa4b28 |  |
+| A1 | 한 세션은 결과 하나이고 나머지 교환은 근거로 붙는다 |  | covers D2, D3, D4, I4, F1, F2 |  |  | c8bee8a5 | 1-session-fold.md |
+| A2 | 붙는 교환은 참조만이고 3개까지다 |  | covers D5, F3 |  |  | fa6d4a8c | 1-session-fold.md |
+| A3 | 원문 창, 조각 id, 임베딩 입력이 바뀌지 않는다 |  | covers I1, D8 |  |  | 9dfe2593 | 6-time-columns.md, 15-facts-index.md |
+| A4 | 세션 단위 결과는 인자 없이 기본으로 동작한다 |  | covers D6 |  |  | fd8746c3 | 2-session-default.md |
+| A5 | LongMemEval 실행기가 서로 다른 세션 수를 적고 기존 채점은 같다 |  | covers D7 |  |  | 1705fe07 | 3-lme-session-count.md |
+| A6 | 날짜 범위는 후보 단계에서 거르고, 없으면 지금과 같다 |  | covers D9, D11, I5, F6 |  |  | 125ba9ad | 7-date-filter.md |
+| A7 | 교환 시각은 정한 순서로 읽고, 못 읽으면 비운다 |  | covers D8, F4 |  |  | 3aea14e8 | 6-time-columns.md |
+| A8 | 날짜 인자와 `--when` 규칙이 정한 형식대로 동작한다 |  | covers D10, D13, F5 |  |  | 1fd926e8 | 5-date-expression.md, 8-mcp-date-args.md, 9-cli-date-args.md |
+| A9 | MCP 검색 도구 셋이 날짜 인자와 설명을 갖는다 |  | covers D12 |  |  | 8b409fc7 | 8-mcp-date-args.md |
+| A10 | CLI 날짜 해석은 모델을 부르지 않는다 |  | covers D14 |  |  | b505ff3e | 5-date-expression.md |
+| A11 | LongMemEval 실행기가 질문 날짜로 범위를 넘길 수 있다 |  | covers D15 |  |  | 5d9bc725 | 10-lme-date-rules.md |
+| A12 | 수집 훅은 작업 파일만 두고 기다리지 않으며 작업자는 하나다 |  | covers D16, I8, F10 |  |  | fc2faca4 | 18-hook-facts.md |
+| A13 | Claude 추출기는 정한 명령으로만 돌고 자식 세션은 훅을 건너뛴다 |  | covers D17, I9, F11 |  |  | 3216e3ac | 14-fact-extractors.md, 18-hook-facts.md |
+| A14 | 실제 Claude Code에서 추출용 세션이 Vault에 남지 않는다 |  | covers I9, F11 |  |  | 5a04eb1c | 21-b-integration.md |
+| A15 | 검색, 색인, 회상은 모델을 부르지 않는다 |  | covers I2 |  |  | f9b10fbc | 17-fact-worker.md |
+| A16 | 작업자는 실패를 기록하고 캐시로 다시 부르지 않는다 |  | covers D20, F7, F8, F9 |  |  | 32245f7c | 17-fact-worker.md |
+| A17 | 추출기 설정과 켜고 끄기가 정한 대로 동작한다 |  | covers D18, D19, F13 |  |  | a85325bd | 13-facts-config.md, 18-hook-facts.md |
+| A25 | 테스트와 LongMemEval 실행기는 실제 추출기를 부르지 않는다 |  | covers D19 |  |  | ba627286 | 17-fact-worker.md, 19-lme-facts-args.md |
+| A18 | 사실 키는 원 교환을 돌려주고 빼는 모드에서는 지금과 같다 |  | covers D21, D28, I3, I6, F12 |  |  | c8a3ac70 | 16-facts-search.md |
+| A19 | 사실 첨부는 Vault 명령으로만 쓰고 수집한 Vault에 간다 |  | covers I7 |  |  | a42532bd | 17-fact-worker.md |
+| A20 | 원칙 문장이 승인된 문장으로 바뀐다 |  | covers D22 |  |  | a1696d78 | 20-principle-text.md |
+| A21 | A, C, B 각각이 세 관문을 넘는다 |  | covers D1, D24 |  |  | 5ee43a63 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
+| A22 | B 측정은 정한 범위에서 두 추출기를 같은 문항으로 비교한다 |  | covers D23, D18 |  |  | 6d7ea051 | 22-measure-b.md |
+| A23 | vault-builder: 첨부 명령이 정한 형식과 검증을 따른다 |  | covers D25, D26, D27 |  |  | 327f21da | 12-vault-builder-track.md |
+| A24 | B 통합은 vault-builder 결과를 받은 뒤 실제 명령으로 돈다 |  | covers D29 |  |  | a9aa4b28 | 21-b-integration.md |
 | X14 | 날짜 범위 표현은 127문항 중 27문항이다 |  |  |  |  | 19ef6844 |  |
 | X15 | 27문항의 표현은 모두 고정 규칙으로 풀린다 |  | basis X14 |  |  | 33ba8b78 |  |
 | X16 | 규칙으로 풀 수 없는 상대 날짜 표현은 0개다 |  | basis X15 |  |  | 7baefdc5 |  |
