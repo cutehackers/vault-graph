@@ -16,6 +16,7 @@ from vault_graph.indexing.ingestion.document_models import ExtractedDocument
 from vault_graph.indexing.ingestion.document_snapshots import ChunkSnapshot
 from vault_graph.indexing.ingestion.session_exchange_v1_chunker import SessionExchangeV1Chunker
 from vault_graph.indexing.ingestion.session_exchange_v2_chunker import SessionExchangeV2Chunker
+from vault_graph.indexing.ingestion.session_facts_chunker import SESSION_FACTS_SCHEMA_PREFIX, SessionFactsChunker
 from vault_graph.indexing.ingestion.wiki_page_chunker import WikiPageChunker
 
 SESSION_SCHEMA_PREFIX = "vault-session/"
@@ -36,8 +37,13 @@ _SESSION_CHUNKERS: Mapping[str, DocumentChunker[ChunkDraft]] = {
     SESSION_SCHEMA_V2: SessionExchangeV2Chunker(),
 }
 
+# `derived` chunks from session fact attachments, for every `vault-session-facts/*` schema (spec 2026-11-16 D28).
+# The chunker indexes v1 and gives any other version no chunks and one warning.
+_SESSION_FACTS_CHUNKER: DocumentChunker[ChunkDraft] = SessionFactsChunker()
+
 _CHUNKERS_BY_VERSION: Mapping[str, DocumentChunker[ChunkDraft]] = {
-    chunker.version: chunker for chunker in (_GENERIC_CHUNKER, _WIKI_PAGE_CHUNKER, *_SESSION_CHUNKERS.values())
+    chunker.version: chunker
+    for chunker in (_GENERIC_CHUNKER, _WIKI_PAGE_CHUNKER, *_SESSION_CHUNKERS.values(), _SESSION_FACTS_CHUNKER)
 }
 
 # Every chunker version this code can write, in a fixed order. The incremental precheck hashes them.
@@ -53,6 +59,8 @@ class ChunkerSelection:
 def chunker_selection(extracted: ExtractedDocument) -> ChunkerSelection:
     """The chunker for this document, plus one warning line for an unknown session schema."""
     schema = extracted.frontmatter.data.get("schema")
+    if isinstance(schema, str) and schema.startswith(SESSION_FACTS_SCHEMA_PREFIX):
+        return ChunkerSelection(_SESSION_FACTS_CHUNKER)
     if not isinstance(schema, str) or not schema.startswith(SESSION_SCHEMA_PREFIX):
         return ChunkerSelection(_WIKI_PAGE_CHUNKER if _is_wiki_page(extracted) else _GENERIC_CHUNKER)
     session_chunker = _SESSION_CHUNKERS.get(schema)

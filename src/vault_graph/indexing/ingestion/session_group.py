@@ -14,6 +14,10 @@ before the metadata apply, `reprocess_session_groups` runs two rules on each gro
 
 Both only remove chunks, and both are pure functions of the group's files, so a run that reads the
 whole group gives the same chunks as a full run.
+
+A session fact attachment (`<part>.facts.md`, schema `vault-session-facts/v1`, spec 2026-11-16 D28) has the
+same `agent` and `session_id` but is not a session file: its schema does not start with `vault-session/`, so it
+has no group key and the rules never see it.
 """
 
 from __future__ import annotations
@@ -52,7 +56,10 @@ ExchangeRanges = Mapping[str, TimeRange | None]
 
 
 def session_group_key(frontmatter: Mapping[str, object]) -> str | None:
-    """`<agent>:<session_id>` of a session file, None for any other file or a session file missing either."""
+    """`<agent>:<session_id>` of a session file, None for any other file or a session file missing either.
+
+    A fact attachment (`vault-session-facts/*`) is another file and gets None.
+    """
     schema = frontmatter.get("schema")
     if not isinstance(schema, str) or not schema.startswith(SESSION_SCHEMA_PREFIX):
         return None
