@@ -368,7 +368,7 @@ temporal 127문항 중 날짜 범위 표현은 27(21%), 규칙으로 못 푸는 
 - area: 수집
 - basis: X9, I8
 
-훅은 수집이 `written`일 때만 작업 파일(정규화 세션 사본, 수집 Vault, part 경로)을 쓰고, `logs/facts-worker.lock`이 비어 있으면 작업자를 분리해 띄운다. 작업자는 대기열이 빌 때까지 처리한다. 죽어도 다음 수집 때 이어 한다.
+훅은 수집이 `written`일 때만 작업 파일(수집 Vault, part 경로)을 쓰고, `logs/facts-worker.lock`이 비어 있으면 작업자를 분리해 띄운다. 작업자는 대기열이 빌 때까지 처리한다. 교환은 정규화 사본이 아니라 part 파일에서 읽는다. `attach-facts`가 교환 id와 `source_sha256`을 그 파일로 검사하고, 그 본문은 이미 Vault 가림을 거쳤기 때문이다(구현 중 2026-11-16 변경). 죽어도 다음 수집 때 이어 한다.
 
 ### D17. Claude CLI 추출기는 로그인된 Claude Code로 돌고 자식 세션은 훅을 건너뛴다
 - by: 사람 (brief B, "API 키는 쓰지 않는다")
