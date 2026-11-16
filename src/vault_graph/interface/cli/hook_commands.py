@@ -32,6 +32,15 @@ the same run exports the session. Exit code 0 means the launcher finished (writt
 skipped alike). Exit code 3 means the launcher was missing, failed or ran out of time, so the hook
 launcher captures directly. vg never chooses the Vault, never indexes after capture and writes only
 the normalized file and the export folder, outside every Vault.
+
+After a ``written`` capture, when session fact extraction is on (spec 2026-11-16 D16, D19, I8) and the default
+Graph Home is initialized, the hook writes one job file (the capturing Vault and the part path) and starts the
+detached fact worker unless ``logs/facts-worker.lock`` is taken. It never waits for the worker, so the exit code and
+output stay the same as with extraction off. The first job ever written prints one stderr notice and records it in
+``facts/notice-shown``. Sessions captured before are never queued.
+
+With ``VAULT_GRAPH_FACTS_CHILD=1`` (the Claude session the fact extractor runs) both hooks print nothing and exit 0
+without calling the launcher, the refresh or recall (spec 2026-11-16 D17, I9, F11).
 """
 
 from __future__ import annotations
@@ -57,6 +66,7 @@ from vault_graph.context.pack.recall import (
     RecallUnavailable,
     recall,
 )
+from vault_graph.errors import VaultGraphError
 from vault_graph.indexing.vector_failure_log import (
     VectorFailure,
     failure_warning,
@@ -64,8 +74,9 @@ from vault_graph.indexing.vector_failure_log import (
     record_vector_failure,
     vector_retry_pending,
 )
+from vault_graph.interface.composition.adapters.fact_queue import enqueue_fact_job
 from vault_graph.interface.composition.adapters.session_capture_runner import capture_hook
-from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME
+from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME, CaptureOutcome
 from vault_graph.interface.composition.memory_candidate_sources import CandidateBacklogCounter
 from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
 from vault_graph.interface.composition.recall_index_refresh import (
@@ -74,6 +85,8 @@ from vault_graph.interface.composition.recall_index_refresh import (
     vectors_need_catch_up,
 )
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, open_vault_map, vault_map_path
+from vault_graph.operation.scope.facts_settings import FactsSettings, facts_settings_path, read_facts_settings
+from vault_graph.operation.scope.graph_home import GraphHomeResolver
 
 COMMAND = "vg hook session-start"
 CAPTURE_COMMAND = "vg hook capture"
@@ -88,6 +101,18 @@ _GATE_TIMEOUT_S = 60.0
 _CATCH_UP_LOG_MAX_BYTES = 1_000_000
 _CATCH_UP_SCRIPT = "from vault_graph.interface.cli.hook_commands import run_catch_up_index; run_catch_up_index()"
 _VG_SCRIPT = "from vault_graph.interface.cli.main import app; app()"
+FACTS_CHILD_ENV = "VAULT_GRAPH_FACTS_CHILD"
+FACTS_NOTICE = Path("facts") / "notice-shown"
+_FACTS_NOTICE_TEXT = {
+    "claude": (
+        "session fact extraction is on. After each captured session it runs the logged-in Claude Code "
+        "(`claude -p`) in the background. Run `vg facts off` to turn it off."
+    ),
+    "llama-server": (
+        "session fact extraction is on. After each captured session it runs the local llama-server "
+        "in the background. Run `vg facts off` to turn it off."
+    ),
+}
 
 # Same wording as VAULT_MAP_OPTION_HELP in main.py, which imports this module.
 _VAULT_MAP_HELP = (
@@ -127,6 +152,8 @@ def session_start(
     existing index.
     """
 
+    if _facts_child():
+        return
     catch_ups: list[CatchUp] = []
 
     def start_catch_up(
@@ -391,16 +418,19 @@ def capture(
 ) -> None:
     """Hand the PreCompact or SessionEnd hook JSON on stdin and its normalized session to the Vault hook launcher.
 
-    The export settings are read from the default Graph Home, ``$HOME/.vault-graph``.
+    The export and fact extraction settings are read from the default Graph Home, ``$HOME/.vault-graph``.
     """
 
+    if _facts_child():
+        return
     hook_json = sys.stdin.buffer.read()
     map_path = vault_map_path(vault_map)
+    graph_home = Path.home() / ".vault-graph"
     result = capture_hook(
         hook_json,
         launcher=map_path.parent / LAUNCHER_NAME,
         vault_map=map_path,
-        graph_home=Path.home() / ".vault-graph",
+        graph_home=graph_home,
         timeout_s=timeout,
     )
     for warning in result.warnings:
@@ -416,6 +446,70 @@ def capture(
         f"input={'normalized' if result.normalized else 'transcript'}",
         err=True,
     )
+    if outcome.status == "written":
+        _queue_session_facts(graph_home, map_path, outcome)
+
+
+def facts_notice_path(graph_home: Path) -> Path:
+    """Record that the one-time fact extraction notice was shown (spec 2026-11-16 F13)."""
+    return graph_home / FACTS_NOTICE
+
+
+def _facts_child() -> bool:
+    return os.environ.get(FACTS_CHILD_ENV) == "1"
+
+
+def _queue_session_facts(graph_home: Path, map_path: Path, outcome: CaptureOutcome) -> None:
+    """Write one fact job for a `written` capture and start the worker without waiting (spec 2026-11-16 D16, I8).
+
+    Nothing happens when extraction is off, the settings file is broken, or the Graph Home is not initialized,
+    because no worker could run there. A problem prints one warning and never changes the exit code.
+    """
+    try:
+        if not GraphHomeResolver().resolve(graph_home).initialized:
+            return
+    except (VaultGraphError, OSError):
+        return
+    settings = read_facts_settings(facts_settings_path(graph_home)).settings
+    if not settings.enabled:
+        return
+    if not outcome.vault or not outcome.path:
+        return
+    try:
+        vault_root = _vault_root(map_path, outcome.vault)
+        if vault_root is None:
+            typer.echo(
+                f"{CAPTURE_COMMAND}: warning: no fact job: Vault {outcome.vault} is not in {map_path}.", err=True
+            )
+            return
+        enqueue_fact_job(graph_home, vault_root=vault_root, vault=outcome.vault, part=outcome.path)
+        _show_facts_notice_once(graph_home, settings)
+        # Imported here so the other commands never load the extractor port (spec 2026-11-16 I2).
+        from vault_graph.interface.composition.adapters.fact_worker import start_fact_worker
+
+        start_fact_worker(graph_home)
+    except (VaultGraphError, OSError) as exc:
+        typer.echo(f"{CAPTURE_COMMAND}: warning: session fact job not started: {exc}", err=True)
+
+
+def _vault_root(map_path: Path, vault_name: str) -> Path | None:
+    opening = open_vault_map(map_path)
+    if opening.vault_map is None:
+        return None
+    for vault in opening.vault_map.vaults:
+        if vault.name == vault_name:
+            return vault.path
+    return None
+
+
+def _show_facts_notice_once(graph_home: Path, settings: FactsSettings) -> None:
+    record = facts_notice_path(graph_home)
+    if record.exists():
+        return
+    text = _FACTS_NOTICE_TEXT.get(settings.extractor, _FACTS_NOTICE_TEXT["claude"])
+    typer.echo(f"{CAPTURE_COMMAND}: notice: {text}", err=True)
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text(datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ") + "\n", encoding="utf-8")
 
 
 def _read_hook_input(raw: str) -> tuple[Path, str, str]:
