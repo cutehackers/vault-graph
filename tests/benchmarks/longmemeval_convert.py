@@ -15,6 +15,9 @@ turns before the first user turn form their own exchange. U+2028, U+2029 and U+0
 second per turn. The session id is a UUID made from the haystack id, because the Vault tool accepts
 only letters, digits and ``-`` in session ids. vault-graph writes only these files; the Vault tool
 ``sessions capture --normalized`` writes the Vault (see ``longmemeval_run.py``).
+
+``question_date`` (same format, no time zone) is kept on the question so ``longmemeval_run --date-rules`` can
+count relative dates from it (spec 2026-11-16 D15).
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ import json
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from vault_graph.operation.sessions.models import ExchangeLine, NormalizedLine, SessionLine, TurnLine
@@ -53,12 +56,18 @@ class LmeQuestion:
     question_id: str
     question_type: str
     question: str
+    question_date: str
     answer_session_ids: tuple[str, ...]
     sessions: tuple[LmeSession, ...]
 
     @property
     def abstention(self) -> bool:
         return self.question_id.endswith(ABSTENTION_SUFFIX)
+
+    @property
+    def asked_on(self) -> date:
+        """The calendar day of ``question_date``, as written (it has no time zone)."""
+        return _parse_date(self.question_date, what="question date").date()
 
 
 @dataclass(frozen=True)
@@ -177,7 +186,7 @@ def write_question_sessions(question: LmeQuestion, folder: Path, *, cwd: str) ->
 def _question(entry: object, number: int) -> LmeQuestion:
     if not isinstance(entry, dict):
         raise ValueError(f"entry {number}: must be a JSON object")
-    for key in ("question_id", "question_type", "question"):
+    for key in ("question_id", "question_type", "question", "question_date"):
         if not isinstance(entry.get(key), str):
             raise ValueError(f"entry {number}: {key} must be a string")
     answers = entry.get("answer_session_ids")
@@ -188,21 +197,23 @@ def _question(entry: object, number: int) -> LmeQuestion:
         raise ValueError(f"entry {number}: haystack_session_ids, haystack_dates and haystack_sessions must be lists")
     if not len(ids) == len(dates) == len(sessions):
         raise ValueError(f"entry {number}: the three haystack lists must have the same length")
+    _parse_date(entry["question_date"], what="question date")
     seen: set[str] = set()
     kept: list[LmeSession] = []
-    for haystack_id, date, turns in zip(ids, dates, sessions, strict=True):
-        if not isinstance(haystack_id, str) or not isinstance(date, str):
+    for haystack_id, when, turns in zip(ids, dates, sessions, strict=True):
+        if not isinstance(haystack_id, str) or not isinstance(when, str):
             raise ValueError(f"entry {number}: haystack ids and dates must be strings")
-        _parse_date(date)
+        _parse_date(when)
         parsed = _turns(turns, number)
         if haystack_id in seen:
             continue
         seen.add(haystack_id)
-        kept.append(LmeSession(haystack_id=haystack_id, date=date, turns=parsed))
+        kept.append(LmeSession(haystack_id=haystack_id, date=when, turns=parsed))
     return LmeQuestion(
         question_id=entry["question_id"],
         question_type=entry["question_type"],
         question=entry["question"],
+        question_date=entry["question_date"],
         answer_session_ids=tuple(answers),
         sessions=tuple(kept),
     )
@@ -221,11 +232,11 @@ def _turns(value: object, number: int) -> tuple[tuple[str, str], ...]:
     return tuple(turns)
 
 
-def _parse_date(value: str) -> datetime:
+def _parse_date(value: str, *, what: str = "haystack date") -> datetime:
     try:
         return datetime.strptime(value, _DATE_FORMAT)
     except ValueError:
-        raise ValueError(f"haystack date {value!r} is not like '2023/05/20 (Sat) 02:21'") from None
+        raise ValueError(f"{what} {value!r} is not like '2023/05/20 (Sat) 02:21'") from None
 
 
 def _at(started: datetime, offset_seconds: int) -> str:

@@ -1,5 +1,7 @@
 """The LongMemEval runner records distinct sessions in the top 5 and keeps its recall scoring (spec 2026-11-16 D7, A5).
 
+With `--date-rules` it passes a date range only for questions whose date expression resolves (D15, A11, R4).
+
 The Vault tool, `vg index` and `vg search` are replaced by a fake that returns fixed result paths per question,
 so no test needs vault-builder, the embedding model or the network.
 """
@@ -7,11 +9,16 @@ so no test needs vault-builder, the embedding model or the network.
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Mapping, Sequence
+from datetime import date
 from pathlib import Path
+
+import pytest
 
 from tests.benchmarks import longmemeval_convert as convert
 from tests.benchmarks import longmemeval_run as run
+from vault_graph.retrieval.search.date_expression import DateRange
 
 _TURNS = [
     {"role": "user", "content": "Tell me something.", "has_answer": True},
@@ -129,3 +136,179 @@ def test_a_failed_question_has_no_session_count_and_is_left_out_of_the_mean() ->
     assert summary["distinct_sessions_at_5_by_type"] == {"t": 2.0}
     assert run.summarize([failed])["distinct_sessions_at_5"] is None
     assert run.summarize([failed])["distinct_sessions_at_5_by_type"] == {"t": None}
+
+
+# Date rules (spec 2026-11-16 D15, A11, R4) ----------------------------------------------------------------
+
+# Synthetic questions asked on Tuesday 2023-05-30, one per expression form of research X15.
+_ASKED_ON = date(2023, 5, 30)
+
+
+@pytest.mark.parametrize(
+    ("question", "since", "until"),
+    [
+        ("What did I bake two weeks ago?", date(2023, 5, 15), date(2023, 5, 21)),
+        ("Which book did I finish a week ago?", date(2023, 5, 22), date(2023, 5, 28)),
+        ("Which tool did I buy 10 days ago?", date(2023, 5, 20), date(2023, 5, 20)),
+        ("What did I join a month ago?", date(2023, 4, 1), date(2023, 4, 30)),
+        ("Who did I call a couple of days ago?", date(2023, 5, 26), date(2023, 5, 28)),
+        ("Where was I on the Wednesday two months ago?", date(2023, 3, 27), date(2023, 4, 2)),
+        ("Who did I meet last Saturday at the market?", date(2023, 5, 27), date(2023, 5, 27)),
+        ("What did I fix last week?", date(2023, 5, 22), date(2023, 5, 28)),
+        ("Which shoes did I clean last month?", date(2023, 4, 1), date(2023, 4, 30)),
+        ("How many trips did I take in the past two months?", date(2023, 3, 30), date(2023, 5, 30)),
+        ("Order the events I joined during the past month.", date(2023, 4, 30), date(2023, 5, 30)),
+        ("Which games did I watch in February?", date(2023, 2, 1), date(2023, 2, 28)),
+        ("Which airline did I use most in March and April?", date(2023, 3, 1), date(2023, 4, 30)),
+        ("How many days ago did I read the March 15th newsletter?", date(2023, 3, 15), date(2023, 3, 15)),
+    ],
+)
+def test_date_rules_pick_the_expression_out_of_the_question(question: str, since: date, until: date) -> None:
+    assert run.question_date_range(question, _ASKED_ON) == DateRange(since=since, until=until)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "How many days ago did I buy a smoker?",
+        "Which came first, the bike repair or the car service?",
+        "List the trips in order from first to last.",
+        "When did I visit the market for the last time?",
+        "May I know which degree I graduated with?",
+        "How many weeks ago did I start the course?",
+    ],
+)
+def test_a_question_without_a_date_expression_gets_no_range(question: str) -> None:
+    assert run.question_date_range(question, _ASKED_ON) is None
+
+
+class RangeTools(FixedTools):
+    """Records the keyword arguments of each search. Without a range the runner calls search as before."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, object]]] = []
+
+    def search(self, workspace: run.Workspace, query: str, **options: object) -> list[list[str]]:
+        self.calls.append((query, options))
+        return _RANKED["question q1"]
+
+
+def _date_entries(tmp_path: Path) -> Path:
+    return _write(
+        tmp_path / "s.json",
+        [
+            {**_entry("q1", "temporal-reasoning", ["answer_1"]), "question": "What did I bake two weeks ago?"},
+            {**_entry("q2", "temporal-reasoning", ["answer_1"]), "question": "How many days ago did I bake?"},
+            {**_entry("q3", "multi-session", ["answer_1"]), "question": "What did I fix last week?"},
+        ],
+    )
+
+
+def test_date_rules_pass_a_range_only_for_questions_that_resolve(tmp_path: Path) -> None:
+    tools = RangeTools()
+
+    summary = run.main(
+        _date_entries(tmp_path),
+        work_dir=tmp_path / "work",
+        out_dir=tmp_path / "out",
+        tools=tools,
+        registered=[],
+        date_rules=True,
+    )
+
+    ranges = {query: options.get("date_range") for query, options in tools.calls}
+    assert ranges == {
+        "What did I bake two weeks ago?": DateRange(since=date(2023, 5, 15), until=date(2023, 5, 21)),
+        "How many days ago did I bake?": None,
+        "What did I fix last week?": DateRange(since=date(2023, 5, 22), until=date(2023, 5, 28)),
+    }
+    # A question with no range calls search exactly as without --date-rules.
+    assert [options for query, options in tools.calls if query.startswith("How many")] == [{}]
+    rows = {row["id"]: row for row in map(json.loads, (tmp_path / "out" / "results.jsonl").read_text().splitlines())}
+    assert rows["q1"]["date_range"] == {"since": "2023-05-15", "until": "2023-05-21"}
+    assert rows["q2"]["date_range"] is None
+    assert summary["date_rules"] is True
+    assert summary["date_range_questions_by_type"] == {"multi-session": 1, "temporal-reasoning": 1}
+
+
+def test_without_date_rules_search_calls_and_output_are_as_before(tmp_path: Path) -> None:
+    tools = RangeTools()
+
+    summary = run.main(
+        _date_entries(tmp_path), work_dir=tmp_path / "work", out_dir=tmp_path / "out", tools=tools, registered=[]
+    )
+
+    assert all(options == {} for _, options in tools.calls)
+    rows = [json.loads(line) for line in (tmp_path / "out" / "results.jsonl").read_text().splitlines()]
+    assert all("date_range" not in row for row in rows)
+    assert "date_rules" not in summary and "date_range_questions_by_type" not in summary
+
+
+@pytest.fixture
+def searches(monkeypatch: pytest.MonkeyPatch) -> list[tuple[list[str], dict[str, str]]]:
+    """Replace the subprocess runner so `search` runs no real vg and records each command and environment."""
+    seen: list[tuple[list[str], dict[str, str]]] = []
+
+    def fake_run(
+        command: Sequence[str], *, label: str, env: Mapping[str, str], cwd: Path | None = None, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        seen.append((list(command), dict(env)))
+        return subprocess.CompletedProcess(list(command), 0, json.dumps({"results": []}), "")
+
+    monkeypatch.setattr(run, "_run", fake_run)
+    return seen
+
+
+def _expected_search(workspace: run.Workspace, *dates: str) -> list[str]:
+    # The vg search command before the date rules, with the range options placed before ``--``.
+    return [
+        *run._VG,
+        "search",
+        "--graph-home",
+        str(workspace.graph_home),
+        "--format",
+        "json",
+        "--limit",
+        "5",
+        "--mode",
+        "evidence",
+        *dates,
+        "--",
+        "what did I bake",
+    ]
+
+
+def test_local_search_without_a_range_runs_the_same_command(
+    tmp_path: Path, searches: list[tuple[list[str], dict[str, str]]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TZ", "Asia/Seoul")
+    workspace = run.Workspace(tmp_path / "q0001")
+
+    run.LocalTools(vault_builder=tmp_path / "builder").search(workspace, "what did I bake")
+
+    [(command, env)] = searches
+    assert command == _expected_search(workspace)
+    assert env["TZ"] == "Asia/Seoul"
+
+
+def test_local_search_with_a_range_adds_since_until_and_runs_in_utc(
+    tmp_path: Path, searches: list[tuple[list[str], dict[str, str]]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # R4: LongMemEval times have no time zone and are written as UTC, so a range search runs with TZ=UTC.
+    monkeypatch.setenv("TZ", "Asia/Seoul")
+    workspace = run.Workspace(tmp_path / "q0001")
+    window = DateRange(since=date(2023, 5, 15), until=date(2023, 5, 21))
+
+    run.LocalTools(vault_builder=tmp_path / "builder").search(workspace, "what did I bake", date_range=window)
+
+    [(command, env)] = searches
+    assert command == _expected_search(workspace, "--since", "2023-05-15", "--until", "2023-05-21")
+    assert env["TZ"] == "UTC"
+
+
+def test_the_date_rules_argument_is_off_by_default_and_the_runner_documents_tz_utc() -> None:
+    base = ["--data", "d.json", "--vault-builder", "b", "--work-dir", "w", "--out-dir", "o"]
+
+    assert run._parse_args(base).date_rules is False
+    assert run._parse_args([*base, "--date-rules"]).date_rules is True
+    assert "TZ=UTC" in (run.__doc__ or "")
