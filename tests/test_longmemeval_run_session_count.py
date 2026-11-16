@@ -640,3 +640,31 @@ def test_type_and_id_arguments_are_comma_lists() -> None:
     arguments = run._parse_args([*base, "--types", "multi-session,temporal-reasoning", "--ids", "a,b"])
     assert arguments.types == ("multi-session", "temporal-reasoning")
     assert arguments.ids == ("a", "b")
+
+
+def test_the_fact_worker_keeps_the_persons_claude_login(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`claude -p` in the worker needs the person's Claude Code login, not the workspace config folder."""
+    fake = FakeVaultAndVg()
+    envs: dict[str, Mapping[str, str]] = {}
+
+    def spy(command: Sequence[str], **options: object) -> subprocess.CompletedProcess[str]:
+        envs.setdefault(str(options["label"]), options["env"])  # type: ignore[arg-type]
+        return fake(command, **options)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(run, "_run", spy)
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "/person/claude")
+    tools = run.LocalTools(vault_builder=tmp_path / "builder", facts="claude", facts_cache=tmp_path / "cache")
+
+    run.main(
+        _one_question(tmp_path),
+        work_dir=tmp_path / "work",
+        out_dir=tmp_path / "out",
+        tools=tools,
+        registered=[],
+        facts="claude",
+    )
+
+    workspace = run.Workspace(tmp_path / "work" / "q0001")
+    assert envs["vg facts worker"]["CLAUDE_CONFIG_DIR"] == "/person/claude"
+    assert envs["vg facts worker"]["VAULT_GRAPH_VAULT_MAP"] == str(workspace.vault_map)
+    assert envs["vg index"]["CLAUDE_CONFIG_DIR"] == str(workspace.config_dir)

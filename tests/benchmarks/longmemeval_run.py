@@ -687,7 +687,7 @@ class LocalTools:
                 str(self.facts_cache),
             ],
             label="vg facts worker",
-            env=self._vg_env(workspace),
+            env=self._worker_env(workspace),
             cwd=workspace.project,
         )
         statuses = _worker_statuses(completed.stdout)
@@ -745,6 +745,12 @@ class LocalTools:
     @staticmethod
     def _vault_env(workspace: Workspace) -> dict[str, str]:
         return _env(HOME=str(workspace.home), CLAUDE_CONFIG_DIR=str(workspace.config_dir))
+
+    @staticmethod
+    def _worker_env(workspace: Workspace) -> dict[str, str]:
+        # The worker runs `claude -p`, which needs the person's Claude Code login, so it keeps the person's
+        # CLAUDE_CONFIG_DIR. It needs no vault map: each job names its Vault folder.
+        return _env(VAULT_GRAPH_VAULT_MAP=str(workspace.vault_map))
 
     @staticmethod
     def _vg_env(workspace: Workspace) -> dict[str, str]:
