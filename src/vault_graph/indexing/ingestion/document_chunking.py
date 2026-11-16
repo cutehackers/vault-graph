@@ -50,6 +50,10 @@ class ChunkDraft:
     id_key: tuple[str, ...] | None = None
     # What the chunk holds (document_snapshots.ChunkKind). Only the wiki page chunker sets another kind.
     chunk_kind: ChunkKind = "body"
+    # Start and end of a session exchange as ISO UTC strings (spec 2026-11-16 D8). None when unknown.
+    # Not part of the chunk id, text or embedding input.
+    started_at: str | None = None
+    ended_at: str | None = None
 
     def __post_init__(self) -> None:
         if self.token_count < 0:
