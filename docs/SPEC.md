@@ -55,10 +55,10 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 
 방향 이름은 Local-Graph다. 핵심은 Local이고, Graph(관계 추적)는 보조 가치다.
 
-1. 원칙1 Local: 모든 처리가 이 컴퓨터 안에서 끝난다. 호스팅 서비스, API 키, LLM 호출이 없다(결정7). 질의 답변, 요약, 사실 추출을 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다. 기억 관리에서 vg는 판단 재료를 결정적으로 만들고, 무엇을 기억·수정·폐기할지는 호출한 에이전트가 정한다.
+1. 원칙1 Local: 검색, 색인, 회상은 이 컴퓨터 안에서 끝난다. 호스팅 서비스를 직접 부르지 않는다(결정7). 검색, 색인, 회상에서는 LLM을 부르지 않는다. 수집 뒤에만 로그인된 Claude Code나 로컬 모델로 세션 사실을 뽑는다(기본 켜짐, `vg facts off`로 끈다). API 키는 쓰지 않는다. 질의 답변과 요약은 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다. 기억 관리에서 vg는 판단 재료를 결정적으로 만들고, 무엇을 기억·수정·폐기할지는 호출한 에이전트가 정한다.
 2. 원칙2 원본은 Vault: 기억의 원본은 Vault의 Markdown 파일이다. vault-graph 색인은 지워도 다시 만들 수 있는 파생 데이터이며 지식 원본이 아니다.
 3. 원칙3 `wiki/`는 검증 경로로만 바뀐다: Vault `wiki/`는 Vault 도구의 검증 경로(publish-draft 등)를 거쳐서만 바뀐다.
-4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 네 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 `review resolve`로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`, Claude Code 자동 기억 노트의 근거 사본은 Vault `import-source`다(§4). vg는 자동 기억 파일을 고치거나 옮기거나 지우지 않는다.
+4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 다섯 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 `review resolve`로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`, Claude Code 자동 기억 노트의 근거 사본은 Vault `import-source`다(§4). 다섯째는 사실 첨부(Vault 명령이 세션 옆에 쓴다)다. 수집이 끝난 세션에서 뽑은 사실을 Vault `sessions attach-facts`가 세션 part 파일 옆 첨부 파일로 쓴다(`docs/contracts/vault-session-facts-v1.md`). vg는 자동 기억 파일을 고치거나 옮기거나 지우지 않는다.
 5. 원칙5 `raw/`에 직접 쓰지 않는다: vault-graph는 Vault `raw/`에 직접 쓰지 않는다. 세션 원문은 Vault의 `sessions capture`가 쓰고, vault-graph는 그 실행 시점과 넘길 정규화 파일을 정한다. 자동 기억 노트의 사본도 Vault `import-source`가 쓴다(§0 규칙3).
 6. 원칙6 연결 정보는 `vault-map.json` 하나: 프로젝트와 Vault의 연결 정보는 사용자 범위의 `vault-map.json`이 원본이고, vault-graph는 이 파일을 읽기만 한다(결정9).
 
@@ -73,7 +73,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 | 검색 | `wiki/`만. 질의마다 파일을 다시 읽고 한국어 조사를 뗀다 | router가 연결된 Vault 전체에 검색을 보낸다 | `raw/`·`wiki/`·`docs/`·`scratch/reports/`를 상시 색인하고 키워드·의미·그래프 후보를 합친다. 범위를 주지 않으면 `cwd` 프로젝트에 연결된 Vault 전부를 관련도 순 한 목록으로 찾고, 결과마다 Vault 이름과 종류를 붙인다 |
 | 회상 | 없음 | `recall.sh`: 고정 섹션 3개, 1,500토큰 | 세션 시작 회상. 고정(`pin: true`) 기억을 400토큰 구획에 먼저 넣고, 나머지는 모든 연결 Vault를 합쳐 최신순으로 채운다. vault-graph가 없으면 훅 실행기가 `recall.sh`를 쓴다(결정10) |
 | 코드 | 없음 | 없음 | 심볼, 호출, 영향 범위와 결정 기록을 연결한다 |
-| LLM | 정리 스킬에서 쓴다 | 없음 | 부르지 않는다(결정7) |
+| LLM | 정리 스킬에서 쓴다 | 없음 | 검색, 색인, 회상에서는 부르지 않는다(결정7). 수집 뒤 세션 사실 추출에서만 로그인된 Claude Code나 로컬 모델을 쓴다(원칙1) |
 
 ## 3. 가치
 
@@ -407,7 +407,7 @@ Vault 전용 정책과 기존 저장 형식의 변환은 `vault_graph.indexing.v
 | n차-11 | 첫 사용자 프롬프트로 검색해 본문 상위 몇 개를 넣는 회상(UserPromptSubmit 훅) | 측정1, 의존1 확장 |
 | n차-12 | `raw/sessions/` 대화 기록에서 `m:` ID 언급을 세어 사용 집계를 보강한다 | 의존2 |
 | B-1 | Codex adapter 구현(버전 `codex/1`, 입력 `$HOME/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`). 필드 대응은 [vg-session-jsonl/1 계약](contracts/vg-session-jsonl-v1.md)과 2026-11-05 spec 4.2.3에 있다. 완료 조건: `cli_version`이 다른 Codex 고정 파일 세 개로 Claude Code adapter와 같은 결정성·필드 검사가 통과하고, `vg session export --agent codex`가 동작한다. 수집 훅은 Codex 쪽 훅 연결 방법을 확인한 뒤 정한다 | 2026-11-05 spec S4 |
-| B-2 | 로컬 언어 모델 단계: 세션 교환마다 요약과 예상 질문을 담은 `derived` 조각, 정리 후보 거르기. 다음 spec이 원칙1 예외 문장을 gate에서 정한다. 결정적 검색을 지키는 규칙: (1) 원문 창의 `text`, 조각 id, `source_locators`, 임베딩 입력은 켜기 전과 바이트 단위로 같다. (2) `derived` 조각은 인용 본문으로 쓰지 않고, 근거를 열면 원문 교환이 열린다. (3) 결합 순위에서 `derived` 가중치는 keyword·vector보다 낮게 시작하고, `parent_key`로 원문 교환에 합쳐 같은 교환이 두 번 나오지 않는다. (4) `derived`를 빼는 검색 모드를 두고 측정1과 결정성 시험은 그 모드로 돌린다. (5) `derived` 텍스트는 Vault에 쓰지 않는다. 완료 조건: 2026-11-05 spec의 LLM 없는 기준선(세션 질의 세트 (c) 단계, 기억 평가 지표)보다 교환 단위 recall@5가 오를 때만 기본값으로 켜고, 그 전에는 꺼 둔다. 후보 거르기는 결정적 거르기보다 재현율이 분명히 높을 때만 쓴다 | A-8 사람 질의 세트 측정, A-28 |
+| B-2 | 로컬 언어 모델 단계: 세션 교환마다 요약과 예상 질문을 담은 `derived` 조각, 정리 후보 거르기. 원칙1 예외 문장은 spec 2026-11-16-longmemeval-session-memory D22가 정했다. 결정적 검색을 지키는 규칙: (1) 원문 창의 `text`, 조각 id, `source_locators`, 임베딩 입력은 켜기 전과 바이트 단위로 같다. (2) `derived` 조각은 인용 본문으로 쓰지 않고, 근거를 열면 원문 교환이 열린다. (3) 결합 순위에서 `derived` 가중치는 keyword·vector보다 낮게 시작하고, `parent_key`로 원문 교환에 합쳐 같은 교환이 두 번 나오지 않는다. (4) `derived`를 빼는 검색 모드를 두고 측정1과 결정성 시험은 그 모드로 돌린다. (5) `derived` 텍스트는 Vault에 쓰지 않는다. 세션 사실 첨부만 예외로 둔다. 완료 조건: 2026-11-05 spec의 LLM 없는 기준선(세션 질의 세트 (c) 단계, 기억 평가 지표)보다 교환 단위 recall@5가 오를 때만 기본값으로 켜고, 그 전에는 꺼 둔다. 후보 거르기는 결정적 거르기보다 재현율이 분명히 높을 때만 쓴다 | A-8 사람 질의 세트 측정, A-28 |
 
 ### 9.3 Vault·vault-builder 쪽 의존성
 
