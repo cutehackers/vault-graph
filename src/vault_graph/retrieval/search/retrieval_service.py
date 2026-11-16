@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 
 from vault_graph.errors import (
@@ -13,10 +13,13 @@ from vault_graph.errors import (
     VectorStoreError,
 )
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
+from vault_graph.indexing.ingestion.document_normalizer import DocumentSnapshot
+from vault_graph.indexing.ingestion.session_group import session_group_key
 from vault_graph.operation.readiness.search_readiness import SearchReadiness, SearchReadinessReport
 from vault_graph.operation.scope.catalog_query_scopes import actual_query_scopes
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog
 from vault_graph.retrieval.search.candidate_ranking import (
+    FusedCandidate,
     candidate_from_keyword_hit,
     candidate_from_vector_hit,
     document_rank_trace,
@@ -33,6 +36,8 @@ from vault_graph.retrieval.search.reranker import (
     Reranker,
     RerankError,
     RerankerUnavailableError,
+    RerankTrace,
+    renumber_results,
     rerank_results,
 )
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
@@ -43,6 +48,7 @@ from vault_graph.retrieval.search.search_response import (
     SearchRequest,
     SearchResponse,
     SearchStageTrace,
+    SearchStoreRevision,
     SearchWarning,
 )
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordIndex, KeywordQuery
@@ -137,14 +143,18 @@ class RetrievalService:
         since: date | None = None,
         until: date | None = None,
         include_fact_keys: bool = True,
+        date_strict: bool = False,
     ) -> SearchResponse:
         """Search the scope. ``trace`` adds ``SearchResponse.stage_trace`` for the evaluation tool (spec
         2026-11-11 §4.1.2). It only records ranks the search computes anyway, so results and their order do
         not change.
 
-        ``since``·``until`` (inclusive, this computer's time zone) keep only chunks whose time range overlaps
-        them, before keyword and vector candidates are ranked (spec 2026-11-16 D9, D10). Undated chunks are left
-        out and counted in a ``date_unknown_excluded`` warning (D11). Without them the search is as before (I5).
+        ``since``·``until`` (inclusive, this computer's time zone) build the in-range results from chunks whose
+        time range overlaps them or whose exchange has a session fact dated inside them, before keyword and vector
+        candidates are ranked (spec 2026-11-16 D9, D10, D30). The in-range results come first and the remaining
+        slots take the results of the same search without the range that are not already there (D31). With
+        ``date_strict`` only the in-range results stay, undated chunks are counted in a ``date_unknown_excluded``
+        warning and an empty result gets ``date_range_empty`` (D11). Without a range the search is as before (I5).
 
         Session fact chunks are keys that lead to their original exchange (spec 2026-11-16 D21). With
         ``include_fact_keys`` False they are left out of the keyword and vector lists before ranking, so the
@@ -169,11 +179,11 @@ class RetrievalService:
             since=since,
             until=until,
             include_fact_keys=include_fact_keys,
+            date_strict=date_strict,
         )
         return self._search_request(request)
 
     def _search_request(self, request: SearchRequest) -> SearchResponse:
-        candidate_limit = max(request.limit * CANDIDATES_PER_RESULT, MIN_CANDIDATES)
         readiness = self._readiness.check(actual_scopes=request.actual_scopes)
         fatal = _fatal_readiness_error(readiness)
         if fatal is not None:
@@ -181,7 +191,76 @@ class RetrievalService:
         warnings = list(_warnings_for_readiness(readiness, request.actual_scopes))
         query_vector = self._query_vector(request=request, readiness=readiness, warnings=warnings)
         dated = self._dated_chunk_keys(request)
-        chunk_keys = None if dated is None else dated.chunk_keys
+        ranked = self._ranked_pass(
+            request=request,
+            readiness=readiness,
+            query_vector=query_vector,
+            chunk_keys=None if dated is None else dated.chunk_keys,
+        )
+        results = ranked.results
+        signal_count = ranked.signal_count
+        dropped = ranked.dropped
+        rerank_warnings = ranked.rerank_warnings
+        pass_warnings = ranked.pass_warnings
+        store_revisions = ranked.graph_store_revisions
+        if dated is not None and not request.date_strict and len(results) < request.limit:
+            # Spec 2026-11-16 D31: the remaining slots take the same search without the range, in its order.
+            fill = self._ranked_pass(request=request, readiness=readiness, query_vector=query_vector, chunk_keys=None)
+            results = renumber_results((*results, *self._results_not_present(results, fill.results)))
+            signal_count += fill.signal_count
+            dropped += fill.dropped
+            rerank_warnings = _unique_warnings((*rerank_warnings, *fill.rerank_warnings))
+            pass_warnings = _unique_warnings((*pass_warnings, *fill.pass_warnings))
+            store_revisions = tuple(dict.fromkeys((*store_revisions, *fill.graph_store_revisions)))
+        if self._reranker_config_error is not None:
+            warnings.append(_reranker_warning(request, "reranker_config_invalid", self._reranker_config_error))
+        warnings.extend(rerank_warnings)
+        warnings.extend(pass_warnings)
+        limited_results = self._expand_context(
+            results=tuple(results[: request.limit]),
+            request=request,
+            warnings=warnings,
+        )
+        if dated is not None and request.date_strict:
+            warnings.extend(_date_range_warnings(request, dated, result_count=len(limited_results)))
+        return SearchResponse(
+            query_text=request.query_text,
+            requested_scope=request.requested_scope,
+            actual_scopes=request.actual_scopes,
+            limit=request.limit,
+            result_count=len(limited_results),
+            candidate_count=signal_count,
+            dropped_candidate_count=dropped,
+            results=limited_results,
+            warnings=tuple(warnings),
+            degraded=any(warning.code not in DATE_RANGE_WARNING_CODES for warning in warnings),
+            store_revisions=readiness.store_revisions + store_revisions,
+            generated_at=datetime.now(UTC).isoformat(),
+            result_family_duplication=family_duplication(results),
+            stage_trace=(
+                SearchStageTrace(
+                    signal_ranks=signal_rank_trace(ranked.signal_candidates),
+                    fused_ranks=fused_rank_trace(ranked.candidates),
+                    document_ranks=document_rank_trace(tuple(results)),
+                    candidate_limit=ranked.candidate_limit,
+                    refilled=ranked.refilled,
+                    rerank=ranked.rerank_trace,
+                )
+                if request.trace
+                else None
+            ),
+        )
+
+    def _ranked_pass(
+        self,
+        *,
+        request: SearchRequest,
+        readiness: SearchReadinessReport,
+        query_vector: EmbeddingVector | None,
+        chunk_keys: frozenset[ChunkKey] | None,
+    ) -> _RankedPass:
+        """One search over the candidates inside ``chunk_keys`` (None: all), ranked and reranked, before the limit."""
+        candidate_limit = max(request.limit * CANDIDATES_PER_RESULT, MIN_CANDIDATES)
         refilled = False
         for refill in (False, True):
             refilled = refill
@@ -216,8 +295,7 @@ class RetrievalService:
                 break
             candidate_limit *= CANDIDATE_REFILL_FACTOR
         rerank_trace = None
-        if self._reranker_config_error is not None:
-            warnings.append(_reranker_warning(request, "reranker_config_invalid", self._reranker_config_error))
+        rerank_warnings: list[SearchWarning] = []
         if self._reranker is not None:
             # After the refill decision and before the limit, so the candidate rounds stay as they are.
             # A failure keeps the search order for this query only; the next query asks the model again.
@@ -226,7 +304,7 @@ class RetrievalService:
                     query_text=request.query_text, results=results, passages=passages, reranker=self._reranker
                 )
             except RerankerUnavailableError as exc:
-                warnings.append(
+                rerank_warnings.append(
                     _reranker_warning(
                         request,
                         "reranker_unavailable",
@@ -234,47 +312,55 @@ class RetrievalService:
                     )
                 )
             except RerankError as exc:
-                warnings.append(_reranker_warning(request, "rerank_failed", str(exc)))
+                rerank_warnings.append(_reranker_warning(request, "rerank_failed", str(exc)))
             else:
                 results = reranked.results
                 rerank_trace = reranked.trace
-        warnings.extend(round_warnings)
-        warnings.extend(graph_result.warnings)
-        warnings.extend(missing_warnings)
-        limited_results = self._expand_context(
-            results=tuple(results[: request.limit]),
-            request=request,
-            warnings=warnings,
+        return _RankedPass(
+            results=tuple(results),
+            signal_candidates=signal_candidates,
+            candidates=candidates,
+            signal_count=sum(len(candidate.signals) for candidate in signal_candidates),
+            dropped=dropped,
+            rerank_warnings=tuple(rerank_warnings),
+            pass_warnings=(*round_warnings, *graph_result.warnings, *missing_warnings),
+            graph_store_revisions=graph_result.store_revisions,
+            candidate_limit=candidate_limit,
+            refilled=refilled,
+            rerank_trace=rerank_trace,
         )
-        if dated is not None:
-            warnings.extend(_date_range_warnings(request, dated, result_count=len(limited_results)))
-        return SearchResponse(
-            query_text=request.query_text,
-            requested_scope=request.requested_scope,
-            actual_scopes=request.actual_scopes,
-            limit=request.limit,
-            result_count=len(limited_results),
-            candidate_count=sum(len(candidate.signals) for candidate in signal_candidates),
-            dropped_candidate_count=dropped,
-            results=limited_results,
-            warnings=tuple(warnings),
-            degraded=any(warning.code not in DATE_RANGE_WARNING_CODES for warning in warnings),
-            store_revisions=readiness.store_revisions + graph_result.store_revisions,
-            generated_at=datetime.now(UTC).isoformat(),
-            result_family_duplication=family_duplication(results),
-            stage_trace=(
-                SearchStageTrace(
-                    signal_ranks=signal_rank_trace(signal_candidates),
-                    fused_ranks=fused_rank_trace(candidates),
-                    document_ranks=document_rank_trace(tuple(results)),
-                    candidate_limit=candidate_limit,
-                    refilled=refilled,
-                    rerank=rerank_trace,
-                )
-                if request.trace
-                else None
-            ),
-        )
+
+    def _results_not_present(
+        self, present: tuple[RetrievalResult, ...], fill: tuple[RetrievalResult, ...]
+    ) -> tuple[RetrievalResult, ...]:
+        """Results of ``fill`` whose unit is not already in ``present``, in order (spec 2026-11-16 D31, I4).
+
+        A result's unit is every document of its evidence, plus its session (`<agent>:<session_id>`) when it is a
+        session file, so another exchange of a session already in the list is not added again."""
+        documents: dict[str, DocumentSnapshot | None] = {}
+
+        def unit(result: RetrievalResult) -> set[tuple[str, str]]:
+            keys = {(evidence.vault_id, evidence.document_id) for evidence in result.evidence}
+            document_id = result.evidence[0].document_id
+            if document_id not in documents:
+                documents[document_id] = self._metadata_store.resolve_document(document_id)
+            document = documents[document_id]
+            session = session_group_key(document.frontmatter) if document is not None else None
+            if session is not None:
+                keys.add((result.vault_id, f"session:{session}"))
+            return keys
+
+        seen: set[tuple[str, str]] = set()
+        for result in present:
+            seen |= unit(result)
+        kept: list[RetrievalResult] = []
+        for result in fill:
+            keys = unit(result)
+            if keys & seen:
+                continue
+            seen |= keys
+            kept.append(result)
+        return tuple(kept)
 
     def _expand_context(
         self,
@@ -486,6 +572,28 @@ class RetrievalService:
             limit=candidate_limit,
             include_cross_vault=request.include_cross_vault,
         )
+
+
+@dataclass(frozen=True)
+class _RankedPass:
+    """One candidate search, ranked and reranked, before the limit and context expansion."""
+
+    results: tuple[RetrievalResult, ...]
+    signal_candidates: tuple[RetrievalCandidate, ...]
+    candidates: tuple[FusedCandidate, ...]
+    signal_count: int
+    dropped: int
+    rerank_warnings: tuple[SearchWarning, ...]
+    pass_warnings: tuple[SearchWarning, ...]
+    graph_store_revisions: tuple[SearchStoreRevision, ...]
+    candidate_limit: int
+    refilled: bool
+    rerank_trace: RerankTrace | None
+
+
+def _unique_warnings(warnings: tuple[SearchWarning, ...]) -> tuple[SearchWarning, ...]:
+    """The warnings of two searches of one request, each once, in order."""
+    return tuple(dict.fromkeys(warnings))
 
 
 def _merge_scope_hits[Hit: (KeywordHit, VectorHit)](

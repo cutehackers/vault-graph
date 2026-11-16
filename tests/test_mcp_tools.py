@@ -1426,6 +1426,15 @@ def test_three_search_tool_descriptions_say_how_to_pass_relative_dates(tmp_path:
         ) in description, name
         assert 'Example: on 2026-11-16, "what did we decide last week about search"' in description, name
         assert 'since "2026-11-09" and until "2026-11-15"' in description, name
+        # Spec 2026-11-16 D12, D30, D31: the range matches conversation dates and event dates, and in-range
+        # results come first instead of being the only results.
+        assert (
+            "The range may describe when a conversation happened or when an event discussed in it happened."
+        ) in description, name
+        assert (
+            "Results in the range come first, and the other results, including results without a date, follow."
+        ) in description, name
+        assert "results without a date are left out" not in description, name
         for date_arg in ("since", "until"):
             schema = tools[name].inputSchema["properties"][date_arg]
             assert schema["default"] is None

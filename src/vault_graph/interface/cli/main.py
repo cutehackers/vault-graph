@@ -898,16 +898,24 @@ def search(
         help="Include retired pages and show each result's status, retired_reason, retired_at and superseded_by.",
     ),
     since: str | None = typer.Option(
-        None, "--since", help="Keep results dated on or after this local date (YYYY-MM-DD)."
+        None,
+        "--since",
+        help="Put results dated on or after this local date (YYYY-MM-DD) first. A session counts by when it "
+        "happened or by the dates of its extracted facts.",
     ),
     until: str | None = typer.Option(
-        None, "--until", help="Keep results dated on or before this local date (YYYY-MM-DD)."
+        None, "--until", help="Put results dated on or before this local date (YYYY-MM-DD) first."
     ),
     when: str | None = typer.Option(
         None,
         "--when",
         help='Date expression resolved against today, e.g. "last week", "3 days ago", "in May", "지난주". '
         "Cannot be used with --since or --until.",
+    ),
+    date_strict: bool = typer.Option(
+        False,
+        "--date-strict",
+        help="With a date range, return only results in the range instead of filling the rest with other results.",
     ),
 ) -> None:
     if all_vaults and vault_id:
@@ -956,6 +964,7 @@ def search(
             include_retired=include_retired,
             since=None if date_range is None else date_range.since,
             until=None if date_range is None else date_range.until,
+            date_strict=date_strict,
         )
     )
     if output_format == "json":

@@ -12,6 +12,7 @@ from vault_graph.indexing.ingestion.document_authority import DocumentRole
 from vault_graph.indexing.ingestion.document_models import DocumentModelError, SourceLocator
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
 from vault_graph.indexing.ingestion.document_snapshots import ALL_CHUNK_KINDS, ChunkKind
+from vault_graph.indexing.ingestion.session_facts_chunker import SESSION_FACTS_VERSION
 from vault_graph.indexing.ingestion.session_group import session_group_key
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import (
@@ -28,6 +29,8 @@ from vault_graph.storage.local.sqlite_keyword_index import apply_keyword_revisio
 # v4 adds the exchange time columns `chunks.started_at`·`ended_at` (spec 2026-11-16 D8).
 SCHEMA_VERSION = "metadata-v4"
 _EVIDENCE_LOOKUP_BATCH_SIZE = 300
+# Exchange keys per query when a session fact pulls its exchange into a date range (spec 2026-11-16 D30).
+_PARENT_KEY_BATCH = 300
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -488,7 +491,8 @@ class SQLiteMetadataStore:
         source_roles: tuple[DocumentRole, ...] = (),
         timezone: tzinfo | None = None,
     ) -> DatedChunkKeys:
-        """Live chunks in ``scope`` whose ``started_at``..``ended_at`` touches a day in ``since``..``until``.
+        """Live chunks in ``scope`` whose ``started_at``..``ended_at`` touches a day in ``since``..``until``, plus
+        the chunks of every exchange that has a session fact dated inside the range.
 
         Spec 2026-11-16 longmemeval-session-memory D9, D10, D11. Both ends are inclusive and either may be None. The
         stored times are ISO strings, UTC unless they carry an offset. They are read as days in ``timezone``
@@ -496,6 +500,10 @@ class SQLiteMetadataStore:
         UTC date is within a day of the range, since no zone moves a time by more than a day; Python then
         compares the local days. A chunk without both times, or with a time that does not parse, is undated and
         only counted.
+
+        D30: a session fact chunk (``chunker_version`` ``SESSION_FACTS_VERSION``) stores its event day as a UTC
+        day. That day is compared as it is, without a zone. A fact inside the range is kept, and so is every
+        chunk in ``scope`` with the same Vault and ``parent_key`` (the windows of its exchange).
         """
         if not scope.vault_ids or not self._database_path.exists():
             return DatedChunkKeys(chunk_keys=frozenset(), undated_count=0)
@@ -533,23 +541,46 @@ class SQLiteMetadataStore:
             window = " AND ".join(window_clauses) or "1"
             rows = connection.execute(
                 f"""
-                SELECT c.vault_id, c.chunk_id, c.started_at, c.ended_at {base}
+                SELECT c.vault_id, c.chunk_id, c.started_at, c.ended_at, c.chunker_version, c.parent_key {base}
                   AND c.started_at IS NOT NULL AND c.ended_at IS NOT NULL
                   AND ({window})
                 """,
                 (*base_args, *window_args),
             ).fetchall()
-        keys: set[ChunkKey] = set()
-        unparsed = 0
-        for row in rows:
-            started = _local_day(str(row["started_at"]), timezone)
-            ended = _local_day(str(row["ended_at"]), timezone)
-            if started is None or ended is None:
-                unparsed += 1
-                continue
-            first, last = min(started, ended), max(started, ended)
-            if (since is None or last >= since) and (until is None or first <= until):
-                keys.add((str(row["vault_id"]), str(row["chunk_id"])))
+            keys: set[ChunkKey] = set()
+            fact_exchanges: dict[str, set[str]] = {}
+            unparsed = 0
+            for row in rows:
+                if row["chunker_version"] == SESSION_FACTS_VERSION:
+                    day = _fact_day(str(row["started_at"]))
+                    if day is None:
+                        unparsed += 1
+                    elif (since is None or day >= since) and (until is None or day <= until):
+                        keys.add((str(row["vault_id"]), str(row["chunk_id"])))
+                        if row["parent_key"] is not None:
+                            fact_exchanges.setdefault(str(row["vault_id"]), set()).add(str(row["parent_key"]))
+                    continue
+                started = _local_day(str(row["started_at"]), timezone)
+                ended = _local_day(str(row["ended_at"]), timezone)
+                if started is None or ended is None:
+                    unparsed += 1
+                    continue
+                first, last = min(started, ended), max(started, ended)
+                if (since is None or last >= since) and (until is None or first <= until):
+                    keys.add((str(row["vault_id"]), str(row["chunk_id"])))
+            for vault_id, parent_keys in fact_exchanges.items():
+                ordered = sorted(parent_keys)
+                for start in range(0, len(ordered), _PARENT_KEY_BATCH):
+                    batch = ordered[start : start + _PARENT_KEY_BATCH]
+                    found = connection.execute(
+                        f"""
+                        SELECT c.vault_id, c.chunk_id {base}
+                          AND c.vault_id = ?
+                          AND c.parent_key IN ({", ".join("?" for _ in batch)})
+                        """,
+                        (*base_args, vault_id, *batch),
+                    ).fetchall()
+                    keys.update((str(row["vault_id"]), str(row["chunk_id"])) for row in found)
         return DatedChunkKeys(chunk_keys=frozenset(keys), undated_count=int(undated["n"]) + unparsed)
 
     def list_document_chunks(
@@ -1188,6 +1219,14 @@ def _chunk_path_scope_clause(content_scopes: tuple[str, ...]) -> tuple[str, tupl
     if not clauses:
         return "0", ()
     return " OR ".join(clauses), tuple(params)
+
+
+def _fact_day(value: str) -> date | None:
+    """The event day of a session fact chunk: the date part of its stored ``started_at`` (spec 2026-11-16 D30)."""
+    try:
+        return date.fromisoformat(value[:10])
+    except ValueError:
+        return None
 
 
 def _local_day(value: str, timezone: tzinfo | None) -> date | None:

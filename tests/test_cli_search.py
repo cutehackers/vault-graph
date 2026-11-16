@@ -223,6 +223,7 @@ class _FakeSearchService:
     def __init__(self) -> None:
         self.include_graph = False
         self.searches: list[tuple[date | None, date | None]] = []
+        self.date_strict: list[bool] = []
 
     def search(
         self,
@@ -237,9 +238,11 @@ class _FakeSearchService:
         include_retired: bool = False,
         since: date | None = None,
         until: date | None = None,
+        date_strict: bool = False,
     ) -> SearchResponse:
         self.include_graph = include_graph
         self.searches.append((since, until))
+        self.date_strict.append(date_strict)
         assert query_text.startswith("GraphRAG")
         assert include_cross_vault is False
         assert mode == "knowledge"
@@ -527,9 +530,9 @@ def utc_local_time(monkeypatch: MonkeyPatch):  # type: ignore[no-untyped-def]
 
 
 @pytest.mark.usefixtures("utc_local_time")
-def test_cli_search_since_keeps_only_sessions_in_the_range(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+def test_cli_search_date_strict_keeps_only_sessions_in_the_range(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     graph_home = _indexed_session_home(tmp_path, monkeypatch, agent=True)
-    command = ["search", "--graph-home", str(graph_home), "--mode", "evidence", "--format", "json"]
+    command = ["search", "--graph-home", str(graph_home), "--mode", "evidence", "--format", "json", "--date-strict"]
 
     since_only = runner.invoke(app, [*command, "--since", "2026-11-03", SESSION_QUERY])
     until_only = runner.invoke(app, [*command, "--until", "2026-11-02", SESSION_QUERY])
@@ -538,3 +541,31 @@ def test_cli_search_since_keeps_only_sessions_in_the_range(tmp_path: Path, monke
     assert until_only.exit_code == 0, until_only.output
     assert [_session_of(result) for result in json.loads(since_only.stdout)["results"]] == [SESSION_TWO]
     assert [_session_of(result) for result in json.loads(until_only.stdout)["results"]] == [SESSION_ONE]
+
+
+@pytest.mark.usefixtures("utc_local_time")
+def test_cli_search_date_range_puts_sessions_in_the_range_first(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    graph_home = _indexed_session_home(tmp_path, monkeypatch, agent=True)
+    command = ["search", "--graph-home", str(graph_home), "--mode", "evidence", "--format", "json"]
+
+    since_only = runner.invoke(app, [*command, "--since", "2026-11-03", SESSION_QUERY])
+    until_only = runner.invoke(app, [*command, "--until", "2026-11-02", SESSION_QUERY])
+
+    assert since_only.exit_code == 0, since_only.output
+    assert until_only.exit_code == 0, until_only.output
+    since_body = json.loads(since_only.stdout)
+    assert [_session_of(result) for result in since_body["results"]] == [SESSION_TWO, SESSION_ONE]
+    assert [_session_of(result) for result in json.loads(until_only.stdout)["results"]] == [SESSION_ONE, SESSION_TWO]
+    assert not any(warning["code"].startswith("date_") for warning in since_body["warnings"])
+
+
+@pytest.mark.parametrize(("args", "expected"), [((), [False]), (("--date-strict",), [True])])
+def test_cli_search_passes_date_strict_to_the_search(
+    tmp_path: Path, monkeypatch: MonkeyPatch, args: tuple[str, ...], expected: list[bool]
+) -> None:
+    fake_service = _fake_search(tmp_path, monkeypatch)
+
+    result = runner.invoke(app, _search_args(tmp_path, "--since", "2026-11-03", *args))
+
+    assert result.exit_code == 0, result.output
+    assert fake_service.date_strict == expected

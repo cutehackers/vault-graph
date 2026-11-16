@@ -106,7 +106,9 @@ class DateRangeChunkLookup(Protocol):
         timezone: tzinfo | None = None,
     ) -> DatedChunkKeys:
         """Inclusive ``since``..``until`` dates read in ``timezone`` (None: this computer's zone). A chunk is kept
-        when any day of its time range falls in the range."""
+        when any day of its time range falls in the range. A session fact chunk is kept when its event day is in
+        the range, and then every chunk of its exchange (same Vault and ``parent_key``) is kept too (spec
+        2026-11-16 D30)."""
         ...
 
 
