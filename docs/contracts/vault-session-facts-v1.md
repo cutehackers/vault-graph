@@ -16,7 +16,7 @@ python3 <vault>/tools/wiki/cli.py sessions attach-facts --session <part 경로> 
 - `--facts`: 아래 §2 입력 JSON 파일 경로. Vault 밖에 있어도 된다. 명령은 이 파일을 읽기만 한다.
 - 출력: 마지막 줄이 JSON 객체 하나다. `{"status": "written"|"exists"|"rejected", "path": "<첨부 Vault 상대 경로>", "reason": "<rejected일 때 이유 코드>", "facts": <쓴 사실 수>}`. `path`는 세 경우 모두 첨부가 놓일 경로다.
 - 종료 코드: `written`과 `exists`는 0, `rejected`는 1, 사용법 오류는 2다.
-- Vault는 `sessions capture`와 같은 방법으로 고른다(작업 폴더와 `vault-map.json`). 명령이 없는 옛 Vault에서 vault-graph는 `facts_writer_missing`을 기록한다(spec F9).
+- Vault는 명령을 실행한 `cli.py`가 들어 있는 Vault 루트다. 작업 폴더와 `vault-map.json`은 보지 않는다. `--session`이 그 루트의 `raw/sessions/` 아래가 아니면 `rejected`(`session_missing`)다. 명령이 없는 옛 Vault에서 vault-graph는 `facts_writer_missing`을 기록한다(spec F9).
 
 ## 2. 입력 JSON
 
