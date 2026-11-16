@@ -102,6 +102,9 @@ class SearchRequest:
     # None. With both None the search is the same as before (I5).
     since: date | None = None
     until: date | None = None
+    # Spec 2026-11-16 longmemeval-session-memory D21, I6: False leaves session fact chunks out of the candidates,
+    # so the search is the same as before fact attachments.
+    include_fact_keys: bool = True
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

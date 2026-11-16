@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
-from vault_graph.indexing.ingestion.document_snapshots import DocumentSnapshot
+from vault_graph.indexing.ingestion.document_snapshots import ChunkSnapshot, DocumentSnapshot
 from vault_graph.indexing.ingestion.hangul_terms import name_terms
+from vault_graph.indexing.ingestion.session_facts_chunker import SESSION_FACTS_VERSION
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSignal, RetrievalSignalKind
 from vault_graph.retrieval.search.search_response import (
@@ -21,6 +22,13 @@ from vault_graph.storage.interfaces.vector_store import VectorHit
 
 RANK_CONSTANT = 60.0
 SIGNAL_WEIGHTS: dict[RetrievalSignalKind, float] = {"keyword": 1.0, "vector": 1.0, "graph": 0.75}
+
+# Spec 2026-11-16 longmemeval-session-memory D21. A session fact chunk (`chunker_version`
+# SESSION_FACTS_VERSION) is only a key that leads to its original exchange, so its fused score is multiplied
+# by this weight, below keyword and vector (1.0) and graph (0.75). A fact matched first by both keyword and
+# vector then scores 1/61, the same as a session window matched first by one signal, so a window that matches
+# as well as a fact still ranks above it. The starting value; measurement may change it here only.
+FACT_KEY_WEIGHT = 0.5
 
 # Spec 2026-11-05 §10.2 원인3. A document's score is its best chunk's fused score (MaxP, Dai and Callan
 # SIGIR 2019) plus DOCUMENT_TAIL_WEIGHT times the sum of its next DOCUMENT_TAIL_CHUNKS chunk scores. The
@@ -199,6 +207,16 @@ def title_signal_score(match_rank: int | None) -> float:
 
 def _contains_run(terms: tuple[str, ...], run: tuple[str, ...]) -> bool:
     return any(terms[start : start + len(run)] == run for start in range(len(terms) - len(run) + 1))
+
+
+def is_fact_key(chunk: ChunkSnapshot) -> bool:
+    """True for a session fact chunk: a search key for its original exchange, never shown (spec 2026-11-16 D21)."""
+    return chunk.chunker_version == SESSION_FACTS_VERSION
+
+
+def fact_key_score(fused_score: float) -> float:
+    """A fact chunk's fused score after ``FACT_KEY_WEIGHT``."""
+    return FACT_KEY_WEIGHT * fused_score
 
 
 def role_weight(mode: SearchMode, role: DocumentRole) -> float:

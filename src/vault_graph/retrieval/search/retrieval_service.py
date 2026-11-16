@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, date, datetime
 
@@ -22,6 +23,7 @@ from vault_graph.retrieval.search.candidate_ranking import (
     family_duplication,
     fuse_candidates,
     fused_rank_trace,
+    is_fact_key,
     signal_rank_trace,
 )
 from vault_graph.retrieval.search.context_expansion import ContextExpander
@@ -134,6 +136,7 @@ class RetrievalService:
         trace: bool = False,
         since: date | None = None,
         until: date | None = None,
+        include_fact_keys: bool = True,
     ) -> SearchResponse:
         """Search the scope. ``trace`` adds ``SearchResponse.stage_trace`` for the evaluation tool (spec
         2026-11-11 §4.1.2). It only records ranks the search computes anyway, so results and their order do
@@ -141,7 +144,11 @@ class RetrievalService:
 
         ``since``·``until`` (inclusive, this computer's time zone) keep only chunks whose time range overlaps
         them, before keyword and vector candidates are ranked (spec 2026-11-16 D9, D10). Undated chunks are left
-        out and counted in a ``date_unknown_excluded`` warning (D11). Without them the search is as before (I5)."""
+        out and counted in a ``date_unknown_excluded`` warning (D11). Without them the search is as before (I5).
+
+        Session fact chunks are keys that lead to their original exchange (spec 2026-11-16 D21). With
+        ``include_fact_keys`` False they are left out of the keyword and vector lists before ranking, so the
+        search is as before fact attachments (I6)."""
         normalized_query = query_text.strip()
         graph_requested_scope = _requested_scope_for_search(
             requested_scope=requested_scope,
@@ -161,6 +168,7 @@ class RetrievalService:
             trace=trace,
             since=since,
             until=until,
+            include_fact_keys=include_fact_keys,
         )
         return self._search_request(request)
 
@@ -201,6 +209,7 @@ class RetrievalService:
                 include_retired=request.include_retired,
                 vault_order=_affected_vault_ids(request.actual_scopes),
                 query_text=request.query_text,
+                include_fact_keys=request.include_fact_keys,
             )
             saturated = candidate_limit in (len(keyword_candidates), len(vector_candidates))
             if refill or len(results) >= request.limit or not saturated:
@@ -359,26 +368,29 @@ class RetrievalService:
     def _keyword_candidates(
         self, *, request: SearchRequest, candidate_limit: int, chunk_keys: frozenset[ChunkKey] | None
     ) -> tuple[RetrievalCandidate, ...]:
-        per_scope: list[tuple[KeywordHit, ...]] = []
-        try:
-            for scope in request.actual_scopes:
-                per_scope.append(
-                    self._keyword_index.search(
-                        KeywordQuery(
-                            query_text=request.query_text,
-                            scope=scope,
-                            limit=candidate_limit,
-                            source_roles=SEARCH_MODE_ROLES[request.mode],
-                            with_matched_fields=False,
-                            chunk_keys=chunk_keys,
-                        )
+
+        def fetch(limit: int) -> tuple[KeywordHit, ...]:
+            per_scope = [
+                self._keyword_index.search(
+                    KeywordQuery(
+                        query_text=request.query_text,
+                        scope=scope,
+                        limit=limit,
+                        source_roles=SEARCH_MODE_ROLES[request.mode],
+                        with_matched_fields=False,
+                        chunk_keys=chunk_keys,
                     )
                 )
+                for scope in request.actual_scopes
+            ]
+            return _merge_scope_hits(per_scope, limit=limit, score_sign=1.0)
+
+        try:
+            hits = self._hits(fetch, limit=candidate_limit, include_fact_keys=request.include_fact_keys)
         except KeywordIndexError as exc:
             raise SearchError(f"keyword_index_unavailable: {exc}. Run `vg index`.") from exc
         # Spec 2026-11-05 §10.2 원인4: one keyword table holds every Vault, so bm25 scores (lower is better)
-        # compare across scopes and give one ranking for the whole scope.
-        hits = _merge_scope_hits(per_scope, limit=candidate_limit, score_sign=1.0)
+        # compare across scopes and give one ranking for the whole scope (`_merge_scope_hits`).
         return _inside(tuple(candidate_from_keyword_hit(hit) for hit in hits), chunk_keys)
 
     def _vector_candidates(
@@ -393,29 +405,59 @@ class RetrievalService:
     ) -> tuple[RetrievalCandidate, ...]:
         if self._vector_store is None or self._text_embeddings is None or query_vector is None:
             return ()
-        try:
-            per_scope: list[tuple[VectorHit, ...]] = []
-            for scope in request.actual_scopes:
-                if _vector_stale_count_for_scope(readiness=readiness, scope=scope) not in (None, 0):
-                    continue
-                per_scope.append(
-                    self._vector_store.search(
-                        VectorQuery(
-                            query_vector=query_vector,
-                            scope=scope,
-                            limit=candidate_limit,
-                            embedding_spec=self._text_embeddings.model_spec(),
-                            source_roles=SEARCH_MODE_ROLES[request.mode],
-                            chunk_keys=chunk_keys,
-                        )
+        vector_store = self._vector_store
+        text_embeddings = self._text_embeddings
+
+        def fetch(limit: int) -> tuple[VectorHit, ...]:
+            per_scope = [
+                vector_store.search(
+                    VectorQuery(
+                        query_vector=query_vector,
+                        scope=scope,
+                        limit=limit,
+                        embedding_spec=text_embeddings.model_spec(),
+                        source_roles=SEARCH_MODE_ROLES[request.mode],
+                        chunk_keys=chunk_keys,
                     )
                 )
+                for scope in request.actual_scopes
+                if _vector_stale_count_for_scope(readiness=readiness, scope=scope) in (None, 0)
+            ]
+            # Spec 2026-11-05 §10.2 원인4: cosine similarity (higher is better) compares across Vaults.
+            return _merge_scope_hits(per_scope, limit=limit, score_sign=-1.0)
+
+        try:
+            hits = self._hits(fetch, limit=candidate_limit, include_fact_keys=request.include_fact_keys)
         except VectorStoreError as exc:
             warnings.append(_vector_query_failed(request, exc))
             return ()
-        # Spec 2026-11-05 §10.2 원인4: cosine similarity (higher is better) compares across Vaults.
-        hits = _merge_scope_hits(per_scope, limit=candidate_limit, score_sign=-1.0)
         return _inside(tuple(candidate_from_vector_hit(hit) for hit in hits), chunk_keys)
+
+    def _hits[Hit: (KeywordHit, VectorHit)](
+        self, fetch: Callable[[int], tuple[Hit, ...]], *, limit: int, include_fact_keys: bool
+    ) -> tuple[Hit, ...]:
+        """One signal's ranked hits. Without fact keys, session fact chunks are dropped and the list is filled up
+        to ``limit`` from further hits and ranked 1..n again, as if the facts were not indexed (spec 2026-11-16
+        I6). Each hit's chunk is read once, only in that mode."""
+        if include_fact_keys:
+            return fetch(limit)
+        facts: dict[tuple[str, str], bool] = {}
+
+        def is_fact(hit: Hit) -> bool:
+            key = (hit.vault_id, hit.chunk_id)
+            if key not in facts:
+                chunk = self._metadata_store.resolve_chunk(vault_id=hit.vault_id, chunk_id=hit.chunk_id)
+                facts[key] = chunk is not None and is_fact_key(chunk)
+            return facts[key]
+
+        asked = limit
+        while True:
+            hits = fetch(asked)
+            kept = tuple(hit for hit in hits if not is_fact(hit))
+            if len(kept) >= limit or len(hits) < asked:
+                break
+            asked += limit - len(kept)
+        return tuple(replace(hit, rank=rank) for rank, hit in enumerate(kept[:limit], start=1))
 
     def _query_vector(
         self,
