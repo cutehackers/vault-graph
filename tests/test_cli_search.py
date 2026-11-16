@@ -1,6 +1,8 @@
 import json
+from datetime import date
 from pathlib import Path
 
+import pytest
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
@@ -220,6 +222,7 @@ def test_search_text_embeddings_uses_local_files_only(tmp_path: Path) -> None:
 class _FakeSearchService:
     def __init__(self) -> None:
         self.include_graph = False
+        self.searches: list[tuple[date | None, date | None]] = []
 
     def search(
         self,
@@ -232,9 +235,12 @@ class _FakeSearchService:
         include_cross_vault: bool,
         mode: str,
         include_retired: bool = False,
+        since: date | None = None,
+        until: date | None = None,
     ) -> SearchResponse:
         self.include_graph = include_graph
-        assert query_text == "GraphRAG"
+        self.searches.append((since, until))
+        assert query_text.startswith("GraphRAG")
         assert include_cross_vault is False
         assert mode == "knowledge"
         evidence = EvidenceReference(
@@ -412,3 +418,123 @@ def test_cli_evidence_search_folds_one_session_into_one_result_by_default(
     }
     assert len(one["evidence"]) == 3
     assert "session_exchanges_attached" in {warning["code"] for warning in one["warnings"]}
+
+
+# --- Spec 2026-11-16 A8: `--since`, `--until`, `--when` date arguments (D10, D13, F5) ---
+
+
+def _fake_search(tmp_path: Path, monkeypatch: MonkeyPatch) -> _FakeSearchService:
+    root = tmp_path / "vault"
+    root.mkdir()
+    catalog = VaultCatalog.from_entries(
+        entries=[VaultCatalogEntry.from_root(vault_id="default", root_path=root)],
+        active_vault_id="default",
+    )
+    fake_service = _FakeSearchService()
+
+    def fake_search_service(
+        state: Path, *, include_graph: bool = False
+    ) -> tuple[object, VaultCatalog, _FakeSearchService]:
+        return object(), catalog, fake_service
+
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_service", fake_search_service)
+    monkeypatch.setattr("vault_graph.interface.cli.main._local_today", lambda: date(2026, 11, 16))
+    return fake_service
+
+
+def _search_args(tmp_path: Path, *args: str) -> list[str]:
+    return ["search", "--graph-home", str(tmp_path / "state"), "--vault-id", "default", *args, "GraphRAG"]
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        ((), (None, None)),
+        (("--since", "2026-11-03"), (date(2026, 11, 3), None)),
+        (("--until", "2026-11-03"), (None, date(2026, 11, 3))),
+        (("--since", "2026-11-01", "--until", "2026-11-03"), (date(2026, 11, 1), date(2026, 11, 3))),
+        (("--since", "2026-11-03", "--until", "2026-11-03"), (date(2026, 11, 3), date(2026, 11, 3))),
+        # 2026-11-16 is a Monday: last week is Monday 11-09 to Sunday 11-15.
+        (("--when", "last week"), (date(2026, 11, 9), date(2026, 11, 15))),
+        (("--when", "지난주"), (date(2026, 11, 9), date(2026, 11, 15))),
+        (("--when", "3 days ago"), (date(2026, 11, 13), date(2026, 11, 13))),
+    ],
+)
+def test_cli_search_passes_the_date_range_to_the_search(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    args: tuple[str, ...],
+    expected: tuple[date | None, date | None],
+) -> None:
+    fake_service = _fake_search(tmp_path, monkeypatch)
+
+    result = runner.invoke(app, _search_args(tmp_path, *args))
+
+    assert result.exit_code == 0, result.output
+    assert fake_service.searches == [expected]
+
+
+@pytest.mark.parametrize(
+    ("args", "reason"),
+    [
+        (("--since", "2026/11/03"), "since must be a YYYY-MM-DD date"),
+        (("--until", "yesterday"), "until must be a YYYY-MM-DD date"),
+        (("--since", "2026-02-30"), "since is not a real date"),
+        (("--since", "2026-11-04", "--until", "2026-11-03"), "since 2026-11-04 is after until 2026-11-03"),
+        (("--when", "sometime soon"), "cannot resolve date expression 'sometime soon'"),
+        (("--when", "last week", "--since", "2026-11-01"), "--when cannot be used with --since or --until"),
+        (("--when", "last week", "--until", "2026-11-01"), "--when cannot be used with --since or --until"),
+    ],
+)
+def test_cli_search_rejects_bad_date_arguments_with_exit_code_2_and_never_searches(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    args: tuple[str, ...],
+    reason: str,
+) -> None:
+    fake_service = _fake_search(tmp_path, monkeypatch)
+
+    result = runner.invoke(app, _search_args(tmp_path, *args))
+
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    lines = result.stderr.splitlines()
+    assert len(lines) == 1
+    assert reason in lines[0]
+    assert fake_service.searches == []
+
+
+def test_cli_search_does_not_read_dates_from_the_query_text(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    fake_service = _fake_search(tmp_path, monkeypatch)
+
+    result = runner.invoke(
+        app, ["search", "--graph-home", str(tmp_path / "state"), "--vault-id", "default", "GraphRAG last week"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_service.searches == [(None, None)]
+
+
+@pytest.fixture
+def utc_local_time(monkeypatch: MonkeyPatch):  # type: ignore[no-untyped-def]
+    import time
+
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+@pytest.mark.usefixtures("utc_local_time")
+def test_cli_search_since_keeps_only_sessions_in_the_range(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    graph_home = _indexed_session_home(tmp_path, monkeypatch, agent=True)
+    command = ["search", "--graph-home", str(graph_home), "--mode", "evidence", "--format", "json"]
+
+    since_only = runner.invoke(app, [*command, "--since", "2026-11-03", SESSION_QUERY])
+    until_only = runner.invoke(app, [*command, "--until", "2026-11-02", SESSION_QUERY])
+
+    assert since_only.exit_code == 0, since_only.output
+    assert until_only.exit_code == 0, until_only.output
+    assert [_session_of(result) for result in json.loads(since_only.stdout)["results"]] == [SESSION_TWO]
+    assert [_session_of(result) for result in json.loads(until_only.stdout)["results"]] == [SESSION_ONE]
