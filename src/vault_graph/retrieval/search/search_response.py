@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Literal
 
 from vault_graph.errors import SearchError
 from vault_graph.operation.readiness.search_readiness import SearchStoreRevision as SearchStoreRevision
 from vault_graph.operation.scope.vault_catalog import QueryScope
+from vault_graph.retrieval.search.date_expression import DateRange
 from vault_graph.retrieval.search.reranker import RerankTrace
 from vault_graph.retrieval.search.retrieval_result import RetrievalResult, RetrievalSeverity, RetrievalSignalKind
 
@@ -96,6 +98,10 @@ class SearchRequest:
     mode: SearchMode = "knowledge"
     include_retired: bool = False
     trace: bool = False
+    # Spec 2026-11-16 longmemeval-session-memory D10: inclusive dates in this computer's time zone. Either may be
+    # None. With both None the search is the same as before (I5).
+    since: date | None = None
+    until: date | None = None
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -106,6 +112,14 @@ class SearchRequest:
             raise SearchError("unsupported_format")
         if self.mode not in ("knowledge", "evidence", "operating", "audit", "all"):
             raise SearchError("unsupported_search_mode")
+        if self.since is not None and self.until is not None:
+            DateRange(since=self.since, until=self.until)  # raises DateArgumentError when since is after until
+
+    @property
+    def date_range(self) -> DateRange | None:
+        if self.since is None and self.until is None:
+            return None
+        return DateRange(since=self.since, until=self.until)
 
 
 @dataclass(frozen=True)

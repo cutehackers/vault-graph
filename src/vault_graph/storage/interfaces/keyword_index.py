@@ -18,6 +18,9 @@ class KeywordQuery:
     # False leaves KeywordHit.matched_fields empty. Search ranks without them, and finding them costs one FTS query
     # per hit and field, up to 1.4 s on a long question (spec 2026-11-11 §4.2.6).
     with_matched_fields: bool = True
+    # (vault_id, chunk_id) pairs the hits must come from, ranked and limited inside that set (spec 2026-11-16 D9).
+    # None searches every chunk. An empty set finds nothing.
+    chunk_keys: frozenset[tuple[str, str]] | None = None
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

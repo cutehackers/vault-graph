@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, tzinfo
 from typing import Protocol, runtime_checkable
 
 from vault_graph.indexing.ingestion.document_authority import DocumentRole
@@ -75,6 +76,38 @@ class SourceStatStore(Protocol):
 
 
 EvidenceLookupKey = tuple[str, str, str]
+# (vault_id, chunk_id)
+ChunkKey = tuple[str, str]
+
+
+@dataclass(frozen=True)
+class DatedChunkKeys:
+    """Chunks whose time range overlaps a date range, and how many chunks in the scope have no time.
+
+    Spec 2026-11-16 longmemeval-session-memory D9, D11: search builds candidates only from ``chunk_keys`` and
+    reports ``undated_count`` as left out.
+    """
+
+    chunk_keys: frozenset[ChunkKey]
+    undated_count: int
+
+
+@runtime_checkable
+class DateRangeChunkLookup(Protocol):
+    """Optional metadata store part that finds chunks by their time columns (spec 2026-11-16 D9, D10)."""
+
+    def chunk_keys_in_date_range(
+        self,
+        scope: QueryScope,
+        *,
+        since: date | None,
+        until: date | None,
+        source_roles: tuple[DocumentRole, ...] = (),
+        timezone: tzinfo | None = None,
+    ) -> DatedChunkKeys:
+        """Inclusive ``since``..``until`` dates read in ``timezone`` (None: this computer's zone). A chunk is kept
+        when any day of its time range falls in the range."""
+        ...
 
 
 @runtime_checkable

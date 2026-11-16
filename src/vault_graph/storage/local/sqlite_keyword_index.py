@@ -83,6 +83,9 @@ class SQLiteKeywordIndex:
         vault_placeholders = ", ".join("?" for _ in query.scope.vault_ids)
         path_clause, path_args = _content_scope_clause(query.scope.content_scopes)
         role_clause, role_args = _source_role_clause(query.source_roles)
+        if query.chunk_keys is not None and not query.chunk_keys:
+            return ()
+        key_clause, key_args = _chunk_key_clause(query.chunk_keys)
         with self._connect_readonly() as connection:
             rows = connection.execute(
                 f"""
@@ -95,10 +98,11 @@ class SQLiteKeywordIndex:
                   AND r.vault_id IN ({vault_placeholders})
                   AND ({path_clause})
                   AND ({role_clause})
+                  AND ({key_clause})
                 ORDER BY score ASC, r.vault_id ASC, r.path ASC, r.chunk_id ASC
                 LIMIT ?
                 """,
-                (match_query, *query.scope.vault_ids, *path_args, *role_args, query.limit),
+                (match_query, *query.scope.vault_ids, *path_args, *role_args, *key_args, query.limit),
             ).fetchall()
             tokens = query_terms(query.query_text)
             return tuple(
@@ -511,6 +515,19 @@ def _source_role_clause(source_roles: tuple[DocumentRole, ...]) -> tuple[str, tu
     if not source_roles:
         return "1", ()
     return f"r.source_role IN ({', '.join('?' for _ in source_roles)})", tuple(source_roles)
+
+
+def _chunk_key_clause(chunk_keys: frozenset[tuple[str, str]] | None) -> tuple[str, tuple[str, ...]]:
+    """Keep rows whose (vault_id, chunk_id) is in ``chunk_keys`` (spec 2026-11-16 D9). One JSON parameter, so the
+    set size never meets SQLite's bound-variable limit."""
+    if chunk_keys is None:
+        return "1", ()
+    pairs = json.dumps(sorted([vault_id, chunk_id] for vault_id, chunk_id in chunk_keys))
+    return (
+        "(r.vault_id, r.chunk_id) IN "
+        "(SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))",
+        (pairs,),
+    )
 
 
 def _delete_keyword_rows(
