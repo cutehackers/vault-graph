@@ -287,3 +287,128 @@ class _FakeSearchService:
             store_revisions=(),
             generated_at="2026-06-11T00:00:00+00:00",
         )
+
+
+# --- Spec 2026-11-16 A4: session results are folded by default, with no new argument ---
+
+SESSION_QUERY = "tombstone sweeper archived folders"
+SESSIONS_DIR = "raw/sessions/claude-code"
+SESSION_ONE = "11111111-1111-4111-8111-111111111111"
+SESSION_TWO = "22222222-2222-4222-8222-222222222222"
+
+
+def _session_part(session_id: str, part: int, day: str, exchanges: list[tuple[str, str]], *, agent: bool) -> str:
+    """A vault-session/v2 part file with one exchange per (id, assistant answer)."""
+    body = [
+        "---",
+        "schema: vault-session/v2",
+        "renderer: vg-session-md/2.0",
+        *(["agent: claude-code"] if agent else []),
+        f'session_id: "{session_id}"',
+        f"part: {part}",
+        f'first_turn_at: "{day}T10:00:00.000Z"',
+        f"exchange_count: {len(exchanges)}",
+        "---",
+        "",
+    ]
+    for number, (exchange_id, answer) in enumerate(exchanges):
+        started = f"{day}T10:{number:02d}:00.000Z"
+        body += [
+            f"## How does the sweeper behave? {started} · {exchange_id}",
+            f"<!-- vg:exchange id={exchange_id} scope=main started={started} ended={started} outcome=answered -->",
+            "",
+            f"### user · {started} · {exchange_id}",
+            "",
+            "How does the sweeper behave?",
+            "",
+            f"### assistant · {started} · a-{exchange_id}",
+            "",
+            answer,
+            "",
+        ]
+    return "\n".join(body)
+
+
+def write_two_sessions(vault_root: Path, *, agent: bool) -> None:
+    """Session one matches in three exchanges over two part files. Session two matches in one exchange."""
+    write_page(
+        vault_root,
+        f"{SESSIONS_DIR}/2026-11-01-{SESSION_ONE}-part1.md",
+        _session_part(
+            SESSION_ONE,
+            1,
+            "2026-11-01",
+            [
+                ("u-001", "The tombstone sweeper skips archived folders: archived folders are frozen."),
+                ("u-002", "The tombstone sweeper runs nightly over archived folders."),
+            ],
+            agent=agent,
+        ),
+    )
+    write_page(
+        vault_root,
+        f"{SESSIONS_DIR}/2026-11-02-{SESSION_ONE}-part2.md",
+        _session_part(
+            SESSION_ONE, 2, "2026-11-02", [("u-003", "The tombstone sweeper was renamed last week.")], agent=agent
+        ),
+    )
+    write_page(
+        vault_root,
+        f"{SESSIONS_DIR}/2026-11-03-{SESSION_TWO}-part1.md",
+        _session_part(
+            SESSION_TWO,
+            1,
+            "2026-11-03",
+            [("u-009", "The sweeper moves archived folders to cold storage.")],
+            agent=agent,
+        ),
+    )
+
+
+def _indexed_session_home(tmp_path: Path, monkeypatch: MonkeyPatch, *, agent: bool) -> Path:
+    monkeypatch.setattr("vault_graph.interface.cli.main._text_embeddings", _deterministic_text_embeddings)
+    monkeypatch.setattr("vault_graph.interface.cli.main._search_text_embeddings", _deterministic_text_embeddings)
+    vault_root = tmp_path / "vault"
+    write_two_sessions(vault_root, agent=agent)
+    graph_home_path = tmp_path / "state"
+    initialized = runner.invoke(app, ["init", "--vault", str(vault_root), "--graph-home", str(graph_home_path)])
+    assert initialized.exit_code == 0, initialized.output
+    indexed = runner.invoke(app, ["index", "--graph-home", str(graph_home_path)])
+    assert indexed.exit_code == 0, indexed.output
+    return graph_home_path
+
+
+def _session_of(result: dict[str, object]) -> str:
+    evidence = result["evidence"]
+    assert isinstance(evidence, list)
+    path = str(evidence[0]["path"])
+    return SESSION_ONE if SESSION_ONE in path else SESSION_TWO
+
+
+def test_cli_evidence_search_folds_one_session_into_one_result_by_default(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    (tmp_path / "unkeyed").mkdir()
+    (tmp_path / "keyed").mkdir()
+    unkeyed_home = _indexed_session_home(tmp_path / "unkeyed", monkeypatch, agent=False)
+    keyed_home = _indexed_session_home(tmp_path / "keyed", monkeypatch, agent=True)
+    command = ["search", "--mode", "evidence", "--format", "json", SESSION_QUERY]
+
+    unkeyed = runner.invoke(app, [command[0], "--graph-home", str(unkeyed_home), *command[1:]])
+    keyed = runner.invoke(app, [command[0], "--graph-home", str(keyed_home), *command[1:]])
+
+    assert unkeyed.exit_code == 0, unkeyed.output
+    assert keyed.exit_code == 0, keyed.output
+    # Without `agent` there is no session key: every matched exchange is its own result.
+    unfolded = json.loads(unkeyed.stdout)["results"]
+    assert sorted(_session_of(result) for result in unfolded) == [SESSION_ONE] * 3 + [SESSION_TWO]
+    # With the key and no flag, each session is one result and session one carries its other exchanges.
+    folded = json.loads(keyed.stdout)["results"]
+    assert sorted(_session_of(result) for result in folded) == [SESSION_ONE, SESSION_TWO]
+    one = next(result for result in folded if _session_of(result) == SESSION_ONE)
+    assert {item["path"] for item in one["evidence"]} == {
+        f"{SESSIONS_DIR}/2026-11-01-{SESSION_ONE}-part1.md",
+        f"{SESSIONS_DIR}/2026-11-02-{SESSION_ONE}-part2.md",
+    }
+    assert len(one["evidence"]) == 3
+    assert "session_exchanges_attached" in {warning["code"] for warning in one["warnings"]}
