@@ -474,140 +474,140 @@ preset은 `model_qint8_arm64.onnx` 하나다. x86 기기에서 켜면 느리거�
 ### A1. 측정 보고서가 두 관문의 판정을 적는다
 - covers: D2, D3, D4, D19
 - check: 수동: 층1 개발용 96문항 `evaluate_search`와 저장소 밖 30쌍 지연 스크립트를 돌린 뒤 `docs/design/reports/2026-11-reranker-measurement.md`를 읽는다
-- evidence:
+- evidence: 수동: 층1 개발용 96문항 `evaluate_search`와 저장소 밖 30쌍 지연 스크립트를 돌린 뒤 `docs/design/reports/2026-11-reranker-measurement.md`의 §2~§7을 읽는다. 지금 보고서에는 관문1 5/8, 관문2 p95 0.349초, 파일과 revision, 적재 0.32초, 메모리 2,793MB가 적혀 있다.
 
 실패별 `document_rank`와 세 분류 개수, 30쌍 p50·p95, 적재 시간, 최대 메모리, 받은 파일과 revision, 관문별 판정이 있다. 못 넘으면 닫은 사유가 있다.
 
 ### A2. 재정렬이 꺼져 있으면 결과가 이 변경 전과 같다
 - covers: I3, D17
 - check: tests/test_retrieval_service_search.py, tests/test_reranker_config.py
-- evidence:
+- evidence: tests/test_retrieval_service_search.py "test_search_without_reranker_keeps_the_search_order", tests/test_reranker_config.py "test_search_gets_no_reranker_without_settings"와 "test_search_gets_no_reranker_when_turned_off". 바뀌지 않은 기존 검색 테스트도 `bake-verify.log`(3349 passed)에서 통과한다.
 
 설정 파일 없음과 `enabled: false`에서 순서, `rank`, `result_id`, 경고, `stage_trace`가 변경 전과 같다.
 
 ### A3. 재정렬은 순서만 바꾸고 순위 번호를 새 순서에 맞춘다
 - covers: I1, I5, D6, F4, F5, F9
 - check: tests/test_reranker.py
-- evidence:
+- evidence: tests/test_reranker.py "test_one_result_or_none_does_not_ask_the_model", "test_fewer_results_than_depth_are_all_reranked_by_the_rrf_formula", "test_results_beyond_depth_keep_their_order_after_the_reranked_ones", "test_mixed_vault_results_keep_their_vault"
 
 가짜 `Reranker`로 결과 0개, 1개, N 미만, N 초과, 여러 Vault 혼합을 본다. 집합이 같고, N 밖은 원래 순서로 뒤에 붙고, `rank`·`result_id`가 새 순서를 따르고, Vault 이름·종류가 그대로이고, 1개 이하면 모델을 부르지 않는다.
 
 ### A4. RRF 섞기가 정한 식과 동점 규칙을 따른다
 - covers: D8, F10
 - check: tests/test_reranker.py
-- evidence:
+- evidence: tests/test_reranker.py "test_blend_follows_the_rrf_formula_and_keeps_search_order_on_ties", "test_exact_title_query_follows_the_rrf_formula_when_the_model_reverses"
 
 순서를 뒤집는 가짜 `Reranker`에서 고정한 `k`, `w`로 계산한 순서가 나오고 동점이면 기존 순위가 앞선다.
 
 ### A5. 재정렬 입력은 이미 읽은 텍스트로 만든다
 - covers: D7, I6
 - check: tests/test_reranker.py, tests/test_retrieval_service_search.py
-- evidence:
+- evidence: tests/test_reranker.py "test_rerank_passages_use_text_already_read", tests/test_retrieval_service_search.py "test_reranked_search_reads_no_extra_chunks"
 
 문서 입력에 title·summary와 조각 전문이 들고 `page_card`면 겹치지 않으며, 세션 입력은 인용 창이다. 켠 검색의 `resolve_chunk` 호출 수가 꺼진 검색과 같고 `RetrievalResult` 필드는 그대로다.
 
 ### A6. 질의와 텍스트 쌍이 256 토큰 안으로 잘린다
 - covers: F6
 - check: tests/test_text_cross_encoder.py
-- evidence:
+- evidence: tests/test_text_cross_encoder.py "test_long_text_is_cut_first_and_the_query_is_kept", "test_long_query_is_cut_to_128_tokens", "test_long_query_and_long_text_both_fit", "test_query_that_fills_the_budget_is_kept_whole"
 
 긴 텍스트, 긴 질의, 둘 다 긴 경우에 쌍이 256 토큰 이하이고 질의는 128 토큰보다 짧게 잘리지 않는다.
 
 ### A7. 모델 없음·실행 실패·설정 오류는 경고 하나와 기존 순서로 답한다
 - covers: D11, F1, F2, F3
 - check: tests/test_reranker.py, tests/test_reranker_config.py
-- evidence:
+- evidence: tests/test_retrieval_service_search.py "test_reranker_failure_keeps_the_search_order_with_one_warning", "test_reranker_config_error_searches_without_reranking_and_warns", tests/test_reranker_config.py "test_broken_settings_turn_reranking_off_with_a_reason", "test_cli_search_reads_the_settings_file_and_warns_when_broken"
 
 예외 없이 기존 순서가 나오고 경고가 `reranker_unavailable`, `rerank_failed`, `reranker_config_invalid` 중 정확히 하나다. 실행 실패 뒤 다음 질의는 다시 시도한다.
 
 ### A8. 검색과 테스트는 모델을 내려받지 않고, `vg reranker use`만 받는다
 - covers: I2, D9, D10
 - check: tests/test_reranker_config.py
-- evidence:
+- evidence: tests/test_reranker_config.py "test_search_adapter_without_model_files_does_not_download_or_fall_back", "test_use_downloads_pinned_files_into_embedding_models_dir_then_turns_on", "test_off_turns_off_only_enabled", "test_importing_reranker_modules_does_not_load_model_libraries"
 
 검색 어댑터는 `local_files_only=True`로만 찾고 다른 모델로 바꾸지 않는다. `vg reranker use`는 고정 revision 파일을 `models_dir`에 받은 뒤 설정을 쓰고, `off`는 `enabled`만 끈다. 테스트는 네트워크 없이 통과한다.
 
 ### A9. fastembed 등록은 프로세스당 한 번이다
 - covers: D14, F8
 - check: tests/test_text_cross_encoder.py
-- evidence:
+- evidence: tests/test_text_cross_encoder.py "test_many_encoders_register_once", "test_encoders_built_on_many_threads_register_once", "test_fastembed_is_imported_only_in_adapters"
 
 여러 번, 여러 스레드에서 만들어도 `add_custom_model`은 한 번 불린다. fastembed 가져오기는 adapters 안에만 있다.
 
 ### A10. `stage_trace`에 재정렬 전후 순위가 남는다
 - covers: D13
 - check: tests/test_retrieval_service_search.py
-- evidence:
+- evidence: tests/test_retrieval_service_search.py "test_reranking_reorders_before_the_limit_and_trace_follows_the_final_order", "test_search_without_reranker_keeps_the_search_order"
 
 재정렬한 검색에 `rerank` 항목이 있고 `document_ranks`는 재정렬 뒤 순서다. 꺼진 검색에는 항목이 없다.
 
 ### A11. evidence 모드 세션 결과도 재정렬된다
 - covers: D12
 - check: tests/test_retrieval_service_search.py
-- evidence:
+- evidence: tests/test_retrieval_service_search.py "test_evidence_mode_reranks_session_exchanges_by_their_quoted_window"
 
 `evidence` 모드에서 세션 결과가 같은 경로로 재정렬되고 입력은 인용 창이다.
 
 ### A12. 재정렬은 아무것도 쓰지 않는다
 - covers: I4
 - check: tests/test_reranker.py
-- evidence:
+- evidence: tests/test_reranker.py "test_reranked_search_writes_nothing"
 
 켠 검색 전후로 Vault, Graph Home, 모델 폴더의 파일 목록과 수정 시각이 같다.
 
 ### A13. 평가 도구로 켜고 끈 결과를 비교할 수 있다
 - covers: D15
 - check: tests/test_longmemeval_run_reranker.py
-- evidence:
+- evidence: tests/test_longmemeval_run_reranker.py "test_prepare_with_a_preset_writes_the_reranker_config", "test_prepare_without_a_preset_writes_no_reranker_config"
 
 `longmemeval_run`에 preset 인자를 주면 Graph Home마다 `configs/reranker.json`이 생기고, 안 주면 생기지 않는다.
 
 ### A14. 재정렬을 켠 검색 p95가 1초 이하다
 - covers: D4, D5, F7
 - check: 수동: 재정렬을 켠 측정용 Graph Home에서 층1 192문항 `evaluate_search`를 돌려 `summary.json`의 p95를 본다
-- evidence:
+- evidence: 수동: 재정렬을 켠 측정용 Graph Home에서 층1 `evaluate_search`를 돌려 `summary.json`의 p95를 본다. 보고서 §8.6에 켜짐 p95 0.778초, §4.2에 적재 0.32초가 적혀 있다.
 
 목표8 방식(적재 뒤 한 프로세스)으로 p95가 1초 이하다. 적재 시간은 따로 적는다.
 
 ### A15. 개발용에서 wiki recall@5와 MRR이 오르고 title은 1.00이다
 - covers: D1, D8, D16
 - check: 수동: 층1 개발용을 꺼짐·켜짐으로 돌려 `compare_search_eval`로 비교하고, 값 고정 뒤 시험용을 한 번 잰다
-- evidence:
+- evidence: 수동: 층1 개발용을 꺼짐과 켜짐으로 돌려 `compare_search_eval`로 비교하고, 시험용은 값을 고정한 뒤 한 번 잰다. 보고서 §8.2와 §8.3에 개발용 MRR 0.735→0.848, wiki recall@5 60/66→64/66, title 1.00이 적혀 있다.
 
 개발용 wiki recall@5와 MRR이 꺼짐보다 높고 MRR 0.78 이상, title 1.00이다. 시험용은 고정 뒤 한 번 잰 값으로 적는다.
 
 ### A16. 층2 recall@5가 0.95 이상이다
 - covers: D16
 - check: 수동: `eval2` Graph Home에서 재정렬을 켜고 `evaluate_search --vault-id eval2`를 돌린다
-- evidence:
+- evidence: 수동: `eval2` Graph Home에서 재정렬을 켜고 `evaluate_search --vault-id eval2`를 돌린다. 보고서 §8.4에 recall@5 0.989가 적혀 있다.
 
 목표11을 지킨다.
 
 ### A17. LongMemEval이 회귀하지 않는다
 - covers: D12, D16
 - check: 수동: `longmemeval_run --limit 150`을 재정렬 preset 인자와 함께 돌린다
-- evidence:
+- evidence: 수동: `longmemeval_run --limit 150 --reranker mmarco`를 돌린다. 보고서 §8.7에 recall_all@5 0.80, recall_any@5 0.98이 적혀 있다.
 
 recall_all@5 0.77 이상(목표9), recall_any@5 0.9667 이상이다.
 
 ### A18. 세션 recall@5를 따로 적고 목표3을 지킨다
 - covers: D12
 - check: 수동: 층1 개발용 꺼짐·켜짐 결과에서 세션 종류만 떼어 본다
-- evidence:
+- evidence: 수동: 층1 개발용 꺼짐과 켜짐 결과에서 세션 문항만 떼어 본다. 보고서 §8.2와 §8.3에 개발용 세션 0.867, 시험용 세션 0.933이 문서 검색과 따로 적혀 있다.
 
 세션 recall@5가 0.85 이상이고 변화가 문서 검색과 따로 적혀 있다.
 
 ### A19. preset 목록에는 mmarco 하나만 있다
 - covers: D18
 - check: tests/test_reranker_config.py
-- evidence:
+- evidence: tests/test_reranker_config.py "test_presets_hold_only_mmarco_arm64_int8_at_a_pinned_revision"
 
 `RERANK_PRESETS`에 mmarco의 `onnx/model_qint8_arm64.onnx` 항목 하나만 있고 고정 revision을 가진다.
 
 ### A20. `build_context_pack` 적중이 회귀하지 않는다
 - covers: D6, D16
 - check: 수동: 목표4 질문 37문항을 재정렬 꺼짐·켜짐으로 `build_context_pack`에 돌려 적중 수를 비교한다
-- evidence:
+- evidence: 수동: 목표4 질문 37문항을 재정렬 꺼짐과 켜짐으로 `build_context_pack`에 돌려 적중 수를 비교한다. 보고서 §8.5에 꺼짐 34/37, 켜짐 35/37이 적혀 있다.
 
 켜짐의 적중이 꺼짐(지금 0.92, 34/37)보다 낮지 않다.
 
