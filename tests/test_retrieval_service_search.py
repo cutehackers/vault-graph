@@ -1,6 +1,9 @@
-from collections.abc import Sequence
+import time
+from collections.abc import Iterator, Sequence
 from dataclasses import replace
+from datetime import UTC, date
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -10,22 +13,28 @@ from tests.fakes.in_memory_vector_store import InMemoryVectorStore
 from tests.fakes.search_readiness import ready_report
 from tests.test_sqlite_metadata_store import make_chunk, make_document
 from tests.test_vector_indexer import SPEC
+from tests.test_vector_store_contract import make_query as make_vector_query
+from tests.test_vector_store_contract import make_record as make_vector_record
 from vault_graph.errors import SearchError
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
 from vault_graph.indexing.vector_index_adapter import stable_vector_id
 from vault_graph.operation.readiness.search_readiness import SearchReadinessReport, SearchScopeReadiness
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
 from vault_graph.retrieval.search.context_expansion import ContextExpander
+from vault_graph.retrieval.search.date_expression import DateArgumentError
 from vault_graph.retrieval.search.graph_candidates import GraphCandidateResult
 from vault_graph.retrieval.search.reranker import Reranker, RerankError, RerankerUnavailableError
 from vault_graph.retrieval.search.retrieval_candidate import RetrievalCandidate
 from vault_graph.retrieval.search.retrieval_result import RetrievalSignal
 from vault_graph.retrieval.search.retrieval_service import RetrievalService
 from vault_graph.retrieval.search.search_response import SearchResponse, SearchStoreRevision, SearchWarning
-from vault_graph.storage.interfaces.keyword_index import KeywordHit
+from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordQuery
+from vault_graph.storage.interfaces.metadata_store import DatedChunkKeys
 from vault_graph.storage.interfaces.store_health import StoreHealth
 from vault_graph.storage.interfaces.text_embeddings import EmbeddingInput, EmbeddingVector
 from vault_graph.storage.interfaces.vector_store import VectorEmbeddingRecord, VectorHit, VectorQuery
+from vault_graph.storage.local.chroma_vector_store import ChromaVectorStore
+from vault_graph.storage.local.sqlite_keyword_index import SQLiteKeywordIndex
 from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
 
@@ -948,3 +957,281 @@ def test_reranker_config_error_searches_without_reranking_and_warns(tmp_path: Pa
     assert [result.evidence[0].chunk_id for result in response.results] == ["chunk-1", "chunk-2"]
     assert [warning.code for warning in _reranker_warnings(response)] == ["reranker_config_invalid"]
     assert "unknown model 'nope'" in _reranker_warnings(response)[0].message
+
+
+# Spec 2026-11-16 longmemeval-session-memory D9, D10, D11, I5, F6 (A6): date range at the candidate stage.
+
+_EARLY = ("2026-11-02T20:00:00Z", "2026-11-02T20:30:00Z")  # 2026-11-03 05:00 in Asia/Seoul
+_MULTI_DAY = ("2026-11-09T10:00:00Z", "2026-11-11T01:00:00Z")
+
+
+@pytest.fixture
+def seoul_time_zone(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """This computer's time zone is Asia/Seoul for the test (D10 compares in the local zone)."""
+    monkeypatch.setenv("TZ", "Asia/Seoul")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+def _dated_store(tmp_path: Path) -> tuple[SQLiteMetadataStore, dict[str, ChunkSnapshot]]:
+    """Two dated session-like pages and one undated wiki page, all matching the keyword `Body`."""
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    early = make_document("default", "wiki/early.md", "early")
+    multi = make_document("default", "wiki/multi.md", "multi")
+    undated = make_document("default", "wiki/undated.md", "undated")
+    chunks = {
+        "early": replace(
+            make_chunk("default", early.document_id, early.path, chunk_id="early-0", text="Body early"),
+            started_at=_EARLY[0],
+            ended_at=_EARLY[1],
+        ),
+        "multi": replace(
+            make_chunk("default", multi.document_id, multi.path, chunk_id="multi-0", text="Body multi"),
+            started_at=_MULTI_DAY[0],
+            ended_at=_MULTI_DAY[1],
+        ),
+        "undated": make_chunk("default", undated.document_id, undated.path, chunk_id="undated-0", text="Body plain"),
+    }
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[early, multi, undated],
+        chunks=list(chunks.values()),
+        tombstones=[],
+    )
+    return store, chunks
+
+
+class RecordingKeywordIndex(SQLiteKeywordIndex):
+    def __init__(self, database_path: Path) -> None:
+        super().__init__(database_path)
+        self.queries: list[KeywordQuery] = []
+
+    def search(self, query: KeywordQuery) -> tuple[KeywordHit, ...]:
+        self.queries.append(query)
+        return super().search(query)
+
+
+class RecordingVectorStore(InMemoryVectorStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.queries: list[VectorQuery] = []
+
+    def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:
+        self.queries.append(query)
+        return super().search(query)
+
+
+class DateLookupSpyStore(SQLiteMetadataStore):
+    date_lookups = 0
+
+    def chunk_keys_in_date_range(self, *args: object, **kwargs: object) -> DatedChunkKeys:
+        type(self).date_lookups += 1
+        return super().chunk_keys_in_date_range(*args, **kwargs)  # type: ignore[arg-type]
+
+
+def _date_service(
+    tmp_path: Path, store: SQLiteMetadataStore, *, vector_ok: bool = False
+) -> tuple[RetrievalService, VaultCatalog]:
+    catalog = _catalog(tmp_path)
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=SQLiteKeywordIndex(tmp_path / "metadata.sqlite3"),
+        readiness=StaticReadiness(ready_report(vector_ok=vector_ok, can_embed_without_download=vector_ok)),
+    )
+    return service, catalog
+
+
+def _paths(response: SearchResponse) -> list[str]:
+    return [result.evidence[0].path for result in response.results]
+
+
+def _date_warnings(response: SearchResponse) -> list[SearchWarning]:
+    return [warning for warning in response.warnings if warning.code.startswith("date_")]
+
+
+def test_date_range_keeps_overlapping_exchanges_and_counts_undated_ones(tmp_path: Path, seoul_time_zone: None) -> None:
+    store, _ = _dated_store(tmp_path)
+    service, catalog = _date_service(tmp_path, store)
+
+    # The multi-day exchange overlaps 2026-11-10 although it starts and ends outside that day.
+    response = service.search(
+        query_text="Body", requested_scope=catalog.default_scope(), since=date(2026, 11, 10), until=date(2026, 11, 10)
+    )
+
+    assert _paths(response) == ["wiki/multi.md"]
+    warnings = _date_warnings(response)
+    assert [warning.code for warning in warnings] == ["date_unknown_excluded"]
+    assert warnings[0].severity == "info"
+    assert "1 " in warnings[0].message
+
+
+def test_date_range_ends_are_inclusive_in_this_computers_time_zone(tmp_path: Path, seoul_time_zone: None) -> None:
+    store, _ = _dated_store(tmp_path)
+    service, catalog = _date_service(tmp_path, store)
+    scope = catalog.default_scope()
+
+    # 2026-11-02T20:00Z is 2026-11-03 in Seoul: the UTC date would match 11-02 instead.
+    on_local_day = service.search(
+        query_text="Body", requested_scope=scope, since=date(2026, 11, 3), until=date(2026, 11, 3)
+    )
+    on_utc_day = service.search(
+        query_text="Body", requested_scope=scope, since=date(2026, 11, 2), until=date(2026, 11, 2)
+    )
+    until_only = service.search(query_text="Body", requested_scope=scope, until=date(2026, 11, 3))
+    since_only = service.search(query_text="Body", requested_scope=scope, since=date(2026, 11, 11))
+
+    assert _paths(on_local_day) == ["wiki/early.md"]
+    assert _paths(on_utc_day) == []
+    assert _paths(until_only) == ["wiki/early.md"]
+    # The multi-day exchange ends 2026-11-11 10:00 in Seoul, so a range starting that day still keeps it.
+    assert _paths(since_only) == ["wiki/multi.md"]
+
+
+def test_empty_date_range_returns_no_results_with_info_warning(tmp_path: Path, seoul_time_zone: None) -> None:
+    store, _ = _dated_store(tmp_path)
+    # Vector search reported ready but not configured, so no other warning marks the search degraded.
+    service, catalog = _date_service(tmp_path, store, vector_ok=True)
+
+    response = service.search(
+        query_text="Body", requested_scope=catalog.default_scope(), since=date(2025, 1, 1), until=date(2025, 1, 31)
+    )
+
+    assert response.results == ()
+    codes = [warning.code for warning in _date_warnings(response)]
+    assert codes == ["date_unknown_excluded", "date_range_empty"]
+    assert all(warning.severity == "info" for warning in _date_warnings(response))
+    assert response.degraded is False
+
+
+def test_date_range_builds_keyword_and_vector_candidates_inside_the_range(
+    tmp_path: Path, seoul_time_zone: None
+) -> None:
+    store, chunks = _dated_store(tmp_path)
+    catalog = _catalog(tmp_path)
+    keyword_index = RecordingKeywordIndex(tmp_path / "metadata.sqlite3")
+    vector_store = RecordingVectorStore()
+    embeddings = DeterministicTextEmbeddings(SPEC)
+    vector_store.apply_vector_revision(
+        vector_index_revision="vector-1",
+        records=tuple(
+            VectorEmbeddingRecord(
+                vector_id=stable_vector_id(vault_id="default", chunk_id=chunk.chunk_id, embedding_spec=SPEC),
+                vault_id="default",
+                document_id=chunk.document_id,
+                chunk_id=chunk.chunk_id,
+                content_scope="wiki",
+                embedding=embeddings.embed((EmbeddingInput(input_id=chunk.chunk_id, text=chunk.text),))[0],
+                source_chunk_hash=chunk.content_hash,
+                chunker_version="chunker",
+                metadata_index_revision="metadata-1",
+                vector_index_revision="vector-1",
+                backend_schema_version="memory-vector-v1",
+                provenance_family_id=chunk.provenance_family_id,
+            )
+            for chunk in chunks.values()
+        ),
+        tombstones=(),
+    )
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=keyword_index,
+        readiness=StaticReadiness(ready_report(vector_ok=True, can_embed_without_download=True)),
+        vector_store=vector_store,
+        text_embeddings=embeddings,
+    )
+
+    response = service.search(
+        query_text="Body",
+        requested_scope=catalog.default_scope(),
+        since=date(2026, 11, 10),
+        until=date(2026, 11, 10),
+        trace=True,
+    )
+
+    expected = frozenset({("default", "multi-0")})
+    assert [query.chunk_keys for query in keyword_index.queries] == [expected]
+    assert [query.chunk_keys for query in vector_store.queries] == [expected]
+    assert response.stage_trace is not None
+    assert {entry.chunk_id for entry in response.stage_trace.signal_ranks} == {"multi-0"}
+    assert response.candidate_count == 2
+
+
+def test_sqlite_keyword_index_searches_only_the_given_chunks(tmp_path: Path) -> None:
+    _dated_store(tmp_path)
+    index = SQLiteKeywordIndex(tmp_path / "metadata.sqlite3")
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+
+    inside = index.search(
+        KeywordQuery(query_text="Body", scope=scope, limit=1, chunk_keys=frozenset({("default", "multi-0")}))
+    )
+    nothing = index.search(KeywordQuery(query_text="Body", scope=scope, limit=5, chunk_keys=frozenset()))
+    everything = index.search(KeywordQuery(query_text="Body", scope=scope, limit=5))
+
+    assert [hit.chunk_id for hit in inside] == ["multi-0"]
+    assert nothing == ()
+    assert len(everything) == 3
+
+
+def test_chroma_vector_store_searches_only_the_given_chunks(tmp_path: Path) -> None:
+    store = ChromaVectorStore(tmp_path / "chroma", initialize=True)
+    first = make_vector_record(vault_id="default", path="wiki/first.md", text="exact query", content_scope="wiki")
+    second = make_vector_record(vault_id="default", path="wiki/second.md", text="other words", content_scope="wiki")
+    store.apply_vector_revision(vector_index_revision="vector-1", records=(first, second), tombstones=())
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+    query = make_vector_query(text="exact query", scope=scope, limit=1)
+
+    inside = store.search(replace(query, chunk_keys=frozenset({("default", second.chunk_id)})))
+    nothing = store.search(replace(query, chunk_keys=frozenset()))
+
+    assert [hit.chunk_id for hit in inside] == [second.chunk_id]
+    assert nothing == ()
+
+
+def test_metadata_store_reads_the_range_in_the_given_time_zone(tmp_path: Path) -> None:
+    store, _ = _dated_store(tmp_path)
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+
+    utc = store.chunk_keys_in_date_range(scope, since=date(2026, 11, 2), until=date(2026, 11, 2), timezone=UTC)
+    seoul = store.chunk_keys_in_date_range(
+        scope, since=date(2026, 11, 2), until=date(2026, 11, 2), timezone=ZoneInfo("Asia/Seoul")
+    )
+    open_ended = store.chunk_keys_in_date_range(scope, since=None, until=None, timezone=UTC)
+
+    assert utc == DatedChunkKeys(chunk_keys=frozenset({("default", "early-0")}), undated_count=1)
+    assert seoul == DatedChunkKeys(chunk_keys=frozenset(), undated_count=1)
+    assert open_ended.chunk_keys == frozenset({("default", "early-0"), ("default", "multi-0")})
+
+
+def test_search_without_date_range_does_not_look_up_dates(tmp_path: Path) -> None:
+    DateLookupSpyStore.date_lookups = 0
+    store = DateLookupSpyStore(tmp_path / "metadata.sqlite3", initialize=True)
+    _dated_store(tmp_path)
+    keyword_index = RecordingKeywordIndex(tmp_path / "metadata.sqlite3")
+    catalog = _catalog(tmp_path)
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=keyword_index,
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+    )
+
+    response = service.search(query_text="Body", requested_scope=catalog.default_scope(), trace=True)
+
+    assert DateLookupSpyStore.date_lookups == 0
+    assert [query.chunk_keys for query in keyword_index.queries] == [None]
+    assert len(response.results) == 3
+    assert _date_warnings(response) == []
+
+
+def test_search_request_rejects_since_after_until(tmp_path: Path) -> None:
+    store, _ = _dated_store(tmp_path)
+    service, catalog = _date_service(tmp_path, store)
+
+    with pytest.raises(DateArgumentError):
+        service.search(
+            query_text="Body", requested_scope=catalog.default_scope(), since=date(2026, 11, 5), until=date(2026, 11, 4)
+        )

@@ -95,7 +95,12 @@ class ChromaVectorStore(VectorStore):
             raise VectorStoreError(str(exc)) from exc
 
     def search(self, query: VectorQuery) -> tuple[VectorHit, ...]:
+        chunk_keys = query.chunk_keys
+        if chunk_keys is not None and not chunk_keys:
+            return ()
         try:
+            # The predicate runs on each record's metadata before any distance is computed, so the chunk key set
+            # limits the candidates themselves, not a cut of a longer list (spec 2026-11-16 D9, R3).
             matches = self._store.search(
                 _collection_spec(query.embedding_spec),
                 query.query_vector.values,
@@ -103,6 +108,7 @@ class ChromaVectorStore(VectorStore):
                 predicate=lambda metadata: (
                     _metadata_in_scope(metadata, query.scope)
                     and (not query.source_roles or str(metadata["source_role"]) in query.source_roles)
+                    and (chunk_keys is None or (str(metadata["vault_id"]), str(metadata["chunk_id"])) in chunk_keys)
                 ),
                 tie_key=lambda metadata, record_id: (str(metadata["vault_id"]), str(metadata["chunk_id"]), record_id),
                 vector_id_batch_size=self._query_batch_size(),

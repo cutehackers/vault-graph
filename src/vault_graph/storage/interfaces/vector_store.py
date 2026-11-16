@@ -102,6 +102,9 @@ class VectorQuery:
     limit: int
     embedding_spec: EmbeddingModelSpec
     source_roles: tuple[DocumentRole, ...] = ()
+    # (vault_id, chunk_id) pairs the hits must come from, ranked and limited inside that set (spec 2026-11-16 D9).
+    # None searches every vector. An empty set finds nothing.
+    chunk_keys: frozenset[tuple[str, str]] | None = None
 
     def __post_init__(self) -> None:
         if self.limit <= 0:

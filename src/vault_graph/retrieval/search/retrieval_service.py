@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from vault_graph.errors import (
     KeywordIndexError,
@@ -44,7 +44,12 @@ from vault_graph.retrieval.search.search_response import (
     SearchWarning,
 )
 from vault_graph.storage.interfaces.keyword_index import KeywordHit, KeywordIndex, KeywordQuery
-from vault_graph.storage.interfaces.metadata_store import MetadataStore
+from vault_graph.storage.interfaces.metadata_store import (
+    ChunkKey,
+    DatedChunkKeys,
+    DateRangeChunkLookup,
+    MetadataStore,
+)
 from vault_graph.storage.interfaces.text_embeddings import EmbeddingVector, TextEmbeddings
 from vault_graph.storage.interfaces.vector_store import VectorHit, VectorQuery, VectorStore
 
@@ -56,6 +61,8 @@ DEFAULT_CONTEXT_NEIGHBOR_RADIUS = 1
 CANDIDATES_PER_RESULT = 4
 MIN_CANDIDATES = 20
 CANDIDATE_REFILL_FACTOR = 4
+# Spec 2026-11-16 longmemeval-session-memory D11, F6: notes about a date range, not a degraded search.
+DATE_RANGE_WARNING_CODES = ("date_unknown_excluded", "date_range_empty")
 # Spec 2026-11-05 §10.2 원인1: knowledge mode reads source pages too and ranks them with a role weight
 # (candidate_ranking.SEARCH_MODE_ROLE_WEIGHTS). Raw evidence, sessions included, stays in evidence mode.
 SEARCH_MODE_ROLES: dict[SearchMode, tuple[DocumentRole, ...]] = {
@@ -125,10 +132,16 @@ class RetrievalService:
         mode: SearchMode = "knowledge",
         include_retired: bool = False,
         trace: bool = False,
+        since: date | None = None,
+        until: date | None = None,
     ) -> SearchResponse:
         """Search the scope. ``trace`` adds ``SearchResponse.stage_trace`` for the evaluation tool (spec
         2026-11-11 §4.1.2). It only records ranks the search computes anyway, so results and their order do
-        not change."""
+        not change.
+
+        ``since``·``until`` (inclusive, this computer's time zone) keep only chunks whose time range overlaps
+        them, before keyword and vector candidates are ranked (spec 2026-11-16 D9, D10). Undated chunks are left
+        out and counted in a ``date_unknown_excluded`` warning (D11). Without them the search is as before (I5)."""
         normalized_query = query_text.strip()
         graph_requested_scope = _requested_scope_for_search(
             requested_scope=requested_scope,
@@ -146,6 +159,8 @@ class RetrievalService:
             mode=mode,
             include_retired=include_retired,
             trace=trace,
+            since=since,
+            until=until,
         )
         return self._search_request(request)
 
@@ -157,19 +172,26 @@ class RetrievalService:
             raise fatal
         warnings = list(_warnings_for_readiness(readiness, request.actual_scopes))
         query_vector = self._query_vector(request=request, readiness=readiness, warnings=warnings)
+        dated = self._dated_chunk_keys(request)
+        chunk_keys = None if dated is None else dated.chunk_keys
         refilled = False
         for refill in (False, True):
             refilled = refill
             round_warnings: list[SearchWarning] = []
-            keyword_candidates = self._keyword_candidates(request=request, candidate_limit=candidate_limit)
+            keyword_candidates = self._keyword_candidates(
+                request=request, candidate_limit=candidate_limit, chunk_keys=chunk_keys
+            )
             vector_candidates = self._vector_candidates(
                 request=request,
                 candidate_limit=candidate_limit,
                 readiness=readiness,
                 query_vector=query_vector,
                 warnings=round_warnings,
+                chunk_keys=chunk_keys,
             )
             graph_result = self._graph_candidates(request=request, candidate_limit=candidate_limit)
+            if chunk_keys is not None:
+                graph_result = replace(graph_result, candidates=_inside(graph_result.candidates, chunk_keys))
             signal_candidates = keyword_candidates + vector_candidates + graph_result.candidates
             candidates = fuse_candidates(candidates=signal_candidates)
             results, passages, dropped, missing_warnings = self._evidence_results.resolve_results(
@@ -215,6 +237,8 @@ class RetrievalService:
             request=request,
             warnings=warnings,
         )
+        if dated is not None:
+            warnings.extend(_date_range_warnings(request, dated, result_count=len(limited_results)))
         return SearchResponse(
             query_text=request.query_text,
             requested_scope=request.requested_scope,
@@ -225,7 +249,7 @@ class RetrievalService:
             dropped_candidate_count=dropped,
             results=limited_results,
             warnings=tuple(warnings),
-            degraded=bool(warnings),
+            degraded=any(warning.code not in DATE_RANGE_WARNING_CODES for warning in warnings),
             store_revisions=readiness.store_revisions + graph_result.store_revisions,
             generated_at=datetime.now(UTC).isoformat(),
             result_family_duplication=family_duplication(results),
@@ -310,7 +334,31 @@ class RetrievalService:
             )
         return tuple(expanded)
 
-    def _keyword_candidates(self, *, request: SearchRequest, candidate_limit: int) -> tuple[RetrievalCandidate, ...]:
+    def _dated_chunk_keys(self, request: SearchRequest) -> DatedChunkKeys | None:
+        """Chunks in the request's date range across its scopes. None when the request has no range."""
+        if request.since is None and request.until is None:
+            return None
+        if not isinstance(self._metadata_store, DateRangeChunkLookup):
+            raise SearchError("date_filter_unavailable: the metadata store cannot look up chunk times")
+        keys: set[ChunkKey] = set()
+        undated = 0
+        try:
+            for scope in request.actual_scopes:
+                found = self._metadata_store.chunk_keys_in_date_range(
+                    scope,
+                    since=request.since,
+                    until=request.until,
+                    source_roles=SEARCH_MODE_ROLES[request.mode],
+                )
+                keys.update(found.chunk_keys)
+                undated += found.undated_count
+        except MetadataStoreError as exc:
+            raise SearchError(f"metadata_unavailable: {exc}. Run `vg index`.") from exc
+        return DatedChunkKeys(chunk_keys=frozenset(keys), undated_count=undated)
+
+    def _keyword_candidates(
+        self, *, request: SearchRequest, candidate_limit: int, chunk_keys: frozenset[ChunkKey] | None
+    ) -> tuple[RetrievalCandidate, ...]:
         per_scope: list[tuple[KeywordHit, ...]] = []
         try:
             for scope in request.actual_scopes:
@@ -322,6 +370,7 @@ class RetrievalService:
                             limit=candidate_limit,
                             source_roles=SEARCH_MODE_ROLES[request.mode],
                             with_matched_fields=False,
+                            chunk_keys=chunk_keys,
                         )
                     )
                 )
@@ -330,7 +379,7 @@ class RetrievalService:
         # Spec 2026-11-05 §10.2 원인4: one keyword table holds every Vault, so bm25 scores (lower is better)
         # compare across scopes and give one ranking for the whole scope.
         hits = _merge_scope_hits(per_scope, limit=candidate_limit, score_sign=1.0)
-        return tuple(candidate_from_keyword_hit(hit) for hit in hits)
+        return _inside(tuple(candidate_from_keyword_hit(hit) for hit in hits), chunk_keys)
 
     def _vector_candidates(
         self,
@@ -340,6 +389,7 @@ class RetrievalService:
         readiness: SearchReadinessReport,
         query_vector: EmbeddingVector | None,
         warnings: list[SearchWarning],
+        chunk_keys: frozenset[ChunkKey] | None = None,
     ) -> tuple[RetrievalCandidate, ...]:
         if self._vector_store is None or self._text_embeddings is None or query_vector is None:
             return ()
@@ -356,6 +406,7 @@ class RetrievalService:
                             limit=candidate_limit,
                             embedding_spec=self._text_embeddings.model_spec(),
                             source_roles=SEARCH_MODE_ROLES[request.mode],
+                            chunk_keys=chunk_keys,
                         )
                     )
                 )
@@ -364,7 +415,7 @@ class RetrievalService:
             return ()
         # Spec 2026-11-05 §10.2 원인4: cosine similarity (higher is better) compares across Vaults.
         hits = _merge_scope_hits(per_scope, limit=candidate_limit, score_sign=-1.0)
-        return tuple(candidate_from_vector_hit(hit) for hit in hits)
+        return _inside(tuple(candidate_from_vector_hit(hit) for hit in hits), chunk_keys)
 
     def _query_vector(
         self,
@@ -414,6 +465,45 @@ def _merge_scope_hits[Hit: (KeywordHit, VectorHit)](
         key=lambda entry: entry[:5],
     )
     return tuple(replace(entry[5], rank=rank) for rank, entry in enumerate(ordered[:limit], start=1))
+
+
+def _inside(
+    candidates: tuple[RetrievalCandidate, ...], chunk_keys: frozenset[ChunkKey] | None
+) -> tuple[RetrievalCandidate, ...]:
+    """Drop candidates outside the date range. The stores already search inside it; this also covers graph
+    candidates and a store that ignores the key set."""
+    if chunk_keys is None:
+        return candidates
+    return tuple(candidate for candidate in candidates if (candidate.vault_id, candidate.chunk_id) in chunk_keys)
+
+
+def _date_range_warnings(request: SearchRequest, dated: DatedChunkKeys, *, result_count: int) -> list[SearchWarning]:
+    """Spec 2026-11-16 D11, F6: one note for the undated chunks left out, one for an empty result."""
+    affected = _affected_vault_ids(request.actual_scopes)
+    span = f"{request.since or '…'}..{request.until or '…'}"
+    warnings: list[SearchWarning] = []
+    if dated.undated_count:
+        warnings.append(
+            SearchWarning(
+                code="date_unknown_excluded",
+                message=(
+                    f"{dated.undated_count} chunks without a date (wiki pages and other undated files) were left out "
+                    f"of the date range {span}"
+                ),
+                severity="info",
+                affected_vault_ids=affected,
+            )
+        )
+    if result_count == 0:
+        warnings.append(
+            SearchWarning(
+                code="date_range_empty",
+                message=f"No dated results in {span}",
+                severity="info",
+                affected_vault_ids=affected,
+            )
+        )
+    return warnings
 
 
 def _reranker_warning(request: SearchRequest, code: str, detail: str) -> SearchWarning:

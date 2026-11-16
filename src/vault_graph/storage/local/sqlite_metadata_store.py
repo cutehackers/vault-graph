@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, cast
 
@@ -15,6 +15,8 @@ from vault_graph.indexing.ingestion.document_snapshots import ALL_CHUNK_KINDS, C
 from vault_graph.indexing.ingestion.session_group import session_group_key
 from vault_graph.operation.scope.vault_catalog import QueryScope
 from vault_graph.storage.interfaces.metadata_store import (
+    ChunkKey,
+    DatedChunkKeys,
     DocumentState,
     EvidenceLookupKey,
     EvidenceReference,
@@ -476,6 +478,79 @@ class SQLiteMetadataStore:
             for row in rows
             if _path_in_content_scope(path=str(row["path"]), content_scopes=scope.content_scopes)
         )
+
+    def chunk_keys_in_date_range(
+        self,
+        scope: QueryScope,
+        *,
+        since: date | None,
+        until: date | None,
+        source_roles: tuple[DocumentRole, ...] = (),
+        timezone: tzinfo | None = None,
+    ) -> DatedChunkKeys:
+        """Live chunks in ``scope`` whose ``started_at``..``ended_at`` touches a day in ``since``..``until``.
+
+        Spec 2026-11-16 longmemeval-session-memory D9, D10, D11. Both ends are inclusive and either may be None. The
+        stored times are ISO strings, UTC unless they carry an offset. They are read as days in ``timezone``
+        (None: this computer's zone), so "last week" means the user's calendar week. SQL first keeps rows whose
+        UTC date is within a day of the range, since no zone moves a time by more than a day; Python then
+        compares the local days. A chunk without both times, or with a time that does not parse, is undated and
+        only counted.
+        """
+        if not scope.vault_ids or not self._database_path.exists():
+            return DatedChunkKeys(chunk_keys=frozenset(), undated_count=0)
+        vault_placeholders = ", ".join("?" for _ in scope.vault_ids)
+        path_clause, path_args = _chunk_path_scope_clause(scope.content_scopes)
+        role_clause = f"c.source_role IN ({', '.join('?' for _ in source_roles)})" if source_roles else "1"
+        base = f"""
+            FROM chunks c
+            INNER JOIN documents d
+              ON d.vault_id = c.vault_id
+             AND d.document_id = c.document_id
+             AND d.path = c.path
+            WHERE c.vault_id IN ({vault_placeholders})
+              AND d.is_tombstoned = 0
+              AND ({path_clause})
+              AND ({role_clause})
+        """
+        base_args: tuple[object, ...] = (*scope.vault_ids, *path_args, *source_roles)
+        with self._connect() as connection:
+            chunk_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(chunks)").fetchall()}
+            if not {"started_at", "ended_at"} <= chunk_columns:
+                row = connection.execute(f"SELECT COUNT(*) AS n {base}", base_args).fetchone()
+                return DatedChunkKeys(chunk_keys=frozenset(), undated_count=int(row["n"]))
+            undated = connection.execute(
+                f"SELECT COUNT(*) AS n {base} AND (c.started_at IS NULL OR c.ended_at IS NULL)", base_args
+            ).fetchone()
+            window_clauses: list[str] = []
+            window_args: list[object] = []
+            if since is not None:
+                window_clauses.append("substr(c.ended_at, 1, 10) >= ?")
+                window_args.append((since - timedelta(days=1)).isoformat())
+            if until is not None:
+                window_clauses.append("substr(c.started_at, 1, 10) <= ?")
+                window_args.append((until + timedelta(days=1)).isoformat())
+            window = " AND ".join(window_clauses) or "1"
+            rows = connection.execute(
+                f"""
+                SELECT c.vault_id, c.chunk_id, c.started_at, c.ended_at {base}
+                  AND c.started_at IS NOT NULL AND c.ended_at IS NOT NULL
+                  AND ({window})
+                """,
+                (*base_args, *window_args),
+            ).fetchall()
+        keys: set[ChunkKey] = set()
+        unparsed = 0
+        for row in rows:
+            started = _local_day(str(row["started_at"]), timezone)
+            ended = _local_day(str(row["ended_at"]), timezone)
+            if started is None or ended is None:
+                unparsed += 1
+                continue
+            first, last = min(started, ended), max(started, ended)
+            if (since is None or last >= since) and (until is None or first <= until):
+                keys.add((str(row["vault_id"]), str(row["chunk_id"])))
+        return DatedChunkKeys(chunk_keys=frozenset(keys), undated_count=int(undated["n"]) + unparsed)
 
     def list_document_chunks(
         self,
@@ -1101,6 +1176,29 @@ def _chunk_kind(raw_value: object) -> ChunkKind:
 
 def _path_in_content_scope(*, path: str, content_scopes: tuple[str, ...]) -> bool:
     return any(path == content_scope or path.startswith(f"{content_scope}/") for content_scope in content_scopes)
+
+
+def _chunk_path_scope_clause(content_scopes: tuple[str, ...]) -> tuple[str, tuple[object, ...]]:
+    clauses: list[str] = []
+    params: list[object] = []
+    for content_scope in content_scopes:
+        prefix = f"{content_scope}/"
+        clauses.append("(c.path = ? OR substr(c.path, 1, ?) = ?)")
+        params.extend((content_scope, len(prefix), prefix))
+    if not clauses:
+        return "0", ()
+    return " OR ".join(clauses), tuple(params)
+
+
+def _local_day(value: str, timezone: tzinfo | None) -> date | None:
+    """The day of an ISO time in ``timezone`` (None: this computer's zone). A time without an offset is UTC."""
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.astimezone(timezone).date()
 
 
 def _content_scope_sql_filter(content_scopes: tuple[str, ...]) -> tuple[str, tuple[object, ...]]:
