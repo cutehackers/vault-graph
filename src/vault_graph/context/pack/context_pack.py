@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Literal
 
 from vault_graph.errors import ContextPackError
@@ -254,10 +255,15 @@ class ContextPackRequest:
     retrieval_limit: int = DEFAULT_CONTEXT_RETRIEVAL_LIMIT
     include_graph: bool = False
     include_cross_vault: bool = False
+    # Spec 2026-11-16 D10, D12: inclusive dates passed on to the search. Either may be None.
+    since: date | None = None
+    until: date | None = None
 
     def __post_init__(self) -> None:
         if not self.goal.strip():
             raise ContextPackError("goal is required")
+        if self.since is not None and self.until is not None and self.since > self.until:
+            raise ContextPackError("since must not be after until")
         if self.retrieval_limit <= 0:
             raise ContextPackError("retrieval_limit must be positive")
         if self.include_cross_vault != self.requested_scope.include_cross_vault:

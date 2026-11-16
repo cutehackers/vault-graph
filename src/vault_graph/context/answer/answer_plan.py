@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import date
 
 from vault_graph.context.answer.answer_response import AnswerEvidence, AnswerMode, AnswerReasoningStep, AnswerWarning
 from vault_graph.errors import AnswerError
@@ -18,10 +19,15 @@ class AnswerRequest:
     include_cross_vault: bool = False
     retrieval_limit: int = 10
     max_evidence_tokens: int = 8000
+    # Spec 2026-11-16 D10, D12: inclusive dates passed on to the search. Either may be None.
+    since: date | None = None
+    until: date | None = None
 
     def __post_init__(self) -> None:
         if not self.question.strip():
             raise AnswerError("question is required")
+        if self.since is not None and self.until is not None and self.since > self.until:
+            raise AnswerError("since must not be after until")
         if self.mode != "evidence-first":
             raise AnswerError(f"unsupported answer mode: {self.mode}")
         if not 1 <= self.retrieval_limit <= 50:
