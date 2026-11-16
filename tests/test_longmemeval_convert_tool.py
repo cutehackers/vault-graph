@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -66,6 +67,9 @@ def test_load_questions_reads_the_longmemeval_s_shape(tmp_path: Path) -> None:
     assert [session.haystack_id for session in question.sessions] == ["sharegpt_x_0", "answer_1"]
     assert question.sessions[1].date == "2023/05/21 (Sun) 10:05"
     assert question.sessions[0].turns[0] == ("assistant", "Hello again.")
+    # The question date is kept as written and read as a calendar day (spec 2026-11-16 D15, A11).
+    assert question.question_date == "2023/05/30 (Tue) 23:40"
+    assert question.asked_on == date(2023, 5, 30)
 
 
 def test_load_questions_keeps_the_first_of_repeated_session_ids(tmp_path: Path) -> None:
@@ -93,6 +97,8 @@ def test_load_questions_keeps_the_first_of_repeated_session_ids(tmp_path: Path) 
         ({"answer_session_ids": "answer_1"}, "answer_session_ids"),
         ({"haystack_sessions": [[{"role": "system", "content": "x"}], []]}, "role"),
         ({"question": 3}, "question"),
+        ({"question_date": 3}, "question_date"),
+        ({"question_date": "2023-05-30"}, "question date"),
     ],
 )
 def test_load_questions_rejects_a_broken_entry(tmp_path: Path, fields: dict[str, object], message: str) -> None:
