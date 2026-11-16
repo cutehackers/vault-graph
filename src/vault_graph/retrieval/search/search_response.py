@@ -105,6 +105,10 @@ class SearchRequest:
     # Spec 2026-11-16 longmemeval-session-memory D21, I6: False leaves session fact chunks out of the candidates,
     # so the search is the same as before fact attachments.
     include_fact_keys: bool = True
+    # Spec 2026-11-16 longmemeval-session-memory D31: with a range, True keeps only in-range results (and adds the
+    # `date_unknown_excluded`/`date_range_empty` notes). False puts in-range results first and fills the rest of
+    # the limit from the same search without the range. Without a range it changes nothing.
+    date_strict: bool = False
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

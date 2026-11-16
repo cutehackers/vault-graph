@@ -17,6 +17,7 @@ from tests.test_vector_store_contract import make_query as make_vector_query
 from tests.test_vector_store_contract import make_record as make_vector_record
 from vault_graph.errors import SearchError
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot
+from vault_graph.indexing.ingestion.session_facts_chunker import SESSION_FACTS_VERSION
 from vault_graph.indexing.vector_index_adapter import stable_vector_id
 from vault_graph.operation.readiness.search_readiness import SearchReadinessReport, SearchScopeReadiness
 from vault_graph.operation.scope.vault_catalog import QueryScope, VaultCatalog, VaultCatalogEntry
@@ -1052,13 +1053,19 @@ def _date_warnings(response: SearchResponse) -> list[SearchWarning]:
     return [warning for warning in response.warnings if warning.code.startswith("date_")]
 
 
-def test_date_range_keeps_overlapping_exchanges_and_counts_undated_ones(tmp_path: Path, seoul_time_zone: None) -> None:
+def test_strict_date_range_keeps_overlapping_exchanges_and_counts_undated_ones(
+    tmp_path: Path, seoul_time_zone: None
+) -> None:
     store, _ = _dated_store(tmp_path)
     service, catalog = _date_service(tmp_path, store)
 
     # The multi-day exchange overlaps 2026-11-10 although it starts and ends outside that day.
     response = service.search(
-        query_text="Body", requested_scope=catalog.default_scope(), since=date(2026, 11, 10), until=date(2026, 11, 10)
+        query_text="Body",
+        requested_scope=catalog.default_scope(),
+        since=date(2026, 11, 10),
+        until=date(2026, 11, 10),
+        date_strict=True,
     )
 
     assert _paths(response) == ["wiki/multi.md"]
@@ -1075,13 +1082,13 @@ def test_date_range_ends_are_inclusive_in_this_computers_time_zone(tmp_path: Pat
 
     # 2026-11-02T20:00Z is 2026-11-03 in Seoul: the UTC date would match 11-02 instead.
     on_local_day = service.search(
-        query_text="Body", requested_scope=scope, since=date(2026, 11, 3), until=date(2026, 11, 3)
+        query_text="Body", requested_scope=scope, since=date(2026, 11, 3), until=date(2026, 11, 3), date_strict=True
     )
     on_utc_day = service.search(
-        query_text="Body", requested_scope=scope, since=date(2026, 11, 2), until=date(2026, 11, 2)
+        query_text="Body", requested_scope=scope, since=date(2026, 11, 2), until=date(2026, 11, 2), date_strict=True
     )
-    until_only = service.search(query_text="Body", requested_scope=scope, until=date(2026, 11, 3))
-    since_only = service.search(query_text="Body", requested_scope=scope, since=date(2026, 11, 11))
+    until_only = service.search(query_text="Body", requested_scope=scope, until=date(2026, 11, 3), date_strict=True)
+    since_only = service.search(query_text="Body", requested_scope=scope, since=date(2026, 11, 11), date_strict=True)
 
     assert _paths(on_local_day) == ["wiki/early.md"]
     assert _paths(on_utc_day) == []
@@ -1090,13 +1097,17 @@ def test_date_range_ends_are_inclusive_in_this_computers_time_zone(tmp_path: Pat
     assert _paths(since_only) == ["wiki/multi.md"]
 
 
-def test_empty_date_range_returns_no_results_with_info_warning(tmp_path: Path, seoul_time_zone: None) -> None:
+def test_strict_empty_date_range_returns_no_results_with_info_warning(tmp_path: Path, seoul_time_zone: None) -> None:
     store, _ = _dated_store(tmp_path)
     # Vector search reported ready but not configured, so no other warning marks the search degraded.
     service, catalog = _date_service(tmp_path, store, vector_ok=True)
 
     response = service.search(
-        query_text="Body", requested_scope=catalog.default_scope(), since=date(2025, 1, 1), until=date(2025, 1, 31)
+        query_text="Body",
+        requested_scope=catalog.default_scope(),
+        since=date(2025, 1, 1),
+        until=date(2025, 1, 31),
+        date_strict=True,
     )
 
     assert response.results == ()
@@ -1150,6 +1161,7 @@ def test_date_range_builds_keyword_and_vector_candidates_inside_the_range(
         since=date(2026, 11, 10),
         until=date(2026, 11, 10),
         trace=True,
+        date_strict=True,
     )
 
     expected = frozenset({("default", "multi-0")})
@@ -1235,3 +1247,171 @@ def test_search_request_rejects_since_after_until(tmp_path: Path) -> None:
         service.search(
             query_text="Body", requested_scope=catalog.default_scope(), since=date(2026, 11, 5), until=date(2026, 11, 4)
         )
+
+
+# Spec 2026-11-16 longmemeval-session-memory D30, D31 (A6): fact dates widen the range, in-range results come first.
+
+_FACT_DAY = "2025-06-01"
+
+
+def _dated_store_with_fact(tmp_path: Path) -> tuple[SQLiteMetadataStore, dict[str, ChunkSnapshot]]:
+    """`_dated_store` plus a session fact dated 2025-06-01 that points at the early exchange (`s1:e1`)."""
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    early = make_document("default", "wiki/early.md", "early")
+    multi = make_document("default", "wiki/multi.md", "multi")
+    undated = make_document("default", "wiki/undated.md", "undated")
+    facts = make_document("default", "wiki/early.facts.md", "facts")
+    chunks = {
+        "early": replace(
+            make_chunk("default", early.document_id, early.path, chunk_id="early-0", text="Body early"),
+            started_at=_EARLY[0],
+            ended_at=_EARLY[1],
+            parent_key="s1:e1",
+        ),
+        "multi": replace(
+            make_chunk("default", multi.document_id, multi.path, chunk_id="multi-0", text="Body multi"),
+            started_at=_MULTI_DAY[0],
+            ended_at=_MULTI_DAY[1],
+            parent_key="s2:e1",
+        ),
+        "undated": make_chunk("default", undated.document_id, undated.path, chunk_id="undated-0", text="Body plain"),
+        "fact": replace(
+            make_chunk("default", facts.document_id, facts.path, chunk_id="fact-0", text="moved to Busan"),
+            chunker_version=SESSION_FACTS_VERSION,
+            parent_key="s1:e1",
+            started_at=f"{_FACT_DAY}T00:00:00Z",
+            ended_at=f"{_FACT_DAY}T23:59:59Z",
+        ),
+    }
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[early, multi, undated, facts],
+        chunks=list(chunks.values()),
+        tombstones=[],
+    )
+    return store, chunks
+
+
+def test_metadata_store_range_includes_exchanges_whose_fact_date_is_inside(tmp_path: Path) -> None:
+    store, _ = _dated_store_with_fact(tmp_path)
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+
+    on_fact_day = store.chunk_keys_in_date_range(scope, since=date(2025, 6, 1), until=date(2025, 6, 1), timezone=UTC)
+    # The fact's date is a calendar day, not a moment: a zone east of UTC does not move it to the next day.
+    next_day_in_seoul = store.chunk_keys_in_date_range(
+        scope, since=date(2025, 6, 2), until=date(2025, 6, 2), timezone=ZoneInfo("Asia/Seoul")
+    )
+    outside = store.chunk_keys_in_date_range(scope, since=date(2025, 7, 1), until=date(2025, 7, 1), timezone=UTC)
+
+    assert on_fact_day == DatedChunkKeys(
+        chunk_keys=frozenset({("default", "early-0"), ("default", "fact-0")}), undated_count=1
+    )
+    assert next_day_in_seoul.chunk_keys == frozenset()
+    assert outside.chunk_keys == frozenset()
+
+
+def test_strict_date_range_finds_exchange_by_its_fact_date(tmp_path: Path, seoul_time_zone: None) -> None:
+    store, _ = _dated_store_with_fact(tmp_path)
+    service, catalog = _date_service(tmp_path, store)
+
+    # The early exchange happened on 2026-11-03, its fact on 2025-06-01.
+    response = service.search(
+        query_text="Body",
+        requested_scope=catalog.default_scope(),
+        since=date(2025, 6, 1),
+        until=date(2025, 6, 1),
+        date_strict=True,
+    )
+
+    assert _paths(response) == ["wiki/early.md"]
+
+
+def test_date_range_puts_in_range_results_first_and_fills_with_the_rest(tmp_path: Path, seoul_time_zone: None) -> None:
+    store, _ = _dated_store(tmp_path)
+    service, catalog = _date_service(tmp_path, store, vector_ok=True)
+    scope = catalog.default_scope()
+
+    unranged = service.search(query_text="Body", requested_scope=scope)
+    ranged = service.search(
+        query_text="Body", requested_scope=scope, since=date(2026, 11, 10), until=date(2026, 11, 10)
+    )
+
+    rest = [path for path in _paths(unranged) if path != "wiki/multi.md"]
+    assert _paths(ranged) == ["wiki/multi.md", *rest]
+    assert [result.rank for result in ranged.results] == [1, 2, 3]
+    assert len({result.result_id for result in ranged.results}) == 3
+    # Without strict mode no date note is added and the search is not degraded.
+    assert _date_warnings(ranged) == []
+    assert ranged.degraded is False
+
+
+def test_date_range_without_in_range_results_returns_the_unranged_search(tmp_path: Path, seoul_time_zone: None) -> None:
+    store, _ = _dated_store(tmp_path)
+    service, catalog = _date_service(tmp_path, store)
+    scope = catalog.default_scope()
+
+    unranged = service.search(query_text="Body", requested_scope=scope)
+    ranged = service.search(query_text="Body", requested_scope=scope, since=date(2025, 1, 1), until=date(2025, 1, 31))
+
+    assert _paths(ranged) == _paths(unranged)
+    assert _date_warnings(ranged) == []
+
+
+def test_date_range_keeps_the_limit_and_skips_the_fill_when_in_range_results_fill_it(
+    tmp_path: Path, seoul_time_zone: None
+) -> None:
+    store, _ = _dated_store(tmp_path)
+    catalog = _catalog(tmp_path)
+    keyword_index = RecordingKeywordIndex(tmp_path / "metadata.sqlite3")
+    service = RetrievalService(
+        catalog=catalog,
+        metadata_store=store,
+        keyword_index=keyword_index,
+        readiness=StaticReadiness(ready_report(vector_ok=False)),
+    )
+
+    response = service.search(
+        query_text="Body",
+        requested_scope=catalog.default_scope(),
+        limit=1,
+        since=date(2026, 11, 10),
+        until=date(2026, 11, 10),
+    )
+
+    assert _paths(response) == ["wiki/multi.md"]
+    assert [query.chunk_keys for query in keyword_index.queries] == [frozenset({("default", "multi-0")})]
+
+
+def test_fill_skips_other_exchanges_of_a_session_already_in_range(tmp_path: Path, seoul_time_zone: None) -> None:
+    store = SQLiteMetadataStore(tmp_path / "metadata.sqlite3", initialize=True)
+    first = replace(make_document("default", "wiki/s1-part1.md", "p1"), frontmatter=_SESSION_FRONTMATTER)
+    second = replace(make_document("default", "wiki/s1-part2.md", "p2"), frontmatter=_SESSION_FRONTMATTER)
+    store.apply_metadata_revision(
+        index_revision="metadata-1",
+        documents=[first, second],
+        chunks=[
+            replace(
+                make_chunk("default", first.document_id, first.path, chunk_id="p1-0", text="Body one"),
+                started_at=_MULTI_DAY[0],
+                ended_at=_MULTI_DAY[1],
+                parent_key="s1:e1",
+            ),
+            replace(
+                make_chunk("default", second.document_id, second.path, chunk_id="p2-0", text="Body Body two"),
+                started_at=_EARLY[0],
+                ended_at=_EARLY[1],
+                parent_key="s1:e2",
+            ),
+        ],
+        tombstones=[],
+    )
+    service, catalog = _date_service(tmp_path, store)
+
+    response = service.search(
+        query_text="Body", requested_scope=catalog.default_scope(), since=date(2026, 11, 10), until=date(2026, 11, 10)
+    )
+
+    assert _paths(response) == ["wiki/s1-part1.md"]
+
+
+_SESSION_FRONTMATTER = {"schema": "vault-session/v2", "agent": "claude-code", "session_id": "s1"}
