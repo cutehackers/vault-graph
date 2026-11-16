@@ -57,6 +57,9 @@ class LlamaFactExtractor:
             },
             "temperature": 0,
             "stream": False,
+            # Thinking models (Qwen3.5) otherwise reason for thousands of tokens first: about 190 s against
+            # 14 s per session part on this Mac, with a similar number of facts (spec 2026-11-16 D18).
+            "chat_template_kwargs": {"enable_thinking": False},
         }
         url = f"{self.endpoint}/v1/chat/completions"
         request = urllib.request.Request(

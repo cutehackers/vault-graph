@@ -265,6 +265,8 @@ def test_llama_posts_chat_completion_with_schema_to_the_configured_endpoint(fake
         "type": "json_schema",
         "json_schema": {"name": "session_facts", "strict": True, "schema": FACTS_SCHEMA},
     }
+    # Thinking models such as Qwen3.5 would spend thousands of tokens reasoning before the JSON answer.
+    assert body["chat_template_kwargs"] == {"enable_thinking": False}
     prompt = body["messages"][-1]["content"]
     assert body["messages"][-1]["role"] == "user"
     assert "사용자: 물려받은 보석 감정을 어디서 받나요?" in prompt
