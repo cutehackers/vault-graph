@@ -376,7 +376,7 @@ temporal 127문항 중 날짜 범위 표현은 27(21%), 규칙으로 못 푸는 
 - area: 수집
 - basis: X9, X12, I2, I9
 
-명령은 `claude -p --model claude-sonnet-5-5 --json-schema <사실 스키마> --no-session-persistence`이고 `--bare`와 `ANTHROPIC_API_KEY`는 쓰지 않는다. 자식 환경에 `VAULT_GRAPH_FACTS_CHILD=1`을 주면 두 훅이 아무 일 없이 0으로 끝난다. 출력은 사실마다 문장, 날짜, 교환 id이고 세션의 언어를 따른다.
+명령은 `claude -p --model claude-sonnet-5-5 --json-schema <사실 스키마> --no-session-persistence --tools "" --strict-mcp-config`이고 `--bare`와 `ANTHROPIC_API_KEY`는 쓰지 않는다. 자식 세션은 믿을 수 없는 세션 원문을 읽으므로 내장 도구와 MCP 서버를 하나도 주지 않는다(구현 중 2026-11-16 추가). 자식 환경에 `VAULT_GRAPH_FACTS_CHILD=1`을 주면 두 훅이 아무 일 없이 0으로 끝난다. 출력은 사실마다 문장, 날짜, 교환 id이고 세션의 언어를 따른다.
 
 ### D18. 추출기는 설정으로 고르고, 차이가 작을 때만 기본값을 로컬로 바꾼다
 - by: 사람 (brief B "추출기는 고를 수 있게 … 차이가 작을 때만"); 가정 (설정 파일, 차이 기준)
