@@ -1,13 +1,15 @@
-"""Thin Typer adapter for session fact extraction: `vg facts on`, `vg facts off`, `vg facts status`.
+"""Thin Typer adapter for session fact extraction: `vg facts on|off|status|worker`.
 
-Spec 2026-11-16 D18, D19, F13. Extraction is on with `claude` when `configs/facts.json` does not exist. `off`
+Spec 2026-11-16 D16, D18, D19, F13. Extraction is on with `claude` when `configs/facts.json` does not exist. `off`
 writes `enabled: false`. `status` shows the settings in use, the reason a broken file was rejected, and the
-job queue and failure log of the fact worker when they exist.
+job queue and failure log of the fact worker when they exist. `worker` drains the job queue once
+(`interface/composition/adapters/fact_worker.py`); the capture hook starts it detached.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -35,6 +37,12 @@ _EXTRACTOR_OPTION = typer.Option(
     None,
     "--extractor",
     help=f"Fact extractor: {', '.join(FACT_EXTRACTORS)}. Default: keep the saved one, else claude.",
+)
+_CACHE_DIR_OPTION = typer.Option(
+    None, "--cache-dir", help="Fact cache folder. Default: <graph-home>/facts/cache. LongMemEval shares one."
+)
+_LOCK_FD_OPTION = typer.Option(
+    None, "--lock-fd", hidden=True, help="Descriptor of logs/facts-worker.lock, already locked by the starter."
 )
 
 _NOT_INITIALIZED = "graph_home_not_initialized: run `vg init --vault PATH --graph-home PATH` first"
@@ -104,6 +112,39 @@ def status(state: Path = _GRAPH_HOME_OPTION) -> None:
     typer.echo(f"failures: {_count_failures(facts_failures_path(graph_home))} {facts_failures_path(graph_home)}")
 
 
+@facts_app.command("worker")
+def worker(
+    state: Path = _GRAPH_HOME_OPTION, cache_dir: Path | None = _CACHE_DIR_OPTION, lock_fd: int | None = _LOCK_FD_OPTION
+) -> None:
+    """Process the fact job queue until it is empty. Only one worker runs at a time."""
+    try:
+        catalog_service = _catalog_service(state)
+    except VaultGraphError as exc:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        typer.echo(str(exc))
+        raise typer.Exit(1) from exc
+    graph_home = catalog_service.graph_home_path
+    reading = read_facts_settings(facts_settings_path(graph_home))
+    if not reading.settings.enabled:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        typer.echo("facts worker: fact extraction is off; the queue is kept")
+        return
+    # Imported here so `vg search` and the other commands never load the extractor port (spec 2026-11-16 I2).
+    from vault_graph.interface.composition.adapters.fact_worker import run_fact_worker
+
+    run = run_fact_worker(graph_home, reading.settings, cache_dir=cache_dir, lock_fd=lock_fd)
+    if run is None:
+        typer.echo("facts worker: another worker holds logs/facts-worker.lock")
+        return
+    for result in run.results:
+        detail = f" {result.reason}: {result.message}" if result.reason else ""
+        typer.echo(f"facts worker: {result.job} {result.status}{detail}")
+    for name in run.held_back:
+        typer.echo(f"facts worker: {name} waiting for its retry time")
+
+
 def _save(catalog_service: CatalogService, settings_path: Path, settings: FactsSettings) -> None:
     catalog = catalog_service.load_catalog()
     catalog_service.assert_graph_home_write_target_safe(target_path=settings_path, catalog=catalog)
@@ -121,14 +162,14 @@ def _count_queue(queue_dir: Path) -> str:
 
 
 def _count_failures(failures_path: Path) -> str:
-    """Number of recorded failures: entries of a JSON list, or keys of a JSON object."""
+    """Number of entries of the failure log, a JSON list (format in `fact_worker.py`)."""
     try:
         payload = json.loads(failures_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return "0"
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return "unreadable"
-    if isinstance(payload, list | dict):
+    if isinstance(payload, list):
         return str(len(payload))
     return "unreadable"
 
