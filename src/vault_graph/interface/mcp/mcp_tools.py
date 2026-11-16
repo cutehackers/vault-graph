@@ -852,10 +852,11 @@ def register_mcp_tools(
         languages, ask once per language. Example for English pages: "정리해 달라고 하면 어디까지 지워야 해?"
         becomes "cleanup remove every trace".
 
-        ``since`` and ``until`` keep only results dated in that range. Each is a YYYY-MM-DD date, both ends are
-        included, and dates are read in this computer's time zone. Either may be left out. When either is given,
-        results without a date are left out. To search a time span, turn relative dates such as "last week",
-        "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
+        ``since`` and ``until`` give a date range. Each is a YYYY-MM-DD date, both ends are included, and dates
+        are read in this computer's time zone. Either may be left out. The range may describe when a conversation
+        happened or when an event discussed in it happened. Results in the range come first, and the other
+        results, including results without a date, follow. To search a time span, turn relative dates such as
+        "last week", "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
         ``until``, and leave them out of the question. Example: on 2026-11-16, "what did we decide last week about
         search" becomes question "what did we decide about search" with since "2026-11-09" and until "2026-11-15".
 
@@ -898,10 +899,11 @@ def register_mcp_tools(
         language. Example for English pages: "임베딩 기본 모델을 왜 바꿨지?" becomes "default embedding model
         decision". Several narrow searches find more than one broad search.
 
-        ``since`` and ``until`` keep only results dated in that range. Each is a YYYY-MM-DD date, both ends are
-        included, and dates are read in this computer's time zone. Either may be left out. When either is given,
-        results without a date are left out. To search a time span, turn relative dates such as "last week",
-        "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
+        ``since`` and ``until`` give a date range. Each is a YYYY-MM-DD date, both ends are included, and dates
+        are read in this computer's time zone. Either may be left out. The range may describe when a conversation
+        happened or when an event discussed in it happened. Results in the range come first, and the other
+        results, including results without a date, follow. To search a time span, turn relative dates such as
+        "last week", "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
         ``until``, and leave them out of the query. Example: on 2026-11-16, "what did we decide last week about
         search" becomes query "search decision" with since "2026-11-09" and until "2026-11-15".
 
@@ -949,10 +951,11 @@ def register_mcp_tools(
         it into 3 to 4 keywords in the pages' language. When the pages are in several languages, ask once per
         language. Example for English pages: "검색 도구 설명 고치기" becomes "search tool description query".
 
-        ``since`` and ``until`` keep only results dated in that range. Each is a YYYY-MM-DD date, both ends are
-        included, and dates are read in this computer's time zone. Either may be left out. When either is given,
-        results without a date are left out. To search a time span, turn relative dates such as "last week",
-        "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
+        ``since`` and ``until`` give a date range. Each is a YYYY-MM-DD date, both ends are included, and dates
+        are read in this computer's time zone. Either may be left out. The range may describe when a conversation
+        happened or when an event discussed in it happened. Results in the range come first, and the other
+        results, including results without a date, follow. To search a time span, turn relative dates such as
+        "last week", "지난주" or "in May" into YYYY-MM-DD dates counted from today's date, pass them as ``since`` and
         ``until``, and leave them out of the goal. Example: on 2026-11-16, "what did we decide last week about
         search" becomes goal "search decision" with since "2026-11-09" and until "2026-11-15".
 

@@ -228,6 +228,7 @@ def test_date_rules_pass_a_range_only_for_questions_that_resolve(tmp_path: Path)
     assert rows["q1"]["date_range"] == {"since": "2023-05-15", "until": "2023-05-21"}
     assert rows["q2"]["date_range"] is None
     assert summary["date_rules"] is True
+    assert summary["date_strict"] is False
     assert summary["date_range_questions_by_type"] == {"multi-session": 1, "temporal-reasoning": 1}
 
 
@@ -304,6 +305,45 @@ def test_local_search_with_a_range_adds_since_until_and_runs_in_utc(
     [(command, env)] = searches
     assert command == _expected_search(workspace, "--since", "2023-05-15", "--until", "2023-05-21")
     assert env["TZ"] == "UTC"
+
+
+def test_local_search_in_strict_mode_adds_date_strict_only_with_a_range(
+    tmp_path: Path, searches: list[tuple[list[str], dict[str, str]]]
+) -> None:
+    # Spec 2026-11-16 D31: strict mode keeps only in-range results, for comparison with the default fill.
+    workspace = run.Workspace(tmp_path / "q0001")
+    window = DateRange(since=date(2023, 5, 15), until=date(2023, 5, 21))
+    tools = run.LocalTools(vault_builder=tmp_path / "builder", date_strict=True)
+
+    tools.search(workspace, "what did I bake", date_range=window)
+    tools.search(workspace, "what did I bake")
+
+    [(ranged, _), (unranged, _)] = searches
+    assert ranged == _expected_search(workspace, "--since", "2023-05-15", "--until", "2023-05-21", "--date-strict")
+    assert unranged == _expected_search(workspace)
+
+
+def test_strict_date_rules_are_recorded_in_the_summary(tmp_path: Path) -> None:
+    summary = run.main(
+        _date_entries(tmp_path),
+        work_dir=tmp_path / "work",
+        out_dir=tmp_path / "out",
+        tools=RangeTools(),
+        registered=[],
+        date_rules=True,
+        date_strict=True,
+    )
+
+    assert summary["date_strict"] is True
+
+
+def test_the_date_strict_argument_goes_with_date_rules() -> None:
+    base = ["--data", "d.json", "--vault-builder", "b", "--work-dir", "w", "--out-dir", "o"]
+
+    assert run._parse_args([*base, "--date-rules"]).date_strict is False
+    assert run._parse_args([*base, "--date-rules", "--date-strict"]).date_strict is True
+    with pytest.raises(SystemExit):
+        run._parse_args([*base, "--date-strict"])
 
 
 def test_the_date_rules_argument_is_off_by_default_and_the_runner_documents_tz_utc() -> None:

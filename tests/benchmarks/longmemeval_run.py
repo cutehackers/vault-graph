@@ -35,8 +35,10 @@ For each non-abstention question (fixed order, see ``longmemeval_convert.select_
    Only a question that resolves gets ``--since``/``--until``, and its search runs with ``TZ=UTC`` (R4).
    Other questions search as without the option. vg itself never reads a range out of the query (D13);
    this picking lives only in this measurement tool. ``results.jsonl`` then records ``date_range`` per
-   question and ``summary.json`` records ``date_rules`` and ``date_range_questions_by_type``. Without
-   ``--date-rules`` the commands and output are as before.
+   question and ``summary.json`` records ``date_rules``, ``date_strict`` and ``date_range_questions_by_type``.
+   vg puts in-range results first and fills the rest of the top 5 with other results (spec 2026-11-16 D31).
+   ``--date-strict`` (only with ``--date-rules``) adds ``--date-strict`` to a ranged search, so only in-range
+   results stay, for comparison. Without ``--date-rules`` the commands and output are as before.
 4. The question counts as found when the sessions of the top 5 results hold every
    ``answer_session_ids`` entry (recall_all@5); recall_any@5 is recorded too. This is stricter than
    LongMemEval's own session-level recall: several exchanges of one session take several of the 5 places.
@@ -431,6 +433,7 @@ def main(
     facts: str | None = None,
     types: Sequence[str] | None = None,
     ids: Sequence[str] | None = None,
+    date_strict: bool = False,
 ) -> dict[str, object]:
     """Run the questions. ``facts`` names the extractor of a B measurement; the tools must turn it on too."""
     roots = (
@@ -463,6 +466,7 @@ def main(
     if date_rules:
         summary.update(
             date_rules=True,
+            date_strict=date_strict,
             date_range_questions_by_type={
                 name: sum(1 for run in runs if run.question_type == name and run.date_range is not None)
                 for name in sorted({run.question_type for run in runs})
@@ -585,12 +589,14 @@ class LocalTools:
     ``reranker`` names a rerank preset to turn on in each new Graph Home. ``None`` leaves reranking off.
     ``facts`` names the fact extractor of a B measurement and ``facts_cache`` the cache folder every question
     shares. Both or neither: ``None`` writes ``enabled: false`` in each Graph Home (spec 2026-11-16 D19, A25).
+    ``date_strict`` adds ``--date-strict`` to a search that has a date range (spec 2026-11-16 D31).
     """
 
     vault_builder: Path
     reranker: str | None = None
     facts: str | None = None
     facts_cache: Path | None = None
+    date_strict: bool = False
 
     def __post_init__(self) -> None:
         if self.reranker is not None and self.reranker not in RERANK_PRESETS:
@@ -711,6 +717,8 @@ class LocalTools:
             for option, day in (("--since", date_range.since), ("--until", date_range.until)):
                 if day is not None:
                     dates.extend((option, day.isoformat()))
+            if self.date_strict:
+                dates.append("--date-strict")
             env["TZ"] = "UTC"  # R4: the converter writes LongMemEval times, which have no zone, as UTC.
         completed = _run(
             [
@@ -842,6 +850,11 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "Run with TZ=UTC.",
     )
     parser.add_argument(
+        "--date-strict",
+        action="store_true",
+        help="With --date-rules, keep only results in the range instead of filling the top 5 with other results.",
+    )
+    parser.add_argument(
         "--types",
         type=_comma_list,
         help="Comma list of question types: keep only those within the fixed sample of 150 (B pilot).",
@@ -856,6 +869,8 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     arguments = parser.parse_args(argv)
     if (arguments.facts is None) != (arguments.facts_cache is None):
         parser.error("--facts and --facts-cache go together")
+    if arguments.date_strict and not arguments.date_rules:
+        parser.error("--date-strict goes with --date-rules")
     return arguments
 
 
@@ -877,10 +892,12 @@ if __name__ == "__main__":
             reranker=arguments.reranker,
             facts=arguments.facts,
             facts_cache=None if arguments.facts_cache is None else arguments.facts_cache.expanduser().resolve(),
+            date_strict=arguments.date_strict,
         ),
         limit=arguments.limit,
         keep=arguments.keep,
         date_rules=arguments.date_rules,
+        date_strict=arguments.date_strict,
         facts=arguments.facts,
         types=arguments.types,
         ids=arguments.ids,
