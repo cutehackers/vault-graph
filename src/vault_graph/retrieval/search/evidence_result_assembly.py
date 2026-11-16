@@ -7,6 +7,7 @@ from datetime import date
 
 from vault_graph.indexing.ingestion.document_authority import DocumentRole, provenance_paths
 from vault_graph.indexing.ingestion.document_normalizer import ChunkSnapshot, DocumentSnapshot
+from vault_graph.indexing.ingestion.session_group import session_group_key
 from vault_graph.retrieval.evidence.evidence_linking import EvidenceLinker
 from vault_graph.retrieval.search.candidate_ranking import (
     FusedCandidate,
@@ -30,6 +31,9 @@ RETIRED_STATUS = "retired"
 PARENT_GROUPED_WARNING = "parent_grouped"
 DUPLICATE_CONTENT_WARNING = "duplicate_content"
 REPLACED_PAGES_WARNING = "replaced_pages_attached"
+SESSION_EXCHANGES_WARNING = "session_exchanges_attached"
+# Other exchanges of one session attached to its result as evidence references (spec 2026-11-16 D5).
+SESSION_EXCHANGE_LIMIT = 3
 
 ResolvedCandidate = tuple[FusedCandidate, EvidenceReference, str]
 # What makes two session exchanges the same content: the exchange keyword metadata and the `content_hash` of
@@ -46,6 +50,9 @@ class _ParentGroup:
     ``copies`` are the lower-ranked units of the same Vault that hold the same session exchange, and
     ``replaced`` are the lower-ranked pages of this page's `supersedes`/`superseded_by` chain. Both stay
     reachable as extra evidence of this unit's result (spec 2026-11-11 결정17).
+    ``session_exchanges`` are the lower-ranked exchange units of the same session in the same Vault, in
+    rank order (spec 2026-11-16 D2). All are kept so the result can count them. At most
+    ``SESSION_EXCHANGE_LIMIT`` are attached.
     """
 
     item: ResolvedCandidate
@@ -56,6 +63,7 @@ class _ParentGroup:
     duplicates: tuple[str, ...] = ()
     copies: tuple[_ParentGroup, ...] = ()
     replaced: tuple[_ParentGroup, ...] = ()
+    session_exchanges: tuple[_ParentGroup, ...] = ()
 
 
 class EvidenceResultAssembly:
@@ -86,6 +94,9 @@ class EvidenceResultAssembly:
 
         Spec 2026-11-11 결정17: the same session exchange in several files of one Vault returns once, at the
         highest-ranked copy. Folded copies and replaced pages are listed after the result's own evidence.
+
+        Spec 2026-11-16 D2: the exchanges of one session in one Vault return once, at the highest-ranked
+        exchange. Up to three other exchanges are listed after its own evidence and copies.
         """
         dropped = 0
         warnings: list[SearchWarning] = []
@@ -123,6 +134,7 @@ class EvidenceResultAssembly:
         if mode == "knowledge":
             groups = _fold_replacements(groups)
         groups = _fold_exchange_copies(groups, signature=self._exchange_signature)
+        groups = _fold_session_exchanges(groups)
         groups = _fold_duplicate_content(groups, vault_order=vault_order)
         families: dict[tuple[str, str], tuple[EvidenceReference, ...]] = {}
         results = tuple(
@@ -232,11 +244,37 @@ class EvidenceResultAssembly:
                     severity="info",
                 )
             )
+        attached_exchanges = group.session_exchanges[:SESSION_EXCHANGE_LIMIT]
+        if group.session_exchanges:
+            total = len(group.session_exchanges) + 1
+            left_out = len(group.session_exchanges) - len(attached_exchanges)
+            session = session_group_key(group.document.frontmatter) if group.document is not None else None
+            warnings.append(
+                RetrievalWarning(
+                    code=SESSION_EXCHANGES_WARNING,
+                    message=(
+                        f"{total} exchanges of session {session} matched; shown once as the best-ranked exchange "
+                        f"{group.chunk.parent_key}, {len(attached_exchanges)} other exchanges attached as evidence"
+                        + (f", {left_out} left out." if left_out else ".")
+                    ),
+                    severity="info",
+                )
+            )
         result = self._result_for_candidate(
             candidate=candidate, evidence=evidence, summary=summary, rank=rank, families=families
         )
-        # The result's own evidence stays first. Copies and replaced pages follow in rank order.
-        attached = (*(_unit_evidence(copy) for copy in group.copies), *(page.item[1] for page in group.replaced))
+        # The result's own evidence stays first. Copies, replaced pages and the session's other exchanges
+        # (each with its own copies) follow in rank order. They are references only: the summary stays the
+        # best window of this unit (spec 2026-11-16 D5).
+        attached = (
+            *(_unit_evidence(copy) for copy in group.copies),
+            *(page.item[1] for page in group.replaced),
+            *(
+                item
+                for exchange in attached_exchanges
+                for item in (_unit_evidence(exchange), *(_unit_evidence(copy) for copy in exchange.copies))
+            ),
+        )
         return replace(result, evidence=_unique_evidence((evidence, *attached)), warnings=tuple(warnings))
 
     def _result_for_candidate(
@@ -464,6 +502,35 @@ def _fold_exchange_copies(
             continue
         if content is not None:
             seen.append((content, len(kept)))
+        kept.append(group)
+    return tuple(kept)
+
+
+def _fold_session_exchanges(groups: tuple[_ParentGroup, ...]) -> tuple[_ParentGroup, ...]:
+    """Fold the exchange units of one session inside one Vault into the highest-ranked one (spec 2026-11-16 D2).
+
+    The session key is `<agent>:<session_id>` of the unit's document (D3), so the part files of one session
+    fold together. The kept unit keeps its score and place (D4). The lower-ranked exchanges move into its
+    ``session_exchanges``, in rank order. Units of other Vaults, pages, and session files without `agent`
+    or `session_id` stay separate results (F1, F2).
+    """
+    kept: list[_ParentGroup] = []
+    position_by_session: dict[tuple[str, str], int] = {}
+    for group in groups:
+        session = (
+            session_group_key(group.document.frontmatter)
+            if group.chunk.parent_key is not None and group.document is not None
+            else None
+        )
+        if session is None:
+            kept.append(group)
+            continue
+        key = (group.item[0].vault_id, session)
+        position = position_by_session.get(key)
+        if position is not None:
+            kept[position] = replace(kept[position], session_exchanges=(*kept[position].session_exchanges, group))
+            continue
+        position_by_session[key] = len(kept)
         kept.append(group)
     return tuple(kept)
 
