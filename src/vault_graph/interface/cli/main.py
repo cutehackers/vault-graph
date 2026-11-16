@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -83,6 +83,12 @@ from vault_graph.retrieval.search import (
     SearchStoreRevision,
     SearchWarning,
     StoreRevision,
+)
+from vault_graph.retrieval.search.date_expression import (
+    DateArgumentError,
+    DateRange,
+    date_range_from_arguments,
+    resolve_date_expression,
 )
 from vault_graph.retrieval.search.search_response import SearchMode
 from vault_graph.storage.interfaces.metadata_store import EvidenceReference
@@ -889,6 +895,18 @@ def search(
         "--include-retired",
         help="Include retired pages and show each result's status, retired_reason, retired_at and superseded_by.",
     ),
+    since: str | None = typer.Option(
+        None, "--since", help="Keep results dated on or after this local date (YYYY-MM-DD)."
+    ),
+    until: str | None = typer.Option(
+        None, "--until", help="Keep results dated on or before this local date (YYYY-MM-DD)."
+    ),
+    when: str | None = typer.Option(
+        None,
+        "--when",
+        help='Date expression resolved against today, e.g. "last week", "3 days ago", "in May", "지난주". '
+        "Cannot be used with --since or --until.",
+    ),
 ) -> None:
     if all_vaults and vault_id:
         typer.echo("Use either --vault-id or --all-vaults, not both.")
@@ -902,6 +920,7 @@ def search(
     if mode not in {"knowledge", "evidence", "operating", "audit", "all"}:
         typer.echo("unsupported_search_mode")
         raise typer.Exit(1)
+    date_range = _search_date_range(since=since, until=until, when=when)
     config, catalog, service = _exit_on_domain_error(lambda: _search_service(state, include_graph=include_graph))
     selection = _query_selection(
         catalog,
@@ -933,12 +952,35 @@ def search(
             include_cross_vault=include_cross_vault,
             mode=cast(SearchMode, mode),
             include_retired=include_retired,
+            since=None if date_range is None else date_range.since,
+            until=None if date_range is None else date_range.until,
         )
     )
     if output_format == "json":
         typer.echo(json.dumps(_search_response_json(response, selection=selection), sort_keys=True, indent=2))
     else:
         _render_search_response(response, selection=selection)
+
+
+def _local_today() -> date:
+    """Today's date on this computer's calendar: `--when` counts from it (spec 2026-11-16 D10, D13)."""
+    return date.today()
+
+
+def _search_date_range(*, since: str | None, until: str | None, when: str | None) -> DateRange | None:
+    """Turn `--since`/`--until` or `--when` into the search range (spec 2026-11-16 D10, D13, F5).
+
+    A bad argument exits with code 2 and one reason line on stderr. It never falls back to searching without
+    the range."""
+    try:
+        if when is not None:
+            if since is not None or until is not None:
+                raise DateArgumentError("--when cannot be used with --since or --until")
+            return resolve_date_expression(when, _local_today())
+        return date_range_from_arguments(since, until)
+    except DateArgumentError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
 
 
 @app.command("projection-audit")
