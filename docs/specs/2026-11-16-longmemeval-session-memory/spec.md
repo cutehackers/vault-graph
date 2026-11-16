@@ -12,7 +12,7 @@
 | I7 | vault-graph는 Vault 파일을 직접 쓰지 않는다 |  | basis X9, X10, X11 | A19 | global | e58d0c5b | 17-fact-worker.md |
 | I8 | 수집 훅은 사실 추출을 기다리지 않는다 |  | basis X9 | A12 | 수집 | ff209635 | 18-hook-facts.md |
 | I9 | 추출용 Claude 세션은 기억에 닿지 않는다 |  | basis X9, X12 | A13, A14 | 수집 | bcdad32a | 14-fact-extractors.md, 18-hook-facts.md |
-| D1 | A → C → B 순서로 하고 부분마다 따로 잰다 | decided | basis X3, X5 | A21 | global | 23bd7913 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
+| D1 | A → C → B 순서로 구현하고, C는 B 뒤에 개정해 잰다 | decided | basis X3, X5, X24, D30, D31 | A21 | global | bb1f6254 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
 | D2 | 같은 세션의 교환은 가장 높은 교환 결과에 접는다 | decided | basis X1, X2, I4 | A1 | 검색 | aacb69b0 | 1-session-fold.md |
 | D3 | 세션 키는 Vault 안의 `<agent>:<session_id>`다 | proposed | basis X4 | A1 | 검색 | 8b868d3f | 1-session-fold.md |
 | D4 | 접힌 결과는 가장 높은 교환의 점수와 자리를 그대로 쓴다 | proposed | basis X2; depends D2 | A1 | 검색 | 4f990a43 | 1-session-fold.md |
@@ -20,15 +20,17 @@
 | D6 | 세션 단위 결과를 기본 동작으로 한다 | decided | basis X1, X3, X5; depends D2, D24 | A4 | 검색 | 167a0f1b | 2-session-default.md |
 | D7 | LongMemEval 실행기는 기존 채점을 두고 서로 다른 세션 수를 더 적는다 | proposed | basis X3, X5 | A5 | 측정 | 374f295c | 3-lme-session-count.md |
 | D8 | 교환마다 시작·끝 시각을 메타데이터 저장소에 색인한다 | proposed | basis X6, I1 | A3, A7 | 색인 | b58cbf05 | 6-time-columns.md |
-| D9 | 날짜 범위는 후보 단계에서 거른다 | proposed | basis X6, X7, I5; depends D8 | A6 | 검색 | e1ec5515 | 7-date-filter.md |
+| D9 | 범위 안 후보는 후보 단계에서 따로 모은다 | proposed | basis X6, X7, I5, D30, D31; depends D8 | A6 | 검색 | 46d508d6 | 7-date-filter.md, 23-c-event-dates.md |
 | D10 | 날짜 인자는 `since`·`until`, `YYYY-MM-DD`, 양 끝 포함, 이 컴퓨터 시간대다 | decided | basis X7, X8 | A8 | 검색, 인터페이스 | 9229092a | 7-date-filter.md, 9-cli-date-args.md |
-| D11 | 날짜 범위를 주면 날짜 없는 결과는 빼고 경고 하나를 붙인다 | decided | basis X6, X7; depends D9 | A6 | 검색 | 51bdc1dd | 7-date-filter.md |
-| D12 | MCP 도구 설명이 상대 날짜를 오늘 기준 날짜로 바꿔 넘기라고 알린다 | decided | basis X7 | A9 | 인터페이스 | ddb0675c | 8-mcp-date-args.md |
+| D11 | 날짜 범위를 주면 날짜 없는 결과는 범위 밖 결과와 같이 뒤로 간다 | decided | basis X6, X7, D31; depends D9 | A6 | 검색 | 15e1bb54 | 7-date-filter.md, 23-c-event-dates.md |
+| D12 | MCP 도구 설명이 상대 날짜를 오늘 기준 날짜로 바꿔 넘기라고 알린다 | decided | basis X7, D31 | A9 | 인터페이스 | 93da2eb4 | 8-mcp-date-args.md, 23-c-event-dates.md |
 | D13 | CLI는 `--when` 날짜 표현 하나를 고정 규칙으로 푼다 | proposed | basis X14, X15, X17 | A8 | 인터페이스 | 035122fe | 5-date-expression.md, 9-cli-date-args.md |
 | D14 | CLI에 Haiku 상대 날짜 해석을 이번에는 더하지 않는다 | decided | basis X14, X15, X16, X17, X18, I2; depends D13 | A10 | 인터페이스 | 427cc23d | 5-date-expression.md |
+| D30 | 범위 판정은 교환 시각과 그 교환 사실의 사건 날짜를 함께 쓴다 | decided | basis X24, X25, D8, D21; depends D8, D28 | A6 | 검색 | 8a7619ed | 23-c-event-dates.md |
+| D31 | 범위 안 결과를 먼저 채우고 남은 칸은 범위 밖 결과로 채운다 | decided | basis X24, D9, D30, I5; depends D9, D30 | A6 | 검색 | 035207bb | 23-c-event-dates.md |
 | D15 | LongMemEval의 C 측정은 같은 규칙 해석기를 질문 날짜 기준으로 쓴다 | proposed | basis X8, X15; depends D13 | A11 | 측정 | 068b43b3 | 10-lme-date-rules.md |
-| D16 | 수집 뒤 분리된 사실 작업자 하나가 Graph Home 대기열을 처리한다 | proposed | basis X9, I8 | A12 | 수집 | 97ff208b | 17-fact-worker.md, 18-hook-facts.md |
-| D17 | Claude CLI 추출기는 로그인된 Claude Code로 돌고 자식 세션은 훅을 건너뛴다 | decided | basis X9, X12, I2, I9 | A13 | 수집 | d4ceef9d | 14-fact-extractors.md |
+| D16 | 수집 뒤 분리된 사실 작업자 하나가 Graph Home 대기열을 처리한다 | proposed | basis X9, I8 | A12 | 수집 | f733cd55 | 17-fact-worker.md, 18-hook-facts.md |
+| D17 | Claude CLI 추출기는 로그인된 Claude Code로 돌고 자식 세션은 훅을 건너뛴다 | decided | basis X9, X12, I2, I9 | A13 | 수집 | 62bb9f2a | 14-fact-extractors.md |
 | D18 | 추출기는 설정으로 고르고, 차이가 작을 때만 기본값을 로컬로 바꾼다 | proposed | basis X13 | A17, A22 | 수집, 설정 | 49c31d16 | 13-facts-config.md, 22-measure-b.md |
 | D19 | 사실 추출은 기본으로 켜져 있고 `vg facts off`로 끈다 | decided | basis X13; depends D18 | A17, A25 | 설정, 측정 | aed3b1a7 | 13-facts-config.md, 19-lme-facts-args.md |
 | D20 | 추출 결과는 교환 내용 해시로 Graph Home에 캐시한다 | proposed | basis X11, X13 | A16 | 수집, 측정 | d29ba3b5 | 17-fact-worker.md, 19-lme-facts-args.md |
@@ -58,7 +60,7 @@
 | R2 | `build_context_pack`이 붙은 근거마다 본문을 읽으면 토큰이 늘 수 있다 |  | basis D5 |  |  | e636cfdc |  |
 | R3 | 벡터 저장소가 조각 id 집합으로 싸게 거르지 못할 수 있다 |  | basis D9 |  |  | 2a708d39 |  |
 | R4 | LongMemEval 시각은 시간대가 없어 자정 근처 날짜가 하루 밀릴 수 있다 |  | basis X8, D10 |  |  | 45e369cd |  |
-| R5 | C의 LongMemEval 효과는 작을 수 있다 |  | basis X14, D15 |  |  | 405a2922 |  |
+| R5 | C의 LongMemEval 효과는 작을 수 있다 |  | basis X14, D15 |  |  | 03e714b7 |  |
 | R6 | 자식 `claude -p` 세션의 훅 동작을 확인하지 않았다 |  | basis X12, D17 |  |  | 4f35a4cd |  |
 | R7 | B 측정 시간과 사용량 한도가 추정보다 클 수 있다 |  | basis X13, D23 |  |  | 4875e938 |  |
 | R8 | 기준선 실패 분류가 A의 효과를 작게 보일 수 있다 |  | basis X3, D1, D4, D6 |  |  | 241d1fc7 |  |
@@ -68,10 +70,10 @@
 | A3 | 원문 창, 조각 id, 임베딩 입력이 바뀌지 않는다 |  | covers I1, D8 |  |  | 9dfe2593 | 6-time-columns.md, 15-facts-index.md |
 | A4 | 세션 단위 결과는 인자 없이 기본으로 동작한다 |  | covers D6 |  |  | fd8746c3 | 2-session-default.md |
 | A5 | LongMemEval 실행기가 서로 다른 세션 수를 적고 기존 채점은 같다 |  | covers D7 |  |  | 1705fe07 | 3-lme-session-count.md |
-| A6 | 날짜 범위는 후보 단계에서 거르고, 없으면 지금과 같다 |  | covers D9, D11, I5, F6 |  |  | 125ba9ad | 7-date-filter.md |
+| A6 | 범위 안 결과가 먼저 오고, 엄격 모드는 범위 밖을 넣지 않으며, 범위가 없으면 지금과 같다 |  | covers D9, D11, D30, D31, I5, F6 |  |  | 0a4a94e9 | 7-date-filter.md, 23-c-event-dates.md |
 | A7 | 교환 시각은 정한 순서로 읽고, 못 읽으면 비운다 |  | covers D8, F4 |  |  | 3aea14e8 | 6-time-columns.md |
 | A8 | 날짜 인자와 `--when` 규칙이 정한 형식대로 동작한다 |  | covers D10, D13, F5 |  |  | 1fd926e8 | 5-date-expression.md, 8-mcp-date-args.md, 9-cli-date-args.md |
-| A9 | MCP 검색 도구 셋이 날짜 인자와 설명을 갖는다 |  | covers D12 |  |  | 8b409fc7 | 8-mcp-date-args.md |
+| A9 | MCP 검색 도구 셋이 날짜 인자와 설명을 갖는다 |  | covers D12 |  |  | 8b409fc7 | 8-mcp-date-args.md, 23-c-event-dates.md |
 | A10 | CLI 날짜 해석은 모델을 부르지 않는다 |  | covers D14 |  |  | b505ff3e | 5-date-expression.md |
 | A11 | LongMemEval 실행기가 질문 날짜로 범위를 넘길 수 있다 |  | covers D15 |  |  | 5d9bc725 | 10-lme-date-rules.md |
 | A12 | 수집 훅은 작업 파일만 두고 기다리지 않으며 작업자는 하나다 |  | covers D16, I8, F10 |  |  | fc2faca4 | 18-hook-facts.md |
@@ -88,6 +90,13 @@
 | A22 | B 측정은 정한 범위에서 두 추출기를 같은 문항으로 비교한다 |  | covers D23, D18 |  |  | 6d7ea051 | 22-measure-b.md |
 | A23 | vault-builder: 첨부 명령이 정한 형식과 검증을 따른다 |  | covers D25, D26, D27 |  |  | 327f21da | 12-vault-builder-track.md |
 | A24 | B 통합은 vault-builder 결과를 받은 뒤 실제 명령으로 돈다 |  | covers D29 |  |  | a9aa4b28 | 21-b-integration.md |
+| X19 | 기준선 recall은 꺼짐 0.773, 켜짐 0.800이다 |  | basis X20 |  |  | 9c46207c |  |
+| X20 | 마지막 10~11문항은 vault-builder 원본이 바뀌어 다시 돌렸다 |  |  |  |  | 71efbc90 |  |
+| X21 | 상위 5개 결과에 서로 다른 세션은 평균 2.8개뿐이다 |  | basis X19 |  |  | 3d7aac2e |  |
+| X22 | multi-session과 temporal-reasoning 실패의 가장 큰 원인은 같은 세션 교환의 칸 차지와 6~30위다 |  | basis X21, X14 |  |  | af3d48ac |  |
+| X23 | 층1·층2 기준선은 벡터를 새로 만든 Graph Home 사본에서 쟀다 |  |  |  |  | 1a9c08a8 |  |
+| X24 | 세션 날짜로만 거른 C는 LongMemEval에서 나빠졌다 |  | basis X14, X19 |  |  | 07ac8050 |  |
+| X25 | 논문은 세션 날짜가 아니라 LLM이 뽑은 사건 날짜로 값을 색인해 거른다 |  |  |  |  | 4824d9e3 |  |
 | X14 | 날짜 범위 표현은 127문항 중 27문항이다 |  |  |  |  | 19ef6844 |  |
 | X15 | 27문항의 표현은 모두 고정 규칙으로 풀린다 |  | basis X14 |  |  | 33ba8b78 |  |
 | X16 | 규칙으로 풀 수 없는 상대 날짜 표현은 0개다 |  | basis X15 |  |  | 7baefdc5 |  |
@@ -235,13 +244,13 @@ vault-builder 저장소 쪽은 area `vault-builder` 블록이 task이고 이 wor
 
 ## 5. Decisions
 
-### D1. A → C → B 순서로 하고 부분마다 따로 잰다
-- by: 사람 (brief 목표, 2026-11-16)
+### D1. A → C → B 순서로 구현하고, C는 B 뒤에 개정해 잰다
+- by: 사람 (brief 목표, 2026-11-16; C 개정 승인 2026-11-16 "제안방향으로 합니다")
 - status: decided
 - area: global
-- basis: X3, X5
+- basis: X3, X5, X24, D30, D31
 
-A는 LLM이 없고 측정 문제(X3)에 바로 닿는다. B는 사용량과 vault-builder 변경이 필요해 마지막이다. 앞 부분의 측정 결과가 다음 부분의 기준선이다.
+A는 LLM이 없고 측정 문제(X3)에 바로 닿는다. B는 사용량과 vault-builder 변경이 필요해 마지막이다. 앞 부분의 측정 결과가 다음 부분의 기준선이다. 세션 날짜로만 거른 첫 C는 LongMemEval에서 나빠졌으므로(X24) C는 B의 사건 날짜를 쓰도록 고치고(D30, D31) B 시범 문항과 같이 잰다.
 
 ### D2. 같은 세션의 교환은 가장 높은 교환 결과에 접는다
 - by: 사람 (brief A "2번째 이후 교환은 … 추가 근거로 접는다")
@@ -302,14 +311,14 @@ A는 LLM이 없고 측정 문제(X3)에 바로 닿는다. B는 사용량과 vaul
 
 읽는 순서는 교환 메타 줄 `started`·`ended`, frontmatter `first_turn_at`, 파일 이름 날짜(그날 하루)다. 교환 단위라 여러 날 세션도 맞게 거른다. 스키마 판을 올려 메타데이터만 다시 색인한다.
 
-### D9. 날짜 범위는 후보 단계에서 거른다
-- by: 가정 (결과 단계에서 거르면 후보가 범위 밖으로 찰 수 있다)
+### D9. 범위 안 후보는 후보 단계에서 따로 모은다
+- by: 가정 (결과 단계에서 거르면 후보가 범위 밖으로 찰 수 있다); 개정 2026-11-16(D31)
 - status: proposed
 - area: 검색
-- basis: X6, X7, I5
+- basis: X6, X7, I5, D30, D31
 - depends: D8
 
-메타데이터 저장소가 범위와 겹치는 조각 id를 주고, 키워드·벡터 검색이 그 안에서 후보를 만든다. 하루라도 겹치면 남긴다. 후보 수 공식과 refill은 그대로다.
+메타데이터 저장소가 범위 안 조각 id(D30)를 주고, 키워드·벡터 검색이 그 안에서 범위 안 결과를 만든다. 하루라도 겹치면 범위 안이다. 후보 수 공식과 refill은 그대로다. 이 결과를 어떻게 쓰는지는 D31이다.
 
 ### D10. 날짜 인자는 `since`·`until`, `YYYY-MM-DD`, 양 끝 포함, 이 컴퓨터 시간대다
 - by: 사람 (spec gate 2026-11-16: "이대로, 날짜 없는 결과 빼기")
@@ -319,22 +328,22 @@ A는 LLM이 없고 측정 문제(X3)에 바로 닿는다. B는 사용량과 vaul
 
 CLI는 `--since`, `--until`이다. 한쪽만 줘도 된다. 사용자의 "지난주"는 사용자 달력 기준이므로 저장한 UTC 시각을 이 컴퓨터 시간대로 바꿔 비교한다.
 
-### D11. 날짜 범위를 주면 날짜 없는 결과는 빼고 경고 하나를 붙인다
-- by: 사람 (spec gate 2026-11-16: "이대로, 날짜 없는 결과 빼기")
+### D11. 날짜 범위를 주면 날짜 없는 결과는 범위 밖 결과와 같이 뒤로 간다
+- by: 사람 (spec gate 2026-11-16: "이대로, 날짜 없는 결과 빼기"; C 개정 승인 2026-11-16로 D31의 앞세우기가 대신한다)
 - status: decided
 - area: 검색
-- basis: X6, X7
+- basis: X6, X7, D31
 - depends: D9
 
-wiki 페이지처럼 날짜 없는 결과는 빠지고 `date_unknown_excluded` 경고에 개수를 적는다.
+wiki 페이지처럼 날짜 없는 결과는 범위 안 결과 뒤에 온다. `date_unknown_excluded` 경고는 엄격 모드(D31)에서만 붙는다.
 
 ### D12. MCP 도구 설명이 상대 날짜를 오늘 기준 날짜로 바꿔 넘기라고 알린다
 - by: 사람 (brief C, 추가 지시 1 "MCP 경로는 호출 에이전트가 날짜 범위를 채운다")
 - status: decided
 - area: 인터페이스
-- basis: X7
+- basis: X7, D31
 
-세 도구 설명에 "상대 표현은 오늘 날짜로 `since`·`until`을 계산해 넘기고 질의에서는 뺀다"는 문장과 예시 하나를 더한다. MCP 경로는 날짜 표현을 해석하지 않는다.
+세 도구 설명에 "상대 표현은 오늘 날짜로 `since`·`until`을 계산해 넘기고 질의에서는 뺀다"는 문장과 예시 하나를 더한다. 범위는 대화한 시기나 사건이 일어난 시기 모두 가리킬 수 있고, 범위 안 결과가 먼저 오고 나머지가 뒤에 온다고 적는다(D31). MCP 경로는 날짜 표현을 해석하지 않는다.
 
 ### D13. CLI는 `--when` 날짜 표현 하나를 고정 규칙으로 푼다
 - by: 사람 (brief C "CLI에서는 … 규칙으로 해석한다"); 가정 (`--when`, 한국어 규칙)
@@ -352,6 +361,24 @@ wiki 페이지처럼 날짜 없는 결과는 빠지고 `date_unknown_excluded` �
 - depends: D13
 
 temporal 127문항 중 날짜 범위 표현은 27(21%), 규칙으로 못 푸는 것은 0이라 Haiku 이득이 0이다. 지연은 아직 재지 않았다. 실제 사용에서 규칙 실패가 쌓이면 지연을 재고 다시 정한다. 더해도 규칙이 실패한 CLI `--when`에서만 부르고 MCP와 검색 서비스에는 넣지 않는다(I2).
+
+### D30. 범위 판정은 교환 시각과 그 교환 사실의 사건 날짜를 함께 쓴다
+- by: 사람 (C 개정 승인 2026-11-16 "제안방향으로 합니다")
+- status: decided
+- area: 검색
+- basis: X24, X25, D8, D21
+- depends: D8, D28
+
+교환은 그 시각이 범위와 겹치거나, 그 교환을 가리키는 사실 조각(D21) 중 하나의 날짜가 범위 안이면 범위 안이다. 사실 날짜는 추출 프롬프트 규칙대로 일이 일어난 날이고, 없으면 교환 날짜다. 사실 추출을 끈 Vault에서는 교환 시각만 쓴다.
+
+### D31. 범위 안 결과를 먼저 채우고 남은 칸은 범위 밖 결과로 채운다
+- by: 사람 (C 개정 승인 2026-11-16 "제안방향으로 합니다")
+- status: decided
+- area: 검색
+- basis: X24, D9, D30, I5
+- depends: D9, D30
+
+범위를 주면 범위 안 결과(D9)를 순서대로 넣고, 칸이 남으면 범위 없는 같은 검색의 결과 중 아직 없는 것을 순서대로 넣는다. 두 사건을 비교하는 질문에서 범위 밖 정답 세션을 지우지 않기 위해서다. 비교 측정을 위해 범위 밖을 넣지 않는 엄격 모드를 검색 요청과 `vg search --date-strict`에 둔다. 범위가 없으면 지금과 같다(I5).
 
 ### D15. LongMemEval의 C 측정은 같은 규칙 해석기를 질문 날짜 기준으로 쓴다
 - by: 가정 (X15에서 27문항 모두 규칙으로 풀림)
@@ -576,7 +603,7 @@ context pack이 근거를 몇 개까지 펼치는지 확인하지 않았다. 다
 ### R5. C의 LongMemEval 효과는 작을 수 있다
 - basis: X14, D15
 
-범위로 좁힐 수 있는 temporal 문항은 127 중 27이고 150문항 표본에는 더 적다. MCP 경로 효과는 재지 못한다.
+범위로 좁힐 수 있는 temporal 문항은 127 중 27이고 150문항 표본에는 15문항이다. 개정 C는 B 시범 문항 안에서만 잴 수 있어 표본이 더 작다. MCP 경로 효과는 재지 못한다.
 
 ### R6. 자식 `claude -p` 세션의 훅 동작을 확인하지 않았다
 - basis: X12, D17
@@ -635,12 +662,12 @@ LongMemEval은 영어뿐이라 한국어는 단위 테스트로만 확인한다.
 
 같은 입력의 `recall_all_at_5`, `recall_any_at_5`가 변경 전과 같고 세션 수가 문항별·유형별로 적힌다.
 
-### A6. 날짜 범위는 후보 단계에서 거르고, 없으면 지금과 같다
-- covers: D9, D11, I5, F6
+### A6. 범위 안 결과가 먼저 오고, 엄격 모드는 범위 밖을 넣지 않으며, 범위가 없으면 지금과 같다
+- covers: D9, D11, D30, D31, I5, F6
 - check: tests/test_retrieval_service_search.py
 - evidence:
 
-범위와 겹치는 교환만 후보와 결과에 남고, 날짜 없는 결과는 빠지며 `date_unknown_excluded`에 개수가 있다. 결과가 없으면 `date_range_empty`다. 범위가 없으면 후보, 순서, 경고, `stage_trace`가 변경 전과 같다.
+교환 시각이 범위 밖이어도 그 교환의 사실 날짜가 범위 안이면 범위 안 결과다. 범위 안 결과가 먼저 오고 남은 칸은 범위 밖·날짜 없는 결과다. 엄격 모드에서는 범위 안 결과만 남고 날짜 없는 결과는 `date_unknown_excluded`에 개수가 있으며, 결과가 없으면 `date_range_empty`다. 범위가 없으면 후보, 순서, 경고, `stage_trace`가 변경 전과 같다.
 
 ### A7. 교환 시각은 정한 순서로 읽고, 못 읽으면 비운다
 - covers: D8, F4
