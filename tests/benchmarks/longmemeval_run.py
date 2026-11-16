@@ -3,7 +3,8 @@
 Spec 2026-11-11 §4.1.4, A-6, 결정10. Run from the repository root:
   uv run --python 3.12 --all-packages --all-extras python -m tests.benchmarks.longmemeval_run \
     --data <longmemeval_s_cleaned.json> --vault-builder <vault-builder checkout> \
-    --work-dir <new empty folder> --out-dir <out dir> [--limit N] [--keep] [--reranker <preset>] [--date-rules]
+    --work-dir <new empty folder> --out-dir <out dir> [--limit N] [--keep] [--reranker <preset>] [--date-rules] \
+    [--types <type,...>] [--ids <id,...>] [--facts claude|llama-server --facts-cache <shared folder>]
 
 Run measurement commands with ``TZ=UTC`` in front (spec 2026-11-16 R4): LongMemEval dates have no time zone and
 the converter writes them as UTC, while vg compares date ranges on this computer's calendar.
@@ -15,9 +16,18 @@ For each non-abstention question (fixed order, see ``longmemeval_convert.select_
    ``tools/vault_migration/cli.py``. ``vg setup --no-index`` registers it in a new Graph Home. With
    ``--reranker <preset>`` that Graph Home also gets ``configs/reranker.json`` turning reranking on with the
    preset (spec 2026-11-13 D15). Without it no such file is written and search runs as before.
+   Every Graph Home also gets ``configs/facts.json`` (spec 2026-11-16 D19, A25). Without ``--facts`` it says
+   ``enabled: false``, so a run never calls ``claude`` or ``llama-server``. ``--facts <extractor>`` with
+   ``--facts-cache <folder>`` is the B measurement: the file turns facts on with that extractor.
 2. Each haystack session becomes one ``vg-session-jsonl/1`` file outside the Vault, and the Vault's own
    ``tools/wiki/cli.py sessions capture --normalized <file>`` writes it into the Vault. vault-graph
-   never writes Vault files.
+   never writes Vault files. In the B measurement the runner then queues one fact job per captured part and runs
+   ``vg facts worker --graph-home <workspace> --cache-dir <facts cache>`` in the foreground, so the Vault's own
+   ``sessions attach-facts`` writes the attachments before indexing. All questions share the cache folder
+   (D20), so an exchange already extracted is not sent again. ``results.jsonl`` records ``facts`` per question:
+   ``cache_misses`` (new cache entries, the exchanges the extractor was given) and ``attachments_written``.
+   ``summary.json`` records the extractor and both totals. A question whose worker leaves a job in the queue
+   or ends a job other than ``written``, ``exists`` or ``no_facts`` is recorded as an error.
 3. ``vg index --all-vaults`` builds keyword and vector indexes. ``vg search --mode evidence --limit 5``
    runs with the question text. With ``--date-rules`` (spec 2026-11-16 D15) the runner acts as an agent that
    fills in the date range: ``question_date_range`` picks one date expression of research X15 out of the
@@ -36,6 +46,10 @@ For each non-abstention question (fixed order, see ``longmemeval_convert.select_
 
 Each step is timed. ``summary.json`` gives seconds per question, the estimated hours for all 470 questions
 and the scope 결정10 picks: all 470 when they fit in two hours, else the fixed sample of 150.
+
+``--types`` and ``--ids`` (comma lists) restrict the run for the B pilot (spec 2026-11-16 D23): ``--types`` keeps
+questions of those types within the fixed sample of 150, ``--ids`` keeps those question ids, and ``--limit`` then
+takes the first N that are left. ``--types multi-session,temporal-reasoning --limit 20`` is the pilot.
 
 ``work_dir`` must be new or empty, outside this repository and the default Graph Home, and must not be,
 hold or sit inside a Vault in the person's ``vault-map.json`` or default Graph Home catalog. Each
@@ -56,10 +70,10 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 from tests.benchmarks.longmemeval_convert import (
     PROJECT,
@@ -68,9 +82,16 @@ from tests.benchmarks.longmemeval_convert import (
     select_questions,
     write_question_sessions,
 )
+from vault_graph.interface.composition.adapters.fact_queue import enqueue_fact_job, list_fact_jobs
 from vault_graph.interface.composition.adapters.rerank_presets import RERANK_PRESETS
 from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
 from vault_graph.operation.scope.catalog_service import CatalogService
+from vault_graph.operation.scope.facts_settings import (
+    FACT_EXTRACTORS,
+    default_facts_settings,
+    facts_settings_path,
+    save_facts_settings,
+)
 from vault_graph.operation.scope.graph_home import DEFAULT_GRAPH_HOME
 from vault_graph.operation.scope.reranker_selection import (
     RerankerSelection,
@@ -91,6 +112,8 @@ TIME_BUDGET_SECONDS = 2 * 3600
 VAULT_NAME = "lme"
 STEP_TIMEOUT_SECONDS = 1800.0
 STEPS = ("prepare", "convert", "capture", "index", "search")
+FACTS_STEP = "facts"
+_FACT_JOB_DONE = frozenset({"written", "exists", "no_facts"})
 _SESSION_FILE = re.compile(r"(?:^|/)raw/sessions/[^/]+/\d{4}-\d{2}-\d{2}-(?P<id>[0-9a-f-]{36})-part\d+\.md$")
 _VG = (sys.executable, "-c", "from vault_graph.interface.cli.main import app; app()")
 
@@ -144,6 +167,24 @@ class Tools(Protocol):
         ...
 
 
+class FactTools(Tools, Protocol):
+    def extract_facts(self, workspace: Workspace) -> FactCounts:
+        """B measurement only: run the fact worker on the jobs queued by ``capture``."""
+        ...
+
+
+@dataclass(frozen=True)
+class FactCounts:
+    """What one question's fact worker run did (spec 2026-11-16 D20, D23)."""
+
+    cache_misses: int
+    """New entries in the shared cache: the exchanges the extractor was given."""
+    attachments_written: int
+
+    def to_json(self) -> dict[str, int]:
+        return {"cache_misses": self.cache_misses, "attachments_written": self.attachments_written}
+
+
 @dataclass(frozen=True)
 class TopScore:
     top5_sessions: tuple[str, ...]
@@ -166,6 +207,8 @@ class QuestionRun:
     error: str | None = None
     date_rules: bool = False
     date_range: DateRange | None = None
+    facts: bool = False
+    fact_counts: FactCounts | None = None
 
     def to_json(self) -> dict[str, object]:
         row: dict[str, object] = {
@@ -185,6 +228,8 @@ class QuestionRun:
                 if self.date_range is None
                 else {"since": _iso(self.date_range.since), "until": _iso(self.date_range.until)}
             )
+        if self.facts:
+            row["facts"] = None if self.fact_counts is None else self.fact_counts.to_json()
         return row
 
 
@@ -317,6 +362,7 @@ def run_question(
     tools: Tools,
     clock: Callable[[], float] = time.perf_counter,
     date_rules: bool = False,
+    facts: bool = False,
 ) -> QuestionRun:
     seconds: dict[str, float] = {}
     started = clock()
@@ -330,6 +376,7 @@ def run_question(
 
     score: TopScore | None = None
     error: str | None = None
+    fact_counts: FactCounts | None = None
     date_range = question_date_range(question.question, question.asked_on) if date_rules else None
     try:
         tools.prepare(workspace)
@@ -339,6 +386,9 @@ def run_question(
         for path in written.files:
             tools.capture(workspace, path)
         lap("capture")
+        if facts:
+            fact_counts = cast(FactTools, tools).extract_facts(workspace)
+            lap(FACTS_STEP)
         tools.index(workspace)
         lap("index")
         if date_range is None:
@@ -350,7 +400,7 @@ def run_question(
     except (StepError, ValueError, OSError, subprocess.SubprocessError) as exc:
         error = str(exc)[:300]
     seconds["total"] = clock() - started
-    for name in STEPS:
+    for name in (*STEPS, FACTS_STEP) if facts else STEPS:
         seconds.setdefault(name, 0.0)
     return QuestionRun(
         question.question_id,
@@ -361,6 +411,8 @@ def run_question(
         error,
         date_rules=date_rules,
         date_range=date_range,
+        facts=facts,
+        fact_counts=fact_counts,
     )
 
 
@@ -376,12 +428,16 @@ def main(
     default_graph_home: Path = DEFAULT_GRAPH_HOME,
     clock: Callable[[], float] = time.perf_counter,
     date_rules: bool = False,
+    facts: str | None = None,
+    types: Sequence[str] | None = None,
+    ids: Sequence[str] | None = None,
 ) -> dict[str, object]:
+    """Run the questions. ``facts`` names the extractor of a B measurement; the tools must turn it on too."""
     roots = (
         list(registered) if registered is not None else registered_vault_roots(default_graph_home=default_graph_home)
     )
     check_work_dir(work_dir, registered=roots, default_graph_home=default_graph_home)
-    questions = select_questions(load_questions(data), limit=limit)
+    questions = pick_questions(load_questions(data), limit=limit, types=types, ids=ids)
     work_dir.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     runs: list[QuestionRun] = []
@@ -389,7 +445,14 @@ def main(
         for number, question in enumerate(questions, start=1):
             workspace = Workspace(work_dir / f"q{number:04d}")
             try:
-                result = run_question(question, workspace=workspace, tools=tools, clock=clock, date_rules=date_rules)
+                result = run_question(
+                    question,
+                    workspace=workspace,
+                    tools=tools,
+                    clock=clock,
+                    date_rules=date_rules,
+                    facts=facts is not None,
+                )
             finally:
                 if not keep:
                     shutil.rmtree(workspace.root, ignore_errors=True)
@@ -405,9 +468,49 @@ def main(
                 for name in sorted({run.question_type for run in runs})
             },
         )
+    if facts is not None:
+        counted = [run.fact_counts for run in runs if run.fact_counts is not None]
+        summary["facts"] = {
+            "extractor": facts,
+            "cache_misses": sum(counts.cache_misses for counts in counted),
+            "attachments_written": sum(counts.attachments_written for counts in counted),
+        }
+        steps = summary["seconds_by_step_mean"]
+        scored = [run for run in runs if run.score is not None]
+        if isinstance(steps, dict):
+            steps[FACTS_STEP] = (
+                round(statistics.fmean(run.seconds.get(FACTS_STEP, 0.0) for run in scored), 3) if scored else 0.0
+            )
+    if types is not None:
+        summary["types"] = list(types)
+    if ids is not None:
+        summary["ids"] = list(ids)
     summary.update(data_file=data.name, data_sha256=_sha256(data), limit=limit, commit=_repository_commit())
     (out_dir / "summary.json").write_text(json.dumps(summary, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return summary
+
+
+def pick_questions(
+    questions: Sequence[LmeQuestion],
+    *,
+    limit: int | None = None,
+    types: Sequence[str] | None = None,
+    ids: Sequence[str] | None = None,
+) -> tuple[LmeQuestion, ...]:
+    """Questions of the run in the fixed order (spec 2026-11-16 D23).
+
+    Without ``types`` and ``ids`` this is ``select_questions(limit=limit)``. ``types`` keeps the questions of those
+    types within the fixed sample of 150, ``ids`` keeps those ids, and ``limit`` takes the first N that are left.
+    """
+    if types is None and ids is None:
+        return select_questions(questions, limit=limit)
+    pool = select_questions(questions, limit=SAMPLE_QUESTIONS if types is not None else None)
+    kept = [
+        question
+        for question in pool
+        if (types is None or question.question_type in types) and (ids is None or question.question_id in ids)
+    ]
+    return tuple(kept if limit is None else kept[:limit])
 
 
 def summarize(runs: Sequence[QuestionRun]) -> dict[str, object]:
@@ -480,14 +583,22 @@ class LocalTools:
     """Runs vault-builder, the Vault tool and vg as subprocesses inside one workspace.
 
     ``reranker`` names a rerank preset to turn on in each new Graph Home. ``None`` leaves reranking off.
+    ``facts`` names the fact extractor of a B measurement and ``facts_cache`` the cache folder every question
+    shares. Both or neither: ``None`` writes ``enabled: false`` in each Graph Home (spec 2026-11-16 D19, A25).
     """
 
     vault_builder: Path
     reranker: str | None = None
+    facts: str | None = None
+    facts_cache: Path | None = None
 
     def __post_init__(self) -> None:
         if self.reranker is not None and self.reranker not in RERANK_PRESETS:
             raise ValueError(f"unknown rerank preset {self.reranker!r}; choose one of {sorted(RERANK_PRESETS)}")
+        if (self.facts is None) != (self.facts_cache is None):
+            raise ValueError("--facts and --facts-cache go together")
+        if self.facts is not None and self.facts not in FACT_EXTRACTORS:
+            raise ValueError(f"unknown fact extractor {self.facts!r}; choose one of {list(FACT_EXTRACTORS)}")
 
     def prepare(self, workspace: Workspace) -> None:
         for folder in (workspace.config_dir, workspace.project):
@@ -532,6 +643,10 @@ class LocalTools:
             save_reranker_selection(
                 reranker_config_path(workspace.graph_home), RerankerSelection(enabled=True, model=self.reranker)
             )
+        settings = default_facts_settings(self.facts or "claude")
+        if self.facts is None:
+            settings = replace(settings, enabled=False)
+        save_facts_settings(facts_settings_path(workspace.graph_home), settings)
 
     def capture(self, workspace: Workspace, normalized: Path) -> str:
         completed = _run(
@@ -541,10 +656,45 @@ class LocalTools:
             cwd=workspace.project,
             check=False,
         )
-        status = _capture_status(completed.stdout)
+        status, part = _capture_result(completed.stdout)
         if status != "written":
             raise StepError(f"capture {status} for {normalized.name}: {completed.stderr.strip()[-200:]}")
+        if self.facts is not None:
+            # The capture hook queues this job after a real capture; here the runner captures, so it queues it.
+            if part is None:
+                raise StepError(f"capture of {normalized.name} gave no part path")
+            enqueue_fact_job(workspace.graph_home, vault_root=workspace.vault.resolve(), vault=VAULT_NAME, part=part)
         return status
+
+    def extract_facts(self, workspace: Workspace) -> FactCounts:
+        if self.facts is None or self.facts_cache is None:
+            raise StepError("fact extraction is off for this run")
+        before = _cache_entries(self.facts_cache)
+        completed = _run(
+            [
+                *_VG,
+                "facts",
+                "worker",
+                "--graph-home",
+                str(workspace.graph_home),
+                "--cache-dir",
+                str(self.facts_cache),
+            ],
+            label="vg facts worker",
+            env=self._vg_env(workspace),
+            cwd=workspace.project,
+        )
+        statuses = _worker_statuses(completed.stdout)
+        left = list_fact_jobs(workspace.graph_home)
+        unfinished = sorted({status for status in statuses if status not in _FACT_JOB_DONE})
+        if left or unfinished:
+            raise StepError(
+                f"facts worker left {len(left)} jobs, statuses {unfinished}: {completed.stdout.strip()[-300:]}"
+            )
+        return FactCounts(
+            cache_misses=_cache_entries(self.facts_cache) - before,
+            attachments_written=statuses.count("written"),
+        )
 
     def index(self, workspace: Workspace) -> None:
         _run(
@@ -619,14 +769,42 @@ def _run(
 
 
 def _capture_status(stdout: str) -> str:
+    return _capture_result(stdout)[0]
+
+
+def _capture_result(stdout: str) -> tuple[str, str | None]:
+    """Status and part path (relative to the Vault root) of the last JSON line of ``sessions capture --json``."""
     for line in reversed(stdout.splitlines()):
         try:
             payload = json.loads(line)
         except ValueError:
             continue
         if isinstance(payload, dict) and isinstance(payload.get("status"), str):
-            return str(payload["status"])
-    return "unknown"
+            path = payload.get("path")
+            return str(payload["status"]), path if isinstance(path, str) and path else None
+    return "unknown", None
+
+
+def _worker_statuses(stdout: str) -> list[str]:
+    """Job statuses from ``vg facts worker`` lines ``facts worker: <job> <status>[ <reason>: <message>]``.
+
+    A job held back for its retry time prints ``<job> waiting for its retry time`` and counts as ``waiting``.
+    """
+    statuses: list[str] = []
+    for line in stdout.splitlines():
+        if not line.startswith("facts worker: "):
+            continue
+        words = line.removeprefix("facts worker: ").split(" ")
+        if len(words) >= 2 and words[0].endswith(".json"):
+            statuses.append(words[1])
+    return statuses
+
+
+def _cache_entries(cache: Path) -> int:
+    """Entries in the fact cache folder (``<key[:2]>/<key>.json``). Names starting with ``.`` are being written."""
+    if not cache.is_dir():
+        return 0
+    return sum(1 for entry in cache.glob("*/*.json") if not entry.name.startswith("."))
 
 
 def _sha256(path: Path) -> str:
@@ -663,7 +841,29 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="Pass --since/--until for questions whose date expression resolves from the question date. "
         "Run with TZ=UTC.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--types",
+        type=_comma_list,
+        help="Comma list of question types: keep only those within the fixed sample of 150 (B pilot).",
+    )
+    parser.add_argument("--ids", type=_comma_list, help="Comma list of question ids to run.")
+    parser.add_argument(
+        "--facts",
+        choices=list(FACT_EXTRACTORS),
+        help="B measurement: turn session facts on with this extractor in each Graph Home. Needs --facts-cache.",
+    )
+    parser.add_argument("--facts-cache", type=Path, help="Fact cache folder every question shares. Goes with --facts.")
+    arguments = parser.parse_args(argv)
+    if (arguments.facts is None) != (arguments.facts_cache is None):
+        parser.error("--facts and --facts-cache go together")
+    return arguments
+
+
+def _comma_list(value: str) -> tuple[str, ...]:
+    items = tuple(item.strip() for item in value.split(",") if item.strip())
+    if not items:
+        raise argparse.ArgumentTypeError("expected a comma list with at least one item")
+    return items
 
 
 if __name__ == "__main__":
@@ -672,9 +872,17 @@ if __name__ == "__main__":
         arguments.data,
         work_dir=arguments.work_dir,
         out_dir=arguments.out_dir,
-        tools=LocalTools(vault_builder=arguments.vault_builder.expanduser().resolve(), reranker=arguments.reranker),
+        tools=LocalTools(
+            vault_builder=arguments.vault_builder.expanduser().resolve(),
+            reranker=arguments.reranker,
+            facts=arguments.facts,
+            facts_cache=None if arguments.facts_cache is None else arguments.facts_cache.expanduser().resolve(),
+        ),
         limit=arguments.limit,
         keep=arguments.keep,
         date_rules=arguments.date_rules,
+        facts=arguments.facts,
+        types=arguments.types,
+        ids=arguments.ids,
     )
     print(json.dumps(result, sort_keys=True, indent=2))
