@@ -16,9 +16,10 @@ from vault_graph.context.memory.project_memory import ProjectL3List
 from vault_graph.context.pack.context_pack import ContextPack, ContextPackRequest
 from vault_graph.context.pack.context_pack_renderer import DefaultContextPackRenderer
 from vault_graph.errors import MemoryProjectionError
+from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
 from vault_graph.interface.mcp.context_pack_resource_cache import ContextPackResourceCache
 from vault_graph.interface.mcp.mcp_errors import McpProtocolError
-from vault_graph.interface.mcp.mcp_service_factory import McpServices
+from vault_graph.interface.mcp.mcp_service_factory import McpServiceFactory, McpServices
 from vault_graph.interface.mcp.mcp_tools import (
     BuildContextPackInput,
     CheckIndexStatusInput,
@@ -1217,3 +1218,47 @@ def test_read_tool_results_carry_vault_name_and_role(
     for item in items:
         expected = ("main-vault", "project") if item["vault_id"] == "main" else (None, None)
         assert (item["vault_name"], item["vault_role"]) == expected
+
+
+# --- Spec 2026-11-16 A4: `search_vault` folds one session into one result with no new argument ---
+
+
+def test_search_vault_folds_one_session_into_one_result_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.test_cli_search import (
+        SESSION_ONE,
+        SESSION_QUERY,
+        SESSION_TWO,
+        SESSIONS_DIR,
+        _deterministic_text_embeddings,
+        _indexed_session_home,
+    )
+
+    graph_home = _indexed_session_home(tmp_path, monkeypatch, agent=True)
+    monkeypatch.setattr(
+        ReadOnlyServiceFactory, "_search_text_embeddings", lambda _self, config: _deterministic_text_embeddings(config)
+    )
+    factory = McpServiceFactory(graph_home_path=graph_home, vault_map_path=tmp_path / "no-map.json")
+    server = RecordingToolServer()
+    register_mcp_tools(
+        cast(Any, server),
+        services=factory.open_read_only(),
+        service_factory=factory,
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    # Only the existing arguments: the query, the evidence mode, and a folder outside any project.
+    body = cast(dict[str, Any], server.tools["search_vault"](query=SESSION_QUERY, mode="evidence", cwd=str(tmp_path)))
+
+    results = body["payload"]["results"]
+    sessions = sorted(SESSION_ONE if SESSION_ONE in item["evidence"][0]["path"] else SESSION_TWO for item in results)
+    assert sessions == [SESSION_ONE, SESSION_TWO]
+    one = next(item for item in results if SESSION_ONE in item["evidence"][0]["path"])
+    assert {item["path"] for item in one["evidence"]} == {
+        f"{SESSIONS_DIR}/2026-11-01-{SESSION_ONE}-part1.md",
+        f"{SESSIONS_DIR}/2026-11-02-{SESSION_ONE}-part2.md",
+    }
+    assert len(one["evidence"]) == 3
+    assert "session_exchanges_attached" in {warning["code"] for warning in one["warnings"]}
