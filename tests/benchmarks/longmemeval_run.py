@@ -20,6 +20,9 @@ For each non-abstention question (fixed order, see ``longmemeval_convert.select_
 4. The question counts as found when the sessions of the top 5 results hold every
    ``answer_session_ids`` entry (recall_all@5); recall_any@5 is recorded too. This is stricter than
    LongMemEval's own session-level recall: several exchanges of one session take several of the 5 places.
+   ``distinct_sessions_at_5`` records how many different haystack sessions the top 5 hold (spec 2026-11-16 D7),
+   per question in ``results.jsonl``, and ``summary.json`` gives its mean overall and in
+   ``distinct_sessions_at_5_by_type``.
 
 Each step is timed. ``summary.json`` gives seconds per question, the estimated hours for all 470 questions
 and the scope 결정10 picks: all 470 when they fit in two hours, else the fixed sample of 150.
@@ -129,6 +132,11 @@ class TopScore:
     all_in_top5: bool
     any_in_top5: bool
 
+    @property
+    def distinct_sessions(self) -> int:
+        """Different haystack sessions in the top 5 results (spec 2026-11-16 D7)."""
+        return len(self.top5_sessions)
+
 
 @dataclass(frozen=True)
 class QuestionRun:
@@ -147,6 +155,7 @@ class QuestionRun:
             "top5_sessions": list(self.score.top5_sessions) if self.score else None,
             "all_in_top5": self.score.all_in_top5 if self.score else None,
             "any_in_top5": self.score.any_in_top5 if self.score else None,
+            "distinct_sessions_at_5": self.score.distinct_sessions if self.score else None,
             "seconds": {name: round(value, 3) for name, value in self.seconds.items()},
             "error": self.error,
         }
@@ -312,6 +321,10 @@ def summarize(runs: Sequence[QuestionRun]) -> dict[str, object]:
         values = [key(row.score) for row in rows if row.score is not None]
         return round(sum(values) / len(values), 4) if values else None
 
+    def mean_sessions(rows: Sequence[QuestionRun]) -> float | None:
+        values = [row.score.distinct_sessions for row in rows if row.score is not None]
+        return round(statistics.fmean(values), 4) if values else None
+
     by_type: dict[str, dict[str, object]] = {}
     for name in sorted({run.question_type for run in runs}):
         rows = [run for run in runs if run.question_type == name]
@@ -328,6 +341,11 @@ def summarize(runs: Sequence[QuestionRun]) -> dict[str, object]:
         "failed": len(runs) - len(scored),
         "recall_all_at_5": rate(runs, lambda score: score.all_in_top5),
         "recall_any_at_5": rate(runs, lambda score: score.any_in_top5),
+        "distinct_sessions_at_5": mean_sessions(runs),
+        # Kept apart from ``by_type`` so that block reads the same as before the count (spec 2026-11-16 D7).
+        "distinct_sessions_at_5_by_type": {
+            name: mean_sessions([run for run in runs if run.question_type == name]) for name in by_type
+        },
         "by_type": by_type,
         "seconds_per_question": {
             "mean": round(mean, 3),
