@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import PurePosixPath
 from typing import Protocol, cast
 
@@ -58,6 +58,8 @@ class ContextRetrievalService(Protocol):
         output_format: SearchOutputFormat = "text",
         include_graph: bool = False,
         include_cross_vault: bool = False,
+        since: date | None = None,
+        until: date | None = None,
     ) -> SearchResponse: ...
 
 
@@ -147,6 +149,8 @@ class SearchContextPackBuilder:
             output_format="json",
             include_graph=request.include_graph,
             include_cross_vault=request.include_cross_vault,
+            since=request.since,
+            until=request.until,
         )
         _validate_response(request=request, response=response)
         scope = context_scope_from_query_scopes(

@@ -309,6 +309,13 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
     retired_schema = search_input["properties"].pop("include_retired")
     assert retired_schema["default"] is False
     assert "include_retired" not in search_input.get("required", [])
+    # Spec 2026-11-16 D12 adds two optional inputs `since` and `until` to the three search tools (A9).
+    for date_tool in ("ask_vault", "search_vault", "build_context_pack"):
+        date_input = schemas[date_tool]["input"]
+        assert date_input is not None
+        for added in ("since", "until"):
+            assert date_input["properties"].pop(added)["default"] is None
+            assert added not in date_input.get("required", [])
 
     assert len(read_tools) == 11
     digest = hashlib.sha256(json.dumps(schemas, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -1262,3 +1269,164 @@ def test_search_vault_folds_one_session_into_one_result_by_default(
     }
     assert len(one["evidence"]) == 3
     assert "session_exchanges_attached" in {warning["code"] for warning in one["warnings"]}
+
+
+# --- Spec 2026-11-16 D12, F5 (A8, A9): the three search tools take `since`·`until` ---
+
+DATE_TOOLS: tuple[tuple[McpToolName, str, str], ...] = (
+    ("search_vault", "query", "query"),
+    ("ask_vault", "question", "question"),
+    ("build_context_pack", "goal", "goal"),
+)
+
+
+def _date_tool_server(tmp_path: Path) -> tuple[RecordingToolServer, RecordingRetrievalService, Any, Any]:
+    from tests.test_mcp_ask_vault import RecordingAnswerService
+
+    retrieval = RecordingRetrievalService(make_search_response())
+    builder = RecordingContextPackBuilder(replace(make_pack(), pack_id="pack-1"))
+    factory = fake_factory()
+    answer = RecordingAnswerService()
+    factory.answer_service = answer
+    server = RecordingToolServer()
+    register_mcp_tools(
+        server,
+        services=fake_services(tmp_path, retrieval_service=retrieval, context_pack_builder=builder),
+        service_factory=cast(Any, factory),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+    return server, retrieval, builder, answer
+
+
+def _forbid_date_resolver(monkeypatch: pytest.MonkeyPatch) -> None:
+    from vault_graph.retrieval.search import date_expression
+
+    def fail(*args: object, **kwargs: object) -> object:
+        raise AssertionError("the MCP path must not resolve date expressions (D12)")
+
+    monkeypatch.setattr(date_expression, "resolve_date_expression", fail)
+
+
+def test_three_search_tools_pass_since_and_until_to_the_search_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from datetime import date
+
+    _forbid_date_resolver(monkeypatch)
+    server, retrieval, builder, answer = _date_tool_server(tmp_path)
+
+    server.tools["search_vault"](query="search decision", since="2026-11-09", until="2026-11-15")
+    server.tools["ask_vault"](question="search decision", since="2026-11-09")
+    server.tools["build_context_pack"](goal="search decision", until="2026-11-15")
+
+    assert (retrieval.calls[0]["since"], retrieval.calls[0]["until"]) == (date(2026, 11, 9), date(2026, 11, 15))
+    assert (answer.requests[0].since, answer.requests[0].until) == (date(2026, 11, 9), None)
+    assert (builder.requests[0].since, builder.requests[0].until) == (None, date(2026, 11, 15))
+
+
+def test_three_search_tools_without_dates_pass_none(tmp_path: Path) -> None:
+    server, retrieval, builder, answer = _date_tool_server(tmp_path)
+
+    server.tools["search_vault"](query="q")
+    server.tools["ask_vault"](question="q")
+    server.tools["build_context_pack"](goal="g")
+
+    assert (retrieval.calls[0]["since"], retrieval.calls[0]["until"]) == (None, None)
+    assert (answer.requests[0].since, answer.requests[0].until) == (None, None)
+    assert (builder.requests[0].since, builder.requests[0].until) == (None, None)
+
+
+def test_answer_and_context_pack_services_pass_dates_to_retrieval_search(tmp_path: Path) -> None:
+    from datetime import date
+
+    from tests.test_context_pack_builder import StaticResolver, fixed_clock, make_catalog
+    from tests.test_evidence_planner import RecordingRetrievalService as PlannerRetrieval
+    from vault_graph.context.answer.answer_plan import AnswerRequest
+    from vault_graph.context.answer.evidence_planner import EvidencePlanner
+    from vault_graph.context.pack.context_pack_builder import ContextRetrievalService, SearchContextPackBuilder
+
+    scope = make_search_response().requested_scope
+    planner_retrieval = PlannerRetrieval(make_search_response())
+    planner = EvidencePlanner(retrieval_service=planner_retrieval)
+    planner.gather(
+        planner.plan(AnswerRequest(question="q", requested_scope=scope, since=date(2026, 11, 9), until=None))
+    )
+    pack_retrieval = RecordingRetrievalService(make_search_response())
+    SearchContextPackBuilder(
+        catalog=make_catalog(tmp_path),
+        retrieval_service=cast(ContextRetrievalService, pack_retrieval),
+        evidence_resolver=StaticResolver({}),
+        clock=fixed_clock,
+    ).build(ContextPackRequest(goal="g", requested_scope=scope, since=None, until=date(2026, 11, 15)))
+
+    assert (planner_retrieval.calls[0]["since"], planner_retrieval.calls[0]["until"]) == (date(2026, 11, 9), None)
+    assert (pack_retrieval.calls[0]["since"], pack_retrieval.calls[0]["until"]) == (None, date(2026, 11, 15))
+
+
+@pytest.mark.parametrize(("tool_name", "text_arg", "_"), DATE_TOOLS)
+@pytest.mark.parametrize(
+    "dates",
+    [
+        {"since": "2026-13-01"},
+        {"until": "2026/11/15"},
+        {"since": "last week"},
+        {"since": ""},
+        {"until": 20261115},
+        {"since": "2026-11-16", "until": "2026-11-09"},
+    ],
+)
+def test_invalid_date_arguments_are_mcp_input_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tool_name: str, text_arg: str, _: str, dates: dict[str, object]
+) -> None:
+    _forbid_date_resolver(monkeypatch)
+    server, retrieval, builder, answer = _date_tool_server(tmp_path)
+
+    with pytest.raises(McpProtocolError) as exc_info:
+        server.tools[tool_name](**{text_arg: "q"}, **dates)
+
+    assert exc_info.value.kind == "invalid_parameter"
+    assert exc_info.value.payload.code == "invalid_tool_arguments"
+    assert retrieval.calls == [] and builder.requests == [] and answer.requests == []
+
+
+def test_registry_rejects_since_after_until_as_input_error(tmp_path: Path) -> None:
+    from datetime import date
+
+    retrieval = RecordingRetrievalService(make_search_response())
+    registry = _registry(fake_services(tmp_path, retrieval_service=retrieval))
+
+    with pytest.raises(McpProtocolError) as exc_info:
+        registry.search_vault(SearchVaultInput(query="q", since=date(2026, 11, 16), until=date(2026, 11, 9)))
+
+    assert exc_info.value.payload.code == "invalid_tool_arguments"
+    assert retrieval.calls == []
+
+
+def test_three_search_tool_descriptions_say_how_to_pass_relative_dates(tmp_path: Path) -> None:
+    import asyncio
+
+    from mcp.server.fastmcp import FastMCP
+
+    server = FastMCP("description-check")
+    register_mcp_tools(
+        server,
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, fake_factory()),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+
+    for name, text_arg, _ in DATE_TOOLS:
+        description = " ".join((tools[name].description or "").split())
+        assert (
+            'turn relative dates such as "last week", "지난주" or "in May" into YYYY-MM-DD dates counted from '
+            f"today's date, pass them as ``since`` and ``until``, and leave them out of the {text_arg}."
+        ) in description, name
+        assert 'Example: on 2026-11-16, "what did we decide last week about search"' in description, name
+        assert 'since "2026-11-09" and until "2026-11-15"' in description, name
+        for date_arg in ("since", "until"):
+            schema = tools[name].inputSchema["properties"][date_arg]
+            assert schema["default"] is None
+            assert date_arg not in tools[name].inputSchema.get("required", [])
