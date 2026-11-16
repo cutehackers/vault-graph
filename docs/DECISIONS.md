@@ -1004,3 +1004,13 @@ source of truth.
 
 **Implications:** `SESSION_GROUP_VERSION` is `session-group-v3`, so an existing index reads every session file again once. Session recall@5 on the user's questions went from 50 to 54 of 60.
 
+
+## 2026-11-16 - Allow Session Fact Attachments As The Only Machine-Made Vault Content
+
+**Question:** LongMemEval part B extracts dated facts from captured sessions with a model and keeps them next to the session in the Vault. `docs/SPEC.md` principle 1 banned LLM calls and fact extraction, principle 4 and `AGENTS.md` Project Boundary allowed four write paths, `AGENTS.md` banned machine-made content in a Vault, and §9.2 B-2 (5) kept `derived` text out of a Vault (spec `docs/specs/2026-11-16-longmemeval-session-memory/spec.md` D22, research X10).
+
+**Decision:** At the spec gate the user approved "세션 사실 첨부만 예외" (D22). Search, indexing and recall never call an LLM. Only after capture does Vault Graph extract session facts with the logged-in Claude Code or a local model. It is on by default and `vg facts off` turns it off (D19). No API key is used. A fifth write path, fact attachment, runs the Vault command `sessions attach-facts`, which writes the attachment next to the session (contract `docs/contracts/vault-session-facts-v1.md`). The attachment is the only exception to the ban on machine-made content and to B-2 (5).
+
+**Reason:** Facts help find the right session, but they must not become remembered content or let a model into the search path. A narrow exception keeps the rest of the boundary unchanged.
+
+**Implications:** The ban on writing summaries, lists and scores to a Vault stays. Facts are indexed only as a key that leads to the original session, never returned as the answer. The Vault command is built in the vault-builder repository (D25 to D27).

@@ -6,7 +6,7 @@ Vault Graph is a local search and recall layer over Vault. Its indexes are
 rebuildable derived data, not a durable knowledge source. Vault Graph never
 creates, edits, renames, rewrites, or deletes Vault files directly. It changes
 Vault only by running the Vault's own tools, so every change passes Vault's
-validation. There are four such paths:
+validation. There are five such paths:
 
 1. `publish-draft`: `remember`, `update_memory`, and `retire_memory` with
    `basis` `stated` (code in `src/vault_graph/operation/memory/`).
@@ -19,6 +19,11 @@ validation. There are four such paths:
 4. `import-source`: to keep a Claude Code auto-memory note as evidence, Vault
    Graph runs the Vault's `import-source`. The Vault command copies the file.
    Vault Graph never edits, moves, or deletes auto-memory files.
+5. Fact attachment (the Vault command writes it next to the session): after a
+   session is captured, Vault Graph extracts dated facts from it and runs the
+   Vault's `sessions attach-facts`, which writes them as an attachment file
+   next to the session part file (contract
+   `docs/contracts/vault-session-facts-v1.md`).
 
 Search, indexing, watch, and recall never run write paths. Indexing may run
 read-only Vault commands such as `memory-scan --json` and `review list --json`
@@ -26,9 +31,10 @@ and keep their results in Graph Home. Vault Graph never writes to `raw/` itself.
 
 Vault Graph never writes machine-made content (summaries, lists, scores) to a
 Vault. Only content an agent or a person decided goes in, through paths 1, 2,
-and 4. In memory management Vault Graph builds the decision material
-deterministically; the calling agent decides what to remember, update, or
-retire.
+and 4. The session fact attachment is the only exception, and it is indexed
+only as a key to find the original session. In memory management Vault Graph
+builds the decision material deterministically; the calling agent decides what
+to remember, update, or retire.
 
 ## Source Documents
 

@@ -2487,3 +2487,15 @@ indexer regression tests.
 
 **Verification:** Full re-index of every Vault with the embedding cache off, `/usr/bin/time -l`, recorded in the report; unit tests for the default.
 
+
+## 2026-11-16 - Narrow The Principle Sentences To Allow Session Fact Attachments
+
+**Trigger:** The LongMemEval session memory spec (D22, research X10) found that the planned fact extraction contradicted `docs/SPEC.md` principles 1 and 4, §9.2 B-2 (5), and `AGENTS.md` Project Boundary. The user approved the replacement sentences at the spec gate before any fact extraction code.
+
+**Scope:** `docs/SPEC.md` §1 principles 1 and 4 and §9.2 B-2 (5), `AGENTS.md` Project Boundary write paths and machine-made content sentence.
+
+**Core Values Protected:** No model call at search, indexing or recall time. Vault changes only through Vault commands. No summaries, lists or scores written to a Vault.
+
+**Changes Applied:** Principle 1 allows session fact extraction only after capture, with the logged-in Claude Code or a local model, on by default and turned off with `vg facts off`, without an API key. Principle 4 and `AGENTS.md` add a fifth write path, fact attachment through the Vault command `sessions attach-facts`. `AGENTS.md` and B-2 (5) name the session fact attachment as the only exception and index it only as a key to the original session.
+
+**Verification:** Manual comparison of the four places with D22 (spec A20). `tests/test_context_pack_docs_contract.py`, which reads `docs/SPEC.md`, passed.
