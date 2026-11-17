@@ -34,14 +34,14 @@
 | D18 | 추출기는 설정으로 고르고, 차이가 작을 때만 기본값을 로컬로 바꾼다 | proposed | basis X13 | A17, A22 | 수집, 설정 | 49c31d16 | 13-facts-config.md, 22-measure-b.md |
 | D19 | 사실 추출은 기본으로 켜져 있고 `vg facts off`로 끈다 | decided | basis X13; depends D18 | A17, A25 | 설정, 측정 | aed3b1a7 | 13-facts-config.md, 19-lme-facts-args.md |
 | D20 | 추출 결과는 교환 내용 해시로 Graph Home에 캐시한다 | proposed | basis X11, X13 | A16 | 수집, 측정 | d29ba3b5 | 17-fact-worker.md, 19-lme-facts-args.md |
-| D21 | 사실은 원 교환으로 접히는 낮은 가중치 키로만 색인한다 | proposed | basis X1, X10, I1, I3, I6; depends D2, D28 | A18 | 색인, 검색 | c7555edf | 16-facts-search.md |
+| D21 | 사실은 교환마다 확장 키 하나로 색인하고 원 교환으로 접는다 | decided | basis X1, X10, I1, I3, I6, X26, X27, X28, X29; depends D2, D28 | A18 | 색인, 검색 | efeb23d9 | 16-facts-search.md, 24-fact-expansion-key.md |
 | D22 | 원칙 문장을 사실 첨부 하나만 허용하도록 좁게 고친다 | decided | basis X10, I2, I7 | A20 | global | 146a8ac0 | 20-principle-text.md |
 | D23 | B는 시범 20문항으로 먼저 재고, 그 뒤 multi-session·temporal-reasoning 문항으로 넓힌다 | decided | basis X5, X13; depends D20 | A22 | 측정 | 41060f00 | 22-measure-b.md |
 | D24 | 부분마다 세 관문을 넘어야 들인다 | proposed | basis X5, 2026-11-13-cross-encoder-rerank:D17; depends D1 | A21 | 측정 | 29403845 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
 | D25 | vault-builder: Vault 명령 `sessions attach-facts`를 더한다 | decided | basis X11, I7 | A23 | vault-builder | a6296784 | 12-vault-builder-track.md |
 | D26 | vault-builder: 첨부는 세션 part 파일 옆 `<part 이름>.facts.md`다 | decided | basis X4, X11 | A23 | vault-builder | d0fc44b6 | 12-vault-builder-track.md |
 | D27 | vault-builder: 첨부 명령은 원 part 파일과 맞을 때만 쓴다 | decided | basis X11; depends D25, D26 | A23 | vault-builder | e1e4dbb8 | 12-vault-builder-track.md |
-| D28 | vault-builder 계약: vault-graph는 `vault-session-facts/v1` 첨부를 이렇게 읽는다 | proposed | basis X4, X6, I1; depends D26 | A18 | vault-builder, 색인 | 5e841adc | 15-facts-index.md |
+| D28 | vault-builder 계약: vault-graph는 `vault-session-facts/v1` 첨부를 이렇게 읽는다 | proposed | basis X4, X6, I1, D21; depends D26 | A18 | vault-builder, 색인 | 2b9f1b45 | 15-facts-index.md, 24-fact-expansion-key.md |
 | D29 | vault-builder task는 별도 세션이 하고, 이 세션은 결과를 기다려 B를 통합한다 | decided | basis X11; depends D25, D26, D27, D28 | A24 | vault-builder, global | f3d8e06f | 21-b-integration.md |
 | F1 | 한 세션이 여러 Vault에 있다 |  | basis D3 | A1 |  | 984c30b4 | 1-session-fold.md |
 | F2 | 세션 파일에 `agent`나 `session_id`가 없다 |  | basis D3 | A1 |  | 597c4149 | 1-session-fold.md |
@@ -83,7 +83,7 @@
 | A16 | 작업자는 실패를 기록하고 캐시로 다시 부르지 않는다 |  | covers D20, F7, F8, F9 |  |  | 32245f7c | 17-fact-worker.md |
 | A17 | 추출기 설정과 켜고 끄기가 정한 대로 동작한다 |  | covers D18, D19, F13 |  |  | a85325bd | 13-facts-config.md, 18-hook-facts.md |
 | A25 | 테스트와 LongMemEval 실행기는 실제 추출기를 부르지 않는다 |  | covers D19 |  |  | ba627286 | 17-fact-worker.md, 19-lme-facts-args.md |
-| A18 | 사실 키는 원 교환을 돌려주고 빼는 모드에서는 지금과 같다 |  | covers D21, D28, I3, I6, F12 |  |  | c8a3ac70 | 16-facts-search.md |
+| A18 | 사실 키는 원 교환을 돌려주고 빼는 모드에서는 지금과 같다 |  | covers D21, D28, I3, I6, F12 |  |  | c8a3ac70 | 16-facts-search.md, 24-fact-expansion-key.md |
 | A19 | 사실 첨부는 Vault 명령으로만 쓰고 수집한 Vault에 간다 |  | covers I7 |  |  | a42532bd | 17-fact-worker.md |
 | A20 | 원칙 문장이 승인된 문장으로 바뀐다 |  | covers D22 |  |  | a1696d78 | 20-principle-text.md |
 | A21 | A, C, B 각각이 세 관문을 넘는다 |  | covers D1, D24 |  |  | 5ee43a63 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
@@ -97,6 +97,10 @@
 | X23 | 층1·층2 기준선은 벡터를 새로 만든 Graph Home 사본에서 쟀다 |  |  |  |  | 1a9c08a8 |  |
 | X24 | 세션 날짜로만 거른 C는 LongMemEval에서 나빠졌다 |  | basis X14, X19 |  |  | 07ac8050 |  |
 | X25 | 논문은 세션 날짜가 아니라 LLM이 뽑은 사건 날짜로 값을 색인해 거른다 |  |  |  |  | 4824d9e3 |  |
+| X26 | 사실이 있는 40문항에서 가중치 0.5는 거의 효과가 없고 1.0 이상에서 오른다 |  | basis X22 |  |  | 16ce6819 |  |
+| X27 | 논문에서는 사실을 원문과 한 키로 합칠 때가 따로 색인해 순위를 합칠 때보다 훨씬 낫다 |  |  |  |  | 3272c2d7 |  |
+| X28 | 문서 확장은 일반 기법이고, 생성 문장의 잡음을 줄이면 더 낫다 |  |  |  |  | a1b2bab3 |  |
+| X29 | 가중치를 두는 순위 합치기는 자기 데이터로 맞출 수 있을 때만 쓰고 기본은 같은 무게다 |  |  |  |  | 91d53cdc |  |
 | X14 | 날짜 범위 표현은 127문항 중 27문항이다 |  |  |  |  | 19ef6844 |  |
 | X15 | 27문항의 표현은 모두 고정 규칙으로 풀린다 |  | basis X14 |  |  | 33ba8b78 |  |
 | X16 | 규칙으로 풀 수 없는 상대 날짜 표현은 0개다 |  | basis X15 |  |  | 7baefdc5 |  |
@@ -430,14 +434,14 @@ Graph Home `configs/facts.json`은 `version`, `enabled`, `extractor`(`claude`, `
 
 키는 (추출기, 모델, 스키마 판, 교환 내용 해시)다. 새 part에 다시 나온 교환은 다시 부르지 않는다. LongMemEval은 캐시 폴더를 실행기 인자로 넘겨 문항 사이에 같이 쓴다.
 
-### D21. 사실은 원 교환으로 접히는 낮은 가중치 키로만 색인한다
-- by: 사람 (brief B "추가 키로만 색인"); 가정 (B-2 (1)~(4)를 따른다)
-- status: proposed
+### D21. 사실은 교환마다 확장 키 하나로 색인하고 원 교환으로 접는다
+- by: 사람 (brief B "추가 키로만 색인"; 2026-11-17 확장 키 방식 승인 "권장안으로 선택합니다")
+- status: decided
 - area: 색인, 검색
-- basis: X1, X10, I1, I3, I6
+- basis: X1, X10, I1, I3, I6, X26, X27, X28, X29
 - depends: D2, D28
 
-사실 하나가 `parent_key` `<session_id>:<exchange_id>`인 `derived` 조각 하나이고, 가중치는 keyword·vector보다 낮게 시작한다. 사실만 맞은 단위는 원 교환의 첫 창으로 바꿔 발췌와 근거를 원문에서 가져온다(그때만 좁게 한 번 읽는다). `include_fact_keys=false`면 `derived`를 후보에서 뺀다.
+교환 하나의 사실들을 그 교환의 사용자 질문 제목과 묶어 `parent_key` `<session_id>:<exchange_id>`인 확장 키 조각 하나로 만든다(키 합치기, X27). 사실마다 따로 조각을 만들면 비슷한 주제의 사실들이 후보 자리를 나눠 갖는다. 가중치는 원문과 같은 1.0이다(X29). 처음 정한 0.5는 측정에서 효과가 거의 없었다(X26). 확장 키의 시각은 그 교환 사실 날짜의 처음과 끝이다. 사실만 맞은 단위는 원 교환의 첫 창으로 바꿔 발췌와 근거를 원문에서 가져온다(그때만 좁게 한 번 읽는다). `include_fact_keys=false`면 `derived`를 후보에서 뺀다.
 
 ### D22. 원칙 문장을 사실 첨부 하나만 허용하도록 좁게 고친다
 - by: 사람 (brief "바꿔야 하는 원칙 문장"; spec gate 2026-11-16: "세션 사실 첨부만 예외")
@@ -497,10 +501,10 @@ vault-builder 저장소 task다. part 없음, sha256 불일치, 다른 `session_
 - by: 사람 (추가 지시 2 "vault-graph가 읽는 방법"); 가정 (계약 내용)
 - status: proposed
 - area: vault-builder, 색인
-- basis: X4, X6, I1
+- basis: X4, X6, I1, D21
 - depends: D26
 
-계약 문서는 `docs/contracts/vault-session-facts-v1.md`다. vault-graph는 `schema`로 첨부를 알아보고 세션 묶음 규칙에는 넣지 않으며, 줄마다 `derived` 조각 하나를 만든다(`parent_key`는 원 교환, 시각은 줄 날짜). 모르는 판은 경고 하나와 함께 색인하지 않는다.
+계약 문서는 `docs/contracts/vault-session-facts-v1.md`다. vault-graph는 `schema`로 첨부를 알아보고 세션 묶음 규칙에는 넣지 않으며, 교환마다 확장 키 조각 하나를 만든다(D21. `parent_key`는 원 교환, 시각은 그 교환 사실 날짜의 처음과 끝). 사용자 질문 제목은 `source`의 part 파일에서 읽는다. 모르는 판은 경고 하나와 함께 색인하지 않는다.
 
 ### D29. vault-builder task는 별도 세션이 하고, 이 세션은 결과를 기다려 B를 통합한다
 - by: 사람 (추가 지시 2, 2026-11-16)
