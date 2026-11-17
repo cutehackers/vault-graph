@@ -16,7 +16,7 @@ D1, D18, D23, D24, A21, A22
 - docs/design/reports/2026-11-longmemeval-session-memory.md
 
 ## blockers
-11, 12, 21, 23
+11, 12, 21, 23, 24
 
 ## checks
 - 수동: B의 마지막 코드 커밋에서 정한 문항으로 `longmemeval_run`을 사실 추출 꺼짐, Claude, `llama-server`로 돌려 유형별 recall을 본다
