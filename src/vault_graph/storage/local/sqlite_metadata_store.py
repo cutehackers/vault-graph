@@ -552,10 +552,14 @@ class SQLiteMetadataStore:
             unparsed = 0
             for row in rows:
                 if row["chunker_version"] == SESSION_FACTS_VERSION:
-                    day = _fact_day(str(row["started_at"]))
-                    if day is None:
+                    # A fact key spans its exchange's first to last fact day, read as calendar days (D21, D30).
+                    first_day = _fact_day(str(row["started_at"]))
+                    last_day = _fact_day(str(row["ended_at"]))
+                    if first_day is None or last_day is None:
                         unparsed += 1
-                    elif (since is None or day >= since) and (until is None or day <= until):
+                    elif (since is None or max(first_day, last_day) >= since) and (
+                        until is None or min(first_day, last_day) <= until
+                    ):
                         keys.add((str(row["vault_id"]), str(row["chunk_id"])))
                         if row["parent_key"] is not None:
                             fact_exchanges.setdefault(str(row["vault_id"]), set()).add(str(row["parent_key"]))
