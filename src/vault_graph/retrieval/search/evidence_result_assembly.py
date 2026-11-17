@@ -104,7 +104,7 @@ class EvidenceResultAssembly:
         exchange. Up to three other exchanges are listed after its own evidence and copies.
 
         Spec 2026-11-16 D21, I3, F12: a session fact chunk is a key for its original exchange. Its fused score
-        is lowered by ``FACT_KEY_WEIGHT`` and it groups with the exchange's windows by ``parent_key``. A unit
+        is multiplied by ``FACT_KEY_WEIGHT`` and it groups with the exchange's windows by ``parent_key``. A unit
         matched only by facts shows the exchange's first window instead (`_fact_source_window`). When that
         window is not in the index the unit is dropped with a ``fact_source_missing`` warning. Fact text is
         never a summary, title or evidence. With ``include_fact_keys`` False fact chunks are skipped.
