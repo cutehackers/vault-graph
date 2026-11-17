@@ -1415,3 +1415,19 @@ def test_fill_skips_other_exchanges_of_a_session_already_in_range(tmp_path: Path
 
 
 _SESSION_FRONTMATTER = {"schema": "vault-session/v2", "agent": "claude-code", "session_id": "s1"}
+
+
+def test_metadata_store_range_matches_a_fact_key_by_any_day_of_its_span(tmp_path: Path) -> None:
+    """A fact key spans its exchange's first to last fact day (D21), so a range on the last day finds it."""
+    store, chunks = _dated_store_with_fact(tmp_path)
+    spanning = replace(chunks["fact"], started_at="2025-05-20T00:00:00Z", ended_at=f"{_FACT_DAY}T23:59:59Z")
+    facts = make_document("default", "wiki/early.facts.md", "facts")
+    store.apply_metadata_revision(index_revision="metadata-2", documents=[facts], chunks=[spanning], tombstones=[])
+    scope = QueryScope(vault_ids=("default",), content_scopes=("wiki",))
+
+    last_day = store.chunk_keys_in_date_range(scope, since=date(2025, 6, 1), until=date(2025, 6, 1), timezone=UTC)
+    before = store.chunk_keys_in_date_range(scope, since=date(2025, 5, 1), until=date(2025, 5, 19), timezone=UTC)
+
+    assert ("default", "fact-0") in last_day.chunk_keys
+    assert ("default", "early-0") in last_day.chunk_keys
+    assert ("default", "fact-0") not in before.chunk_keys
