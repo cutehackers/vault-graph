@@ -552,7 +552,7 @@ class SQLiteMetadataStore:
             unparsed = 0
             for row in rows:
                 if row["chunker_version"] == SESSION_FACTS_VERSION:
-                    # A fact key spans its exchange's first to last fact day, read as calendar days (D21, D30).
+                    # A fact key covers its fact day (start and end are that UTC day), read as calendar days (D21, D30).
                     first_day = _fact_day(str(row["started_at"]))
                     last_day = _fact_day(str(row["ended_at"]))
                     if first_day is None or last_day is None:
