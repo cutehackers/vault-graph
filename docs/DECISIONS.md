@@ -1014,3 +1014,13 @@ source of truth.
 **Reason:** Facts help find the right session, but they must not become remembered content or let a model into the search path. A narrow exception keeps the rest of the boundary unchanged.
 
 **Implications:** The ban on writing summaries, lists and scores to a Vault stays. Facts are indexed only as a key that leads to the original session, never returned as the answer. The Vault command is built in the vault-builder repository (D25 to D27).
+
+## 2026-11-18 - Session Fact Keys Ship At Equal Weight And On By Default, Effect Judged Later
+
+**Question:** `docs/SPEC.md` §9.2 B-2 (3) starts `derived` keys below keyword and vector weight, and its completion condition keeps them off until exchange recall@5 rises. Session fact keys (spec `docs/specs/2026-11-16-longmemeval-session-memory/spec.md` D21, D19, D23) do neither.
+
+**Decision:** Session fact chunks from session fact attachments are the exception to B-2 (3) and its completion condition. They use the same weight as keyword and vector (1.0, D21), fact extraction is on by default (D19, the user's decision on 2026-11-16), and whether they help is judged by a larger measurement in backlog `LME-01` (D23, the user's decision on 2026-11-18, "옵션3 으로 승인합니다").
+
+**Reason:** The pilot measurement used 40 non-representative LongMemEval_S questions, too few to pick a weight or a storage shape (research X26, X30, X31). Equal weight is the usual default when weights cannot be tuned on representative data (X29). With no attachments, search results are the same as without B.
+
+**Implications:** The SPEC B-2 row names this exception. `LME-01` decides whether extraction stays on by default and whether the weight changes.
