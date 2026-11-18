@@ -87,6 +87,6 @@ fact_count: 1
 ## 5. vault-graph가 읽는 방법
 
 - frontmatter `schema`가 `vault-session-facts/v1`인 파일만 첨부로 본다. 세션 묶음(`session_group_key`)과 세션 교환 조각 분할에는 넣지 않는다.
-- 같은 `exchange_id`의 사실 줄들을 묶어 교환마다 확장 키 조각 하나를 만든다. 조각 텍스트는 그 교환의 사용자 질문 제목(`source` part 파일의 교환 제목 줄)과 사실 문장들이다. `parent_key`는 `<session_id>:<exchange_id>`, 시각은 그 사실 날짜들의 처음과 끝이다. part 파일을 읽을 수 없으면 제목 없이 사실만 쓴다. 형식에 맞지 않는 줄은 건너뛰고 색인 경고 하나를 남긴다.
+- 본문 사실 줄 하나가 사실 조각 하나다. `parent_key`는 `<session_id>:<exchange_id>`, 시각은 줄의 `date`다. 형식에 맞지 않는 줄은 건너뛰고 색인 경고 하나를 남긴다.
 - `schema`가 `vault-session-facts/`로 시작하지만 판이 다르면 색인하지 않고 경고 하나를 남긴다.
 - 사실 텍스트는 검색 키로만 쓴다. 결과의 발췌, 제목, 근거 경로는 원 교환이다(spec I3).
