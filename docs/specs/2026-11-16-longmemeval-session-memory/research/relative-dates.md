@@ -26,8 +26,8 @@
 
 "지난주", "5월에", "보름 전", "지지난 주말" 같은 한국어 표현은 이 데이터에 없다. Vault 내용과 질의가 한국어일 수 있으므로 CLI 규칙은 한국어 기본 표현도 다뤄야 한다 `[가정]`.
 
-### X18. Haiku 호출 지연은 아직 재지 않았다
-- source: 상위 세션 기록 (2026-11-16, pending)
-- basis:
+### X18. Haiku 호출 한 번은 6.5~8.0초다
+- source: 이 Mac에서 2026-11-18에 잼(부하 평균 약 1.9, 다른 측정 없음)
+- basis: X16
 
-`claude -p --model claude-haiku-5-5 --json-schema … --no-session-persistence` 호출 지연은 기준선 측정이 끝나 기계가 한가할 때 잰다. 아직 측정하지 않았다.
+`claude -p --model claude-haiku-5-5 --json-schema <since/until 스키마> --no-session-persistence --tools "" --strict-mcp-config`로 "지지난 주말" 표현을 5번 풀었다. 5번 모두 2026-11-07~2026-11-08로 맞게 풀었고, 시간은 7.98, 7.28, 6.84, 6.49, 6.94초(중앙값 6.94초)다. 검색 자체의 p95가 1초 안이므로 CLI 검색 한 번이 7배 넘게 느려진다. 규칙으로 못 푸는 표현이 LongMemEval에 없으므로(X16) Haiku를 더하지 않는 결정을 유지한다.
