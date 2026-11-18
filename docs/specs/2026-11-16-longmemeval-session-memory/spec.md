@@ -636,175 +636,175 @@ LongMemEval은 영어뿐이라 한국어는 단위 테스트로만 확인한다.
 ### A1. 한 세션은 결과 하나이고 나머지 교환은 근거로 붙는다
 - covers: D2, D3, D4, I4, F1, F2
 - check: tests/test_session_result_fold.py
-- evidence:
+- evidence: tests/test_session_result_fold.py "test_one_session_is_one_result_with_its_other_exchanges_attached", "test_fold_keeps_other_vaults_unkeyed_files_and_pages_apart"
 
 한 세션 교환 셋과 다른 세션 교환 하나면 결과는 둘이고, 첫 결과는 가장 높은 교환의 자리와 점수, 근거 순서는 자신, 사본, 같은 세션 교환이다. 두 part 파일의 같은 세션도 접힌다. 다른 Vault와 키 없는 파일은 접히지 않는다.
 
 ### A2. 붙는 교환은 참조만이고 3개까지다
 - covers: D5, F3
 - check: tests/test_session_result_fold.py
-- evidence:
+- evidence: tests/test_session_result_fold.py "test_attached_exchanges_are_references_and_at_most_three"
 
 맞은 교환이 다섯이면 붙는 근거는 셋이고 경고에 5와 생략 1이 있다. `summary`는 가장 높은 창 발췌 하나다.
 
 ### A3. 원문 창, 조각 id, 임베딩 입력이 바뀌지 않는다
 - covers: I1, D8
 - check: tests/test_session_exchange_v2_chunker.py, tests/test_session_facts_index.py
-- evidence:
+- evidence: tests/test_session_exchange_v2_chunker.py "test_window_text_ids_locators_and_embedding_input_match_the_pinned_values", "test_times_come_from_the_exchange_meta_line"; tests/test_session_facts_index.py "test_part_windows_are_byte_identical_when_an_attachment_sits_next_to_the_part"
 
 변경 전 고정값과 창 `text`, 조각 id, `source_locators`, 임베딩 입력이 바이트 단위로 같고, 첨부가 옆에 있어도 같다. 시각 열은 메타 줄 값이다.
 
 ### A4. 세션 단위 결과는 인자 없이 기본으로 동작한다
 - covers: D6
 - check: tests/test_cli_search.py, tests/test_mcp_tools.py
-- evidence:
+- evidence: tests/test_cli_search.py "test_cli_evidence_search_folds_one_session_into_one_result_by_default"; tests/test_mcp_tools.py "test_search_vault_folds_one_session_into_one_result_by_default"
 
 `vg search --mode evidence`와 `search_vault`가 인자 없이 접힌 결과를 준다.
 
 ### A5. LongMemEval 실행기가 서로 다른 세션 수를 적고 기존 채점은 같다
 - covers: D7
 - check: tests/test_longmemeval_run_session_count.py
-- evidence:
+- evidence: tests/test_longmemeval_run_session_count.py "test_recall_at_five_is_the_same_as_before_the_session_count", "test_results_record_the_distinct_sessions_in_the_top_five_per_question", "test_summary_records_the_mean_distinct_sessions_per_type_and_overall"
 
 같은 입력의 `recall_all_at_5`, `recall_any_at_5`가 변경 전과 같고 세션 수가 문항별·유형별로 적힌다.
 
 ### A6. 범위 안 결과가 먼저 오고, 엄격 모드는 범위 밖을 넣지 않으며, 범위가 없으면 지금과 같다
 - covers: D9, D11, D30, D31, I5, F6
 - check: tests/test_retrieval_service_search.py
-- evidence:
+- evidence: tests/test_retrieval_service_search.py "test_strict_date_range_finds_exchange_by_its_fact_date", "test_date_range_puts_in_range_results_first_and_fills_with_the_rest", "test_strict_date_range_keeps_overlapping_exchanges_and_counts_undated_ones", "test_strict_empty_date_range_returns_no_results_with_info_warning", "test_search_without_date_range_does_not_look_up_dates"
 
 교환 시각이 범위 밖이어도 그 교환의 사실 날짜가 범위 안이면 범위 안 결과다. 범위 안 결과가 먼저 오고 남은 칸은 범위 밖·날짜 없는 결과다. 엄격 모드에서는 범위 안 결과만 남고 날짜 없는 결과는 `date_unknown_excluded`에 개수가 있으며, 결과가 없으면 `date_range_empty`다. 범위가 없으면 후보, 순서, 경고, `stage_trace`가 변경 전과 같다.
 
 ### A7. 교환 시각은 정한 순서로 읽고, 못 읽으면 비운다
 - covers: D8, F4
 - check: tests/test_session_exchange_v2_chunker.py
-- evidence:
+- evidence: tests/test_session_exchange_v2_chunker.py "test_without_meta_times_the_frontmatter_turn_range_is_used", "test_without_meta_and_frontmatter_times_the_file_name_date_is_the_whole_utc_day", "test_without_any_time_the_columns_stay_empty_with_one_warning_per_file"
 
 메타 줄, `first_turn_at`, 파일 이름 순으로 쓰이고, 셋 다 없으면 열이 비고 경고 하나다.
 
 ### A8. 날짜 인자와 `--when` 규칙이 정한 형식대로 동작한다
 - covers: D10, D13, F5
 - check: tests/test_date_expression.py, tests/test_cli_search.py, tests/test_mcp_tools.py
-- evidence:
+- evidence: tests/test_date_expression.py "test_expression_resolves_to_fixed_inclusive_range"; tests/test_cli_search.py "test_cli_search_rejects_bad_date_arguments_with_exit_code_2_and_never_searches", "test_cli_search_does_not_read_dates_from_the_query_text"; tests/test_mcp_tools.py "test_invalid_date_arguments_are_mcp_input_errors"; tests/test_retrieval_service_search.py "test_date_range_ends_are_inclusive_in_this_computers_time_zone"
 
 LongMemEval 영어 표현 다섯 종류와 한국어 "지난주", "5월에", "N일 전", "지난달"이 고정한 오늘에서 정한 범위로 풀리고 이 컴퓨터 시간대로 비교된다. 잘못된 입력은 MCP 입력 오류와 CLI 종료 코드 2다. 질의 본문의 날짜 낱말은 범위가 되지 않는다.
 
 ### A9. MCP 검색 도구 셋이 날짜 인자와 설명을 갖는다
 - covers: D12
 - check: tests/test_mcp_tools.py
-- evidence:
+- evidence: tests/test_mcp_tools.py "test_three_search_tools_pass_since_and_until_to_the_search_request", "test_three_search_tool_descriptions_say_how_to_pass_relative_dates"
 
 세 도구가 `since`, `until`을 검색 요청에 넘기고 설명에 날짜 계산 안내가 있다. 날짜 해석기는 부르지 않는다.
 
 ### A10. CLI 날짜 해석은 모델을 부르지 않는다
 - covers: D14
 - check: tests/test_date_expression.py
-- evidence:
+- evidence: tests/test_date_expression.py "test_resolving_starts_no_subprocess_and_no_network"
 
 `--when` 해석 중 하위 프로세스와 네트워크 호출이 없다.
 
 ### A11. LongMemEval 실행기가 질문 날짜로 범위를 넘길 수 있다
 - covers: D15
 - check: tests/test_longmemeval_convert_tool.py, tests/test_longmemeval_run_session_count.py
-- evidence:
+- evidence: tests/test_longmemeval_convert_tool.py "test_load_questions_reads_the_longmemeval_s_shape"; tests/test_longmemeval_run_session_count.py "test_date_rules_pass_a_range_only_for_questions_that_resolve", "test_without_date_rules_search_calls_and_output_are_as_before"
 
 변환기가 `question_date`를 읽는다. `--date-rules`면 풀리는 질문에만 `--since`·`--until`이 붙고, 없으면 명령이 변경 전과 같다.
 
 ### A12. 수집 훅은 작업 파일만 두고 기다리지 않으며 작업자는 하나다
 - covers: D16, I8, F10
 - check: tests/test_hook_facts.py
-- evidence:
+- evidence: tests/test_hook_facts.py "test_written_capture_queues_one_job_and_starts_the_worker", "test_hook_returns_within_one_second_with_a_slow_worker", "test_exit_code_and_output_match_facts_off", "test_lock_held_starts_no_worker_but_keeps_the_job", "test_capture_that_is_not_written_queues_nothing"
 
 켜져 있고 `written`이면 작업 파일 하나와 분리 프로세스가 생긴다. 종료 코드와 출력은 꺼짐과 같고, 느린 가짜 추출기에서도 훅은 1초 안에 끝난다. 잠금이 잡혀 있으면 띄우지 않고, `written`이 아니면 작업 파일이 없다.
 
 ### A13. Claude 추출기는 정한 명령으로만 돌고 자식 세션은 훅을 건너뛴다
 - covers: D17, I9, F11
 - check: tests/test_fact_extractors.py, tests/test_hook_facts.py
-- evidence:
+- evidence: tests/test_fact_extractors.py "test_claude_runs_the_fixed_command_without_bare", "test_claude_child_environment_drops_api_key_and_marks_child"; tests/test_hook_facts.py "test_child_session_capture_does_nothing", "test_child_session_start_does_nothing"
 
 명령이 D17과 같고 `--bare`가 없으며, 자식 환경에 `ANTHROPIC_API_KEY`가 없고 `VAULT_GRAPH_FACTS_CHILD=1`이 있다. 그 값이면 두 훅이 실행기와 회상을 부르지 않고 0으로 끝난다.
 
 ### A14. 실제 Claude Code에서 추출용 세션이 Vault에 남지 않는다
 - covers: I9, F11
 - check: 수동: 사실 추출을 켜고 실제 Claude Code 세션 하나를 끝낸 뒤 Vault `raw/sessions/`와 Graph Home `logs/`를 본다
-- evidence:
+- evidence: 수동: 사실 추출을 켜고 실제 Claude Code 세션 하나를 끝낸 뒤 Vault `raw/sessions/`에 원 세션 part와 그 `.facts.md`만 생기고 추출용 세션 파일이 없는지, Graph Home `logs/`를 본다
 
 원 세션 part와 그 `.facts.md`만 새로 생기고 추출용 세션 파일은 없다.
 
 ### A15. 검색, 색인, 회상은 모델을 부르지 않는다
 - covers: I2
 - check: tests/test_fact_worker.py
-- evidence:
+- evidence: tests/test_fact_worker.py "test_search_index_mcp_and_session_start_pass_with_processes_and_network_blocked"
 
 하위 프로세스와 HTTP를 막아도 사실 추출이 켜진 Graph Home의 `vg search`, `vg index`, MCP 검색 도구, `vg hook session-start`가 통과한다.
 
 ### A16. 작업자는 실패를 기록하고 캐시로 다시 부르지 않는다
 - covers: D20, F7, F8, F9
 - check: tests/test_fact_worker.py
-- evidence:
+- evidence: tests/test_fact_worker.py "test_extractor_unavailable_keeps_the_job_and_waits_30_minutes", "test_schema_error_fails_the_job", "test_unknown_exchange_ids_and_empty_texts_are_dropped", "test_missing_command_records_writer_missing_and_later_writes_from_the_cache", "test_an_exchange_seen_before_is_not_extracted_again_in_a_new_part"
 
 가짜 추출기에서 추출기 실패는 대기열 유지, 실패 기록, 30분 안 재시도 없음이다. 스키마 오류는 실패, 없는 교환 id 사실만 빠진다. 명령이 없으면 `facts_writer_missing`이고 생긴 뒤에는 추출기 없이 쓴다. 뽑은 교환이 새 part에 나와도 추출기를 부르지 않는다.
 
 ### A17. 추출기 설정과 켜고 끄기가 정한 대로 동작한다
 - covers: D18, D19, F13
 - check: tests/test_facts_config.py, tests/test_hook_facts.py
-- evidence:
+- evidence: tests/test_facts_config.py "test_missing_file_means_on_with_claude", "test_off_writes_enabled_false_and_on_turns_it_back", "test_on_with_llama_server_selects_local_extractor", "test_status_of_broken_file_shows_off_and_reason"; tests/test_hook_facts.py "test_first_job_prints_the_notice_once_and_records_it", "test_facts_off_queues_nothing"
 
 설정이 없으면 `claude`로 켜져 있고 `written` 수집에 작업 파일이 생긴다. 첫 작업에서만 안내 한 줄이 stderr에 나온다. `off`는 `enabled: false`를 쓰고 그 뒤 작업 파일이 없다. `on --extractor llama-server`는 로컬을 고른다. 깨진 설정은 꺼짐이고 `status`에 이유가 나온다. 지난 세션은 대기열에 들지 않는다.
 
 ### A25. 테스트와 LongMemEval 실행기는 실제 추출기를 부르지 않는다
 - covers: D19
 - check: tests/test_longmemeval_run_session_count.py, tests/test_fact_worker.py
-- evidence:
+- evidence: tests/test_longmemeval_run_session_count.py "test_a_normal_run_turns_facts_off_in_each_graph_home_and_calls_no_extractor"; tests/test_fact_worker.py "test_building_a_real_extractor_fails_the_test"
 
 `longmemeval_run`은 B 측정 인자가 없으면 작업 공간 Graph Home마다 `enabled: false`를 쓰고, 그 실행에서 `claude`나 `llama-server` 호출이 없다. 테스트 공용 설정은 가짜 추출기를 넣고 실제 추출기 어댑터를 부르면 실패한다.
 
 ### A18. 사실 키는 원 교환을 돌려주고 빼는 모드에서는 지금과 같다
 - covers: D21, D28, I3, I6, F12
 - check: tests/test_session_facts_index.py
-- evidence:
+- evidence: tests/test_session_facts_index.py "test_each_fact_line_is_one_derived_chunk_keyed_to_the_original_exchange", "test_unknown_facts_version_is_not_indexed_with_one_warning", "test_a_fact_only_match_returns_the_original_exchange_first_window", "test_a_fact_whose_exchange_is_not_indexed_is_dropped_with_a_warning", "test_without_fact_keys_the_results_are_as_without_attachments"
 
 첨부 줄마다 원 교환 `parent_key`와 줄 날짜의 `derived` 조각이 생기고 모르는 판은 경고와 함께 빠진다. 사실만 맞아도 발췌와 근거는 원 교환이고 사실 텍스트는 응답에 없다. 원 part가 없으면 `fact_source_missing`이다. `include_fact_keys=false`와 첨부 없는 Vault는 B 전과 같다.
 
 ### A19. 사실 첨부는 Vault 명령으로만 쓰고 수집한 Vault에 간다
 - covers: I7
 - check: tests/test_fact_worker.py
-- evidence:
+- evidence: tests/test_fact_worker.py "test_worker_drains_the_queue_and_writes_through_the_vault_command"
 
 작업자 전후 Vault 변화는 가짜 `sessions attach-facts`가 만든 것뿐이고, 명령은 작업 파일의 Vault와 part 경로로 불린다. part 파일 내용은 같다.
 
 ### A20. 원칙 문장이 승인된 문장으로 바뀐다
 - covers: D22
 - check: 수동: `docs/SPEC.md` §1 원칙1·4와 §9.2 B-2, `AGENTS.md` Project Boundary를 승인된 D22 문장과 비교한다
-- evidence:
+- evidence: 수동: `docs/SPEC.md` §1 원칙1·4와 §9.2 B-2(50309aa에서 더한 사실 조각 예외 문장 포함), `AGENTS.md` Project Boundary를 승인된 D22 문장과 비교한다
 
 네 곳이 D22와 같고 요약·목록·점수 금지 문장은 남아 있다. `docs/DECISIONS.md`와 PATCH_LOG에 항목이 있다.
 
 ### A21. A, C, B 각각이 세 관문을 넘는다
 - covers: D1, D24
 - check: 수동: 부분마다 `longmemeval_run --limit 150`(C는 `--date-rules`, `TZ=UTC`), 층1 `evaluate_search --split dev`·`--split test`, 층2 `evaluate_search --vault-id eval2`를 돌려 `research/baseline.md`와 비교한다
-- evidence:
+- evidence: 수동: 부분마다 `longmemeval_run --limit 150`(C는 `--date-rules`, `TZ=UTC`), 층1 `evaluate_search --split dev`·`--split test`, 층2 `evaluate_search --vault-id eval2`를 돌려 `research/baseline.md`와 비교한다. 보고서 §2·§3·§6과 D24의 연기 문장을 본다
 
 보고서에 부분마다 유형별 `recall_all_at_5`·`recall_any_at_5`, 세션 수, 층1 세션 recall@5(dev·test), 층2 recall@5가 기준선과 나란히 있다. 층1은 dev·test 모두 기준선 이상, 층2는 0.95 이상이다. 못 넘은 부분은 사유가 있다.
 
 ### A22. B 측정은 정한 범위에서 두 추출기를 같은 문항으로 비교한다
 - covers: D23, D18
 - check: 수동: 정한 문항으로 `longmemeval_run`을 사실 추출 꺼짐, Claude, `llama-server`로 돌리고 공유 캐시의 호출 수와 시간을 본다
-- evidence:
+- evidence: 수동: 정한 문항으로 `longmemeval_run`을 사실 추출 꺼짐, Claude, `llama-server`로 돌리고 공유 캐시의 호출 수와 시간을 본다. 보고서 §4.2와 개정된 A22 문장(추출기별 recall 비교는 D23에 따라 미룸)을 본다
 
 보고서에 문항 범위, 추출기별 호출 수·시간, 유형별 `recall_all_at_5`, 기본 추출기 판단 근거가 있다. 이번 변경에서는 B 효과가 확인되지 않아 추출기별 recall 비교를 하지 않았고(D23), 호출 수·시간과 로컬 추출기 속도만 적는다.
 
 ### A23. vault-builder: 첨부 명령이 정한 형식과 검증을 따른다
 - covers: D25, D26, D27
 - check: 수동: vault-builder 저장소 세션의 테스트 결과와 `sessions attach-facts` 실행 기록을 읽는다
-- evidence:
+- evidence: 수동: vault-builder PR cutehackers/vault-builder#15의 테스트 결과와 `sessions attach-facts` 실행 기록을 읽는다
 
 vault-builder 저장소에서 구현한다. 정상 입력은 part 옆에 첨부를 만들고 `written`, 재실행은 `exists`, D27의 거부 조건은 `rejected`이고 파일이 없다. `git-check`와 `capture`는 첨부를 세지 않는다.
 
 ### A24. B 통합은 vault-builder 결과를 받은 뒤 실제 명령으로 돈다
 - covers: D29
 - check: 수동: vault-builder 결과가 들어온 뒤 LongMemEval 작업 공간 하나를 `--keep`으로 돌려 `.facts.md`와 `derived` 조각 수를 본다
-- evidence:
+- evidence: 수동: LongMemEval 작업 공간 하나를 `--keep`으로 돌려 `.facts.md`와 `derived` 조각 수를 본다. 보고서 §4.1은 첨부 47개, 사실 351줄, 조각 351개다
 
 첨부가 실제 `sessions attach-facts`로 만들어졌고 vault-builder 결과가 같은 계약 판을 따른다. 그 전의 B 값은 보고서에 쓰지 않는다.
 
