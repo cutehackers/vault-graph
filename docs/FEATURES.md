@@ -6,10 +6,9 @@ This document lists the features and interfaces exposed to Vault Graph users. It
 focuses on what a user or agent can invoke directly through CLI, MCP resources,
 MCP tools, MCP prompts, Claude Code hooks, and HTTP serving.
 
-The README describes the main features in one form (what it does, when it runs,
-the command or tool, what it reads and writes): session-start recall, session
-capture, session fact extraction, memory writes, memory cleanup, read tools,
-and the code index. This document is the full reference.
+The first sections describe the main features in one form: what it does, when
+it runs, the command or tool, and what it reads and writes. The sections after
+them are the full reference.
 
 For architecture, storage contracts, indexing internals, and roadmap details,
 see `docs/SPEC.md`.
@@ -17,6 +16,232 @@ see `docs/SPEC.md`.
 The feature matrix describes the product surface. Sections below distinguish
 implemented capabilities, historical slice boundaries, and explicitly deferred
 adapters.
+
+## How Vault Graph Finds Your Vaults
+
+vault-builder owns `vault-map.json`. Vault Graph reads it and never writes it.
+The path is `$VAULT_GRAPH_VAULT_MAP` when set, else
+`$CLAUDE_CONFIG_DIR/vault-builder/vault-map.json` when `CLAUDE_CONFIG_DIR` is
+set, else `$HOME/.claude/vault-builder/vault-map.json`.
+
+The file lists:
+
+1. Each Vault with its folder and `role`, for example `personal` or `project`.
+   Search results carry the Vault name and role.
+2. Each project with the Vaults linked to it and an optional
+   `default_write_vault`.
+3. An optional `sharable` flag per Vault. A Vault linked to two or more projects
+   without `sharable` is treated as not sharable, and session start prints a
+   notice.
+
+To find the project of a folder, Vault Graph compares, in order, the main
+worktree root, the normalized `origin` remote, and the folder name. The first
+step with exactly one match decides. Read tools, recall, and `vg ask`,
+`vg context` and `vg search` without a Vault option use the Vaults linked to
+that project. Outside a project they use the active registered Vault.
+
+A Vault must also be registered in the Data Home (`vg setup` or `vg vault add`)
+before Vault Graph indexes or searches it.
+
+## Features In Detail
+
+Each feature below lists what it does, when it runs, the command or MCP tool,
+and what it reads and writes. "Data Home" is `$HOME/.vault-graph` unless you
+pass `--graph-home`.
+
+### Session-start recall
+
+- **What it does**: prints a short Markdown memory bundle for the current
+  project, which Claude Code adds to the session. Pinned memories come first.
+- **When it runs**: automatically, from the SessionStart hook that vault-builder
+  installs.
+- **Command**: `vg hook session-start`. It reads the hook JSON on stdin.
+  `--max-tokens` sets the token budget (default 1,500). The 9,000 character
+  limit always applies. `--refresh-budget` sets how many seconds it may spend
+  updating the index first (default 5, `0` skips).
+- **Reads and writes**: reads `vault-map.json` and the index metadata of the
+  linked Vaults. It does not run a search and does not load embeddings. It
+  writes usage records and logs in the Data Home. It writes nothing in a Vault.
+
+The bundle has these blocks, in order:
+
+1. Pinned memories: current pages with `pin: true` from every linked Vault, in
+   their own 400-token budget.
+2. Project summary: the start of the project brief
+   (`wiki/projects/<project>.md`) and the open items, decisions, and rules, in
+   their own 500-token budget.
+3. Memory list: the remaining pages, with the Vault name in each path.
+4. Change notices.
+5. How to open a page, how many inferred proposals wait for review, the cleanup
+   backlog, a brief-update reminder, and Vaults whose index keeps failing.
+
+Before recall, the hook indexes changed files of the linked Vaults (metadata
+only). It also starts one detached `vg index` that adds embeddings after the
+hook ends. Only one such process runs at a time. When no linked Vault has an
+index yet, that process first builds keyword search for each Vault, then
+embeddings. Exit code 3 means recall is not possible, for example because the
+index is missing.
+
+### Session capture
+
+- **What it does**: hands the finished or compacted session to the Vault hook
+  launcher, which writes the transcript into the Vault.
+- **When it runs**: automatically, from the PreCompact and SessionEnd hooks that
+  vault-builder installs.
+- **Command**: `vg hook capture`. `--timeout` stops the launcher after the given
+  seconds (default 20).
+- **Reads and writes**: reads the hook's `transcript_path` and converts it to
+  the `vg-session-jsonl/1` format in a temporary folder. Then it runs
+  `vault_hooks.py capture --direct --normalized <file>` from the
+  `vault-map.json` folder. The Vault tool chooses the Vault and writes the file.
+  When conversion fails or the Vault tool is older, it runs `capture --direct`
+  and the Vault writes its own format. vg does not index after capture.
+
+Exit code 3 means the launcher was missing, failed, or ran out of time. When
+`configs/session-export.json` in the Data Home names a folder, the same run also
+exports the session there. `vg session export` exports past sessions by hand.
+
+### Session fact extraction
+
+- **What it does**: reads each captured session, extracts short facts with dates
+  from each exchange, and stores them next to the session in the Vault. Search
+  uses these facts to find the original exchange.
+- **When it runs**: automatically after each capture that writes a session, in
+  a background worker. It is on by default. Sessions captured before it was
+  turned on are never queued.
+- **Command**: `vg facts status` shows whether it is on, the extractor, the
+  queue length, and recorded failures. `vg facts on --extractor claude|llama-server`
+  turns it on and picks the extractor. `vg facts off` turns it off.
+  `vg facts worker` processes the queue by hand.
+- **Reads and writes**: settings in `configs/facts.json`, jobs in
+  `facts/queue/`, results cached per exchange in `facts/cache/`, and failures
+  in `logs/facts-failures.json`, all in the Data Home. The Vault command
+  `sessions attach-facts` writes the facts into the Vault. vg writes no Vault
+  file.
+
+Extractors:
+
+1. `claude` (default) runs the logged-in Claude Code as `claude -p` with model
+   `claude-sonnet-5-5`, no tools, and no MCP servers. It uses your login, not
+   `ANTHROPIC_API_KEY`. The vault-graph hooks do nothing inside that child
+   session.
+2. `llama-server` sends one request to a local `llama-server` at
+   `http://127.0.0.1:8080/v1/chat/completions`. Set `endpoint` and `model` in
+   `configs/facts.json` to change them. It sends no API key.
+
+A failed job stays in the queue. Extractor and Vault command failures retry
+after 30 minutes. A job the Vault rejects is removed. The first job ever queued
+prints one notice that extraction is on.
+
+### Memory writes
+
+- **What it does**: adds, changes, retires, or restores memory pages in a Vault.
+- **When it runs**: when the agent calls one of these MCP tools.
+- **Tools**:
+
+  | Tool | Effect |
+  | --- | --- |
+  | `remember` | Adds a new page: `decision` (`wiki/decisions/`), `system` (`wiki/systems/`), or the one `project` brief (`wiki/projects/<project>.md`). `pin` puts it first in recall. |
+  | `update_memory` | Replaces the body of an existing page. |
+  | `retire_memory` | Marks a page retired. The file stays. `replaced_by` names the page that replaces it. |
+  | `supersede_claim` | Replaces one row of a page's claim table. The old row stays, marked superseded. |
+  | `restore_memory` | Makes a retired, deprecated, or superseded page current again. |
+  | `import_auto_memory` | Copies one Claude Code auto-memory note into the Vault under `raw/imports/claude-memory/` with the Vault's `import-source`. The note itself is not changed. |
+
+- **Reads and writes**: every write runs a Vault command. vg never edits a Vault
+  file.
+
+All tools except `import_auto_memory` require `basis`:
+
+1. `stated`: the user said the fact. The Vault's `publish-draft` validates it.
+   The result is `published` or `rejected`.
+2. `inferred`: the agent concluded it. Nothing is published. The Vault's
+   `review propose` puts it in the Vault review queue (`scratch/review/`), and
+   the result is `proposed` with a `review_path`. A person accepts it with the
+   Vault's `review resolve`. A proposal is not in recall or search until then.
+
+The target Vault must be linked to the `cwd` project. A new page goes to the
+`vault` argument, else the project's `default_write_vault`, else the only linked
+Vault. When none of these decides, the result is `vault_required` with the
+candidate names, and nothing is written.
+
+### Background reindex after a write
+
+- **What it does**: indexes the Vault that a `published` write changed, so the
+  page reaches search and recall.
+- **When it runs**: automatically, right after a memory write returns
+  `published`. The tool result does not wait for it. Read tools switch to the
+  new index when the run finishes.
+- **Command**: none. If the run cannot start, the result message asks you to run
+  `vg index`.
+- **Reads and writes**: writes a new index generation in the Data Home.
+
+### Read tools
+
+- **What it does**: searches and summarizes the Vaults linked to the project.
+- **When it runs**: when the agent calls the MCP tool, or you run the CLI
+  command.
+- **Tools**:
+
+  | Tool | CLI | Returns |
+  | --- | --- | --- |
+  | `explore_project` | - | For a coding task: current code, related tests, impact, Vault decisions, and freshness warnings. Call it first. Needs a registered, bound repository. |
+  | `search_vault` | `vg search` | Ranked pages with line ranges. `mode` is `knowledge` (default), `evidence`, `operating`, `audit`, or `all`. `include_retired` shows retired pages. |
+  | `ask_vault` | `vg ask` | An answer with cited evidence and claim status. |
+  | `build_context_pack` | `vg context` | A token-bounded pack of evidence for a task. |
+  | `get_decision_trace` | `vg decision-trace` | What led to a decision and what it replaced. |
+  | `find_related` | `vg related` | Related graph entities with evidence. |
+  | `get_recent_changes` | - | Pages changed since a date. |
+  | `get_open_questions` | - | Open questions recorded in pages. |
+  | `summarize_project_memory` | - | Current state, decisions, open questions, and next priorities. |
+  | `check_index_status` | `vg status` | Index health and freshness. |
+  | `explain_result` | - | Why a result was returned. |
+
+- **Reads and writes**: read the index in the Data Home. They write nothing.
+
+`search_vault`, `ask_vault` and `build_context_pack` accept `since` and `until`
+(YYYY-MM-DD). Results in that date range come first. `vg search` also accepts
+`--when "last week"` and `--date-strict`. Most tools take `cwd`, the project
+folder. `scope` with `vault_ids` or `all_vaults` overrides the project's Vaults.
+
+### Memory cleanup
+
+- **What it does**: lists what should be saved, merged, or retired, so the agent
+  can clean up memory with the user.
+- **When it runs**: when the user asks to clean up memory. Session-start recall
+  shows a backlog line when candidates wait. The `curate_memory` MCP prompt
+  gives the agent the steps.
+- **Tools**: `list_memory_candidates` returns candidates: `l1_note` (an
+  auto-memory note no Vault keeps yet), `session_exchange` (a session exchange
+  no page cites), `merge`, `retire`, and `brief`. Each call starts a new cleanup
+  and allows at most 10 `inferred` proposals until the next call.
+  `mark_candidates_reviewed` records candidates the user chose to skip.
+- **Reads and writes**: candidates come from the index, usage records, and the
+  Claude Code auto-memory folder. Skipped and handled candidates go to
+  `memory/reviewed.jsonl` in the Data Home. Neither tool writes to a Vault. The
+  memory write tools above make the actual changes.
+
+### Code index
+
+- **What it does**: indexes the symbols and calls of a code repository (Python
+  and Dart) so `explore_project` and the `vg code` commands return current code
+  next to Vault decisions.
+- **When it runs**: manually. No repository is indexed until you register one.
+- **Commands**:
+
+  ```bash
+  vg code repository add demo --path /path/to/repository --language python --language dart
+  vg code index --repository-id demo
+  vg project bind demo --vault-id default --scope wiki
+  vg code impact calculate_total --repository-id demo
+  ```
+
+  `vg code search`, `symbol`, `outline`, `callers`, `callees` and `impact`
+  query the index. `vg code status --verify` reports files that changed since
+  indexing. `vg project bindings` lists bindings.
+- **Reads and writes**: reads the repository. Writes the code index and the
+  binding in the Data Home. It never writes source files and never copies
+  source text into a Vault.
 
 ## Product Boundary
 
@@ -422,8 +647,8 @@ existing application services.
 
 The memory write tools (`remember`, `update_memory`, `retire_memory`,
 `supersede_claim`, `restore_memory`, `import_auto_memory`) and the cleanup tools
-(`list_memory_candidates`, `mark_candidates_reviewed`) are described in the
-README under Memory writes and Memory cleanup. Their full argument lists are in
+(`list_memory_candidates`, `mark_candidates_reviewed`) are described above
+under Memory writes and Memory cleanup. Their full argument lists are in
 the tool descriptions the server sends to the agent
 (`src/vault_graph/interface/mcp/mcp_memory_tools.py` and `mcp_tools.py`).
 
