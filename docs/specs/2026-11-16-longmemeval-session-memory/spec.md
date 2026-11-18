@@ -37,7 +37,7 @@
 | D21 | 사실은 줄마다 원 교환으로 접히는 키 하나로, 원문과 같은 무게로 색인한다 | decided | basis X1, X10, I1, I3, I6, X26, X27, X28, X29, X30, D23; depends D2, D28 | A18 | 색인, 검색 | c3a7334a | 16-facts-search.md, 24-fact-expansion-key.md |
 | D22 | 원칙 문장을 사실 첨부 하나만 허용하도록 좁게 고친다 | decided | basis X10, I2, I7 | A20 | global | 146a8ac0 | 20-principle-text.md |
 | D23 | B는 시범 20문항으로 먼저 재고, 그 뒤 multi-session·temporal-reasoning 문항으로 넓힌다 | decided | basis X5, X13, X26, X30, X31; depends D20 | A22 | 측정 | da13573a | 22-measure-b.md |
-| D24 | 부분마다 세 관문을 넘어야 들인다 | proposed | basis X5, 2026-11-13-cross-encoder-rerank:D17; depends D1 | A21 | 측정 | 29403845 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
+| D24 | 부분마다 세 관문을 넘어야 들인다 | proposed | basis X5, 2026-11-13-cross-encoder-rerank:D17, D23; depends D1 | A21 | 측정 | fdef1285 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
 | D25 | vault-builder: Vault 명령 `sessions attach-facts`를 더한다 | decided | basis X11, I7 | A23 | vault-builder | a6296784 | 12-vault-builder-track.md |
 | D26 | vault-builder: 첨부는 세션 part 파일 옆 `<part 이름>.facts.md`다 | decided | basis X4, X11 | A23 | vault-builder | d0fc44b6 | 12-vault-builder-track.md |
 | D27 | vault-builder: 첨부 명령은 원 part 파일과 맞을 때만 쓴다 | decided | basis X11; depends D25, D26 | A23 | vault-builder | e1e4dbb8 | 12-vault-builder-track.md |
@@ -87,7 +87,7 @@
 | A19 | 사실 첨부는 Vault 명령으로만 쓰고 수집한 Vault에 간다 |  | covers I7 |  |  | a42532bd | 17-fact-worker.md |
 | A20 | 원칙 문장이 승인된 문장으로 바뀐다 |  | covers D22 |  |  | a1696d78 | 20-principle-text.md |
 | A21 | A, C, B 각각이 세 관문을 넘는다 |  | covers D1, D24 |  |  | 5ee43a63 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
-| A22 | B 측정은 정한 범위에서 두 추출기를 같은 문항으로 비교한다 |  | covers D23, D18 |  |  | 6d7ea051 | 22-measure-b.md |
+| A22 | B 측정은 정한 범위에서 두 추출기를 같은 문항으로 비교한다 |  | covers D23, D18 |  |  | 05bfc69c | 22-measure-b.md |
 | A23 | vault-builder: 첨부 명령이 정한 형식과 검증을 따른다 |  | covers D25, D26, D27 |  |  | 327f21da | 12-vault-builder-track.md |
 | A24 | B 통합은 vault-builder 결과를 받은 뒤 실제 명령으로 돈다 |  | covers D29 |  |  | a9aa4b28 | 21-b-integration.md |
 | X19 | 기준선 recall은 꺼짐 0.773, 켜짐 0.800이다 |  | basis X20 |  |  | 9c46207c |  |
@@ -469,10 +469,10 @@ Graph Home `configs/facts.json`은 `version`, `enabled`, `extractor`(`claude`, `
 - by: 사람 (brief 완료 조건); 가정 (비교 기준은 재정렬 꺼짐)
 - status: proposed
 - area: 측정
-- basis: X5, 2026-11-13-cross-encoder-rerank:D17
+- basis: X5, 2026-11-13-cross-encoder-rerank:D17, D23
 - depends: D1
 
-LongMemEval 150문항 유형별 값을 기준선과 나란히 적는다. layer-1 세션 recall@5는 dev·test 모두 기준선 이상, layer 2 recall@5는 0.95 이상이다. 기준선은 재정렬 기본값인 꺼짐이고 켜짐도 적는다. 보고서는 `docs/design/reports/2026-11-longmemeval-session-memory.md`다.
+LongMemEval 150문항 유형별 값을 기준선과 나란히 적는다. layer-1 세션 recall@5는 dev·test 모두 기준선 이상, layer 2 recall@5는 0.95 이상이다. 기준선은 재정렬 기본값인 꺼짐이고 켜짐도 적는다. 보고서는 `docs/design/reports/2026-11-longmemeval-session-memory.md`다. C와 B는 이 관문을 '사용하지 않을 때 결과가 A와 같다'로 넘기고, 이득 판단은 D23에 따라 `LME-01`로 미룬다.
 
 ### D25. vault-builder: Vault 명령 `sessions attach-facts`를 더한다
 - by: 사람 (추가 지시 2, vault-builder 저장소 소속; spec gate 2026-11-16: "이대로 한다")
@@ -792,7 +792,7 @@ LongMemEval 영어 표현 다섯 종류와 한국어 "지난주", "5월에", "N�
 - check: 수동: 정한 문항으로 `longmemeval_run`을 사실 추출 꺼짐, Claude, `llama-server`로 돌리고 공유 캐시의 호출 수와 시간을 본다
 - evidence:
 
-보고서에 문항 범위, 추출기별 호출 수·시간, 유형별 `recall_all_at_5`, 기본 추출기 판단 근거가 있다.
+보고서에 문항 범위, 추출기별 호출 수·시간, 유형별 `recall_all_at_5`, 기본 추출기 판단 근거가 있다. 이번 변경에서는 B 효과가 확인되지 않아 추출기별 recall 비교를 하지 않았고(D23), 호출 수·시간과 로컬 추출기 속도만 적는다.
 
 ### A23. vault-builder: 첨부 명령이 정한 형식과 검증을 따른다
 - covers: D25, D26, D27

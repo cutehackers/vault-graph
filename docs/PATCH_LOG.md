@@ -2499,3 +2499,15 @@ indexer regression tests.
 **Changes Applied:** Principle 1 allows session fact extraction only after capture, with the logged-in Claude Code or a local model, on by default and turned off with `vg facts off`, without an API key. Principle 4 and `AGENTS.md` add a fifth write path, fact attachment through the Vault command `sessions attach-facts`. `AGENTS.md` and B-2 (5) name the session fact attachment as the only exception and index it only as a key to the original session.
 
 **Verification:** Manual comparison of the four places with D22 (spec A20). `tests/test_context_pack_docs_contract.py`, which reads `docs/SPEC.md`, passed.
+
+## 2026-11-18 - Name The Session Fact Key Exception In SPEC B-2
+
+**Trigger:** Review of the LongMemEval change found that `docs/SPEC.md` §9.2 B-2 (3) and its completion condition still required lower weight and default-off for `derived` keys, while the shipped session fact keys use equal weight and are on by default.
+
+**Scope:** `docs/SPEC.md` §9.2 B-2, `docs/DECISIONS.md`, two code comments that still described the reverted one-key-per-exchange design.
+
+**Core Values Protected:** One source of truth for search behavior; decisions the user made are written where readers look.
+
+**Changes Applied:** Added one sentence to B-2 pointing session fact chunks to spec 2026-11-16 D21, D19 and D23. Added the decision entry. Corrected comments in `candidate_ranking.py` and `sqlite_metadata_store.py`.
+
+**Verification:** `bake spec check` passes; focused tests and `bake verify` rerun after the change.
