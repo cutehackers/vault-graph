@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="556" viewBox="0 0 900 556" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="How Vault Graph reads and writes memory">
+<rect width="900" height="556" rx="12" fill="#0d1117"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4493f8"/></marker></defs>
+<text x="30" y="36" font-size="13" font-weight="600" letter-spacing="1" fill="#9198a1">READ</text>
+<rect x="30" y="52" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="120.0" y="76" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Session starts</text>
+<text x="120.0" y="95" text-anchor="middle" font-size="13" fill="#9198a1">vg hook session-start</text>
+<rect x="250" y="52" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="340.0" y="76" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Memory summary</text>
+<text x="340.0" y="95" text-anchor="middle" font-size="13" fill="#9198a1">added to the session</text>
+<rect x="690" y="52" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="780.0" y="76" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">During work</text>
+<text x="780.0" y="95" text-anchor="middle" font-size="13" fill="#9198a1">search_vault, ask_vault</text>
+<path d="M210,80 L248,80" fill="none" stroke="#6e7681" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="30" y="144" width="840" height="60" rx="10" fill="#12294a" stroke="#4493f8" stroke-width="1.5"/>
+<text x="450.0" y="170" text-anchor="middle" font-size="15" font-weight="600" fill="#e6edf3">Index of the linked Vaults</text>
+<text x="450.0" y="189" text-anchor="middle" font-size="13" fill="#9198a1">Built from the Vaults and kept in $HOME/.vault-graph</text>
+<path d="M120,144 L120,110" fill="none" stroke="#4493f8" stroke-width="1.5" marker-end="url(#b)"/>
+<text x="128" y="131" text-anchor="start" font-size="13" fill="#9198a1">reads</text>
+<path d="M780,144 L780,110" fill="none" stroke="#4493f8" stroke-width="1.5" marker-end="url(#b)"/>
+<text x="788" y="131" text-anchor="start" font-size="13" fill="#9198a1">reads</text>
+<text x="30" y="236" font-size="13" font-weight="600" letter-spacing="1" fill="#9198a1">WRITE</text>
+<rect x="30" y="248" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="120.0" y="272" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Claude calls</text>
+<text x="120.0" y="291" text-anchor="middle" font-size="13" fill="#9198a1">remember</text>
+<rect x="250" y="248" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="340.0" y="272" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Vault publish-draft</text>
+<text x="340.0" y="291" text-anchor="middle" font-size="13" fill="#9198a1">publishes the page</text>
+<rect x="470" y="248" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="560.0" y="272" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Background reindex</text>
+<text x="560.0" y="291" text-anchor="middle" font-size="13" fill="#9198a1">starts right away</text>
+<rect x="250" y="324" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="340.0" y="348" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Vault review queue</text>
+<text x="340.0" y="367" text-anchor="middle" font-size="13" fill="#9198a1">scratch/review/</text>
+<rect x="470" y="324" width="180" height="56" rx="10" fill="#0d1117" stroke="#4493f8" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="560.0" y="348" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">You accept it</text>
+<text x="560.0" y="367" text-anchor="middle" font-size="13" fill="#9198a1">review resolve</text>
+<path d="M210,276 L248,276" fill="none" stroke="#6e7681" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="230" y="266" text-anchor="middle" font-size="13" fill="#9198a1">stated</text>
+<path d="M430,276 L468,276" fill="none" stroke="#6e7681" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M560,248 L560,206" fill="none" stroke="#4493f8" stroke-width="1.5" marker-end="url(#b)"/>
+<text x="568" y="231" text-anchor="start" font-size="13" fill="#9198a1">updates</text>
+<path d="M120,304 L120,352 L248,352" fill="none" stroke="#6e7681" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="128" y="336" text-anchor="start" font-size="13" fill="#9198a1">inferred</text>
+<path d="M430,352 L468,352" fill="none" stroke="#6e7681" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M650,352 L740,352 L740,206" fill="none" stroke="#4493f8" stroke-width="1.5" marker-end="url(#b)"/>
+<text x="748" y="296" text-anchor="start" font-size="13" fill="#9198a1">next index</text>
+<text x="30" y="420" font-size="13" font-weight="600" letter-spacing="1" fill="#9198a1">SESSION END</text>
+<rect x="30" y="432" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="120.0" y="456" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Session ends</text>
+<text x="120.0" y="475" text-anchor="middle" font-size="13" fill="#9198a1">vg hook capture</text>
+<rect x="250" y="432" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="340.0" y="456" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Vault saves</text>
+<text x="340.0" y="475" text-anchor="middle" font-size="13" fill="#9198a1">the session</text>
+<rect x="470" y="432" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="560.0" y="456" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Fact worker</text>
+<text x="560.0" y="475" text-anchor="middle" font-size="13" fill="#9198a1">extracts dated facts</text>
+<rect x="690" y="432" width="180" height="56" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+<text x="780.0" y="456" text-anchor="middle" font-size="14" font-weight="600" fill="#e6edf3">Vault attaches</text>
+<text x="780.0" y="475" text-anchor="middle" font-size="13" fill="#9198a1">&lt;part&gt;.facts.md</text>
+<path d="M210,460 L248,460" fill="none" stroke="#6e7681" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M430,460 L468,460" fill="none" stroke="#6e7681" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M650,460 L688,460" fill="none" stroke="#6e7681" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M845,432 L845,206" fill="none" stroke="#4493f8" stroke-width="1.5" marker-end="url(#b)"/>
+<text x="837" y="404" text-anchor="end" font-size="13" fill="#9198a1">next index</text>
+<line x1="30" y1="502" x2="870" y2="502" stroke="#30363d"/>
+<rect x="30" y="516" width="26" height="18" rx="5" fill="#161b22" stroke="#30363d"/>
+<text x="66" y="530" text-anchor="start" font-size="13" fill="#9198a1">Runs automatically</text>
+<rect x="230" y="516" width="26" height="18" rx="5" fill="#0d1117" stroke="#4493f8" stroke-width="2" stroke-dasharray="4 3"/>
+<text x="266" y="530" text-anchor="start" font-size="13" fill="#9198a1">A person does this</text>
+<rect x="430" y="516" width="26" height="18" rx="5" fill="#12294a" stroke="#4493f8" stroke-width="1.5"/>
+<text x="466" y="530" text-anchor="start" font-size="13" fill="#9198a1">Vault Graph index</text>
+<path d="M630,525 L668,525" fill="none" stroke="#4493f8" stroke-width="1.5" marker-end="url(#b)"/>
+<text x="678" y="530" text-anchor="start" font-size="13" fill="#9198a1">Index read or update</text>
+</svg>

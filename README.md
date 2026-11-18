@@ -59,27 +59,10 @@ vg status --graph-home ~/.vault-graph
 After install you do not need to run anything for these. Each step also has a
 command or tool if you want to run it yourself.
 
-```mermaid
-flowchart TD
-    IX[("Index of the linked Vaults")]
-    H["Session starts:<br/>vg hook session-start"] -->|reads| IX
-    H --> R["Short memory summary<br/>added to the session"]
-    W["During work:<br/>search_vault, ask_vault"] -->|reads| IX
-    M["Claude calls remember"] -->|"basis: stated"| P["Vault publish-draft<br/>publishes the page"]
-    P --> B["Background reindex"] --> IX
-    M -->|"basis: inferred"| Q["Vault review queue"]
-    Q --> RR["You run review resolve"]
-    RR -->|"next index"| IX
-    E["Session ends or compacts:<br/>vg hook capture"] --> F["Fact worker attaches<br/>a .facts.md file"]
-    F -->|"next index"| IX
-
-    classDef auto fill:#e8f1fb,stroke:#3b6ea5,color:#000
-    classDef person fill:#fff4d6,stroke:#b07d00,stroke-dasharray:5 3,color:#000
-    class IX,H,R,W,M,P,B,Q,E,F auto
-    class RR person
-```
-
-Blue boxes run on their own. The yellow dashed box is a step you do.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/vault-graph-flow-dark.svg">
+  <img src="docs/assets/vault-graph-flow-light.svg" alt="Vault Graph flow. Read: at session start, vg hook session-start reads the index of the linked Vaults and adds a memory summary to the session. During work, search_vault and ask_vault read the same index. Write: remember with basis stated goes through Vault publish-draft and a background reindex. With basis inferred it waits in the Vault review queue until a person runs review resolve. Session end: vg hook capture hands the session to the Vault, the fact worker extracts dated facts, and the Vault attaches a .facts.md file. Accepted proposals and fact files reach the index at the next index run." width="900">
+</picture>
 
 1. **When a session starts**, Vault Graph picks up Vault files that changed,
    then gives Claude a short summary of this project's memory. Pinned memories
