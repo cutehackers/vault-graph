@@ -13,6 +13,7 @@ import subprocess
 from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -75,7 +76,7 @@ def _write(path: Path, entries: Sequence[Mapping[str, object]]) -> Path:
     return path
 
 
-def _run(tmp_path: Path) -> tuple[dict[str, object], list[dict[str, object]]]:
+def _run(tmp_path: Path) -> tuple[dict[str, object], list[dict[str, Any]]]:
     data = _write(
         tmp_path / "s.json",
         [
