@@ -34,14 +34,14 @@
 | D18 | 추출기는 설정으로 고르고, 차이가 작을 때만 기본값을 로컬로 바꾼다 | proposed | basis X13 | A17, A22 | 수집, 설정 | 49c31d16 | 13-facts-config.md, 22-measure-b.md |
 | D19 | 사실 추출은 기본으로 켜져 있고 `vg facts off`로 끈다 | decided | basis X13; depends D18 | A17, A25 | 설정, 측정 | aed3b1a7 | 13-facts-config.md, 19-lme-facts-args.md |
 | D20 | 추출 결과는 교환 내용 해시로 Graph Home에 캐시한다 | proposed | basis X11, X13 | A16 | 수집, 측정 | d29ba3b5 | 17-fact-worker.md, 19-lme-facts-args.md |
-| D21 | 사실은 교환마다 확장 키 하나로 색인하고 원 교환으로 접는다 | decided | basis X1, X10, I1, I3, I6, X26, X27, X28, X29; depends D2, D28 | A18 | 색인, 검색 | efeb23d9 | 16-facts-search.md, 24-fact-expansion-key.md |
+| D21 | 사실은 줄마다 원 교환으로 접히는 키 하나로, 원문과 같은 무게로 색인한다 | decided | basis X1, X10, I1, I3, I6, X26, X27, X28, X29, X30, D23; depends D2, D28 | A18 | 색인, 검색 | c3a7334a | 16-facts-search.md, 24-fact-expansion-key.md |
 | D22 | 원칙 문장을 사실 첨부 하나만 허용하도록 좁게 고친다 | decided | basis X10, I2, I7 | A20 | global | 146a8ac0 | 20-principle-text.md |
-| D23 | B는 시범 20문항으로 먼저 재고, 그 뒤 multi-session·temporal-reasoning 문항으로 넓힌다 | decided | basis X5, X13; depends D20 | A22 | 측정 | 41060f00 | 22-measure-b.md |
+| D23 | B는 시범 20문항으로 먼저 재고, 그 뒤 multi-session·temporal-reasoning 문항으로 넓힌다 | decided | basis X5, X13, X26, X30, X31; depends D20 | A22 | 측정 | da13573a | 22-measure-b.md |
 | D24 | 부분마다 세 관문을 넘어야 들인다 | proposed | basis X5, 2026-11-13-cross-encoder-rerank:D17; depends D1 | A21 | 측정 | 29403845 | 4-measure-a.md, 11-measure-c.md, 22-measure-b.md |
 | D25 | vault-builder: Vault 명령 `sessions attach-facts`를 더한다 | decided | basis X11, I7 | A23 | vault-builder | a6296784 | 12-vault-builder-track.md |
 | D26 | vault-builder: 첨부는 세션 part 파일 옆 `<part 이름>.facts.md`다 | decided | basis X4, X11 | A23 | vault-builder | d0fc44b6 | 12-vault-builder-track.md |
 | D27 | vault-builder: 첨부 명령은 원 part 파일과 맞을 때만 쓴다 | decided | basis X11; depends D25, D26 | A23 | vault-builder | e1e4dbb8 | 12-vault-builder-track.md |
-| D28 | vault-builder 계약: vault-graph는 `vault-session-facts/v1` 첨부를 이렇게 읽는다 | proposed | basis X4, X6, I1, D21; depends D26 | A18 | vault-builder, 색인 | 2b9f1b45 | 15-facts-index.md, 24-fact-expansion-key.md |
+| D28 | vault-builder 계약: vault-graph는 `vault-session-facts/v1` 첨부를 이렇게 읽는다 | proposed | basis X4, X6, I1, D21; depends D26 | A18 | vault-builder, 색인 | b2890542 | 15-facts-index.md, 24-fact-expansion-key.md |
 | D29 | vault-builder task는 별도 세션이 하고, 이 세션은 결과를 기다려 B를 통합한다 | decided | basis X11; depends D25, D26, D27, D28 | A24 | vault-builder, global | f3d8e06f | 21-b-integration.md |
 | F1 | 한 세션이 여러 Vault에 있다 |  | basis D3 | A1 |  | 984c30b4 | 1-session-fold.md |
 | F2 | 세션 파일에 `agent`나 `session_id`가 없다 |  | basis D3 | A1 |  | 597c4149 | 1-session-fold.md |
@@ -101,6 +101,8 @@
 | X27 | 논문에서는 사실을 원문과 한 키로 합칠 때가 따로 색인해 순위를 합칠 때보다 훨씬 낫다 |  |  |  |  | 3272c2d7 |  |
 | X28 | 문서 확장은 일반 기법이고, 생성 문장의 잡음을 줄이면 더 낫다 |  |  |  |  | a1b2bab3 |  |
 | X29 | 가중치를 두는 순위 합치기는 자기 데이터로 맞출 수 있을 때만 쓰고 기본은 같은 무게다 |  |  |  |  | 91d53cdc |  |
+| X30 | 교환마다 사실을 묶은 확장 키 하나는 사실마다 키 하나보다 나빴다 |  | basis X26, X27, I1 |  |  | f9bab07a |  |
+| X31 | 이번 B·C 측정은 표본이 작고 논문 조건과 다르다 |  | basis X25, X27 |  |  | ad2d04f9 |  |
 | X14 | 날짜 범위 표현은 127문항 중 27문항이다 |  |  |  |  | 19ef6844 |  |
 | X15 | 27문항의 표현은 모두 고정 규칙으로 풀린다 |  | basis X14 |  |  | 33ba8b78 |  |
 | X16 | 규칙으로 풀 수 없는 상대 날짜 표현은 0개다 |  | basis X15 |  |  | 7baefdc5 |  |
@@ -434,14 +436,14 @@ Graph Home `configs/facts.json`은 `version`, `enabled`, `extractor`(`claude`, `
 
 키는 (추출기, 모델, 스키마 판, 교환 내용 해시)다. 새 part에 다시 나온 교환은 다시 부르지 않는다. LongMemEval은 캐시 폴더를 실행기 인자로 넘겨 문항 사이에 같이 쓴다.
 
-### D21. 사실은 교환마다 확장 키 하나로 색인하고 원 교환으로 접는다
-- by: 사람 (brief B "추가 키로만 색인"; 2026-11-17 확장 키 방식 승인 "권장안으로 선택합니다")
+### D21. 사실은 줄마다 원 교환으로 접히는 키 하나로, 원문과 같은 무게로 색인한다
+- by: 사람 (brief B "추가 키로만 색인"; 2026-11-18 옵션3 승인 "옵션3 으로 승인합니다")
 - status: decided
 - area: 색인, 검색
-- basis: X1, X10, I1, I3, I6, X26, X27, X28, X29
+- basis: X1, X10, I1, I3, I6, X26, X27, X28, X29, X30, D23
 - depends: D2, D28
 
-교환 하나의 사실들을 그 교환의 사용자 질문 제목과 묶어 `parent_key` `<session_id>:<exchange_id>`인 확장 키 조각 하나로 만든다(키 합치기, X27). 사실마다 따로 조각을 만들면 비슷한 주제의 사실들이 후보 자리를 나눠 갖는다. 가중치는 원문과 같은 1.0이다(X29). 처음 정한 0.5는 측정에서 효과가 거의 없었다(X26). 확장 키의 시각은 그 교환 사실 날짜의 처음과 끝이다. 사실만 맞은 단위는 원 교환의 첫 창으로 바꿔 발췌와 근거를 원문에서 가져온다(그때만 좁게 한 번 읽는다). `include_fact_keys=false`면 `derived`를 후보에서 뺀다.
+사실 줄 하나가 `parent_key` `<session_id>:<exchange_id>`인 사실 조각 하나다. 가중치는 원문과 같은 1.0이다(X29, 업계 기본). 처음 정한 0.5는 측정에서 효과가 거의 없었고(X26), 교환마다 사실을 묶은 확장 키 하나는 오히려 나빴다(X30). 이 값과 방식은 40문항에서 고른 것이 아니라 기본값이며, 효과 판단은 충분한 표본의 별도 측정으로 미룬다(D23). 사실만 맞은 단위는 원 교환의 첫 창으로 바꿔 발췌와 근거를 원문에서 가져온다(그때만 좁게 한 번 읽는다). `include_fact_keys=false`면 사실 조각을 후보에서 뺀다.
 
 ### D22. 원칙 문장을 사실 첨부 하나만 허용하도록 좁게 고친다
 - by: 사람 (brief "바꿔야 하는 원칙 문장"; spec gate 2026-11-16: "세션 사실 첨부만 예외")
@@ -458,10 +460,10 @@ Graph Home `configs/facts.json`은 `version`, `enabled`, `extractor`(`claude`, `
 - by: 사람 (spec gate 2026-11-16: "시범 20문항 뒤 두 유형")
 - status: decided
 - area: 측정
-- basis: X5, X13
+- basis: X5, X13, X26, X30, X31
 - depends: D20
 
-150문항 전부는 호출 약 6,600번, 18~37시간이다(X13). 두 유형 20문항(호출 약 960번)을 두 추출기로 먼저 재고, 효과가 보이면 150문항 안의 두 유형 전체로 넓힌다. 문항 수는 `research/baseline.md`로 정한다. 시간은 기계가 한가할 때 잰다.
+150문항 전부는 호출 약 6,600번, 18~37시간이다(X13). 두 유형 20문항(호출 약 960번)을 두 추출기로 먼저 재고, 효과가 보이면 150문항 안의 두 유형 전체로 넓힌다. 문항 수는 `research/baseline.md`로 정한다. 시간은 기계가 한가할 때 잰다. 결과(2026-11-18): 시범 20문항은 A만으로 0.90이라 B 효과가 보이지 않았고, A가 틀린 20문항을 더 쟀다. 이 40문항은 대표 표본이 아니고 논문 조건(LongMemEval_M, 질문마다 대화 약 500개)과 달라, 사실 키와 날짜 범위의 효과는 이번 변경에서 판단하지 않는다(X26, X30, X31). 충분한 표본의 측정은 backlog `LME-01`로 남긴다(사람 승인 2026-11-18 "옵션3 으로 승인합니다").
 
 ### D24. 부분마다 세 관문을 넘어야 들인다
 - by: 사람 (brief 완료 조건); 가정 (비교 기준은 재정렬 꺼짐)
@@ -504,7 +506,7 @@ vault-builder 저장소 task다. part 없음, sha256 불일치, 다른 `session_
 - basis: X4, X6, I1, D21
 - depends: D26
 
-계약 문서는 `docs/contracts/vault-session-facts-v1.md`다. vault-graph는 `schema`로 첨부를 알아보고 세션 묶음 규칙에는 넣지 않으며, 교환마다 확장 키 조각 하나를 만든다(D21. `parent_key`는 원 교환, 시각은 그 교환 사실 날짜의 처음과 끝). 사용자 질문 제목은 `source`의 part 파일에서 읽는다. 모르는 판은 경고 하나와 함께 색인하지 않는다.
+계약 문서는 `docs/contracts/vault-session-facts-v1.md`다. vault-graph는 `schema`로 첨부를 알아보고 세션 묶음 규칙에는 넣지 않으며, 줄마다 사실 조각 하나를 만든다(D21. `parent_key`는 원 교환, 시각은 줄 날짜). 모르는 판은 경고 하나와 함께 색인하지 않는다.
 
 ### D29. vault-builder task는 별도 세션이 하고, 이 세션은 결과를 기다려 B를 통합한다
 - by: 사람 (추가 지시 2, 2026-11-16)

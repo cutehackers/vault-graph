@@ -1,5 +1,4 @@
-"""`vault-session-facts/v1` attachments become one `derived` expansion key per exchange (spec 2026-11-16 D21, D28,
-I1, A3, A18).
+"""`vault-session-facts/v1` attachments become `derived` chunks (spec 2026-11-16 D28, I1, A3, A18).
 
 Contract: docs/contracts/vault-session-facts-v1.md §3 and §5.
 """
@@ -87,87 +86,27 @@ def test_v1_attachment_selects_the_session_facts_chunker_without_a_warning() -> 
     assert SESSION_FACTS_VERSION in INDEX_CODE_PARTS
 
 
-TITLE = "Fix the failing test in src/app.py. The db password=[REDACTE"
-
-
-def test_each_exchange_is_one_expansion_key_chunk_keyed_to_the_original_exchange() -> None:
+def test_each_fact_line_is_one_derived_chunk_keyed_to_the_original_exchange() -> None:
     item = normalized(facts_text())
 
     assert item.warnings == ()
-    assert len(item.chunks) == 1
-    chunk = item.chunks[0]
-    assert chunk.chunker_version == SESSION_FACTS_VERSION
-    assert chunk.parent_key == f"{SESSION_ID}:u-001"
-    # The exchange's user question title from the `source` part file, then its facts, one per line.
-    assert chunk.text == (
-        f"{TITLE}\nThe user fixed the failing test in src/app.py.\n사용자는 데이터베이스 비밀번호를 .env에 둔다."
-    )
-    # The first and last fact day, as whole UTC days.
-    assert (chunk.started_at, chunk.ended_at) == ("2026-10-30T00:00:00Z", "2026-11-01T23:59:59Z")
-    lines = facts_text().split("\n")
-    located = [int(dict(locator.coordinates)["line"]) for locator in chunk.source_locators]
-    assert [lines[number - 1] for number in located] == [
-        "- 2026-11-01 The user fixed the failing test in src/app.py. (exchange u-001)",
-        "- 2026-10-30 사용자는 데이터베이스 비밀번호를 .env에 둔다. (exchange u-001)",
-    ]
-    assert embedding_input_for(chunk) == f"Session: 2026-10-30\n\n{chunk.text}"
-
-
-def test_facts_of_several_exchanges_group_by_exchange_in_first_seen_order() -> None:
-    body = (
-        "- 2026-11-01 First fact. (exchange u-001)\n"
-        "- 2026-11-02 Other exchange fact. (exchange u-002)\n"
-        "- 2026-11-03 Second fact. (exchange u-001)\n"
-    )
-    item = normalized(facts_text(body=body))
-
-    assert [chunk.parent_key for chunk in item.chunks] == [f"{SESSION_ID}:u-001", f"{SESSION_ID}:u-002"]
-    # u-002 is not in the part file, so its key has the facts only.
-    assert [chunk.text for chunk in item.chunks] == [f"{TITLE}\nFirst fact.\nSecond fact.", "Other exchange fact."]
-    assert [(chunk.started_at, chunk.ended_at) for chunk in item.chunks] == [
-        ("2026-11-01T00:00:00Z", "2026-11-03T23:59:59Z"),
-        ("2026-11-02T00:00:00Z", "2026-11-02T23:59:59Z"),
-    ]
-    assert [len(chunk.source_locators) for chunk in item.chunks] == [2, 1]
-    assert len({chunk.chunk_id for chunk in item.chunks}) == 2
-
-
-def test_without_a_readable_part_file_the_key_has_the_facts_only(tmp_path: Path) -> None:
-    raw = facts_text().encode("utf-8")
-    source = SourceDocument(
-        vault_id="main",
-        root_path=tmp_path,
-        path=FACTS,
-        suffix=".md",
-        raw_bytes=raw,
-        raw_sha256=hashlib.sha256(raw).hexdigest(),
-    )
-    item = DocumentNormalizer().normalize(MarkdownDocumentReader().read(source))
-
-    assert item.warnings == ()
+    assert [chunk.chunker_version for chunk in item.chunks] == [SESSION_FACTS_VERSION] * 2
+    assert [chunk.parent_key for chunk in item.chunks] == [f"{SESSION_ID}:u-001"] * 2
     assert [chunk.text for chunk in item.chunks] == [
-        "The user fixed the failing test in src/app.py.\n사용자는 데이터베이스 비밀번호를 .env에 둔다."
+        "The user fixed the failing test in src/app.py.",
+        "사용자는 데이터베이스 비밀번호를 .env에 둔다.",
     ]
-
-
-def test_a_source_outside_the_vault_is_not_read(tmp_path: Path) -> None:
-    outside = tmp_path / "outside" / PART
-    outside.parent.mkdir(parents=True)
-    shutil.copyfile(FIXTURES / PART, outside)
-    root = tmp_path / "vault"
-    root.mkdir()
-    raw = facts_text().replace(f"source: {PART}", f"source: ../outside/{PART}").encode("utf-8")
-    source = SourceDocument(
-        vault_id="main",
-        root_path=root,
-        path=FACTS,
-        suffix=".md",
-        raw_bytes=raw,
-        raw_sha256=hashlib.sha256(raw).hexdigest(),
-    )
-    item = DocumentNormalizer().normalize(MarkdownDocumentReader().read(source))
-
-    assert [chunk.text.split("\n")[0] for chunk in item.chunks] == ["The user fixed the failing test in src/app.py."]
+    assert [(chunk.started_at, chunk.ended_at) for chunk in item.chunks] == [
+        ("2026-11-01T00:00:00Z", "2026-11-01T23:59:59Z"),
+        ("2026-10-30T00:00:00Z", "2026-10-30T23:59:59Z"),
+    ]
+    lines = facts_text().split("\n")
+    for chunk in item.chunks:
+        line = int(dict(chunk.source_locators[0].coordinates)["line"])
+        assert chunk.text in lines[line - 1]
+    assert len({chunk.chunk_id for chunk in item.chunks}) == 2
+    expected_input = "Session: 2026-11-01\n\nThe user fixed the failing test in src/app.py."
+    assert embedding_input_for(item.chunks[0]) == expected_input
 
 
 def test_attachment_is_not_a_session_file() -> None:
@@ -192,7 +131,7 @@ def test_malformed_lines_are_skipped_with_one_warning() -> None:
     )
     item = normalized(facts_text(body=body))
 
-    assert [chunk.text for chunk in item.chunks] == [f"{TITLE}\nGood fact.", "Second good fact."]
+    assert [chunk.text for chunk in item.chunks] == ["Good fact.", "Second good fact."]
     assert [chunk.parent_key for chunk in item.chunks] == [f"{SESSION_ID}:u-001", f"{SESSION_ID}:u-002"]
     assert len(item.warnings) == 1
     assert item.warnings[0].startswith(f"session_facts_line_invalid: {FACTS}: 3 lines")
@@ -252,7 +191,10 @@ def test_part_windows_are_byte_identical_when_an_attachment_sits_next_to_the_par
         ).fetchall()
     assert groups[PART] == f"claude-code:{SESSION_ID}"
     assert groups[FACTS] is None
-    assert [tuple(row) for row in facts] == [(f"{SESSION_ID}:u-001", SESSION_FACTS_VERSION, "2026-10-30T00:00:00Z")]
+    assert [tuple(row) for row in facts] == [
+        (f"{SESSION_ID}:u-001", SESSION_FACTS_VERSION, "2026-11-01T00:00:00Z"),
+        (f"{SESSION_ID}:u-001", SESSION_FACTS_VERSION, "2026-10-30T00:00:00Z"),
+    ]
     parent_keys = {window[4] for window in windows(attached_store)}
     assert {row[0] for row in facts} <= parent_keys
 
@@ -332,8 +274,9 @@ def _assert_no_fact_text(response: SearchResponse) -> None:
 
 
 def test_fact_key_weight_equals_keyword_and_vector() -> None:
+    # Spec 2026-11-16 D21: equal weight, the usual default (research X29). 0.5 barely helped (X26).
     assert FACT_KEY_WEIGHT == SIGNAL_WEIGHTS["keyword"] == SIGNAL_WEIGHTS["vector"] == 1.0
-    assert fact_key_score(0.5) == 0.5
+    assert fact_key_score(1.0) == FACT_KEY_WEIGHT
 
 
 def test_a_fact_only_match_returns_the_original_exchange_first_window(tmp_path: Path) -> None:
@@ -405,7 +348,7 @@ def test_without_fact_keys_a_signal_list_fills_up_past_the_facts_and_ranks_again
         rows = connection.execute(
             "SELECT document_id, chunk_id, chunker_version FROM chunks ORDER BY chunker_version DESC, chunk_id"
         ).fetchall()
-    # The fact key first, then the part's windows: the fact key takes a slot ahead of a window.
+    # Fact chunks first, then the part's windows: every fact takes a slot ahead of a window.
     hits = tuple(
         KeywordHit(
             vault_id="main",
@@ -422,7 +365,7 @@ def test_without_fact_keys_a_signal_list_fills_up_past_the_facts_and_ranks_again
     )
     facts = sum(1 for row in rows if row[2] == SESSION_FACTS_VERSION)
     windows = len(rows) - facts
-    assert facts == 1 and windows >= 1
+    assert facts == 2 and windows >= 1
     asked: list[int] = []
 
     def fetch(limit: int) -> tuple[KeywordHit, ...]:
@@ -432,5 +375,5 @@ def test_without_fact_keys_a_signal_list_fills_up_past_the_facts_and_ranks_again
     kept = service._hits(fetch, limit=1, include_fact_keys=False)
 
     assert [(hit.chunk_id, hit.rank) for hit in kept] == [(rows[facts][1], 1)]
-    assert asked == [1, 2]
+    assert asked == [1, 2, 3]
     assert service._hits(fetch, limit=1, include_fact_keys=True) == hits[:1]
