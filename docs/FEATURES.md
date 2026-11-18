@@ -4,7 +4,12 @@ Status: Active feature contract
 
 This document lists the features and interfaces exposed to Vault Graph users. It
 focuses on what a user or agent can invoke directly through CLI, MCP resources,
-MCP tools, MCP prompts, and HTTP serving.
+MCP tools, MCP prompts, Claude Code hooks, and HTTP serving.
+
+The README describes the main features in one form (what it does, when it runs,
+the command or tool, what it reads and writes): session-start recall, session
+capture, session fact extraction, memory writes, memory cleanup, read tools,
+and the code index. This document is the full reference.
 
 For architecture, storage contracts, indexing internals, and roadmap details,
 see `docs/SPEC.md`.
@@ -15,33 +20,31 @@ adapters.
 
 ## Product Boundary
 
-Vault Graph is a read-only, rebuildable knowledge access layer over Vault.
+Vault Graph is a rebuildable access layer over Vault. Vault holds all durable
+knowledge. Vault Graph holds indexes, usage records, and settings in its Data
+Home (`$HOME/.vault-graph` by default).
 
-Round 0-G makes that boundary measurable: `vg search` defaults to
-`--mode knowledge`, while `evidence`, `operating`, `audit`, and `all` provide
-explicit drill-down. Results carry provenance-family IDs and compact supporting
-references. `vg projection-audit` reports plaintext amplification, role counts,
-schema versions, dangling keyword/vector/graph references, active bundle
-capabilities, source-snapshot identity, and component revisions.
+`vg search` defaults to `--mode knowledge`. `evidence`, `operating`, `audit`,
+and `all` search other page groups. `vg projection-audit` reports plaintext
+duplication, dangling index references, and component revisions.
 
 It can:
 
-- read Vault content
-- build local indexes from Vault
-- search and explain Vault-derived results
-- generate evidence-linked context for humans and agents
-- expose that context through CLI, MCP, and HTTP
+- read Vault content and index it locally
+- search, explain, and answer from Vault evidence
+- build evidence-linked context for humans and agents
+- inject a session-start recall through a Claude Code hook
+- hand finished sessions to the Vault and extract facts from them
+- write memory, but only by running the Vault's own commands
 
 It does not:
 
-- publish durable wiki pages
-- mutate raw sources
-- edit Vault documents
+- create, edit, or delete Vault files itself
+- write to `raw/`
+- publish an inferred fact without a person accepting it in the Vault review
+  queue
 - resolve contradictions automatically
 - replace Vault as the source of truth
-
-Any insight that should become durable knowledge must go back through Vault's
-normal source capture, draft, validation, release gate, and Git history workflow.
 
 ## Feature Matrix
 
@@ -57,7 +60,7 @@ or local HTTP acceptance tests.
 | Watch Vault | `vg watch` | - | - | Continuous index refresh |
 | Check Status | `vg status` | `check_index_status(scope=None)` | - | Vault IDs/paths, backend health, schema compatibility, freshness, warnings |
 | Ask Vault | `vg ask "question"` | `ask_vault(question, mode="evidence-first", scope=None)` | - | Answer, claims, evidence, reasoning trace, warnings |
-| Search Vault | `vg search "query"` | `search_vault(query, scope=None, limit=10)` | document/page/source resources | Ranked evidence-linked results |
+| Search Vault | `vg search "query"` | `search_vault(query, scope=None, limit=10, mode="knowledge", include_retired=False, since=None, until=None, cwd=None)` | document/page/source resources | Ranked evidence-linked results |
 | Find Related Items | `vg related TARGET` | `find_related(target, scope=None, depth=1, kinds=None)` | `vault://{vault_id}/graph/entities/{id}` | Related entities, paths, evidence |
 | Trace Decision | `vg decision-trace TOPIC` | `get_decision_trace(decision_or_topic, scope=None)` | `vault://{vault_id}/decisions/{id}` | Decision, context, alternatives, tradeoffs |
 | Build Context Pack | `vg context "goal"` | `build_context_pack(goal, scope=None, max_tokens=None)` | `vault://context/packs/{id}` | JSON or Markdown agent brief |
@@ -70,77 +73,35 @@ or local HTTP acceptance tests.
 | Bind Project Authorities | `vg project bind REPOSITORY_ID --vault-id ID`, `vg project bindings` | - | - | Explicit Graph-owned repository-to-Vault selection |
 | Explore Project | - | `explore_project(task, project_path=None, repository_id=None, max_tokens=None, depth=2, limit=20)` | repository and Vault evidence links | Bounded code, tests, impact, Vault evidence, revisions, freshness, warnings |
 | Install Harness Guidance | `vg harness guidance preview/install/remove` | - | - | Explicit marker-fenced `AGENTS.md` or `CLAUDE.md` guidance outside Vault |
+| Session-start recall | `vg hook session-start` (SessionStart hook) | - | - | Markdown memory bundle: pinned pages, project summary, memory list, notices |
+| Session capture | `vg hook capture` (PreCompact and SessionEnd hooks) | - | - | Normalized session handed to the Vault hook launcher |
+| Session fact extraction | `vg facts on`, `vg facts off`, `vg facts status`, `vg facts worker` | - | - | Facts per session exchange, written by the Vault's `sessions attach-facts` |
+| Export sessions | `vg session export --agent claude-code --out PATH` | - | - | Raw copies and normalized session files outside every Vault |
+| Write memory | - | `remember`, `update_memory`, `retire_memory`, `supersede_claim`, `restore_memory`, `import_auto_memory` | - | `published`, `proposed` (review queue), `rejected`, or `vault_required` |
+| Clean up memory | - | `list_memory_candidates`, `mark_candidates_reviewed`, prompt `curate_memory` | - | Cleanup candidates with comparison pages and keys |
+| Diagnose setup | `vg doctor` | - | - | One fix command per index, model, or MCP problem |
+| Manage models | `vg embedding list/use`, `vg reranker use/off` | - | - | Selected embedding and rerank models |
 | Serve MCP | `vg serve --mcp` | - | all MCP resources | MCP server for agents |
 | Serve HTTP | `vg serve --http` | - | - | HTTP access surface |
 
-## Retrieval Features
+## Search Scope
 
-Phase 2 exposes search in slices. Phase 2A is internal contract readiness only.
-User-facing vector status arrives in Phase 2B, and user-facing search arrives in
-Phase 2C. This keeps the first visible search surface evidence-first and
-explainable.
+Without a Vault option or `scope`, the read tools and `vg search`, `vg ask`
+and `vg context` use the Vaults linked to the current project in
+`vault-map.json`. MCP tools take the project folder as `cwd`. Outside a project
+they use the active registered Vault. `--vault-id`, `--all-vaults`, or `scope`
+with `vault_ids` or `all_vaults` override this choice.
 
-| Slice | Change | Explicitly Not Included |
-| --- | --- | --- |
-| Phase 2A | Internal retrieval and `VectorStore` contracts | user search, vector status output, graph traversal, answers |
-| Phase 2B | `vg index` and `vg status` include Chroma-backed local vector projection state | user search, graph traversal, answers, context packs |
-| Phase 2C | `vg search "query"` returns keyword/vector ranked evidence | graph traversal, `vg ask`, MCP serving |
-
-Graph-based expansion joins search after Phase 3. Until then, hybrid retrieval
-means keyword plus vector retrieval with graph-ready result fields and
-per-signal explanations.
-
-## Graph Features
-
-Phase 3 exposes graph behavior in small, evidence-first slices. Graph records
-remain derived projections over Vault metadata; graph commands must resolve
-normal evidence through `MetadataStore` before rendering user-facing output.
-
-| Slice | User-Facing Change | Explicitly Not Included |
-| --- | --- | --- |
-| Phase 3A | `vg status` can report graph backend readiness once graph contracts exist | graph traversal, graph ranking, decision traces |
-| Phase 3B | `vg index` can reconcile local entity and relationship graph state for selected Vault scopes | LLM-required extraction, cross-Vault entity merging, context packs |
-| Phase 3C | `vg related TARGET`, `vg decision-trace TOPIC`, and optional `vg search --include-graph` expose graph evidence and warnings | `vg ask`, MCP serving, HTTP serving, Neo4j |
-
-Default `vg search "query"` stays keyword/vector evidence search until graph
-relevance is proven through focused tests. Users must opt into graph expansion
-with an explicit graph command or flag.
-
-## Context Pack Features
-
-Phase 4 exposes context packs as bounded, evidence-linked working briefs.
-Context packs are not answers and are not durable Vault knowledge.
-
-| Slice | User-Facing Change | Explicitly Not Included |
-| --- | --- | --- |
-| Phase 4A | no new command; stabilizes the canonical JSON context pack contract and builder boundary | CLI context command, MCP serving, HTTP serving, pack persistence |
-| Phase 4B | `vg context "goal"` returns JSON or Markdown context packs with evidence, revisions, and first-class warnings | `vg ask`, MCP serving, HTTP serving, automatic Vault publication |
-
-Markdown context output is a rendering view over canonical JSON. Users must opt
-into graph expansion with `--include-graph`; plain `vg context "goal"` uses
-keyword/vector retrieval only.
-
-## MCP Adapter Features
-
-Phase 5 introduced the local MCP adapter. MCP remains an adapter over the same
-evidence-first services used by CLI commands; it does not add independent
-retrieval, answer, memory, or Vault publication implementations.
-
-| Slice | User-Facing Change | Explicitly Not Included |
-| --- | --- | --- |
-| Phase 5A | `vg serve --mcp` starts a local stdio MCP server and provides Codex-compatible local configuration examples | Streamable HTTP, authentication, remote hosting, tools that synthesize answers |
-| Phase 5B | MCP resource templates expose read-only indexed Vault documents, pages, sources, graph entities, current context availability, and generated context packs | resource subscriptions, durable context-pack persistence, full-Vault resource dumps |
-| Phase 5C | MCP tools expose service-backed search, context-pack building, related entities, decision traces, and index status; prompts guide common agent workflows | answer and memory service implementations delivered by later layers, autonomous wiki updates, LLM clients |
-
-Only service-backed tools are registered. `ask_vault` and the memory projection
-tools are registered because their backing application services now exist.
-Future MCP tools must follow the same rule and stay out of the surface until a
-stable application-service boundary exists.
+Graph signals are opt-in: use `vg related`, `vg decision-trace`, or
+`--include-graph`. Context packs are working briefs, not answers and not durable
+Vault knowledge.
 
 `explore_project` is the preferred coding entry point. It requires a registered
-repository and an explicit Graph-owned binding to one or more Vaults; it never
+repository and an explicit Graph-owned binding to one or more Vaults. It never
 guesses an active Vault. When code indexing is unavailable, it returns a
-deterministic Vault-only result with a visible warning rather than stale code.
+Vault-only result with a visible warning rather than stale code.
+
+The history of each slice is in `CHANGELOG.md` and `docs/PATCH_LOG.md`.
 
 ## Code And Project Context Features
 
@@ -258,27 +219,27 @@ User-visible behavior:
 
 - detects changed, stale, and deleted files
 - supports incremental and full rebuilds
-- in Phase 2B, updates metadata first and then reconciles the local vector
+- updates metadata first and then reconciles the local vector
   projection for the selected scope
 - uses the active Vault by default
 - supports `--vault-id ID` for one Vault and `--all-vaults` for all enabled
   Vaults
 - reports index revision information
-- in Phase 2B, reports vector upserts, tombstones, unchanged records, stale
+- reports vector upserts, tombstones, unchanged records, stale
   records, model spec, backend health, and recoverable vector failures
-- in Phase 2B dry-run output, reports configured `embedding_batch_size`,
+- in dry-run output, reports configured `embedding_batch_size`,
   parallelism, lazy loading, and planned embedding count without loading the
   model
-- in Phase 2B, returns a nonzero exit if metadata succeeds but vector reconcile
+- returns a nonzero exit if metadata succeeds but vector reconcile
   fails, while preserving the applied metadata revision in output and status
-- in Phase 3B, reports graph entity upserts, relationship upserts, evidence
+- reports graph entity upserts, relationship upserts, evidence
   reference upserts, tombstones, stale graph records, affected Vault IDs,
   `GraphExtractionSpec`, graph revision metadata, and projection cache
   invalidations
-- in Phase 3B, returns a nonzero exit if metadata/vector work succeeds but graph
+- returns a nonzero exit if metadata/vector work succeeds but graph
   reconcile fails, while preserving completed earlier projection state in output
   and status
-- in Phase 3B, reports vector and graph indexing failures independently when
+- reports vector and graph indexing failures independently when
   both are enabled
 - reports warnings for source drift, duplicates, stale data, or missing evidence
 - supports dry-run planning before index mutation
@@ -310,12 +271,12 @@ The status surface should show:
 - backend health
 - schema compatibility
 - index revision freshness
-- in Phase 2B, Chroma vector backend health, schema compatibility, active
+- Chroma vector backend health, schema compatibility, active
   `EmbeddingModelSpec`, vector revision, stale count, status scope, and last
   vector failure
-- in Phase 2B, default local embedding model, model revision, model cache
+- default local embedding model, model revision, model cache
   availability, throughput tuning, and model-unavailable errors
-- in Phase 3, graph backend health, graph schema compatibility,
+- graph backend health, graph schema compatibility,
   `GraphExtractionSpec`, graph revisions by Vault/actual scope, stale graph
   record counts, tombstone counts, last graph failure, and graph projection cache
   freshness
@@ -354,8 +315,9 @@ The answer should separate:
 
 Expected behavior:
 
-- uses the active Vault by default
-- supports `--vault-id` for scoped answering
+- uses the Vaults linked to the current project by default, else the active
+  Vault
+- supports `--vault-id` and `--all-vaults` for scoped answering
 - uses existing search, graph, decision-trace, context-pack, and memory
   projection services where available
 - cites every major answer claim or labels it as unsupported or partial
@@ -396,7 +358,7 @@ Builds a scoped context pack for a concrete task.
 The output should be small enough for an agent to read directly and rich enough
 to avoid a full Vault scan.
 
-Phase 4 context behavior:
+Context behavior:
 
 - JSON is the canonical artifact
 - Markdown is a rendering view over the JSON artifact
@@ -456,35 +418,37 @@ the `QueryScope` used when it was created.
 ## MCP Tools
 
 The feature matrix lists the product surface. MCP registers only tools backed by
-existing application services. Tools that require answer synthesis or memory
-projections are listed only when their backing services exist or are the next
-implementation target.
+existing application services.
+
+The memory write tools (`remember`, `update_memory`, `retire_memory`,
+`supersede_claim`, `restore_memory`, `import_auto_memory`) and the cleanup tools
+(`list_memory_candidates`, `mark_candidates_reviewed`) are described in the
+README under Memory writes and Memory cleanup. Their full argument lists are in
+the tool descriptions the server sends to the agent
+(`src/vault_graph/interface/mcp/mcp_memory_tools.py` and `mcp_tools.py`).
 
 ### `search_vault(query, scope=None, limit=10, mode="knowledge")`
 
 Searches Vault-derived indexes and returns ranked, evidence-linked results.
-The optional `scope` is a `QueryScope`; without it, search uses the active Vault
-only. Cross-Vault retrieval must be explicit.
+The optional `scope` is a `QueryScope`. Without it, search uses the Vaults
+linked to the `cwd` project (see Search Scope). Results carry `vault_name` and
+`vault_role`. `include_retired` adds retired pages with their retire reason.
+`since` and `until` (YYYY-MM-DD) put results in that date range first.
 
-This MCP tool uses the same search service as the CLI. The historical Phase 2C
-slice introduced the CLI surface first; the MCP adapter exposes the service
-after the MCP layer is enabled.
-
-The Phase 2C CLI surface is:
+This MCP tool uses the same search service as `vg search`:
 
 ```bash
 vg search "GraphRAG"
 vg search --vault-id main "GraphRAG"
 vg search --all-vaults "GraphRAG"
+vg search --when "last week" "GraphRAG"
 ```
 
-Phase 2C search combines keyword and vector candidates. Graph candidates,
-decision-map expansion, and timeline-map expansion are later signals that must
-use the same evidence-linked result contract.
-
-Phase 2C's canonical result is an evidence chunk resolved through
-`MetadataStore`. The categories below are rendering and grouping views over
-chunk evidence, not separate retrieval identities.
+Search combines keyword and vector candidates, ranks by document, and can rerank
+when `vg reranker use` turned reranking on. Graph candidates join only with
+`include_graph`. Each result is an evidence chunk resolved through
+`MetadataStore`. The groups below are rendering views over chunk evidence, not
+separate retrieval identities.
 
 Expected rendering groups:
 
@@ -505,8 +469,8 @@ appear as top-level warnings.
 Answers a natural-language question with cited evidence.
 
 The default mode prefers inspectable evidence over fluent unsupported synthesis.
-The optional `scope` is a `QueryScope`; without it, the active Vault is used.
-Cross-Vault answering requires explicit scope.
+The optional `scope` is a `QueryScope`. Without it, the Vaults linked to the
+`cwd` project are used (see Search Scope).
 
 Expected response fields:
 
@@ -585,7 +549,7 @@ The response should include:
 
 - current goal
 - decision highlights with evidence
-- recent-change handoff to `get_recent_changes` when Phase 6C is available
+- recent-change handoff to `get_recent_changes`
 - open issues
 - next likely priorities
 - evidence links
@@ -633,9 +597,11 @@ Initial prompts:
 - `analyze_project_risk`
 - `prepare_wiki_update_context`
 - `trace_decision_history`
+- `curate_memory`: the steps for a memory cleanup with `list_memory_candidates`
+  and the memory write tools
 
 Prompts must instruct agents to treat Vault Graph output as working context.
-Durable publication still belongs to Vault's validation workflow.
+Durable publication still runs through Vault's own commands.
 
 ## Context Pack Output
 
@@ -760,7 +726,7 @@ and claim-status contract instead of creating an independent answer engine.
 
 Vault Graph should preserve these guarantees for every user-facing feature:
 
-- read-only access to Vault
+- no direct edits to Vault files: every Vault change runs a Vault command
 - local-first operation without mandatory hosted services
 - evidence-first responses
 - clear separation between stated facts and inferred links
