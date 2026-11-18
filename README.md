@@ -1,5 +1,7 @@
 # Vault Graph
 
+English | [한국어](README-kr.md)
+
 Status: Pre-release development
 
 Vault Graph (`vg`) gives Claude Code a long-term memory. Your memory lives in
