@@ -328,7 +328,8 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
         assert "candidate_key" not in schema["required"]
         if name != "retire_memory":
             # Spec 2026-11-11 §4.3.1 adds two optional inputs `summary` and `aliases` to these two tools (A-9).
-            for added in ("summary", "aliases"):
+            # Spec 2026-11-19 D4 adds one optional input `quote` to them.
+            for added in ("summary", "aliases", "quote"):
                 assert schema["properties"].pop(added)["default"] is None
                 assert added not in schema["required"]
         assert set(schema["properties"]) == set(required) | set(optional)

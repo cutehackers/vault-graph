@@ -5,6 +5,8 @@ Split from ``mcp_tools`` (정리 발견1). Every write runs through the M18 ``Me
 service factory opens, so this module never writes a Vault file. A ``published`` write starts a
 background index of that Vault (finding F1). Each tool takes an optional ``candidate_key``: the write
 service records it in the Graph Home review log when the result is ``published`` or ``proposed``.
+``remember``, ``update_memory`` and ``supersede_claim`` take an optional ``quote``: the user's own words from
+the session exchange the evidence names. The write service checks it against that exchange (spec 2026-11-19 D4).
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ class RememberInput:
     candidate_key: str | None = None
     summary: str | None = None
     aliases: tuple[str, ...] = ()
+    quote: str | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,7 @@ class UpdateMemoryInput:
     candidate_key: str | None = None
     summary: str | None = None
     aliases: tuple[str, ...] | None = None
+    quote: str | None = None
 
 
 @dataclass(frozen=True)
@@ -82,6 +86,7 @@ class SupersedeClaimInput:
     cwd: str | None = None
     vault: str | None = None
     candidate_key: str | None = None
+    quote: str | None = None
 
 
 @dataclass(frozen=True)
@@ -132,6 +137,7 @@ class McpMemoryTools:
                     candidate_key=request.candidate_key,
                     summary=request.summary,
                     aliases=request.aliases,
+                    quote=request.quote,
                 )
             ),
         )
@@ -157,6 +163,7 @@ class McpMemoryTools:
                     candidate_key=request.candidate_key,
                     summary=request.summary,
                     aliases=request.aliases,
+                    quote=request.quote,
                 )
             ),
         )
@@ -198,6 +205,7 @@ class McpMemoryTools:
                     vault=request.vault,
                     cwd=_write_cwd(request.cwd),
                     candidate_key=request.candidate_key,
+                    quote=request.quote,
                 )
             ),
         )
@@ -309,6 +317,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         candidate_key: str | None = None,
         summary: str | None = None,
         aliases: list[str] | None = None,
+        quote: str | None = None,
     ) -> dict[str, object]:
         """Add one new memory page to a Vault. To change an existing page use update_memory.
 
@@ -337,6 +346,11 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         the tool returns ``proposed`` with a ``review_path`` in the Vault review queue, and the fact is not in
         recall or search until a person accepts it.
 
+        ``quote`` is the user's own words, copied exactly from the session exchange that ``evidence`` names
+        (``<path> L<a>-L<b>``). It is required when ``basis`` is ``stated`` and the evidence names a session
+        exchange: the tool checks that the words are in what the user typed there and returns ``rejected``
+        when they are not. With ``inferred`` it is optional and checked when given.
+
         ``cwd`` is the project folder; without it the server working folder is used. The target Vault must be
         linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
         ``vault_required``, nothing was written: call the tool again with ``vault`` set to one of the names in
@@ -358,6 +372,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
             candidate_key=candidate_key,
             summary=summary,
             aliases=aliases,
+            quote=quote,
         )
         return registry.remember(request).to_json_dict()
 
@@ -375,6 +390,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         candidate_key: str | None = None,
         summary: str | None = None,
         aliases: list[str] | None = None,
+        quote: str | None = None,
     ) -> dict[str, object]:
         """Replace the body of one existing memory page.
 
@@ -394,6 +410,11 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
         the tool returns ``proposed`` with a ``review_path`` in the Vault review queue, and the fact is not in
         recall or search until a person accepts it.
+
+        ``quote`` is the user's own words, copied exactly from the session exchange that ``evidence`` names
+        (``<path> L<a>-L<b>``). It is required when ``basis`` is ``stated`` and the evidence names a session
+        exchange: the tool checks that the words are in what the user typed there and returns ``rejected``
+        when they are not. With ``inferred`` it is optional and checked when given.
 
         ``cwd`` is the project folder; without it the server working folder is used. The target Vault must be
         linked to that project in vault-map.json. ``vault`` names one of those Vaults. If the result status is
@@ -416,6 +437,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
             candidate_key=candidate_key,
             summary=summary,
             aliases=aliases,
+            quote=quote,
         )
         return registry.update_memory(request).to_json_dict()
 
@@ -494,6 +516,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         cwd: str | None = None,
         vault: str | None = None,
         candidate_key: str | None = None,
+        quote: str | None = None,
     ) -> dict[str, object]:
         """Replace one claim row of an existing page with a new claim. The old row stays, marked superseded.
 
@@ -505,6 +528,11 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
         ``basis`` (required): ``stated`` when the user said the fact; the change is published and the tool
         returns ``published`` or ``rejected``. ``inferred`` when you concluded it yourself; nothing is published,
         the tool returns ``proposed`` with a ``review_path`` in the Vault review queue.
+
+        ``quote`` is the user's own words, copied exactly from the session exchange that ``evidence`` names
+        (``<path> L<a>-L<b>``). It is required when ``basis`` is ``stated`` and the evidence names a session
+        exchange: the tool checks that the words are in what the user typed there and returns ``rejected``
+        when they are not. With ``inferred`` it is optional and checked when given.
 
         ``cwd`` is the project folder; without it the server working folder is used. Without ``vault``, the tool
         looks for ``path`` in the project's Vaults.
@@ -521,6 +549,7 @@ def register_memory_tools(server: McpToolServer, registry: MemoryToolRunner) -> 
             cwd=cwd,
             vault=vault,
             candidate_key=candidate_key,
+            quote=quote,
         )
         return registry.supersede_claim(request).to_json_dict()
 
@@ -599,12 +628,13 @@ def parse_remember_input(
     candidate_key: str | None = None,
     summary: str | None = None,
     aliases: list[str] | None = None,
+    quote: str | None = None,
 ) -> RememberInput:
     """Check only types here. Empty fields, unknown kinds and bases come back as a ``rejected`` result."""
 
     _require_strings(title=title, kind=kind, body=body, basis=basis)
     _require_optional_strings(
-        cwd=cwd, vault=vault, memory_kind=memory_kind, candidate_key=candidate_key, summary=summary
+        cwd=cwd, vault=vault, memory_kind=memory_kind, candidate_key=candidate_key, summary=summary, quote=quote
     )
     if not isinstance(pin, bool):
         raise invalid_arguments("pin must be a boolean")
@@ -621,6 +651,7 @@ def parse_remember_input(
         candidate_key=candidate_key,
         summary=summary,
         aliases=() if aliases is None else _aliases_tuple(aliases),
+        quote=quote,
     )
 
 
@@ -638,12 +669,19 @@ def parse_update_memory_input(
     candidate_key: str | None = None,
     summary: str | None = None,
     aliases: list[str] | None = None,
+    quote: str | None = None,
 ) -> UpdateMemoryInput:
     """Check only types here. Bad paths and empty fields come back as a ``rejected`` result."""
 
     _require_strings(path=path, body=body, basis=basis)
     _require_optional_strings(
-        vault=vault, cwd=cwd, title=title, memory_kind=memory_kind, candidate_key=candidate_key, summary=summary
+        vault=vault,
+        cwd=cwd,
+        title=title,
+        memory_kind=memory_kind,
+        candidate_key=candidate_key,
+        summary=summary,
+        quote=quote,
     )
     if pin is not None and not isinstance(pin, bool):
         raise invalid_arguments("pin must be a boolean")
@@ -660,6 +698,7 @@ def parse_update_memory_input(
         candidate_key=candidate_key,
         summary=summary,
         aliases=None if aliases is None else _aliases_tuple(aliases),
+        quote=quote,
     )
 
 
@@ -698,11 +737,12 @@ def parse_supersede_claim_input(
     cwd: str | None = None,
     vault: str | None = None,
     candidate_key: str | None = None,
+    quote: str | None = None,
 ) -> SupersedeClaimInput:
     """Check only types here. Empty cells, ``|`` and line breaks come back as a ``rejected`` result."""
 
     _require_strings(path=path, claim=claim, new_claim=new_claim, evidence=evidence, basis=basis)
-    _require_optional_strings(cwd=cwd, vault=vault, candidate_key=candidate_key)
+    _require_optional_strings(cwd=cwd, vault=vault, candidate_key=candidate_key, quote=quote)
     return SupersedeClaimInput(
         path=path,
         claim=claim,
@@ -712,6 +752,7 @@ def parse_supersede_claim_input(
         cwd=cwd,
         vault=vault,
         candidate_key=candidate_key,
+        quote=quote,
     )
 
 

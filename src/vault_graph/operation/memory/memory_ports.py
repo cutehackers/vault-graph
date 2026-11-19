@@ -7,6 +7,8 @@ outside every Vault, and removes it afterwards, so the M18 service writes no fil
 ``VaultImporter`` runs Vault ``import-source`` to keep a copy of an auto-memory note (path 4, spec
 2026-11-05 §4.4.5). ``ReviewedLog`` records processed cleanup candidates in the Graph Home (§4.4.4).
 ``SimilarPagesLookup`` searches the index for existing pages like a new memory (backlog MEMORY-01).
+``ExchangeTextReader`` reads what the person typed in a cited session exchange, so the service can check a quote
+(spec 2026-11-19 D4).
 """
 
 from __future__ import annotations
@@ -90,8 +92,18 @@ class SimilarPagesLookup(Protocol):
         ...
 
 
+class ExchangeTextReader(Protocol):
+    def human_text(self, vault_root: Path, path: str, line_start: int, line_end: int) -> str | None:
+        """What the person typed in those lines of the session file at the Vault-relative ``path``.
+
+        An empty string when no person turn is in them. None when the file or the lines cannot be read.
+        """
+        ...
+
+
 __all__ = [
     "DraftFiles",
+    "ExchangeTextReader",
     "PageText",
     "ReviewedLog",
     "SimilarPagesLookup",

@@ -214,8 +214,10 @@ class McpServiceFactory:
     def open_memory_write_service(self) -> MemoryWriteService:
         """Open memory writes with the read-only ``vault-map.json``, the page reader, the temporary draft
         files, the publish-draft and import-source adapters, the Graph Home review log, the shared
-        inferred proposal budget and the index lookup of similar existing pages."""
+        inferred proposal budget, the index lookup of similar existing pages and the session file reader of
+        the quote check."""
 
+        from vault_graph.interface.composition.adapters.session_exchange_reader import SessionExchangeFileReader
         from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
         from vault_graph.interface.composition.adapters.vault_import_cli import VaultImportCli
         from vault_graph.interface.composition.adapters.vault_page_reader import VaultPageFileReader
@@ -235,6 +237,7 @@ class McpServiceFactory:
             reviewed_log=self.open_reviewed_log(),
             proposal_budget=self._proposal_budget,
             similar_pages=ProjectSimilarPages(graph_home=self._graph_home_path, vault_map_file=self._vault_map_path),
+            exchange_reader=SessionExchangeFileReader(),
         )
 
     def start_background_index(self, vault_name: str, *, on_finished: Callable[[bool], None]) -> str | None:

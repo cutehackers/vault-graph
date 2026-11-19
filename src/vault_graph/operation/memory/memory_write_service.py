@@ -20,6 +20,12 @@ not in recall or search until it is accepted and the next index run picks up the
 included, so the agent can update or replace a page instead of keeping the fact twice (backlog
 MEMORY-01). The list is advice: it never blocks the write, and without an index it is empty. A stated
 ``remember`` without a ``summary`` is published with a warning (spec 2026-11-11 §4.3.1).
+
+Quote check (spec 2026-11-19 D4), for ``remember``, ``update`` and ``supersede_claim`` when the service has an
+``ExchangeTextReader``. Evidence that names a session exchange (`<path> L<a>-L<b>`) with ``basis="stated"``
+needs ``quote``, the user's own words, and the quote must be part of what the person typed in one of the cited
+exchanges. A quote given with ``basis="inferred"`` is checked the same way. A write that fails the check is
+``rejected`` before anything is sent to the Vault. Evidence that names no session exchange is not checked.
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
+from vault_graph.operation.memory.evidence_quote import cited_exchanges, quote_in_text
 from vault_graph.operation.memory.memory_drafts import (
     build_remember_draft,
     build_restore_draft,
@@ -39,6 +46,7 @@ from vault_graph.operation.memory.memory_drafts import (
 )
 from vault_graph.operation.memory.memory_ports import (
     DraftFiles,
+    ExchangeTextReader,
     ReviewedLog,
     SimilarPagesLookup,
     VaultImporter,
@@ -94,6 +102,15 @@ SIMILAR_PAGES_MESSAGE = (
     "similar_pages lists existing pages like this one. If one holds the same fact, consider update_memory "
     "on it or retire_memory(replaced_by=...) instead of keeping the fact twice."
 )
+QUOTE_REQUIRED_MESSAGE = (
+    "basis stated with a session exchange as evidence needs quote: the user's own words, copied from that "
+    "exchange. Pass quote, or use basis inferred when the user did not say it."
+)
+QUOTE_NOT_FOUND_MESSAGE = (
+    "quote is not in what the user typed in the cited session exchange. Copy the user's words exactly "
+    "(at least 8 characters), or use basis inferred without quote."
+)
+QUOTE_UNREADABLE_MESSAGE = "The cited session exchange cannot be read in this Vault, so quote cannot be checked"
 NO_SUMMARY_WARNING = (
     "The page was published without a summary, so search matches it less well. "
     "Add one or two sentences with update_memory(summary=...)."
@@ -151,6 +168,7 @@ class MemoryWriteService:
         reviewed_log: ReviewedLog | None = None,
         proposal_budget: InferredProposalBudget | None = None,
         similar_pages: SimilarPagesLookup | None = None,
+        exchange_reader: ExchangeTextReader | None = None,
     ) -> None:
         self._vault_map = vault_map
         self._writer = writer
@@ -165,6 +183,7 @@ class MemoryWriteService:
         # this service's proposals only.
         self._proposal_budget = proposal_budget if proposal_budget is not None else InferredProposalBudget()
         self._similar_pages = similar_pages
+        self._exchange_reader = exchange_reader
 
     def start_curation(self) -> None:
         """Start a new cleanup: the inferred proposal count goes back to zero."""
@@ -194,6 +213,9 @@ class MemoryWriteService:
                     ),
                 )
 
+        unquoted = self._quote_refusal(chosen, request.basis, request.evidence, request.quote)
+        if unquoted is not None:
+            return unquoted
         draft = build_remember_draft(request, today=self._today())
         target = str(draft["path"])
         # Searched before the write and outside the Vault lock: the index does not hold the new page yet.
@@ -227,6 +249,9 @@ class MemoryWriteService:
         chosen = self._page_vault(request.vault, request.cwd, request.path)
         if not isinstance(chosen, MappedVault):
             return _choice_result(chosen)
+        unquoted = self._quote_refusal(chosen, request.basis, request.evidence, request.quote)
+        if unquoted is not None:
+            return unquoted
 
         with _vault_lock(chosen.path):
             current = self._page_reader.read(chosen.path, request.path)
@@ -285,6 +310,9 @@ class MemoryWriteService:
         chosen = self._page_vault(request.vault, request.cwd, request.path)
         if not isinstance(chosen, MappedVault):
             return _choice_result(chosen)
+        unquoted = self._quote_refusal(chosen, request.basis, (request.evidence,), request.quote)
+        if unquoted is not None:
+            return unquoted
 
         with _vault_lock(chosen.path):
             if self._page_reader.read(chosen.path, request.path) is None:
@@ -351,6 +379,27 @@ class MemoryWriteService:
             except Exception as exc:  # noqa: BLE001 - any importer failure is reported, never retried.
                 outcome = WriteOutcome("error", messages=(f"import-source could not run: {exc}",))
         return self._recorded(_result(chosen, outcome), request.candidate_key)
+
+    def _quote_refusal(
+        self, vault: MappedVault, basis: str, evidence: tuple[str, ...], quote: str | None
+    ) -> MemoryWriteResult | None:
+        """The ``rejected`` result of a write whose quote is missing or not in the cited exchange, else None."""
+        if self._exchange_reader is None:
+            return None
+        cited = cited_exchanges(evidence)
+        if not cited or (quote is None and basis != "stated"):
+            return None
+        if quote is None:
+            return _result(vault, WriteOutcome("rejected", messages=(QUOTE_REQUIRED_MESSAGE,)))
+        texts = [
+            self._exchange_reader.human_text(vault.path, item.path, item.line_start, item.line_end) for item in cited
+        ]
+        if all(text is None for text in texts):
+            where = ", ".join(item.location for item in cited)
+            return _result(vault, WriteOutcome("rejected", messages=(f"{QUOTE_UNREADABLE_MESSAGE}: {where}.",)))
+        if any(text is not None and quote_in_text(quote, text) for text in texts):
+            return None
+        return _result(vault, WriteOutcome("rejected", messages=(QUOTE_NOT_FOUND_MESSAGE,)))
 
     def _find_similar(self, request: RememberRequest) -> tuple[SimilarMemoryPage, ...]:
         """Existing pages like the new memory. Any lookup failure gives none, so the write goes on."""
@@ -508,6 +557,9 @@ __all__ = [
     "PROPOSAL_LIMIT_MESSAGE",
     "PROPOSED_MESSAGE",
     "PUBLISH_TIMEOUT_SECONDS",
+    "QUOTE_NOT_FOUND_MESSAGE",
+    "QUOTE_REQUIRED_MESSAGE",
+    "QUOTE_UNREADABLE_MESSAGE",
     "SIMILAR_PAGES_MESSAGE",
     "SIMILAR_PAGE_LIMIT",
     "SUPERSEDE_REJECTED_HINT",
