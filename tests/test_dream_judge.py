@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from dataclasses import replace
@@ -18,6 +19,7 @@ from vault_graph.interface.composition.adapters.claude_dream_judge import (
 )
 from vault_graph.interface.composition.adapters.dream_judge import (
     DREAM_ACTIONS,
+    PROMPT_VERSION,
     VERIFY_ACTIONS,
     DreamItem,
     DreamJudgeUnavailable,
@@ -243,3 +245,24 @@ def test_the_schema_lists_every_action_and_no_pin_field() -> None:
     assert judgment["required"] == ["key", "action"]
     assert judgment["additionalProperties"] is False
     assert "pin" not in judgment["properties"]
+
+
+def test_a_changed_prompt_needs_a_decision_about_the_prompt_version() -> None:
+    """Earlier `none` answers are judged again only when `PROMPT_VERSION` changes.
+
+    When this fails, the prompt text changed. Decide whether the change could alter an answer: if so, raise
+    `PROMPT_VERSION` in `dream_judge.py`. Then put the new digest and the version here.
+    """
+    digest = hashlib.sha256(build_dream_prompt([], []).split("Input (JSON):")[0].encode()).hexdigest()[:16]
+
+    assert (PROMPT_VERSION, digest) == ("dream-2", "b05802a5a151bec4")
+
+
+def test_the_prompt_says_what_a_page_check_is_and_how_to_correct_a_page_without_claims(fake_run: FakeRun) -> None:
+    ClaudeDreamJudge().judge([replace(ITEM, actions=VERIFY_ACTIONS)], [PAGE])
+
+    prompt = fake_run.calls[0]["input"]
+    assert "do the user's words make something on that page wrong now" in prompt
+    assert "making a one-time exception does not" in prompt.replace("\n", " ").replace("  ", " ")
+    assert "start the addition by saying what no longer holds" in prompt
+    assert '"actions": [\n    "none",\n    "supersede_claim",\n    "update_memory",\n    "retire_memory"' in prompt

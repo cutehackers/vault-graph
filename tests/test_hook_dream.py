@@ -287,18 +287,31 @@ def test_status_counts_only_dream_proposals_and_says_why_dreaming_stopped(world:
     item("manual.md", "accepted")  # a manual proposal: not counted
     logs = graph_home / "logs"
     logs.mkdir(exist_ok=True)
-    record = {
+    run_line = {
+        "record": "run",
         "at": "2026-11-19T01:00:00Z",
         "project": "project",
+        "vault": "proj-vault",
+        "vault_root": str(vault),
         "status": "ran",
         "reason": None,
         "judged": 12,
-        "proposals": [
-            {"candidate_key": f"session:s{index}", "vault": "proj-vault", "vault_root": str(vault), "review_path": path}
-            for index, path in enumerate([*sent, "scratch/review/gone.md"])
-        ],
+        "proposals": 5,
     }
-    (logs / "dream-runs.jsonl").write_text(json.dumps(record) + "\n", encoding="utf-8")
+    proposal_lines = [
+        {
+            "record": "proposal",
+            "project": "project",
+            "candidate_key": f"session:s{index}",
+            "vault": "proj-vault",
+            "vault_root": str(vault),
+            "review_path": path,
+        }
+        for index, path in enumerate([*sent, "scratch/review/gone.md"])
+    ]
+    (logs / "dream-runs.jsonl").write_text(
+        "".join(json.dumps(line) + "\n" for line in [*proposal_lines, run_line]), encoding="utf-8"
+    )
 
     result = runner.invoke(app, ["dream", "status", "--graph-home", str(graph_home)])
 
@@ -313,3 +326,33 @@ def test_status_counts_only_dream_proposals_and_says_why_dreaming_stopped(world:
         item(f"waiting-{index}.md", "pending")
     stopped = runner.invoke(app, ["dream", "status", "--graph-home", str(graph_home)])
     assert "stopped: pending cap reached in proj-vault (10 waiting, cap 10)" in stopped.output
+
+
+def test_status_shows_the_pending_cap_stop_before_any_dream_proposal_exists(world: dict[str, Path]) -> None:
+    graph_home = world["graph_home"]
+    vault = world["map"].parent.parent.parent / "vaults" / "proj-vault"
+    queue = vault / "scratch" / "review"
+    queue.mkdir(parents=True)
+    for index in range(10):  # ten manual proposals fill the cap
+        (queue / f"manual-{index}.md").write_text(
+            "---\ntype: memory-proposal\nstatus: pending\n---\n# item\n", encoding="utf-8"
+        )
+    skipped = {
+        "record": "run",
+        "at": "2026-11-19T01:00:00Z",
+        "project": "project",
+        "vault": "proj-vault",
+        "vault_root": str(vault),
+        "status": "skipped",
+        "reason": "pending_cap",
+        "judged": 0,
+        "proposals": 0,
+    }
+    (graph_home / "logs").mkdir(exist_ok=True)
+    (graph_home / "logs" / "dream-runs.jsonl").write_text(json.dumps(skipped) + "\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["dream", "status", "--graph-home", str(graph_home)])
+
+    assert "last_run: project 2026-11-19T01:00:00Z skipped pending_cap judged=0 proposals=0" in result.output
+    assert "proposals: sent=0 accepted=0 rejected=0 pending=0 other=0" in result.output
+    assert "stopped: pending cap reached in proj-vault (10 waiting, cap 10)" in result.output

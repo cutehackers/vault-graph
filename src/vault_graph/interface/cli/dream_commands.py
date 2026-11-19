@@ -172,35 +172,33 @@ def _echo_run(result: DreamRun) -> None:
 
 def _echo_runs(graph_home: Path, settings: DreamSettings) -> None:
     """The last run of each project, the review state of every dream proposal, and Vaults at the pending cap."""
-    from vault_graph.interface.composition.adapters.dream_worker import read_dream_runs
+    from vault_graph.interface.composition.adapters.dream_worker import PROPOSAL_RECORD, RUN_RECORD, read_dream_runs
     from vault_graph.interface.composition.adapters.vault_review_queue import pending_proposals, review_item_status
 
-    runs = read_dream_runs(graph_home)
+    records = read_dream_runs(graph_home)
     last: dict[str, Mapping[str, Any]] = {}
     states: dict[str, int] = {}
     vault_roots: dict[str, str] = {}
-    for record in runs:
-        if isinstance(record.get("project"), str):
-            last[record["project"]] = record
-        proposals = record.get("proposals")
-        for proposal in proposals if isinstance(proposals, list) else []:
-            if not isinstance(proposal, dict):
-                continue
-            root, review_path, vault = proposal.get("vault_root"), proposal.get("review_path"), proposal.get("vault")
-            if not isinstance(root, str) or not isinstance(review_path, str):
-                continue
-            if isinstance(vault, str):
-                vault_roots[vault] = root
-            state = review_item_status(Path(root), review_path) or "missing"
-            states[state] = states.get(state, 0) + 1
-    typer.echo(f"runs: {len(runs)}")
+    run_count = 0
+    for record in records:
+        vault, root = record.get("vault"), record.get("vault_root")
+        if isinstance(vault, str) and isinstance(root, str):
+            vault_roots[vault] = root
+        if record.get("record") == RUN_RECORD:
+            run_count += 1
+            if isinstance(record.get("project"), str):
+                last[record["project"]] = record
+        elif record.get("record") == PROPOSAL_RECORD:
+            review_path = record.get("review_path")
+            if isinstance(root, str) and isinstance(review_path, str):
+                state = review_item_status(Path(root), review_path) or "missing"
+                states[state] = states.get(state, 0) + 1
+    typer.echo(f"runs: {run_count}")
     for project, record in sorted(last.items()):
-        proposals = record.get("proposals")
-        sent = len(proposals) if isinstance(proposals, list) else 0
         reason = f" {record['reason']}" if record.get("reason") else ""
         typer.echo(
             f"last_run: {project} {record.get('at')} {record.get('status')}{reason} "
-            f"judged={record.get('judged')} proposals={sent}"
+            f"judged={record.get('judged')} proposals={record.get('proposals')}"
         )
     sent_total = sum(states.values())
     accepted, rejected, pending = states.get("accepted", 0), states.get("rejected", 0), states.get("pending", 0)
@@ -210,6 +208,7 @@ def _echo_runs(graph_home: Path, settings: DreamSettings) -> None:
     )
     if accepted + rejected:
         typer.echo(f"acceptance_rate: {accepted / (accepted + rejected):.2f} of {accepted + rejected} resolved")
+    # Every Vault a run looked at is checked now, so the stop shows even before any dream proposal exists.
     for vault, root in sorted(vault_roots.items()):
         waiting = pending_proposals(Path(root))
         if waiting >= settings.pending_cap:
