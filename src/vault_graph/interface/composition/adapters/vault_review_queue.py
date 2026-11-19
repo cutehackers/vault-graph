@@ -20,14 +20,38 @@ class VaultReviewQueue:
         self._catalog = catalog
 
     def pending_count(self, vault_id: str) -> int:
-        queue = self._catalog.resolve(vault_id).root_path / REVIEW_QUEUE
-        if not queue.is_dir():
-            return 0
-        return sum(
-            1
-            for item in sorted(queue.glob("*.md"))
-            if _is_pending_proposal(item.read_text(encoding="utf-8", errors="replace"))
-        )
+        return pending_proposals(self._catalog.resolve(vault_id).root_path)
+
+
+def pending_proposals(vault_root: Path) -> int:
+    """Number of memory proposals waiting for review in the Vault at ``vault_root``."""
+    queue = vault_root / REVIEW_QUEUE
+    if not queue.is_dir():
+        return 0
+    return sum(
+        1
+        for item in sorted(queue.glob("*.md"))
+        if _is_pending_proposal(item.read_text(encoding="utf-8", errors="replace"))
+    )
+
+
+def review_item_status(vault_root: Path, review_path: str) -> str | None:
+    """Frontmatter ``status`` of one review item (``pending``, ``accepted``, ``rejected``, ``resolved``).
+
+    None when the item is gone, unreadable, outside the review queue or has no status.
+    """
+    queue = (vault_root / REVIEW_QUEUE).resolve()
+    item = (vault_root / review_path).resolve()
+    if not item.is_relative_to(queue) or not item.is_file():
+        return None
+    try:
+        block = split_frontmatter(item.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return None
+    if block is None:
+        return None
+    status = parse_vault_frontmatter(block[0]).get("status")
+    return status if isinstance(status, str) and status else None
 
 
 def _is_pending_proposal(text: str) -> bool:
@@ -38,4 +62,4 @@ def _is_pending_proposal(text: str) -> bool:
     return fields.get("type") == MEMORY_PROPOSAL_TYPE and fields.get("status") == "pending"
 
 
-__all__ = ["VaultReviewQueue"]
+__all__ = ["VaultReviewQueue", "pending_proposals", "review_item_status"]
