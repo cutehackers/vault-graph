@@ -268,6 +268,7 @@ def test_help_adds_only_the_embedding_group() -> None:
         "ask",
         "context",
         "decision-trace",
+        "dream",
         "facts",
         "index",
         "init",

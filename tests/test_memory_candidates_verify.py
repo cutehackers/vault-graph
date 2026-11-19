@@ -11,7 +11,7 @@ from vault_graph.context.memory.memory_candidates import (
     CANDIDATE_KINDS,
     VERIFY_EXCHANGES_PER_PAGE,
     VERIFY_KIND,
-    CandidateKind,
+    AnyCandidateKind,
     MemoryCandidate,
     MemoryPage,
     SessionExchange,
@@ -27,7 +27,7 @@ from vault_graph.operation.scope.vault_catalog import QueryScope
 NOW = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
 PROJECT_SCOPE = FixedVaultProjectScope(linked_projects=frozenset({"demo"}))
 OTHER_SCOPE = FixedVaultProjectScope(linked_projects=frozenset({"other"}))
-VERIFY_ONLY: tuple[CandidateKind, ...] = (VERIFY_KIND,)
+VERIFY_ONLY: tuple[AnyCandidateKind, ...] = (VERIFY_KIND,)
 PAGE_PATH = "wiki/decisions/embedding-model.md"
 
 
@@ -74,7 +74,7 @@ def build(
     pages: Sequence[MemoryPage],
     page_exchanges: Mapping[tuple[str, str], Sequence[SessionExchange]],
     *,
-    kinds: Sequence[CandidateKind] | None = VERIFY_ONLY,
+    kinds: Sequence[AnyCandidateKind] | None = VERIFY_ONLY,
     reviewed: Sequence[str] = (),
 ) -> tuple[MemoryCandidate, ...]:
     return build_memory_candidates(

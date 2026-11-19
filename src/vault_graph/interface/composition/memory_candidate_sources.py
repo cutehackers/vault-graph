@@ -47,6 +47,7 @@ from vault_graph.context.memory.memory_candidates import (
     CANDIDATE_KINDS,
     DEFAULT_MERGE_SIMILARITY,
     VERIFY_KIND,
+    AnyCandidateKind,
     CandidateKind,
     L1Note,
     MemoryCandidate,
@@ -155,7 +156,7 @@ def memory_candidate_package(
     graph_home: Path,
     cwd: Path,
     *,
-    kinds: Collection[CandidateKind] | None = None,
+    kinds: Collection[AnyCandidateKind] | None = None,
     limit: int | None = None,
     vault_map_file: Path | None = None,
     environ: Mapping[str, str] | None = None,
@@ -181,7 +182,7 @@ def memory_candidate_package(
     from vault_graph.storage.local.reviewed_log import JsonlReviewedLog
     from vault_graph.storage.local.sqlite_metadata_store import SQLiteMetadataStore
 
-    wanted = frozenset(CANDIDATE_KINDS if kinds is None else kinds)
+    wanted: frozenset[AnyCandidateKind] = frozenset(CANDIDATE_KINDS if kinds is None else kinds)
     moment = now or datetime.now(UTC)
     descriptor = GraphHomeResolver().resolve(graph_home)
     if not descriptor.initialized:
@@ -479,15 +480,13 @@ def _exchange(
         return None
     block = lines[first - 1 : last]
     fields: dict[str, str] = {}
-    if chunk.chunker_version == SESSION_EXCHANGE_V2_VERSION:
+    v2 = chunk.chunker_version == SESSION_EXCHANGE_V2_VERSION
+    if v2:
         fields = next((_meta_fields(line) for line in block if _META_RE.match(line)), {})
         started_text = fields.get("started", "")
-        # A subagent exchange's user turn is the main agent's prompt, not a person's.
-        is_subagent = fields.get("scope", "main").startswith("subagent")
-        human = "" if is_subagent else _turn_text(block, _V2_TURN_RE, top_level_ends_turn=True)
     else:
         started_text = next((match.group("at") for line in block if (match := _V1_TURN_RE.match(line))), "")
-        human = _turn_text(block, _V1_TURN_RE, top_level_ends_turn=False, not_human_starts=_V1_NOT_HUMAN_STARTS)
+    human = exchange_human_text(block, v2=v2)
     started = _time(started_text) or _time(_text(document.frontmatter.get("first_turn_at"))) or _path_day(document.path)
     if started is None:
         return None
@@ -502,6 +501,19 @@ def _exchange(
         exchange_id=fields.get("id") or None,
         session=_text(document.frontmatter.get("session_id")) or document.path,
     )
+
+
+def exchange_human_text(block: Sequence[str], *, v2: bool) -> str:
+    """What a person typed in the lines of one exchange (spec 2026-11-05 §4.2.2 사람 턴). ``v2`` names the file format.
+
+    A v2 subagent exchange gives nothing: its user turn is the main agent's prompt, not a person's.
+    """
+    if not v2:
+        return _turn_text(block, _V1_TURN_RE, top_level_ends_turn=False, not_human_starts=_V1_NOT_HUMAN_STARTS)
+    fields = next((_meta_fields(line) for line in block if _META_RE.match(line)), {})
+    if fields.get("scope", "main").startswith("subagent"):
+        return ""
+    return _turn_text(block, _V2_TURN_RE, top_level_ends_turn=True)
 
 
 def _meta_fields(line: str) -> dict[str, str]:
