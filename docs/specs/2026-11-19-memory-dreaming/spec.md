@@ -173,10 +173,20 @@
 - `update_memory`는 덧붙이기만 한다. 자식은 덧붙일 글(`addition`)을 답하고, 작업자가 지금 본문 뒤에 붙인다. 페이지가 `remember`가 쓰는 모양(제목, 본문, `## Evidence` 하나)이 아니면 거부한다. 기존 근거 줄은 남긴다. 승인되면 페이지의 `Status` 줄은 `inferred`가 된다. 수동 `update_memory(basis="inferred")`와 같은 동작이다.
 - 대상 페이지는 그 항목에 보여 준 페이지만 된다. 항목마다 비교 페이지 3개까지, 페이지 글은 3,000자까지, 교환 글은 6,000자까지 보여 준다.
 - 한 번에 교환 8개를 판단한다. 실행 한도를 채우면 남은 묶음은 판단하지 않는다.
-- `verify`는 실행마다 한 묶음(8개)이고, 세션 교환 판단 뒤 한도가 남을 때만 한다. 페이지마다 나중 교환은 최신 2개까지다. 근거 줄에 그 교환이 시작된 날을 색인에서 가져와 붙인다.
+- `verify`는 실행마다 한 묶음(8개)이고, 세션 교환 판단 뒤 한도가 남을 때만 한다. 세션 교환 대기열이 실행 조건에 못 미쳐도 `verify`는 한다. 페이지마다 나중 교환은 최신 2개까지다. 근거 줄에 그 교환이 시작된 날을 색인에서 가져와 붙인다.
+- `verify` 항목의 판단은 `supersede_claim`, `update_memory`, `retire_memory`, `none`이다. `update_memory`는 주장 표가 없는 페이지(`remember`가 쓴 페이지)를 고치는 길이다. 덧붙이는 글 첫머리에 무엇이 언제부터 맞지 않는지 적게 한다.
+- 같은 교환으로 같은 실행에서 두 번 제안하지 않는다. `verify` 제안을 보내면 그 교환의 `session:` 키도 함께 기록하고, `session:` 키가 기록된 교환은 `verify` 후보로 올리지 않는다.
+- 한 실행에서 한 페이지에는 변경 제안을 하나만 보낸다. 판단이 읽은 뒤 페이지가 바뀌었으면 보내지 않고 다음 실행에서 다시 판단한다.
 - `verify`는 정리 꾸러미 종류가 아니다. `CandidateKind`와 MCP 도구 스키마에 넣지 않고 `AnyCandidateKind`로 따로 둔다.
-- 판단 결과는 `none`, `invalid_answer`, `quote_rejected`, `target_refused`, `vault_rejected`(이상 `dream/judged.jsonl`에 기록), `proposed`, 그리고 기록하지 않는 `deferred`(한도 때문에 미룸)와 `vault_error`(Vault 명령 오류)다.
+- 판단 결과는 `none`, `no_answer`(판단이 그 항목을 빼먹음), `invalid_answer`, `quote_rejected`, `target_refused`, `vault_rejected`(이상 `dream/judged.jsonl`에 기록), `proposed`, 그리고 기록하지 않는 `deferred`(한도, 바뀐 페이지, 같은 페이지 둘째 변경, 그사이 사람이 처리함)와 `vault_error`(Vault 명령 오류)다.
+- 기록은 그때그때 쓴다. 제안은 보낸 즉시 `memory/reviewed.jsonl`과 `logs/dream-runs.jsonl`의 `proposal` 줄에 적고, 판단 기록은 묶음마다 적는다. 실행이 중간에 죽어도 보낸 제안을 다시 보내지 않고 승인율에서 빠지지 않는다.
+- `logs/dream-runs.jsonl`에는 `proposal` 줄과 `run` 줄이 있다. 판단한 것이 없어 건너뛴 실행(`nothing_to_judge`, `not_due`)과 대기 한도에 막힌 실행(`pending_cap`, 연달아 한 번만)도 `run` 줄로 남긴다. 그래서 드리밍 제안이 하나도 없을 때도 `status`가 멈춘 이유를 보인다.
 - 실패한 실행(판단 명령을 쓸 수 없음)은 1시간 뒤 다시 시도한다.
 - 판단 명령은 `--output-format json`으로 실행해 답(`structured_output`)과 비용(`total_cost_usd`)을 함께 받는다.
-- D4: `quote`는 `remember`, `update_memory`, `supersede_claim`에 있다. `retire_memory`와 `restore_memory`는 근거 인자가 없어 넣지 않았다. 인용된 세션 파일을 읽을 수 없으면 `rejected`다.
+- D4: `quote`는 `remember`, `update_memory`, `supersede_claim`에 있다. `retire_memory`와 `restore_memory`는 근거 인자가 없어 넣지 않았다.
+  - 근거에 세션 파일(`raw/sessions/...md`)이 있고 `basis`가 `stated`면 `quote`가 있어야 한다. 줄 범위를 빼도 확인을 건너뛰지 못한다. 줄 범위가 없으면 `rejected`다.
+  - 인용한 범위는 교환마다 나눠 읽는다. 하위 에이전트 교환에 걸친 범위를 인용해도 하위 에이전트에게 준 프롬프트는 사용자 글로 세지 않는다.
+  - 세션 파일은 저장 Vault에서 먼저 찾고, 없으면 그 프로젝트에 연결된 다른 Vault에서 찾는다. 어디에서도 읽을 수 없으면 `rejected`다.
+- 프롬프트 버전은 `dream-2`다. 프롬프트 글이 바뀌면 테스트가 실패해 버전을 올릴지 정하게 한다.
+- C8: 드리밍 전에 대기 교환으로 질문 26개를 써 두었다(`tests/benchmarks/measure_dream_backlog.py`, 질문 파일은 저장소 밖).
 - 측정 결과는 `docs/design/reports/2026-11-dreaming-dry-run.md`에 있다.

@@ -116,7 +116,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
   - 임베딩 캐시 `cache/embeddings.sqlite3`: 임베딩 키(모델 spec 키 + 임베딩 입력의 sha256) → 벡터. 세대 밖에 두며, 내용이 같은 입력은 모델에 다시 넣지 않고 중간에 죽은 run을 이어 간다. 발행이 성공하면 활성 세대에 없는 키를 지운다. 파일이 깨지면 캐시 없이 임베딩하고 경고 한 줄을 낸다.
   - `memory-scan` 결과 `memory/memory-scan-<vault>.json`: `vg index`(세션 시작 백그라운드 색인이 실행하는 `vg index` 포함)가 발행한 뒤 색인한 Vault마다 읽기 전용 Vault 명령 `memory-scan --json`을 실행해 저장한다. 세션 시작 빠른 갱신, MCP 백그라운드 색인, `vg watch`는 실행하지 않는다. 실패해도 발행을 되돌리지 않고 경고 한 줄을 낸다.
 - 기억 정리 기록 `memory/reviewed.jsonl`(2026-11-05 spec 4.4.4, 결정44): MCP `mark_candidates_reviewed`와, `candidate_key`를 받은 쓰기 도구가 결과 `published`·`proposed`일 때 `{candidate_key, at, outcome}`을 덧붙인다. 정리 후보 제안에만 쓰고 회상·검색 순위에는 쓰지 않는다(§0 규칙5 예외).
-- 드리밍(spec 2026-11-19): 설정 `configs/dream.json`, 판단만 하고 제안하지 않은 후보 `dream/judged.jsonl`, 실행 기록 `logs/dream-runs.jsonl`, 작업자 잠금 `logs/dream-worker.lock`. 드리밍 작업자는 Vault에 `review propose`(둘째 길)로만 쓰고 `basis`는 언제나 `inferred`다. `dream/judged.jsonl`은 드리밍 작업자만 읽고 정리 후보 목록, 회상, 검색에는 쓰지 않는다. 제안한 후보는 `memory/reviewed.jsonl`에 결과 `dream_proposed`로 적는다.
+- 드리밍(spec 2026-11-19): 설정 `configs/dream.json`, 판단만 하고 제안하지 않은 후보 `dream/judged.jsonl`, 실행 기록 `logs/dream-runs.jsonl`(보낸 제안마다 `proposal` 줄, 실행마다 `run` 줄), 작업자 잠금 `logs/dream-worker.lock`. 드리밍 작업자는 Vault에 `review propose`(둘째 길)로만 쓰고 `basis`는 언제나 `inferred`다. `dream/judged.jsonl`은 드리밍 작업자만 읽고 정리 후보 목록, 회상, 검색에는 쓰지 않는다. 제안한 후보는 `memory/reviewed.jsonl`에 결과 `dream_proposed`로 적는다.
 - 세션 export 설정 `configs/session-export.json`(`path`, `agents`, `raw`). 형식 확인과 읽기·쓰기는 M01 `operation/scope/session_export_settings.py`가 한다. 이 파일이 있으면 `vg hook capture`가 수집 때마다 같은 export를 한다.
 - export 폴더: `vg session export --out PATH`와 export 설정의 `path`. Vault 밖이어야 하고, Graph Home에 등록된 Vault나 `vault-map.json`의 Vault 안이면 쓰지 않고 오류로 끝난다. 폴더 권한은 0700, 파일은 0600이다. 정규화 파일은 export 설정이 없으면 OS 임시 폴더에 쓰고 실행기가 끝나면 지운다. 정규화 JSONL 형식은 [vg-session-jsonl/1 계약](contracts/vg-session-jsonl-v1.md)이다.
 - `vg watch`는 메타데이터·벡터·그래프에 바뀐 것이 있을 때만 새 세대를 발행한다(2026-11-02 3차 검수 발견11).
@@ -184,10 +184,11 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 - `vg hook capture`는 수집 결과가 `written`이고 드리밍이 켜져 있으면 훅 JSON의 `cwd`로 분리된 드리밍 작업자(`vg dream worker`)를 띄운다. 기다리지 않고, 종료 코드와 출력은 그대로다. `logs/dream-worker.lock`이 잡혀 있으면 띄우지 않는다.
 - 드리밍 작업자가 하는 일:
   1. 근거로 쓰이지 않은 세션 교환을 묶음 한도까지 판단한다. 판단은 `remember`, `update_memory`, `supersede_claim`, `none` 중 하나다.
-  2. 실행 한도가 남으면 `verify` 후보를 한 묶음 판단한다. `verify` 후보는 지금 쓰이는 기억 페이지와, 그 페이지가 마지막으로 쓰인 날보다 나중에 시작된 같은 주제의 세션 교환의 짝이다. 판단은 `supersede_claim`, `retire_memory`, `none` 중 하나다. `verify`는 정리 꾸러미 종류가 아니고 MCP `list_memory_candidates`의 `kinds`에 없다.
+  2. 실행 한도가 남으면 `verify` 후보를 한 묶음 판단한다. `verify` 후보는 지금 쓰이는 기억 페이지와, 그 페이지가 마지막으로 쓰인 날보다 나중에 시작된 같은 주제의 세션 교환의 짝이다. 판단은 `supersede_claim`, `update_memory`(주장 표가 없는 페이지에 교정을 덧붙임), `retire_memory`, `none` 중 하나다. 세션 교환 대기열이 실행 조건에 못 미쳐도 이 묶음은 판단한다. `verify`는 정리 꾸러미 종류가 아니고 MCP `list_memory_candidates`의 `kinds`에 없다.
   3. 판단마다 코드가 확인한다. 인용문이 그 교환에서 사용자가 친 글 안에 있어야 한다. 대상 페이지는 그 항목에 보여 준 페이지여야 하고, 고정 페이지, 프로젝트 brief, 현재가 아닌 페이지면 안 된다. `update_memory`는 `remember`가 쓰는 모양의 페이지에 글을 덧붙이는 것만 하고 기존 근거 줄을 남긴다. `supersede_claim`의 대체할 주장은 페이지 안에 있어야 한다.
-  4. 통과한 것만 `basis: inferred`로 `review propose`에 보낸다. 근거 줄은 작업자가 교환 위치와 인용문으로 만든다.
-- MCP 쓰기 도구 `remember`, `update_memory`, `supersede_claim`은 선택 입력 `quote`를 받는다. 근거가 세션 교환 위치(`<path> L<a>-L<b>`)를 가리키고 `basis`가 `stated`면 `quote`가 있어야 한다. `quote`는 그 교환에서 사용자가 친 글 안에 있어야 하고(유니코드 NFKC와 공백을 맞춘 뒤 비교, 8자 이상), 아니면 Vault를 부르지 않고 `rejected`다. `basis`가 `inferred`면 `quote`는 선택이고, 주면 같은 확인을 한다. 근거가 세션 교환을 가리키지 않으면 확인하지 않는다.
+  4. 통과한 것만 `basis: inferred`로 `review propose`에 보낸다. 근거 줄은 작업자가 교환 위치와 인용문으로 만든다. 한 실행에서 한 페이지에는 변경 제안을 하나만 보내고, 판단이 읽은 뒤 바뀐 페이지에는 보내지 않는다.
+  5. 제안은 보낸 즉시 기록한다. 실행이 중간에 죽어도 같은 제안을 다시 보내지 않는다.
+- MCP 쓰기 도구 `remember`, `update_memory`, `supersede_claim`은 선택 입력 `quote`를 받는다. 근거에 세션 파일(`raw/sessions/...md`)이 있고 `basis`가 `stated`면 `quote`가 있어야 하고, 근거는 교환 위치(`<path> L<a>-L<b>`)를 적어야 한다. 줄 범위가 없으면 `rejected`다. `quote`는 인용한 교환에서 사용자가 친 글 안에 있어야 하고(유니코드 NFKC와 공백을 맞춘 뒤 비교, 8자 이상), 아니면 Vault를 부르지 않고 `rejected`다. 인용한 범위가 하위 에이전트 교환에 걸쳐도 그 프롬프트는 사용자 글로 세지 않는다. 세션 파일은 저장 Vault와 그 프로젝트에 연결된 다른 Vault에서 찾는다. `basis`가 `inferred`면 `quote`는 선택이고, 주면 같은 확인을 한다. 근거에 세션 파일이 없으면 확인하지 않는다.
 - MCP prompt `curate_memory`의 4단계에 "세션 교환을 근거로 `stated`를 쓸 때는 사용자가 친 문장을 `quote`에 넣는다"를 더한다.
 
 ## 6. 외부 계약

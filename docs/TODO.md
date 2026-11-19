@@ -370,14 +370,22 @@ Status: left open after the 2026-11-19 dry run
   0.7 or more over the first 30 resolved proposals. A person turns dreaming on
   (`vg dream on`) and resolves proposals with the Vault's review resolve.
   `vg dream status` reports the rate.
-- Context hit before and after acceptance is not measured. Questions whose
-  answer page comes from an accepted dream proposal are written after the first
-  acceptances, outside this repository, and run with
-  `tests/benchmarks/measure_memory_recall.py`.
+- The 26 backlog questions written before dreaming score 0 remembered and 0
+  context hit. Run `tests/benchmarks/measure_dream_backlog.py` again with the
+  same question file after proposals are accepted and indexed. A low remembered
+  rate means the judge prompt skips too much.
+- Context hit on the existing memory question set after acceptance is not
+  measured (`tests/benchmarks/measure_memory_recall.py`).
 - The default (off) is decided again when 30 proposals are resolved.
 - The verify step misses a page when the exchange that overrules it is not in
   the top 5 evidence search results (`VERIFY_SEARCH_LIMIT`). Measure a higher
   limit before changing it.
+- An accepted `update_memory` sets the page's `updated` to that day. Exchanges
+  older than that day are then no longer checked against the page by the verify
+  step, even when they contradict text the page had before.
+- Two `update_memory` proposals for one page from different runs are each built
+  from the page as it was. Accepting the second after the first may drop the
+  first addition. One run already sends at most one change per page.
 
 ## CLI And Operations
 
