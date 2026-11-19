@@ -254,7 +254,9 @@ def _curate_memory(cwd: str | None) -> str:
         ),
         (
             "4. 근거 원문에 사용자 자신의 말이 있고 그 문장을 인용할 때만 basis: stated로 쓴다. "
-            "그 밖은 basis: inferred다. 경계 사례도 inferred다."
+            "그 밖은 basis: inferred다. 경계 사례도 inferred다. 세션 교환을 근거로 stated를 쓸 때는 "
+            "사용자가 친 문장을 글자 그대로 quote 인자에 넣는다. 도구가 그 교환의 사용자 글에 quote가 "
+            "있는지 확인하고, 없으면 rejected로 돌려준다."
         ),
         (
             "5. 한 번의 정리에서 inferred 제안은 10개까지다. 11번째부터는 rejected로 돌아온다. "

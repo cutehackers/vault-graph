@@ -170,7 +170,8 @@ NEW_TOOL_INPUTS: dict[str, tuple[tuple[str, ...], dict[str, object]]] = {
     "import_auto_memory": (("note",), {"cwd": None, "vault": None, "candidate_key": None}),
     "supersede_claim": (
         ("path", "claim", "new_claim", "evidence", "basis"),
-        {"cwd": None, "vault": None, "candidate_key": None},
+        # Spec 2026-11-19 D4 adds the optional input `quote`.
+        {"cwd": None, "vault": None, "candidate_key": None, "quote": None},
     ),
     "restore_memory": (("path", "reason", "basis"), {"cwd": None, "vault": None, "candidate_key": None}),
 }

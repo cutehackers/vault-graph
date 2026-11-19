@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import unicodedata
 
-from vault_graph.operation.memory.evidence_quote import MIN_QUOTE_CHARS, normalize_evidence_text, quote_in_text
+from vault_graph.operation.memory.evidence_quote import (
+    MIN_QUOTE_CHARS,
+    ExchangeCitation,
+    cited_exchanges,
+    normalize_evidence_text,
+    quote_in_text,
+)
 
 HUMAN_TURN = "아니야, 그 방법 말고\n임베딩 모델은   arctic-m으로 정했어.\nUse the review queue for anything inferred."
 
@@ -43,3 +49,31 @@ def test_a_quote_too_short_to_prove_anything_fails() -> None:
 
 def test_normalize_collapses_whitespace() -> None:
     assert normalize_evidence_text("  a\n\tb   c ") == "a b c"
+
+
+# Session exchange locations in evidence lines (D4)
+
+PART = "raw/sessions/claude-code/2026-11-10-s1-part1.md"
+
+
+def test_the_location_form_vault_graph_shows_is_read() -> None:
+    assert cited_exchanges([f"{PART} L10-L20"]) == (ExchangeCitation(PART, 10, 20),)
+    assert cited_exchanges([f'{PART} L10-L20 "임베딩 모델은 arctic-m으로 정했어"'])[0].location == f"{PART} L10-L20"
+
+
+def test_other_line_range_forms_and_a_sha_suffix_are_read() -> None:
+    assert cited_exchanges([f"{PART}#sha256=abc L7"]) == (ExchangeCitation(PART, 7, 7),)
+    assert cited_exchanges([f"{PART}#L12-L40"]) == (ExchangeCitation(PART, 12, 40),)
+    assert cited_exchanges([f"see {PART} lines 40-12"]) == (ExchangeCitation(PART, 12, 40),)
+
+
+def test_a_path_without_a_line_range_cites_no_exchange() -> None:
+    assert cited_exchanges([PART, "User said so on 2026-11-10.", "wiki/decisions/a.md L3-L9"]) == ()
+
+
+def test_several_locations_are_read_in_order_and_once() -> None:
+    other = "raw/sessions/2026-11-11-s2.md"
+
+    cited = cited_exchanges([f"{PART} L10-L20 and {other} L1-L5", f"{PART} L10-L20\n{other} L30-L31"])
+
+    assert cited == (ExchangeCitation(PART, 10, 20), ExchangeCitation(other, 1, 5), ExchangeCitation(other, 30, 31))

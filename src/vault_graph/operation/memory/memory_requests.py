@@ -52,6 +52,8 @@ class RememberRequest:
     # the page gets its title as the frontmatter ``summary`` the Vault requires.
     summary: str | None = None
     aliases: tuple[str, ...] = ()
+    # The user's own words from the cited session exchange. Checked against that exchange (spec 2026-11-19 D4).
+    quote: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,7 @@ class UpdateRequest:
     summary: str | None = None
     # None keeps the page's aliases. A list replaces them, and an empty list removes them.
     aliases: tuple[str, ...] | None = None
+    quote: str | None = None
 
 
 @dataclass(frozen=True)
@@ -99,6 +102,7 @@ class SupersedeClaimRequest:
     vault: str | None = None
     cwd: str | None = None
     candidate_key: str | None = None
+    quote: str | None = None
 
 
 @dataclass(frozen=True)
@@ -184,6 +188,7 @@ def validate_remember(request: RememberRequest) -> tuple[str, ...]:
     problems.extend(_candidate_key_problems(request.candidate_key))
     problems.extend(_summary_problems(request.summary))
     problems.extend(_aliases_problems(request.aliases))
+    problems.extend(_quote_problems(request.quote))
     return tuple(problems)
 
 
@@ -203,6 +208,7 @@ def validate_update(request: UpdateRequest) -> tuple[str, ...]:
     problems.extend(_summary_problems(request.summary))
     if request.aliases is not None:
         problems.extend(_aliases_problems(request.aliases))
+    problems.extend(_quote_problems(request.quote))
     return tuple(problems)
 
 
@@ -229,6 +235,7 @@ def validate_supersede_claim(request: SupersedeClaimRequest) -> tuple[str, ...]:
         problems.append("new_claim must differ from claim.")
     problems.extend(_basis_problems(request.basis))
     problems.extend(_candidate_key_problems(request.candidate_key))
+    problems.extend(_quote_problems(request.quote))
     return tuple(problems)
 
 
@@ -270,6 +277,12 @@ def _summary_problems(summary: object) -> tuple[str, ...]:
     if summary is None or _is_single_line(summary):
         return ()
     return ("summary must be a non-empty single-line string when given.",)
+
+
+def _quote_problems(quote: object) -> tuple[str, ...]:
+    if quote is None or _non_empty(quote):
+        return ()
+    return ("quote must be a non-empty string when given.",)
 
 
 def _aliases_problems(aliases: object) -> tuple[str, ...]:
