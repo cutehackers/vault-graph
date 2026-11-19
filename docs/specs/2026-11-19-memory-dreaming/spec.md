@@ -178,7 +178,7 @@
 - 같은 교환으로 같은 실행에서 두 번 제안하지 않는다. `verify` 제안을 보내면 그 교환의 `session:` 키도 함께 기록하고, `session:` 키가 기록된 교환은 `verify` 후보로 올리지 않는다.
 - 한 실행에서 한 페이지에는 변경 제안을 하나만 보낸다. 판단이 읽은 뒤 페이지가 바뀌었으면 보내지 않고 다음 실행에서 다시 판단한다.
 - `verify`는 정리 꾸러미 종류가 아니다. `CandidateKind`와 MCP 도구 스키마에 넣지 않고 `AnyCandidateKind`로 따로 둔다.
-- 판단 결과는 `none`, `no_answer`(판단이 그 항목을 빼먹음), `invalid_answer`, `quote_rejected`, `target_refused`, `vault_rejected`(이상 `dream/judged.jsonl`에 기록), `proposed`, 그리고 기록하지 않는 `deferred`(한도, 바뀐 페이지, 같은 페이지 둘째 변경, 그사이 사람이 처리함)와 `vault_error`(Vault 명령 오류)다.
+- 판단 결과는 `none`, `no_answer`(판단이 그 항목을 빼먹음. 두 번 기록된 뒤에야 판단한 것으로 본다), `invalid_answer`, `quote_rejected`, `target_refused`, `vault_rejected`(이상 `dream/judged.jsonl`에 기록), `proposed`, 그리고 기록하지 않는 `deferred`(한도, 바뀐 페이지, 같은 페이지 둘째 변경, 그사이 사람이 처리함)와 `vault_error`(Vault 명령 오류)다.
 - 기록은 그때그때 쓴다. 제안은 보낸 즉시 `memory/reviewed.jsonl`과 `logs/dream-runs.jsonl`의 `proposal` 줄에 적고, 판단 기록은 묶음마다 적는다. 실행이 중간에 죽어도 보낸 제안을 다시 보내지 않고 승인율에서 빠지지 않는다.
 - `logs/dream-runs.jsonl`에는 `proposal` 줄과 `run` 줄이 있다. 판단한 것이 없어 건너뛴 실행(`nothing_to_judge`, `not_due`)과 대기 한도에 막힌 실행(`pending_cap`, 연달아 한 번만)도 `run` 줄로 남긴다. 그래서 드리밍 제안이 하나도 없을 때도 `status`가 멈춘 이유를 보인다.
 - 실패한 실행(판단 명령을 쓸 수 없음)은 1시간 뒤 다시 시도한다.
