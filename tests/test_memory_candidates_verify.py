@@ -176,6 +176,15 @@ def test_at_most_two_exchanges_per_page_newest_first_and_reviewed_ones_are_skipp
     assert [item.key.rsplit(":", 1)[-1] for item in candidates] == ["pk-s7", "pk-s6"]
 
 
+def test_an_exchange_already_handled_as_a_session_candidate_is_not_raised_against_a_page() -> None:
+    target = page()
+    found = [exchange("s2", "2026-11-10"), exchange("s3", "2026-11-11")]
+
+    candidates = build([target], {target.key: found}, reviewed=["session:pk-s3"])
+
+    assert [item.key.rsplit(":", 1)[-1] for item in candidates] == ["pk-s2"]
+
+
 def test_an_exchange_older_than_the_candidate_age_limit_is_left_out() -> None:
     target = page(frontmatter={"updated": "2026-01-01"})
     old = SessionExchange(

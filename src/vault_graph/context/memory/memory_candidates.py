@@ -35,7 +35,8 @@ caller finds exchanges on the page's topic (an evidence-mode search) and passes 
 The rule keeps the later ones, newest first, at most ``VERIFY_EXCHANGES_PER_PAGE`` per page. "Later" comes from
 the exchange start time and the page frontmatter ``updated`` (then ``created``, then the evidence date), never
 from a model. The kind is built only when ``kinds`` names it: it is not in ``CANDIDATE_KINDS``, so the manual
-cleanup bundle, the backlog line and the MCP tool never see it. Only the dream worker asks for it.
+cleanup bundle, the backlog line and the MCP tool never see it. Only the dream worker asks for it. An exchange
+whose ``session:`` key is recorded was already handled as a session exchange candidate and is left out.
 
 Brief (§4.4.7, rule 4): one candidate when the brief rule says the brief needs an update. Its key is
 ``brief:<project>:<12 hex>`` of the counted decision pages, ``location`` is the brief path (the page
@@ -627,7 +628,8 @@ def _verify_candidates(
         kept = 0
         for exchange in newest_first:
             key = f"{VERIFY_KEY_PREFIX}{page.vault_id}:{page.path}:{exchange.parent_key}"
-            if key in reviewed:
+            # An exchange already handled as a session exchange candidate is not raised again against a page.
+            if key in reviewed or f"{SESSION_KEY_PREFIX}{exchange.parent_key}" in reviewed:
                 continue
             pending.append(
                 _Pending(
@@ -806,6 +808,7 @@ __all__ = [
     "MERGE_KEY_PREFIX",
     "RETIRE_KEY_PREFIX",
     "RETIRE_UNUSED_WINDOW",
+    "SESSION_KEY_PREFIX",
     "SESSION_CANDIDATE_MAX_AGE",
     "VERIFY_EXCHANGES_PER_PAGE",
     "VERIFY_KEY_PREFIX",

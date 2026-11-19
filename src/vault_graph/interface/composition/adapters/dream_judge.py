@@ -9,9 +9,13 @@ Actions:
 
 - ``none``: nothing to keep.
 - ``remember``: a new page (`title`, `kind`, `summary`, `body`, optional `memory_kind`).
-- ``update_memory``: text to add to a shown page (`path`, `addition`).
+- ``update_memory``: text to add to a shown page (`path`, `addition`). For a page without a claim table this is
+  also how a correction is written: the addition says what no longer holds.
 - ``supersede_claim``: replace one claim row of a shown page (`path`, `claim`, `new_claim`).
-- ``retire_memory``: a shown page is no longer true (`path`, `reason`). Only `verify` items allow it (D3).
+- ``retire_memory``: a shown page is no longer true as a whole (`path`, `reason`). Only `verify` items allow it (D3).
+
+A `verify` item (``VERIFY_ACTIONS``) pairs one current page with an exchange that started after the page was last
+written. It can correct the page or leave it; it cannot add a page.
 
 Every action except ``none`` carries `quote`, the user's own words. ``PROMPT_VERSION`` changes whenever the
 prompt or these rules change in a way that could change an answer: the worker then judges earlier ``none``
@@ -26,11 +30,11 @@ from typing import Protocol
 
 from vault_graph.operation.memory.memory_requests import MEMORY_KINDS
 
-PROMPT_VERSION = "dream-1"
+PROMPT_VERSION = "dream-2"
 
 DREAM_ACTIONS: tuple[str, ...] = ("none", "remember", "update_memory", "supersede_claim", "retire_memory")
 EXCHANGE_ACTIONS: tuple[str, ...] = ("none", "remember", "update_memory", "supersede_claim")
-VERIFY_ACTIONS: tuple[str, ...] = ("none", "supersede_claim", "retire_memory")
+VERIFY_ACTIONS: tuple[str, ...] = ("none", "supersede_claim", "update_memory", "retire_memory")
 # A dream run never writes the project brief (kind `project`): it is injected into every session (C6).
 DREAM_REMEMBER_KINDS: tuple[str, ...] = ("decision", "system")
 

@@ -39,6 +39,7 @@ from vault_graph.interface.composition.adapters.dream_worker import (
 )
 from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
 from vault_graph.interface.composition.memory_candidate_sources import MemoryCandidatePackage
+from vault_graph.operation.memory.evidence_quote import quote_in_text
 from vault_graph.operation.memory.memory_ports import WriteOutcome
 from vault_graph.operation.memory.memory_write_service import MemoryWriteService
 from vault_graph.operation.scope.dream_settings import DreamSettings, dream_judged_path, dream_runs_path
@@ -188,6 +189,7 @@ class World:
             ),
             pending_count=lambda root: self.pending.get(root, 0),
             reviewed_log=JsonlReviewedLog(self.graph_home),
+            reviewed_keys=lambda: JsonlReviewedLog(self.graph_home).reviewed_keys(),
             judge=judge,
         )
 
@@ -213,6 +215,14 @@ class World:
         if not path.is_file():
             return []
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+    @property
+    def run_lines(self) -> list[dict[str, Any]]:
+        return [dict(line) for line in read_dream_runs(self.graph_home) if line["record"] == "run"]
+
+    @property
+    def proposal_lines(self) -> list[dict[str, Any]]:
+        return [dict(line) for line in read_dream_runs(self.graph_home) if line["record"] == "proposal"]
 
     @property
     def judged(self) -> list[dict[str, Any]]:
@@ -256,14 +266,13 @@ def test_a_quoted_judgment_becomes_an_inferred_proposal(tmp_path: Path) -> None:
     assert proposal.review_path == REVIEW_PATH
     assert [(item["candidate_key"], item["outcome"]) for item in world.reviewed] == [("session:s1", "dream_proposed")]
     assert world.judged == []
-    logged = read_dream_runs(world.graph_home)
-    assert len(logged) == 1
-    assert logged[0]["project"] == "project"
-    assert logged[0]["status"] == "ran"
-    assert logged[0]["model"] == "fake-model"
-    assert logged[0]["prompt_version"] == PROMPT_VERSION
-    assert logged[0]["proposals"][0]["review_path"] == REVIEW_PATH
-    assert logged[0]["proposals"][0]["vault_root"] == str(world.vault.path)
+    (logged,) = world.run_lines
+    assert (logged["project"], logged["status"], logged["proposals"]) == ("project", "ran", 1)
+    assert (logged["model"], logged["prompt_version"]) == ("fake-model", PROMPT_VERSION)
+    assert logged["vault_root"] == str(world.vault.path)
+    (sent,) = world.proposal_lines
+    assert (sent["candidate_key"], sent["review_path"]) == ("session:s1", REVIEW_PATH)
+    assert (sent["project"], sent["vault"], sent["vault_root"]) == ("project", "main", str(world.vault.path))
 
 
 def test_the_judge_sees_the_user_text_the_exchange_and_only_found_pages(tmp_path: Path) -> None:
@@ -349,13 +358,18 @@ def test_a_record_from_another_prompt_version_or_model_is_judged_again(tmp_path:
     assert world.judge.judged_keys == ["session:s1", "session:s2"]
 
 
-def test_an_exchange_without_a_judgment_comes_back(tmp_path: Path) -> None:
+def test_an_item_the_judge_leaves_out_is_recorded_so_it_is_not_paid_for_again(tmp_path: Path) -> None:
     world = World(tmp_path, [candidate(1), candidate(2)], FakeJudge([none(1)]))
 
     run = world.run()
 
     assert run.judged == 1
-    assert [item["candidate_key"] for item in world.judged] == ["session:s1"]
+    assert run.outcomes == {"none": 1, "no_answer": 1}
+    assert [(item["candidate_key"], item["outcome"]) for item in world.judged] == [
+        ("session:s1", "none"),
+        ("session:s2", "no_answer"),
+    ]
+    assert world.reviewed == []  # a manual cleanup still offers both
 
 
 # Limits (C3, C4)
@@ -369,7 +383,14 @@ def test_a_full_review_queue_stops_the_run_before_the_judge(tmp_path: Path) -> N
 
     assert (run.status, run.reason) == ("skipped", "pending_cap")
     assert world.judge.calls == []
-    assert read_dream_runs(world.graph_home) == []
+    # Logged once, so `vg dream status` can show the stop before any dream proposal exists.
+    world.run()
+    world.run(manual=False)
+    assert [(line["status"], line["reason"]) for line in world.run_lines] == [("skipped", "pending_cap")]
+    assert world.run_lines[0]["vault_root"] == str(world.vault.path)
+
+    world.pending[world.vault.path] = 0
+    assert world.run(manual=False).reason == "not_due"  # the pending cap line does not start the interval
 
 
 def test_a_run_sends_only_what_fits_under_the_pending_cap(tmp_path: Path) -> None:
@@ -437,7 +458,7 @@ def test_a_failed_run_is_tried_again_after_an_hour(tmp_path: Path) -> None:
     failed = world.run(manual=False)
 
     assert (failed.status, failed.reason, failed.message) == ("failed", "judge_unavailable", "claude cannot run")
-    assert read_dream_runs(world.graph_home)[0]["status"] == "failed"
+    assert world.run_lines[0]["status"] == "failed"
     assert world.judged == []
     world.judge.error = None
     world.now = NOW + timedelta(minutes=30)
@@ -694,14 +715,18 @@ def test_a_later_exchange_can_replace_a_claim_with_dated_evidence(tmp_path: Path
 
     assert run.outcomes == {"proposed": 1}
     items, pages = judge.calls[0]
-    assert items[0].actions == ("none", "supersede_claim", "retire_memory")
+    assert items[0].actions == ("none", "supersede_claim", "update_memory", "retire_memory")
     assert items[0].pages == (PAGE_PATH,)
     assert [shown.path for shown in pages] == [PAGE_PATH]
     edit = world.writer.drafts[0]["edits"]
     assert isinstance(edit, list)
     assert edit[0]["status"] == "inferred"
     assert edit[0]["evidence"] == f'raw/sessions/2026-11-10-s1.md L10-L20 (2026-11-18) "{QUOTE}"'
-    assert [(entry["candidate_key"], entry["outcome"]) for entry in world.reviewed] == [(item.key, "dream_proposed")]
+    # The exchange is recorded under its session key too, so its words are not proposed a second time.
+    assert [(entry["candidate_key"], entry["outcome"]) for entry in world.reviewed] == [
+        (item.key, "dream_proposed"),
+        ("session:pk1", "dream_proposed"),
+    ]
 
 
 def test_a_later_exchange_can_propose_retiring_a_page(tmp_path: Path) -> None:
@@ -758,10 +783,167 @@ def test_checks_run_after_the_exchanges_and_only_while_the_run_has_room(tmp_path
     assert [items[0].key for items, _ in judge.calls] == ["session:s1", item.key]
 
 
-def test_a_run_with_nothing_to_judge_is_skipped_and_leaves_no_record(tmp_path: Path) -> None:
+def test_a_run_with_nothing_to_judge_is_skipped_and_starts_the_interval(tmp_path: Path) -> None:
     world = World(tmp_path, [], FakeJudge())
+
+    run = world.run(manual=False)
+
+    assert (run.status, run.reason) == ("skipped", "nothing_to_judge")
+    # Logged, so the next hook run waits one interval before it looks for page checks again.
+    assert [(line["status"], line["reason"]) for line in world.run_lines] == [("skipped", "nothing_to_judge")]
+    assert world.run(manual=False).reason == "interval"
+    assert world.judged == [] and world.reviewed == []
+
+
+def test_a_check_can_add_a_dated_correction_to_a_page_without_a_claim_table(tmp_path: Path) -> None:
+    item = check(1)
+    world = World(tmp_path, [], FakeJudge([replace(update(1), key=item.key)]))
+    world.checks = [item]
+    world.add_page()
 
     run = world.run()
 
-    assert (run.status, run.reason) == ("skipped", "nothing_to_judge")
-    assert read_dream_runs(world.graph_home) == []
+    assert run.outcomes == {"proposed": 1}
+    body = str(world.writer.drafts[0]["body"])
+    assert f'- Evidence: raw/sessions/2026-11-10-s1.md L10-L20 (2026-11-18) "{QUOTE}"' in body
+
+
+def test_checks_run_in_a_hook_run_even_when_the_exchange_backlog_is_not_due(tmp_path: Path) -> None:
+    item = check(9)
+    judge = FakeJudge([replace(supersede("The default embedding model is e5-small"), key=item.key)])
+    world = World(tmp_path, [candidate(1)], judge)  # one new exchange: the backlog is not due
+    world.checks = [item]
+    world.add_page(text=CLAIM_PAGE)
+
+    run = world.run(manual=False)
+
+    assert (run.status, run.outcomes) == ("ran", {"proposed": 1})
+    assert judge.judged_keys == [item.key]  # the exchange itself waits until the backlog is due
+
+
+def test_an_exchange_proposed_in_this_run_is_not_checked_against_a_page_again(tmp_path: Path) -> None:
+    exchange = candidate(1, pages=(PAGE_PATH,))
+    same_exchange = replace(check(1), location=exchange.location)
+    judge = FakeJudge([update(1), replace(update(1), key=same_exchange.key)])
+    world = World(tmp_path, [exchange], judge)
+    world.checks = [same_exchange]
+    world.add_page()
+
+    run = world.run()
+
+    assert run.outcomes == {"proposed": 1}
+    assert len(judge.calls) == 1
+    assert len(world.writer.proposals) == 1
+
+
+@pytest.mark.parametrize("action", ["supersede_claim", "retire_memory"])
+def test_a_pinned_page_is_never_superseded_or_retired(tmp_path: Path, action: str) -> None:
+    item = check(1)
+    judgment = DreamJudgment(
+        key=item.key,
+        action=action,
+        quote=QUOTE,
+        path=PAGE_PATH,
+        claim="The default embedding model is e5-small",
+        new_claim="The default embedding model is arctic-m",
+        reason="모델을 바꿨다",
+    )
+    world = World(tmp_path, [], FakeJudge([judgment]))
+    world.checks = [item]
+    world.add_page(text=CLAIM_PAGE.replace("status: active", "status: active\npin: true"))
+
+    run = world.run()
+
+    assert run.outcomes == {"target_refused": 1}
+    assert world.writer.proposals == []
+
+
+# A run that is interrupted, or races with a person
+
+
+class ActingJudge(FakeJudge):
+    """Runs ``act`` while it judges, like something that happens during the minutes a real judge takes."""
+
+    def __init__(self, judgments: Sequence[DreamJudgment], act: Any) -> None:
+        super().__init__(judgments)
+        self.act = act
+
+    def judge(self, items: Sequence[DreamItem], pages: Sequence[DreamPage]) -> DreamAnswer:
+        answer = super().judge(items, pages)
+        self.act(len(self.calls))
+        return answer
+
+
+def test_a_run_that_dies_midway_keeps_the_records_of_what_it_sent(tmp_path: Path) -> None:
+    count = BATCH_SIZE + 1
+
+    def die_in_the_second_batch(call: int) -> None:
+        if call == 2:
+            raise RuntimeError("killed")
+
+    judge = ActingJudge([remember(0), *[none(n) for n in range(1, count)]], die_in_the_second_batch)
+    world = World(tmp_path, [candidate(n) for n in range(count)], judge)
+
+    with pytest.raises(RuntimeError, match="killed"):
+        world.run()
+
+    assert [(item["candidate_key"], item["outcome"]) for item in world.reviewed] == [("session:s0", "dream_proposed")]
+    assert [line["review_path"] for line in world.proposal_lines] == [REVIEW_PATH]
+    assert len(world.judged) == BATCH_SIZE - 1  # the first batch is not paid for again
+    assert world.run_lines == []
+
+
+def test_a_candidate_a_person_handled_while_the_judge_ran_is_not_proposed(tmp_path: Path) -> None:
+    world = World(tmp_path, [candidate(1)], FakeJudge())
+
+    def person_publishes_it(call: int) -> None:
+        JsonlReviewedLog(world.graph_home).append(["session:s1"], outcome="published")
+
+    world.ports = replace(world.ports, judge=ActingJudge([remember(1)], person_publishes_it))
+
+    run = world.run()
+
+    assert run.outcomes == {"deferred": 1}
+    assert world.writer.proposals == []
+
+
+def test_a_page_that_changed_after_the_judge_read_it_is_not_changed(tmp_path: Path) -> None:
+    world = World(tmp_path, [candidate(1, pages=(PAGE_PATH,))], FakeJudge())
+    world.add_page()
+
+    def person_edits_the_page(call: int) -> None:
+        world.add_page(text=MEMORY_PAGE.replace("e5-small", "bge-m3"))
+
+    world.ports = replace(world.ports, judge=ActingJudge([update(1)], person_edits_the_page))
+
+    run = world.run()
+
+    assert run.outcomes == {"deferred": 1}
+    assert world.writer.proposals == []
+    assert world.judged == []  # judged again in a later run, against the new text
+
+
+def test_one_run_proposes_one_change_per_page(tmp_path: Path) -> None:
+    items = [candidate(1, pages=(PAGE_PATH,)), candidate(2, pages=(PAGE_PATH,))]
+    world = World(tmp_path, items, FakeJudge([update(1), update(2)]))
+    world.add_page()
+
+    run = world.run()
+
+    assert run.outcomes == {"proposed": 1, "deferred": 1}
+    assert len(world.writer.proposals) == 1
+
+
+def test_a_quote_with_a_table_bar_keeps_its_words_in_the_claim_evidence(tmp_path: Path) -> None:
+    barred = "옵션은 a|b 둘 중에 arctic-m으로 정했어"
+    judge = FakeJudge([replace(supersede("The default embedding model is e5-small"), quote=barred)])
+    world = World(tmp_path, [candidate(1, human=f"{barred}. 그렇게 해.", pages=(PAGE_PATH,))], judge)
+    world.add_page(text=CLAIM_PAGE)
+
+    assert world.run().outcomes == {"proposed": 1}
+
+    edits = world.writer.drafts[0]["edits"]
+    assert isinstance(edits, list)
+    evidence = edits[0]["evidence"]
+    assert "|" not in evidence
+    assert quote_in_text(barred, evidence)  # NFKC turns the full-width bar back into "|"
