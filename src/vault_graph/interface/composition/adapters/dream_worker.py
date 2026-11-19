@@ -67,6 +67,7 @@ from typing import Any, Protocol
 from vault_graph.context.memory.memory_candidates import (
     NOT_CURRENT_STATUSES,
     VERIFY_KIND,
+    AnyCandidateKind,
     CandidateKind,
     ComparisonPage,
     MemoryCandidate,
@@ -114,7 +115,7 @@ _LOG_MAX_BYTES = 1_000_000
 _WORKER_SCRIPT = "from vault_graph.interface.cli.main import app; app()"
 _BRIEF_FOLDER = "wiki/projects/"
 _DREAM_KINDS: tuple[CandidateKind, ...] = ("session_exchange",)
-_VERIFY_KINDS: tuple[CandidateKind, ...] = (VERIFY_KIND,)
+_VERIFY_KINDS: tuple[AnyCandidateKind, ...] = (VERIFY_KIND,)
 _LOCATION = re.compile(r"^(?P<path>.+) L(?P<first>\d+)-L(?P<last>\d+)$")
 # The page shape `remember` and `update_memory` write (memory_drafts._body).
 _MEMORY_PAGE = re.compile(

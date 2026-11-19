@@ -120,10 +120,13 @@ DIRECTION_CHANGE_WORDS: tuple[str, ...] = (
     "different approach",
 )
 
-CandidateKind = Literal["l1_note", "session_exchange", "merge", "retire", "brief", "verify"]
-# The kinds of the cleanup bundle. ``verify`` is left out: it is built only when a caller names it (spec 2026-11-19 D3).
+# The kinds of the cleanup bundle. The MCP tool `list_memory_candidates` takes exactly these.
+CandidateKind = Literal["l1_note", "session_exchange", "merge", "retire", "brief"]
 CANDIDATE_KINDS: tuple[CandidateKind, ...] = ("l1_note", "session_exchange", "merge", "retire", "brief")
-VERIFY_KIND: CandidateKind = "verify"
+# ``verify`` is not a cleanup bundle kind: it is built only when a caller names it (spec 2026-11-19 D3).
+VerifyKind = Literal["verify"]
+VERIFY_KIND: VerifyKind = "verify"
+AnyCandidateKind = CandidateKind | VerifyKind
 SessionSignal = Literal["correction", "decision", "unresolved_error_direction_change", "none"]
 RetireSignal = Literal["code_gone", "unused"]
 PageKey = tuple[str, str]
@@ -241,7 +244,7 @@ class MemoryCandidate:
     """
 
     key: str
-    kind: CandidateKind
+    kind: AnyCandidateKind
     location: str
     comparison: tuple[ComparisonPage, ...]
     signal: SessionSignal | None = None
@@ -256,7 +259,7 @@ class MemoryCandidate:
 @dataclass(frozen=True)
 class _Pending:
     key: str
-    kind: CandidateKind
+    kind: AnyCandidateKind
     location: str
     query: str
     signal: SessionSignal | None = None
@@ -285,7 +288,7 @@ def build_memory_candidates(
     page_vectors: Mapping[PageKey, Sequence[float]] | None = None,
     missing_code: Mapping[PageKey, Sequence[str]] | None = None,
     usage_events: Iterable[Mapping[str, object]] = (),
-    kinds: Collection[CandidateKind] | None = None,
+    kinds: Collection[AnyCandidateKind] | None = None,
     merge_threshold: float = DEFAULT_MERGE_SIMILARITY,
     with_comparison: bool = True,
     brief: ProjectBriefStaleness | None = None,
@@ -301,7 +304,7 @@ def build_memory_candidates(
     leaves every ``comparison`` empty: the candidates and their order stay the same (the session start
     backlog line only counts them).
     """
-    wanted = frozenset(CANDIDATE_KINDS if kinds is None else kinds)
+    wanted: frozenset[AnyCandidateKind] = frozenset(CANDIDATE_KINDS if kinds is None else kinds)
     pages = tuple(memory_pages)
     pending: list[_Pending] = []
     if "l1_note" in wanted:
@@ -807,6 +810,7 @@ __all__ = [
     "VERIFY_EXCHANGES_PER_PAGE",
     "VERIFY_KEY_PREFIX",
     "VERIFY_KIND",
+    "AnyCandidateKind",
     "CandidateKind",
     "ComparisonPage",
     "L1Note",
