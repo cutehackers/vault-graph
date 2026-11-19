@@ -17,7 +17,11 @@ and never writes:
 - ``memory/reviewed.jsonl``,
 - indexed document metadata for the brief rule (``brief.project_brief_staleness``, §4.4.7): the
   brief candidate needs no search and no file read, and vg never writes the brief,
-- comparison material from the search service with ``include_retired`` (§4.4.13-2).
+- comparison material from the search service with ``include_retired`` (§4.4.13-2),
+- for the ``verify`` kind only (spec 2026-11-19 D3, asked for by the dream worker and never part of the default
+  bundle): for each current, not pinned page of the project, the session exchanges an evidence-mode search finds
+  for the page's title and text (``topic_exchanges``). The M10 rule keeps the ones that started after the page
+  was written.
 
 Code references (``code_gone``). A page cites code as a backticked repository path, optionally with
 ``::Symbol``, ``#Symbol`` or ``:Symbol`` after it (``src/app/x.py``, ``src/app/x.py::run``,
@@ -42,6 +46,7 @@ from vault_graph.context.memory.brief import ProjectBriefStaleness, project_brie
 from vault_graph.context.memory.memory_candidates import (
     CANDIDATE_KINDS,
     DEFAULT_MERGE_SIMILARITY,
+    VERIFY_KIND,
     CandidateKind,
     L1Note,
     MemoryCandidate,
@@ -65,6 +70,7 @@ from vault_graph.operation.scope.graph_home import GraphHomeResolver
 
 if TYPE_CHECKING:
     from vault_graph.context.pack.recall_backlog import MemoryBacklog
+    from vault_graph.indexing.ingestion.document_models import SourceLocator
     from vault_graph.indexing.ingestion.document_snapshots import ChunkSnapshot, DocumentSnapshot
     from vault_graph.operation.scope.vault_catalog import QueryScope
     from vault_graph.retrieval.search.search_response import SearchMode, SearchOutputFormat, SearchResponse
@@ -76,6 +82,8 @@ WIKI_PATH_PREFIX = "wiki/"
 USAGE_MONTH_FILES = 4
 # Comparison search reads the start of a long human turn only.
 COMPARISON_QUERY_WORDS = 64
+# Session results an evidence-mode search may return for one page when looking for later exchanges on its topic.
+VERIFY_SEARCH_LIMIT = 5
 SESSION_CHUNKER_VERSIONS = frozenset({SESSION_EXCHANGE_V1_VERSION, SESSION_EXCHANGE_V2_VERSION})
 NO_PROJECT_REASON = "프로젝트를 찾지 못함"
 # The kinds the session start backlog line counts (spec 2026-11-05 §4.4.6).
@@ -223,18 +231,28 @@ def memory_candidate_package(
 
     exchanges: list[SessionExchange] = []
     wiki_pages: list[WikiPageText] = []
-    if "session_exchange" in wanted and metadata is not None:
+    if wanted & {"session_exchange", VERIFY_KIND} and metadata is not None:
         for vault_id in vault_ids:
             exchanges.extend(session_exchanges(metadata, vault_id, documents[vault_id], roots[vault_id]))
-            wiki_pages.extend(_wiki_page_texts(documents[vault_id], roots[vault_id]))
+            if "session_exchange" in wanted:
+                wiki_pages.extend(_wiki_page_texts(documents[vault_id], roots[vault_id]))
 
     memory_pages: tuple[MemoryPage, ...] = ()
     page_vectors: dict[PageKey, Sequence[float]] = {}
     missing_code: dict[PageKey, tuple[str, ...]] = {}
     usage_events: tuple[Mapping[str, object], ...] = ()
-    if wanted & {"merge", "retire"} and metadata is not None:
+    page_exchanges: dict[PageKey, tuple[SessionExchange, ...]] = {}
+    if wanted & {"merge", "retire", VERIFY_KIND} and metadata is not None:
         memory_pages = _memory_pages(metadata, documents, vault_scopes)
         current = tuple(page for page in memory_pages if is_current_memory_page(page, project_id))
+        if VERIFY_KIND in wanted and exchanges:
+            page_exchanges = topic_exchanges(
+                tuple(page for page in current if page.frontmatter.get("pin") is not True),
+                exchanges,
+                search=_open_search(descriptor.root_path, warnings),
+                scope=catalog.scope_for_vault_ids(vault_ids),
+                warnings=warnings,
+            )
         if "merge" in wanted:
             page_vectors = _page_vectors(catalog_service, current, warnings)
         if "retire" in wanted:
@@ -281,6 +299,7 @@ def memory_candidate_package(
         merge_threshold=merge_threshold,
         with_comparison=with_comparison,
         brief=brief,
+        page_exchanges=page_exchanges,
     )
     return MemoryCandidatePackage(
         project_id, candidates, warnings=(*warnings, *finder.warnings), l1_unavailable=l1_problem is not None
@@ -533,6 +552,79 @@ def _turn_text(
             turn.append(line.strip())
     close()
     return "\n".join(kept)
+
+
+def topic_exchanges(
+    pages: Sequence[MemoryPage],
+    exchanges: Sequence[SessionExchange],
+    *,
+    search: SearchService | None,
+    scope: QueryScope,
+    warnings: list[str],
+) -> dict[PageKey, tuple[SessionExchange, ...]]:
+    """For each page, the indexed session exchanges an evidence-mode search finds for its title and text.
+
+    A search result names a session file and lines; it counts for every exchange of that file whose line range
+    it overlaps. Nothing is filtered by time here: the M10 verify rule keeps the later ones (spec 2026-11-19 D3).
+    Without search there are none, and a failed search adds one warning and goes on with the next page.
+    """
+    if search is None or not pages:
+        return {}
+    by_path: dict[str, list[SessionExchange]] = {}
+    for exchange in exchanges:
+        by_path.setdefault(exchange.path, []).append(exchange)
+    found: dict[PageKey, tuple[SessionExchange, ...]] = {}
+    for page in pages:
+        text = " ".join(f"{page.title}\n\n{page.text}".split()[:COMPARISON_QUERY_WORDS])
+        if not text:
+            continue
+        try:
+            response = search.search(
+                query_text=text, requested_scope=scope, limit=VERIFY_SEARCH_LIMIT, output_format="json", mode="evidence"
+            )
+        except VaultGraphError as exc:
+            message = f"Search for later exchanges failed: {_one_line(str(exc))}"
+            if message not in warnings:
+                warnings.append(message)
+            continue
+        hits: dict[str, SessionExchange] = {}
+        for result in response.results:
+            for evidence in result.evidence:
+                lines = _evidence_lines(evidence.source_locators)
+                if lines is None:
+                    continue
+                for exchange in by_path.get(evidence.path, ()):
+                    if lines[0] <= exchange.line_end and exchange.line_start <= lines[1]:
+                        hits.setdefault(exchange.parent_key, exchange)
+        if hits:
+            found[page.key] = tuple(hits.values())
+    return found
+
+
+def _evidence_lines(locators: Sequence[SourceLocator]) -> tuple[int, int] | None:
+    """The first and last line the locators of one search evidence name, or None when they name no line."""
+    first: int | None = None
+    last: int | None = None
+    for locator in locators:
+        coordinates = dict(locator.coordinates)
+        try:
+            start = int(coordinates["line"])
+            end = int(coordinates.get("line_end", coordinates["line"]))
+        except (KeyError, ValueError):
+            continue
+        first = start if first is None else min(first, start)
+        last = end if last is None else max(last, end)
+    return None if first is None or last is None else (first, last)
+
+
+def _open_search(graph_home: Path, warnings: list[str]) -> SearchService | None:
+    from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+
+    try:
+        return ReadOnlyServiceFactory(graph_home_path=graph_home).open_retrieval_service()
+    except (VaultGraphError, OSError) as exc:
+        warnings.append(f"Search is not available, so no verify candidates: {_one_line(str(exc))}")
+        return None
 
 
 def _wiki_page_texts(documents: Iterable[DocumentSnapshot], vault_root: Path) -> list[WikiPageText]:

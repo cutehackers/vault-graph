@@ -16,6 +16,11 @@ What the code checks before a proposal is sent:
 - `supersede_claim` names a claim text that is in the page.
 - The evidence line is built here from the location and the quote, never from other judge text (C5).
 
+After the session exchanges, while the run still has room, one batch of `verify` candidates is judged (D3): a
+current page together with an exchange on its topic that started after the page was last written. The judge may
+answer `supersede_claim`, `retire_memory` or `none` for these. The same checks apply, and the evidence line also
+carries the day the exchange started, taken from the index.
+
 When a run may start (`manual=False`, the run the capture hook starts):
 
 - dreaming is on,
@@ -59,10 +64,18 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-from vault_graph.context.memory.memory_candidates import NOT_CURRENT_STATUSES, CandidateKind, MemoryCandidate
+from vault_graph.context.memory.memory_candidates import (
+    NOT_CURRENT_STATUSES,
+    VERIFY_KIND,
+    CandidateKind,
+    ComparisonPage,
+    MemoryCandidate,
+)
 from vault_graph.context.pack.recall_backlog import BACKLOG_ALERT_MEDIAN_DAYS, median_age_days
 from vault_graph.interface.composition.adapters.dream_judge import (
+    EXCHANGE_ACTIONS,
     PROMPT_VERSION,
+    VERIFY_ACTIONS,
     DreamItem,
     DreamJudge,
     DreamJudgeUnavailable,
@@ -95,11 +108,13 @@ BATCH_SIZE = 8
 MAX_PAGES_PER_ITEM = 3
 MAX_PAGE_CHARS = 3000
 MAX_EXCHANGE_CHARS = 6000
+VERIFY_BUNDLE_LIMIT = BATCH_SIZE
 RECORDED_OUTCOMES = frozenset({"none", "invalid_answer", "quote_rejected", "target_refused", "vault_rejected"})
 _LOG_MAX_BYTES = 1_000_000
 _WORKER_SCRIPT = "from vault_graph.interface.cli.main import app; app()"
 _BRIEF_FOLDER = "wiki/projects/"
 _DREAM_KINDS: tuple[CandidateKind, ...] = ("session_exchange",)
+_VERIFY_KINDS: tuple[CandidateKind, ...] = (VERIFY_KIND,)
 _LOCATION = re.compile(r"^(?P<path>.+) L(?P<first>\d+)-L(?P<last>\d+)$")
 # The page shape `remember` and `update_memory` write (memory_drafts._body).
 _MEMORY_PAGE = re.compile(
@@ -109,6 +124,8 @@ _MEMORY_PAGE = re.compile(
 
 CandidateSource = Callable[[Collection[str], int | None, bool], MemoryCandidatePackage]
 """`(skip_keys, limit, with_comparison)` to the project's waiting session exchanges."""
+VerifySource = Callable[[Collection[str], int], MemoryCandidatePackage]
+"""`(skip_keys, limit)` to the project's `verify` candidates: a current page and a later exchange on its topic."""
 
 
 class MemoryWrites(Protocol):
@@ -127,6 +144,7 @@ class MemoryWrites(Protocol):
 class DreamPorts:
     vault_map: VaultMapReader
     candidates: CandidateSource
+    verify_candidates: VerifySource
     exchange_text: Callable[[MemoryCandidate], str]
     """The lines of the exchange a candidate names, or an empty string when they cannot be read."""
     page_reader: VaultPageReader
@@ -202,6 +220,20 @@ class _Tally:
         return len(self.proposals) < self.budget
 
 
+@dataclass
+class _Work:
+    """What every judgment of one run needs."""
+
+    cwd: Path
+    project_id: str
+    write_vault: MappedVault
+    settings: DreamSettings
+    ports: DreamPorts
+    tally: _Tally
+    pending_by_vault: dict[str, int]
+    dry_run: bool
+
+
 def run_dream(
     graph_home: Path,
     cwd: Path,
@@ -238,56 +270,39 @@ def run_dream(
     if waiting.project_id is None:
         return skipped("no_project", waiting.reason)
     unjudged = [candidate for candidate in waiting.candidates if candidate.human_text]
-    if not unjudged:
-        return skipped("nothing_to_judge")
     if not manual and not _is_due(unjudged, settings, clock()):
         return skipped("not_due")
-    bundle = [
-        candidate
-        for candidate in ports.candidates(judged_keys, settings.bundle_limit, True).candidates
-        if candidate.human_text
-    ]
+    bundle: list[MemoryCandidate] = []
+    if unjudged:
+        bundle = [
+            candidate
+            for candidate in ports.candidates(judged_keys, settings.bundle_limit, True).candidates
+            if candidate.human_text
+        ]
 
     tally = _Tally(budget=min(settings.proposals_per_run, settings.pending_cap - pending))
-    pending_by_vault = {write_vault.name: pending}
-    failure: tuple[str, str] | None = None
-    for start in range(0, len(bundle), BATCH_SIZE):
-        if not tally.room:
-            break
-        batch = bundle[start : start + BATCH_SIZE]
-        targets = _targets(batch, cwd, ports)
-        items = [_item(candidate, targets, ports) for candidate in batch]
-        pages = _pages(batch, targets)
-        try:
-            answer = ports.judge.judge(items, pages)
-        except DreamJudgeUnavailable as exc:
-            failure = ("judge_unavailable", str(exc))
-            break
-        except DreamOutputInvalid as exc:
-            failure = ("judge_output_invalid", str(exc))
-            break
-        if answer.cost_usd is not None:
-            tally.cost_usd = (tally.cost_usd or 0.0) + answer.cost_usd
-        judgments = {judgment.key: judgment for judgment in answer.judgments}
-        for candidate, item in zip(batch, items, strict=True):
-            judgment = judgments.get(candidate.key)
-            if judgment is None:
-                continue
-            tally.judged += 1
-            outcome = _handle(
-                judgment,
-                candidate,
-                item,
-                cwd=cwd,
-                project_id=project_id,
-                write_vault=write_vault,
-                settings=settings,
-                ports=ports,
-                tally=tally,
-                pending_by_vault=pending_by_vault,
-                dry_run=dry_run,
-            )
-            tally.count(candidate.key, outcome)
+    work = _Work(
+        cwd=cwd,
+        project_id=project_id,
+        write_vault=write_vault,
+        settings=settings,
+        ports=ports,
+        tally=tally,
+        pending_by_vault={write_vault.name: pending},
+        dry_run=dry_run,
+    )
+    failure = _judge_all(work, bundle)
+    checks: list[MemoryCandidate] = []
+    if failure is None and tally.room:
+        # D3: pages that a later exchange on the same topic may have made wrong. One batch per run.
+        checks = [
+            candidate
+            for candidate in ports.verify_candidates(judged_keys, VERIFY_BUNDLE_LIMIT).candidates
+            if candidate.human_text and candidate.targets
+        ]
+        failure = _judge_all(work, checks)
+    if not bundle and not checks and failure is None:
+        return skipped("nothing_to_judge")
 
     run = DreamRun(
         status="failed" if failure is not None and not tally.judged else "ran",
@@ -332,11 +347,43 @@ def _is_due(unjudged: Sequence[MemoryCandidate], settings: DreamSettings, now: d
     return age is not None and age > BACKLOG_ALERT_MEDIAN_DAYS
 
 
+def _judge_all(work: _Work, candidates: Sequence[MemoryCandidate]) -> tuple[str, str] | None:
+    """Judge ``candidates`` in batches while the run has room. Returns the judge failure that stopped it, if any."""
+    tally, ports = work.tally, work.ports
+    for start in range(0, len(candidates), BATCH_SIZE):
+        if not tally.room:
+            break
+        batch = candidates[start : start + BATCH_SIZE]
+        targets = _targets(batch, work.cwd, ports)
+        items = [_item(candidate, targets, ports) for candidate in batch]
+        try:
+            answer = ports.judge.judge(items, _pages(batch, targets))
+        except DreamJudgeUnavailable as exc:
+            return ("judge_unavailable", str(exc))
+        except DreamOutputInvalid as exc:
+            return ("judge_output_invalid", str(exc))
+        if answer.cost_usd is not None:
+            tally.cost_usd = (tally.cost_usd or 0.0) + answer.cost_usd
+        judgments = {judgment.key: judgment for judgment in answer.judgments}
+        for candidate, item in zip(batch, items, strict=True):
+            judgment = judgments.get(candidate.key)
+            if judgment is None:
+                continue
+            tally.judged += 1
+            tally.count(candidate.key, _handle(judgment, candidate, item, work))
+    return None
+
+
+def _shown(candidate: MemoryCandidate) -> tuple[ComparisonPage, ...]:
+    """The pages the judge sees for a candidate: the page a verify candidate checks, else the comparison pages."""
+    return (candidate.targets if candidate.kind == VERIFY_KIND else candidate.comparison)[:MAX_PAGES_PER_ITEM]
+
+
 def _targets(batch: Sequence[MemoryCandidate], cwd: Path, ports: DreamPorts) -> dict[str, _Target]:
-    """The comparison pages of the batch that exist in exactly one linked Vault, by page path."""
+    """The shown pages of the batch that exist in exactly one linked Vault, by page path."""
     targets: dict[str, _Target] = {}
     for candidate in batch:
-        for comparison in candidate.comparison[:MAX_PAGES_PER_ITEM]:
+        for comparison in _shown(candidate):
             if comparison.path not in targets and (target := _target(comparison.path, cwd, ports)) is not None:
                 targets[comparison.path] = target
     return targets
@@ -359,21 +406,27 @@ def _target(path: str, cwd: Path, ports: DreamPorts) -> _Target | None:
 
 
 def _item(candidate: MemoryCandidate, targets: Mapping[str, _Target], ports: DreamPorts) -> DreamItem:
-    shown = tuple(page.path for page in candidate.comparison[:MAX_PAGES_PER_ITEM] if page.path in targets)
+    shown = tuple(page.path for page in _shown(candidate) if page.path in targets)
     exchange = ports.exchange_text(candidate) or candidate.human_text
     return DreamItem(
         key=candidate.key,
-        date=candidate.started_at.date().isoformat() if candidate.started_at is not None else "",
+        date=_day(candidate),
         user_text=candidate.human_text,
         exchange_text=exchange[:MAX_EXCHANGE_CHARS],
         pages=shown,
+        actions=VERIFY_ACTIONS if candidate.kind == VERIFY_KIND else EXCHANGE_ACTIONS,
     )
+
+
+def _day(candidate: MemoryCandidate) -> str:
+    """The day the exchange started, from the index, never from the judge."""
+    return candidate.started_at.date().isoformat() if candidate.started_at is not None else ""
 
 
 def _pages(batch: Sequence[MemoryCandidate], targets: Mapping[str, _Target]) -> list[DreamPage]:
     pages: dict[str, DreamPage] = {}
     for candidate in batch:
-        for comparison in candidate.comparison[:MAX_PAGES_PER_ITEM]:
+        for comparison in _shown(candidate):
             target = targets.get(comparison.path)
             if target is None or comparison.path in pages:
                 continue
@@ -387,21 +440,9 @@ def _pages(batch: Sequence[MemoryCandidate], targets: Mapping[str, _Target]) -> 
     return list(pages.values())
 
 
-def _handle(
-    judgment: DreamJudgment,
-    candidate: MemoryCandidate,
-    item: DreamItem,
-    *,
-    cwd: Path,
-    project_id: str,
-    write_vault: MappedVault,
-    settings: DreamSettings,
-    ports: DreamPorts,
-    tally: _Tally,
-    pending_by_vault: dict[str, int],
-    dry_run: bool,
-) -> str:
+def _handle(judgment: DreamJudgment, candidate: MemoryCandidate, item: DreamItem, work: _Work) -> str:
     """Check one judgment and send it when it passes. Returns its outcome."""
+    cwd, ports, tally, write_vault = work.cwd, work.ports, work.tally, work.write_vault
     if judgment_problem(judgment, item) is not None:
         return "invalid_answer"
     if judgment.action == "none":
@@ -409,7 +450,9 @@ def _handle(
     if not quote_in_text(judgment.quote, candidate.human_text):
         return "quote_rejected"
     quote = " ".join(judgment.quote.split())
-    evidence = f'{candidate.location} "{quote}"'
+    # A verify proposal says a later exchange overrules the page, so its evidence also carries that exchange's day.
+    dated = f" ({_day(candidate)})" if candidate.kind == VERIFY_KIND else ""
+    evidence = f'{candidate.location}{dated} "{quote}"'
 
     vault = write_vault
     send: Callable[[], MemoryWriteResult]
@@ -425,7 +468,7 @@ def _handle(
             vault=write_vault.name,
             pin=False,
             memory_kind=judgment.memory_kind or None,
-            project_id=project_id,
+            project_id=work.project_id,
             summary=judgment.summary.strip(),
         )
 
@@ -482,12 +525,12 @@ def _handle(
 
     if not tally.room:
         return "deferred"
-    if vault.name not in pending_by_vault:
-        pending_by_vault[vault.name] = ports.pending_count(vault.path)
-    if pending_by_vault[vault.name] + tally.sent_by_vault.get(vault.name, 0) >= settings.pending_cap:
+    if vault.name not in work.pending_by_vault:
+        work.pending_by_vault[vault.name] = ports.pending_count(vault.path)
+    if work.pending_by_vault[vault.name] + tally.sent_by_vault.get(vault.name, 0) >= work.settings.pending_cap:
         return "deferred"
     review_path: str | None = None
-    if not dry_run:
+    if not work.dry_run:
         result = send()
         if result.status == "rejected":
             return "vault_rejected"
@@ -505,7 +548,7 @@ def _handle(
             review_path=review_path,
         )
     )
-    return "would_propose" if dry_run else "proposed"
+    return "would_propose" if work.dry_run else "proposed"
 
 
 def _memory_page_parts(text: str) -> tuple[str, tuple[str, ...]] | None:
@@ -742,12 +785,24 @@ def open_dream_ports(
             skip_keys=skip_keys,
         )
 
+    def verify_candidates(skip_keys: Collection[str], limit: int) -> MemoryCandidatePackage:
+        return memory_candidate_package(
+            graph_home,
+            cwd,
+            kinds=_VERIFY_KINDS,
+            limit=limit,
+            vault_map_file=vault_map_file,
+            with_comparison=False,
+            skip_keys=skip_keys,
+        )
+
     def exchange_text(candidate: MemoryCandidate) -> str:
         return read_exchange_lines(candidate.location, [vault.path for vault in vault_map.vaults_for(cwd)])
 
     return DreamPorts(
         vault_map=vault_map,
         candidates=candidates,
+        verify_candidates=verify_candidates,
         exchange_text=exchange_text,
         page_reader=page_reader,
         # The run counts its own proposals (C4). The service budget only repeats the per-run limit, and the

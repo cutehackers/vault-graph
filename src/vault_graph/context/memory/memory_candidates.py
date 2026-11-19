@@ -29,6 +29,14 @@ Retire (§4.4.4, risk D10): a current, not pinned page in the project scope whos
 days, for example after the Graph Home was deleted, gives no ``unused`` candidate. Nothing here
 changes a page. The calling agent decides, and only Vault tools write (A-25).
 
+Verify (spec 2026-11-19 D3): a current, not pinned page in the project scope paired with a session exchange
+on the same topic that started on a later day than the page's date and that the page does not cite. The
+caller finds exchanges on the page's topic (an evidence-mode search) and passes them as ``page_exchanges``.
+The rule keeps the later ones, newest first, at most ``VERIFY_EXCHANGES_PER_PAGE`` per page. "Later" comes from
+the exchange start time and the page frontmatter ``updated`` (then ``created``, then the evidence date), never
+from a model. The kind is built only when ``kinds`` names it: it is not in ``CANDIDATE_KINDS``, so the manual
+cleanup bundle, the backlog line and the MCP tool never see it. Only the dream worker asks for it.
+
 Brief (§4.4.7, rule 4): one candidate when the brief rule says the brief needs an update. Its key is
 ``brief:<project>:<12 hex>`` of the counted decision pages, ``location`` is the brief path (the page
 may not exist yet), ``targets`` is the brief when it exists, and the comparison material is the new
@@ -47,7 +55,7 @@ from __future__ import annotations
 import re
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from vault_graph.context.memory.brief import ProjectBriefStaleness
@@ -65,6 +73,8 @@ L1_KEY_PREFIX = "l1:"
 SESSION_KEY_PREFIX = "session:"
 MERGE_KEY_PREFIX = "merge:"
 RETIRE_KEY_PREFIX = "retire:"
+VERIFY_KEY_PREFIX = "verify:"
+VERIFY_EXCHANGES_PER_PAGE = 2
 TOOL_ERROR_UNRESOLVED = "tool_error_unresolved"
 # Spec §4.4.4: "임계값은 4.4.10 평가로 정함". Task #40 measures it. Until then cosine 0.92 keeps only
 # near-duplicate pages. Callers pass ``merge_threshold`` to try another value.
@@ -110,8 +120,10 @@ DIRECTION_CHANGE_WORDS: tuple[str, ...] = (
     "different approach",
 )
 
-CandidateKind = Literal["l1_note", "session_exchange", "merge", "retire", "brief"]
+CandidateKind = Literal["l1_note", "session_exchange", "merge", "retire", "brief", "verify"]
+# The kinds of the cleanup bundle. ``verify`` is left out: it is built only when a caller names it (spec 2026-11-19 D3).
 CANDIDATE_KINDS: tuple[CandidateKind, ...] = ("l1_note", "session_exchange", "merge", "retire", "brief")
+VERIFY_KIND: CandidateKind = "verify"
 SessionSignal = Literal["correction", "decision", "unresolved_error_direction_change", "none"]
 RetireSignal = Literal["code_gone", "unused"]
 PageKey = tuple[str, str]
@@ -221,7 +233,8 @@ class MemoryCandidate:
 
     ``location`` is the L1 note path, the exchange location to cite, the two page paths of a merge
     pair (``<path1> | <path2>``) or the page path to retire. ``targets`` are the pages a merge or
-    retire candidate is about. ``similarity`` is the merge cosine similarity. ``reasons`` are the
+    retire candidate is about, or the page a verify candidate checks (its ``location`` is the later
+    exchange). ``similarity`` is the merge cosine similarity. ``reasons`` are the
     retire reasons in Korean, one per ``retire_signals`` item. ``human_text`` is what the person typed
     in a session exchange, read from the lines ``location`` names; a quote given as evidence for that
     exchange must be part of it (spec 2026-11-19 D1).
@@ -276,6 +289,7 @@ def build_memory_candidates(
     merge_threshold: float = DEFAULT_MERGE_SIMILARITY,
     with_comparison: bool = True,
     brief: ProjectBriefStaleness | None = None,
+    page_exchanges: Mapping[PageKey, Sequence[SessionExchange]] | None = None,
 ) -> tuple[MemoryCandidate, ...]:
     """Candidates in table order (L1 notes, session exchanges, merge pairs, retire pages, brief), cut to ``limit``.
 
@@ -303,6 +317,8 @@ def build_memory_candidates(
         pending.extend(_retire_candidates(pages, missing_code or {}, usage_events, project_id, reviewed_keys, now))
     if "brief" in wanted and brief is not None:
         pending.extend(_brief_candidates(brief, reviewed_keys))
+    if VERIFY_KIND in wanted:
+        pending.extend(_verify_candidates(pages, page_exchanges or {}, project_id, reviewed_keys, now))
     # Exchanges without a signal go last: there can be hundreds, and they must not hide the other kinds.
     pending.extend(plain_exchanges)
     if limit is not None:
@@ -319,7 +335,7 @@ def build_memory_candidates(
             similarity=item.similarity,
             retire_signals=item.retire_signals,
             reasons=item.reasons,
-            human_text=item.query if item.kind == "session_exchange" else "",
+            human_text=item.query if item.kind in ("session_exchange", VERIFY_KIND) else "",
         )
         for item in pending
     )
@@ -577,6 +593,71 @@ def _retire_candidates(
     return pending
 
 
+def _verify_candidates(
+    pages: Sequence[MemoryPage],
+    page_exchanges: Mapping[PageKey, Sequence[SessionExchange]],
+    project_id: str | None,
+    reviewed: Collection[str],
+    now: datetime,
+) -> list[_Pending]:
+    oldest = now - SESSION_CANDIDATE_MAX_AGE
+    pending: list[_Pending] = []
+    for page in sorted(pages, key=lambda item: (item.path, item.vault_id)):
+        found = page_exchanges.get(page.key, ())
+        if not found or page.frontmatter.get("pin") is True or not is_current_memory_page(page, project_id):
+            continue
+        page_day = _page_day(page)
+        if page_day is None:
+            continue
+        citations = _exchange_citations((WikiPageText(path=page.path, text=page.text),))
+        target = _comparison_page(page)
+        later: dict[str, SessionExchange] = {}
+        for exchange in found:
+            if (
+                exchange.human_text
+                and exchange.started_at.date() > page_day
+                and exchange.started_at >= oldest
+                and not _is_cited(exchange, citations)
+            ):
+                later.setdefault(exchange.parent_key, exchange)
+        newest_first = sorted(later.values(), key=lambda item: (item.started_at, item.parent_key), reverse=True)
+        kept = 0
+        for exchange in newest_first:
+            key = f"{VERIFY_KEY_PREFIX}{page.vault_id}:{page.path}:{exchange.parent_key}"
+            if key in reviewed:
+                continue
+            pending.append(
+                _Pending(
+                    key=key,
+                    kind=VERIFY_KIND,
+                    location=exchange_location(exchange.path, exchange.line_start, exchange.line_end),
+                    query=exchange.human_text,
+                    started_at=exchange.started_at,
+                    targets=(target,),
+                    material=(target,),
+                )
+            )
+            kept += 1
+            if kept == VERIFY_EXCHANGES_PER_PAGE:
+                break
+    pending.sort(key=lambda item: item.key)
+    pending.sort(key=lambda item: item.started_at or now, reverse=True)
+    return pending
+
+
+def _page_day(page: MemoryPage) -> date | None:
+    """The day the page was last written: frontmatter ``updated``, then ``created``, then its evidence date."""
+    for value in (page.frontmatter.get("updated"), page.frontmatter.get("created"), page.evidence_date):
+        text = _text(value)
+        if text is None:
+            continue
+        try:
+            return date.fromisoformat(text[:10])
+        except ValueError:
+            continue
+    return None
+
+
 def _brief_candidates(brief: ProjectBriefStaleness, reviewed: Collection[str]) -> list[_Pending]:
     staleness = brief.staleness
     if not staleness.stale or brief.key in reviewed:
@@ -723,6 +804,9 @@ __all__ = [
     "RETIRE_KEY_PREFIX",
     "RETIRE_UNUSED_WINDOW",
     "SESSION_CANDIDATE_MAX_AGE",
+    "VERIFY_EXCHANGES_PER_PAGE",
+    "VERIFY_KEY_PREFIX",
+    "VERIFY_KIND",
     "CandidateKind",
     "ComparisonPage",
     "L1Note",
