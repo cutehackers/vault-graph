@@ -154,8 +154,12 @@ def memory_candidate_package(
     now: datetime | None = None,
     merge_threshold: float = DEFAULT_MERGE_SIMILARITY,
     with_comparison: bool = True,
+    skip_keys: Collection[str] = (),
 ) -> MemoryCandidatePackage:
     """The cleanup bundle of the ``cwd`` map project, in table order, cut to ``limit``.
+
+    ``skip_keys`` are left out like recorded keys, before the cut to ``limit``. The dream worker passes the
+    candidates it already judged, so each run sees new ones (spec 2026-11-19 C2). Nothing is recorded.
 
     ``kinds`` keeps only those kinds and skips reading what the others need (the backlog line asks
     for ``l1_note`` and ``session_exchange`` only, so it embeds nothing and opens no search).
@@ -265,7 +269,7 @@ def memory_candidate_package(
         imported_raw_sha256=imported,
         exchanges=exchanges,
         wiki_pages=wiki_pages,
-        reviewed_keys=reviewed,
+        reviewed_keys=reviewed | frozenset(skip_keys),
         similar_pages=finder,
         now=moment,
         limit=limit,

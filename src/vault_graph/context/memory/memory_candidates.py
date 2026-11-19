@@ -222,7 +222,9 @@ class MemoryCandidate:
     ``location`` is the L1 note path, the exchange location to cite, the two page paths of a merge
     pair (``<path1> | <path2>``) or the page path to retire. ``targets`` are the pages a merge or
     retire candidate is about. ``similarity`` is the merge cosine similarity. ``reasons`` are the
-    retire reasons in Korean, one per ``retire_signals`` item.
+    retire reasons in Korean, one per ``retire_signals`` item. ``human_text`` is what the person typed
+    in a session exchange, read from the lines ``location`` names; a quote given as evidence for that
+    exchange must be part of it (spec 2026-11-19 D1).
     """
 
     key: str
@@ -235,6 +237,7 @@ class MemoryCandidate:
     similarity: float | None = None
     retire_signals: tuple[RetireSignal, ...] = ()
     reasons: tuple[str, ...] = ()
+    human_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -316,6 +319,7 @@ def build_memory_candidates(
             similarity=item.similarity,
             retire_signals=item.retire_signals,
             reasons=item.reasons,
+            human_text=item.query if item.kind == "session_exchange" else "",
         )
         for item in pending
     )
