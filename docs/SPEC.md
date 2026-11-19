@@ -55,7 +55,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 
 방향 이름은 Local-Graph다. 핵심은 Local이고, Graph(관계 추적)는 보조 가치다.
 
-1. 원칙1 Local: 검색, 색인, 회상은 이 컴퓨터 안에서 끝난다. 호스팅 서비스를 직접 부르지 않는다(결정7). 검색, 색인, 회상에서는 LLM을 부르지 않는다. 수집 뒤에만 로그인된 Claude Code나 로컬 모델로 세션 사실을 뽑는다(기본 켜짐, `vg facts off`로 끈다). API 키는 쓰지 않는다. 질의 답변과 요약은 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다. 기억 관리에서 vg는 판단 재료를 결정적으로 만들고, 무엇을 기억·수정·폐기할지는 호출한 에이전트가 정한다.
+1. 원칙1 Local: 검색, 색인, 회상은 이 컴퓨터 안에서 끝난다. 호스팅 서비스를 직접 부르지 않는다(결정7). 검색, 색인, 회상에서는 LLM을 부르지 않는다. 수집 뒤에만 로그인된 Claude Code나 로컬 모델로 세션 사실을 뽑는다(기본 켜짐, `vg facts off`로 끈다). 드리밍도 수집 뒤에만 로그인된 Claude Code로 세션 교환을 판단해 추론 제안을 검토 대기열에 올린다(기본 꺼짐, `vg dream on`으로 켠다, 2026-11-19 사용자 결정). API 키는 쓰지 않는다. 질의 답변과 요약은 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다. 기억 관리에서 vg는 판단 재료를 결정적으로 만들고, 무엇을 기억·수정·폐기할지는 호출한 에이전트가 정한다.
 2. 원칙2 원본은 Vault: 기억의 원본은 Vault의 Markdown 파일이다. vault-graph 색인은 지워도 다시 만들 수 있는 파생 데이터이며 지식 원본이 아니다.
 3. 원칙3 `wiki/`는 검증 경로로만 바뀐다: Vault `wiki/`는 Vault 도구의 검증 경로(publish-draft 등)를 거쳐서만 바뀐다.
 4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 다섯 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 `review resolve`로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`, Claude Code 자동 기억 노트의 근거 사본은 Vault `import-source`다(§4). 다섯째는 사실 첨부(Vault 명령이 세션 옆에 쓴다)다. 수집이 끝난 세션에서 뽑은 사실을 Vault `sessions attach-facts`가 세션 part 파일 옆 첨부 파일로 쓴다(`docs/contracts/vault-session-facts-v1.md`). vg는 자동 기억 파일을 고치거나 옮기거나 지우지 않는다.
@@ -116,6 +116,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
   - 임베딩 캐시 `cache/embeddings.sqlite3`: 임베딩 키(모델 spec 키 + 임베딩 입력의 sha256) → 벡터. 세대 밖에 두며, 내용이 같은 입력은 모델에 다시 넣지 않고 중간에 죽은 run을 이어 간다. 발행이 성공하면 활성 세대에 없는 키를 지운다. 파일이 깨지면 캐시 없이 임베딩하고 경고 한 줄을 낸다.
   - `memory-scan` 결과 `memory/memory-scan-<vault>.json`: `vg index`(세션 시작 백그라운드 색인이 실행하는 `vg index` 포함)가 발행한 뒤 색인한 Vault마다 읽기 전용 Vault 명령 `memory-scan --json`을 실행해 저장한다. 세션 시작 빠른 갱신, MCP 백그라운드 색인, `vg watch`는 실행하지 않는다. 실패해도 발행을 되돌리지 않고 경고 한 줄을 낸다.
 - 기억 정리 기록 `memory/reviewed.jsonl`(2026-11-05 spec 4.4.4, 결정44): MCP `mark_candidates_reviewed`와, `candidate_key`를 받은 쓰기 도구가 결과 `published`·`proposed`일 때 `{candidate_key, at, outcome}`을 덧붙인다. 정리 후보 제안에만 쓰고 회상·검색 순위에는 쓰지 않는다(§0 규칙5 예외).
+- 드리밍(spec 2026-11-19): 설정 `configs/dream.json`, 판단만 하고 제안하지 않은 후보 `dream/judged.jsonl`, 실행 기록 `logs/dream-runs.jsonl`, 작업자 잠금 `logs/dream-worker.lock`. 드리밍 작업자는 Vault에 `review propose`(둘째 길)로만 쓰고 `basis`는 언제나 `inferred`다. `dream/judged.jsonl`은 드리밍 작업자만 읽고 정리 후보 목록, 회상, 검색에는 쓰지 않는다. 제안한 후보는 `memory/reviewed.jsonl`에 결과 `dream_proposed`로 적는다.
 - 세션 export 설정 `configs/session-export.json`(`path`, `agents`, `raw`). 형식 확인과 읽기·쓰기는 M01 `operation/scope/session_export_settings.py`가 한다. 이 파일이 있으면 `vg hook capture`가 수집 때마다 같은 export를 한다.
 - export 폴더: `vg session export --out PATH`와 export 설정의 `path`. Vault 밖이어야 하고, Graph Home에 등록된 Vault나 `vault-map.json`의 Vault 안이면 쓰지 않고 오류로 끝난다. 폴더 권한은 0700, 파일은 0600이다. 정규화 파일은 export 설정이 없으면 OS 임시 폴더에 쓰고 실행기가 끝나면 지운다. 정규화 JSONL 형식은 [vg-session-jsonl/1 계약](contracts/vg-session-jsonl-v1.md)이다.
 - `vg watch`는 메타데이터·벡터·그래프에 바뀐 것이 있을 때만 새 세대를 발행한다(2026-11-02 3차 검수 발견11).

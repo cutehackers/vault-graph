@@ -1024,3 +1024,13 @@ source of truth.
 **Reason:** The pilot measurement used 40 non-representative LongMemEval_S questions, too few to pick a weight or a storage shape (research X26, X30, X31). Equal weight is the usual default when weights cannot be tuned on representative data (X29). With no attachments, search results are the same as without B.
 
 **Implications:** The SPEC B-2 row names this exception. `LME-01` decides whether extraction stays on by default and whether the weight changes.
+
+## 2026-11-19 - Allow A Post-Capture Dream Run That Only Proposes Inferred Memories
+
+**Question:** Waiting session exchanges become memory only when the user starts a cleanup, and two manual cleanups produced 3 pages from 40 candidates with no inferred proposal (`docs/design/reports/2026-11-curation-trial.md`). The 2026-11-06 decision says "hooks never clean up", and the 2026-11-16 decision allows one LLM use after capture, session facts. May a background run after capture judge session exchanges with a model (spec `docs/specs/2026-11-19-memory-dreaming/spec.md`, owner decisions OD1 to OD4)?
+
+**Decision:** The user approved OD1 to OD4 as recommended on 2026-11-19. After a captured session, Vault Graph may start a detached dream worker. It runs the logged-in Claude Code without tools (`claude -p`, no API key), checks every quote against the human turn of the cited exchange in code, and sends memories only with `basis: inferred` through the existing second write path, `review propose`. It never publishes, never writes `raw/`, never changes `pin`, and never targets a pinned page or the project brief. It is off by default and `vg dream on` turns it on (OD2). Limits: at most 10 pending proposals per write Vault, at most 10 proposals per run, one run per project per 24 hours, and a run is due when the backlog is overdue or 20 unjudged exchanges wait (OD3). The model is `claude-sonnet-5-5` (OD4).
+
+**Reason:** A person still accepts every item, so the rule that inferred facts wait in the review queue is unchanged. The quote check and the pending cap bound the two risks of an unattended run: invented evidence and an unread queue.
+
+**Implications:** "Hooks never clean up" now means hooks never publish and never record a candidate as skipped: a `none` judgment goes to Graph Home `dream/judged.jsonl`, which manual cleanup does not read. A proposed candidate is recorded in `memory/reviewed.jsonl` with outcome `dream_proposed`. Search, indexing and recall still call no LLM. Whether the default changes is decided after the acceptance rate over the first 30 resolved dream proposals is known.
