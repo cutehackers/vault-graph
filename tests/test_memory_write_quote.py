@@ -25,6 +25,7 @@ from vault_graph.interface.mcp.mcp_memory_tools import (
 )
 from vault_graph.operation.memory.memory_requests import SupersedeClaimRequest
 from vault_graph.operation.memory.memory_write_service import (
+    QUOTE_NEEDS_LOCATION_MESSAGE,
     QUOTE_NOT_FOUND_MESSAGE,
     QUOTE_REQUIRED_MESSAGE,
     QUOTE_UNREADABLE_MESSAGE,
@@ -164,13 +165,66 @@ def test_a_cited_session_file_that_cannot_be_read_is_rejected(tmp_path: Path) ->
     assert result.messages == (f"{QUOTE_UNREADABLE_MESSAGE}: raw/sessions/2026-11-01-gone.md L1-L9.",)
 
 
-def test_evidence_that_names_no_session_exchange_is_not_checked(tmp_path: Path) -> None:
+def test_evidence_that_names_no_session_file_is_not_checked(tmp_path: Path) -> None:
     world = World(tmp_path)
 
     plain = world.service.remember(remember_request(title="A", evidence=("User said so on 2026-11-10.",)))
-    path_only = world.service.remember(remember_request(title="B", evidence=(PART,), quote="anything at all"))
+    page = world.service.remember(remember_request(title="B", evidence=("wiki/decisions/a.md L3-L9",), quote="x" * 9))
 
-    assert (plain.status, path_only.status) == ("published", "published")
+    assert (plain.status, page.status) == ("published", "published")
+
+
+@pytest.mark.parametrize("evidence", [PART, f"{PART}:8-16", f"{PART} (the exchange about the embedding model)"])
+def test_leaving_the_line_range_out_does_not_skip_the_check(tmp_path: Path, evidence: str) -> None:
+    world = World(tmp_path)
+
+    without_quote = world.service.remember(remember_request(title="A", evidence=(evidence,)))
+    with_quote = world.service.remember(remember_request(title="B", evidence=(evidence,), quote=QUOTE))
+
+    assert (without_quote.status, without_quote.messages) == ("rejected", (QUOTE_REQUIRED_MESSAGE,))
+    assert (with_quote.status, with_quote.messages) == ("rejected", (QUOTE_NEEDS_LOCATION_MESSAGE,))
+    assert world.writer.calls == []
+
+
+@pytest.mark.parametrize("location", [f"{PART} L8-L24", f"{PART} L21-L24", f"{PART} L1-L500"])
+def test_a_range_that_reaches_into_a_subagent_exchange_does_not_make_its_prompt_user_words(
+    tmp_path: Path, location: str
+) -> None:
+    world = World(tmp_path)
+
+    result = world.service.remember(
+        remember_request(evidence=(location,), quote="Review the embedding preset change. Do not edit files.")
+    )
+
+    assert (result.status, result.messages) == ("rejected", (QUOTE_NOT_FOUND_MESSAGE,))
+
+
+def test_a_wide_range_still_finds_the_users_words(tmp_path: Path) -> None:
+    world = World(tmp_path)
+
+    assert world.service.remember(remember_request(evidence=(f"{PART} L1-L500",), quote=QUOTE)).status == "published"
+
+
+def test_the_session_file_may_be_in_another_vault_of_the_project(tmp_path: Path) -> None:
+    world = World(tmp_path)
+    notes = make_vault(tmp_path, "notes")
+    cwd = tmp_path / "project"
+    vault_map = FakeVaultMap((notes, world.vault), {str(cwd): (notes, world.vault)}, default=notes)
+    temp_root = tmp_path / "os-temp-2"
+    temp_root.mkdir()
+    service = MemoryWriteService(
+        vault_map=vault_map,
+        writer=world.writer,
+        page_reader=DiskPageReader(),
+        today=lambda: TODAY,
+        drafts=TemporaryDraftFiles(temp_root=temp_root),
+        exchange_reader=SessionExchangeFileReader(),
+    )
+
+    result = service.remember(remember_request(vault=None, cwd=str(cwd), evidence=(LOCATION,), quote=QUOTE))
+
+    # The page goes to the default write Vault `notes`; the session it quotes is kept in `main`.
+    assert (result.status, result.vault) == ("published", "notes")
 
 
 def test_inferred_needs_no_quote_but_a_given_quote_is_checked(tmp_path: Path) -> None:
@@ -240,6 +294,16 @@ def test_the_reader_returns_only_what_the_person_typed(tmp_path: Path) -> None:
     assert reader.human_text(world.vault.path, PART, 19, 24) == ""  # a subagent exchange
     assert reader.human_text(world.vault.path, PART, 500, 510) is None
     assert reader.human_text(world.vault.path, "raw/sessions/none.md", 1, 5) is None
+
+
+def test_the_reader_takes_the_scope_of_each_exchange_inside_the_range(tmp_path: Path) -> None:
+    world = World(tmp_path)
+    reader = SessionExchangeFileReader()
+    person = "아니야, 그 방법 말고\n임베딩 모델은 arctic-m으로 정했어."
+
+    assert reader.human_text(world.vault.path, PART, 8, 24) == person  # a main and a subagent exchange
+    assert reader.human_text(world.vault.path, PART, 21, 24) == ""  # starts after the subagent meta line
+    assert reader.human_text(world.vault.path, PART, 12, 13) == ""  # starts inside a turn: no heading, no turn
 
 
 def test_the_reader_reads_v1_files_with_the_v1_rules(tmp_path: Path) -> None:

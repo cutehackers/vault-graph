@@ -15,7 +15,8 @@ that. This module is pure: the caller reads the session file and passes the text
 ``cited_exchanges`` reads the session exchange locations out of evidence lines. A location is a
 `raw/sessions/...md` path followed on the same line by a line range: `L12-L40`, `#L12-L40` or `lines 12-40`
 (the forms `context/memory/memory_candidates.py` counts as citing an exchange). A path with no line range
-cites no exchange.
+cites no exchange. ``session_files`` lists every session file the evidence names, with or without a line range,
+so a caller can refuse evidence that points at a session but not at an exchange.
 """
 
 from __future__ import annotations
@@ -77,4 +78,21 @@ def cited_exchanges(evidence: Iterable[str]) -> tuple[ExchangeCitation, ...]:
     return tuple(cited)
 
 
-__all__ = ["MIN_QUOTE_CHARS", "ExchangeCitation", "cited_exchanges", "normalize_evidence_text", "quote_in_text"]
+def session_files(evidence: Iterable[str]) -> tuple[str, ...]:
+    """The `raw/sessions/...md` paths the evidence lines name, in order, each once."""
+    paths: list[str] = []
+    for item in evidence:
+        for match in _SESSION_PATH_RE.finditer(item):
+            if match.group(0) not in paths:
+                paths.append(match.group(0))
+    return tuple(paths)
+
+
+__all__ = [
+    "MIN_QUOTE_CHARS",
+    "ExchangeCitation",
+    "cited_exchanges",
+    "normalize_evidence_text",
+    "quote_in_text",
+    "session_files",
+]
