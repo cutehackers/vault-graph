@@ -386,6 +386,13 @@ Status: left open after the 2026-11-19 dry run
 - Two `update_memory` proposals for one page from different runs are each built
   from the page as it was. Accepting the second after the first may drop the
   first addition. One run already sends at most one change per page.
+- A run killed between sending a proposal and writing `memory/reviewed.jsonl`
+  sends that proposal again in the next run.
+- The pending count of each Vault is read once per run, so proposals a person
+  makes by hand during a run can push the Vault over the cap.
+- A page check does not notice that a person published the same exchange by
+  hand while the judge ran. Only the `verify:` key is tested.
+- A first batch that fails is tried again every hour with the same candidates.
 
 ## CLI And Operations
 
