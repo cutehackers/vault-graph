@@ -36,6 +36,12 @@ only as a key to find the original session. In memory management Vault Graph
 builds the decision material deterministically; the calling agent decides what
 to remember, update, or retire.
 
+Dreaming (`vg dream`, off by default) is the one unattended judge. After a
+captured session it runs the logged-in Claude Code without tools, checks every
+quote against the cited exchange in code, and sends only `basis` `inferred`
+proposals through path 2. It never publishes, never changes `pin`, and never
+targets a pinned page or the project brief.
+
 ## Source Documents
 
 - Read `docs/SPEC.md` before changing architecture, indexing, retrieval, graph,
