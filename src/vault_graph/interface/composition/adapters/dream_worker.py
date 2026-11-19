@@ -122,6 +122,8 @@ MAX_PAGES_PER_ITEM = 3
 MAX_PAGE_CHARS = 3000
 MAX_EXCHANGE_CHARS = 6000
 VERIFY_BUNDLE_LIMIT = BATCH_SIZE
+# How many times the judge may leave a candidate out of its answer before the candidate is left out of dreaming.
+NO_ANSWER_LIMIT = 2
 RECORDED_OUTCOMES = frozenset(
     {"none", "no_answer", "invalid_answer", "quote_rejected", "target_refused", "vault_rejected"}
 )
@@ -334,7 +336,7 @@ def run_dream(
         # whether or not the exchange backlog is due, so pages are still checked when few exchanges wait.
         checks = [
             candidate
-            for candidate in ports.verify_candidates(judged_keys, VERIFY_BUNDLE_LIMIT).candidates
+            for candidate in ports.verify_candidates(_check_keys(judged_keys), VERIFY_BUNDLE_LIMIT).candidates
             if candidate.human_text and candidate.targets and candidate.location not in tally.proposed_locations
         ]
         failure = _judge_all(work, checks)
@@ -410,13 +412,19 @@ def _judge_all(work: _Work, candidates: Sequence[MemoryCandidate]) -> tuple[str,
         for candidate, item in zip(batch, items, strict=True):
             judgment = judgments.get(candidate.key)
             if judgment is None:
-                # Recorded, so an item the judge keeps leaving out is not paid for in every run.
+                # Recorded. After NO_ANSWER_LIMIT such records the item is left out, so it is not paid for forever.
                 tally.count(candidate.key, "no_answer")
                 continue
             tally.judged += 1
             tally.count(candidate.key, _handle(judgment, candidate, item, targets, work))
         _flush_judged(work)
     return None
+
+
+def _check_keys(judged_keys: Collection[str]) -> frozenset[str]:
+    """The judged page checks. An exchange judged `none` on its own is still checked against a page later: the
+    page it contradicts may not have been among the pages the judge saw with it."""
+    return frozenset(key for key in judged_keys if key.startswith(VERIFY_KEY_PREFIX))
 
 
 def _flush_judged(work: _Work) -> None:
@@ -685,8 +693,13 @@ def memory_page_parts(text: str) -> tuple[str, tuple[str, ...]] | None:
 
 
 def read_judged_keys(graph_home: Path, *, model: str) -> frozenset[str]:
-    """Candidate keys judged and not proposed with this prompt version and model. A missing file means none."""
+    """Candidate keys judged and not proposed with this prompt version and model. A missing file means none.
+
+    A candidate the judge left out of its answer counts only after ``NO_ANSWER_LIMIT`` such records, so one
+    miscopied key or one short answer does not hide it.
+    """
     keys: set[str] = set()
+    unanswered: dict[str, int] = {}
     for record in _read_jsonl(dream_judged_path(graph_home)):
         key = record.get("candidate_key")
         if (
@@ -695,6 +708,10 @@ def read_judged_keys(graph_home: Path, *, model: str) -> frozenset[str]:
             and record.get("prompt_version") == PROMPT_VERSION
             and record.get("model") == model
         ):
+            if record.get("outcome") == "no_answer":
+                unanswered[key] = unanswered.get(key, 0) + 1
+                if unanswered[key] < NO_ANSWER_LIMIT:
+                    continue
             keys.add(key)
     return frozenset(keys)
 
