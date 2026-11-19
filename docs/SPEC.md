@@ -177,6 +177,19 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 - CLI `vg session export --agent {claude-code,codex} --out PATH [--session ID | --since DATE | --all] [--raw/--no-raw] [--recapture] [--graph-home PATH] [--vault-map PATH]`. `PATH/normalized/<agent>/<session_id>.jsonl`에 정규화 JSONL을, `--raw`(기본)면 `PATH/raw/<agent>/<session_id>/`에 원본 jsonl과 `subagents/`를 바이트 그대로 가림 없이 복사한다. 쓸 바이트가 기존 파일과 같으면 다시 쓰지 않는다. `--out`이 Vault 안이면 쓰지 않고 오류로 끝나고, git 작업 트리나 동기화 폴더 안이면 경고 한 줄을 낸 뒤 쓴다. `--recapture`는 export한 세션마다 훅 실행기 `capture --direct --normalized <파일> --rerender`를 실행해 Vault가 v2 파트를 다시 쓰게 하는 이전용 선택이다. `--agent codex`는 backlog B-1 전까지 "Codex adapter 없음" 오류로 끝난다. 형식은 [vg-session-jsonl/1 계약](contracts/vg-session-jsonl-v1.md)이다.
 - 세션 시작 회상(`vg hook session-start`)에 더하는 것: brief 앞부분과 L3 목록(열린 일, 현재 결정, 교정·규칙)을 담은 구획L3, 정리 대기 한 줄(L1 노트 수와 근거로 쓰이지 않은 세션 교환 수), brief 갱신 안내 한 줄(brief 뒤 새 결정이 5개 이상일 때). 총 예산 1,500토큰은 그대로다. MCP `summarize_project_memory`도 같은 L3 목록을 돌려준다. 회상, L3 목록, 정리 꾸러미의 페이지 범위는 §6-4다.
 
+추가한다(2026-11-19 [기억 드리밍 spec](specs/2026-11-19-memory-dreaming/spec.md)):
+
+- CLI `vg dream on|off|status [--graph-home PATH]`. 드리밍은 기본으로 꺼져 있다. `status`는 설정, 프로젝트마다 마지막 실행, 드리밍이 보낸 제안의 승인·거부·대기 수와 승인율을 보이고, 저장 Vault의 대기 제안이 한도에 닿았으면 "stopped: pending cap reached" 줄을 보인다.
+- CLI `vg dream run [--cwd PATH] [--dry-run] [--graph-home PATH] [--vault-map PATH]`. 그 프로젝트의 드리밍을 한 번 손으로 실행한다. 켜짐 여부, 실행 간격, 실행 조건은 보지 않고 대기 한도는 지킨다. `--dry-run`은 판단까지만 하고 Vault와 드리밍 기록에 쓰지 않는다. 로그인된 Claude Code(`claude -p`, 도구 없음)를 실행한다.
+- `vg hook capture`는 수집 결과가 `written`이고 드리밍이 켜져 있으면 훅 JSON의 `cwd`로 분리된 드리밍 작업자(`vg dream worker`)를 띄운다. 기다리지 않고, 종료 코드와 출력은 그대로다. `logs/dream-worker.lock`이 잡혀 있으면 띄우지 않는다.
+- 드리밍 작업자가 하는 일:
+  1. 근거로 쓰이지 않은 세션 교환을 묶음 한도까지 판단한다. 판단은 `remember`, `update_memory`, `supersede_claim`, `none` 중 하나다.
+  2. 실행 한도가 남으면 `verify` 후보를 한 묶음 판단한다. `verify` 후보는 지금 쓰이는 기억 페이지와, 그 페이지가 마지막으로 쓰인 날보다 나중에 시작된 같은 주제의 세션 교환의 짝이다. 판단은 `supersede_claim`, `retire_memory`, `none` 중 하나다. `verify`는 정리 꾸러미 종류가 아니고 MCP `list_memory_candidates`의 `kinds`에 없다.
+  3. 판단마다 코드가 확인한다. 인용문이 그 교환에서 사용자가 친 글 안에 있어야 한다. 대상 페이지는 그 항목에 보여 준 페이지여야 하고, 고정 페이지, 프로젝트 brief, 현재가 아닌 페이지면 안 된다. `update_memory`는 `remember`가 쓰는 모양의 페이지에 글을 덧붙이는 것만 하고 기존 근거 줄을 남긴다. `supersede_claim`의 대체할 주장은 페이지 안에 있어야 한다.
+  4. 통과한 것만 `basis: inferred`로 `review propose`에 보낸다. 근거 줄은 작업자가 교환 위치와 인용문으로 만든다.
+- MCP 쓰기 도구 `remember`, `update_memory`, `supersede_claim`은 선택 입력 `quote`를 받는다. 근거가 세션 교환 위치(`<path> L<a>-L<b>`)를 가리키고 `basis`가 `stated`면 `quote`가 있어야 한다. `quote`는 그 교환에서 사용자가 친 글 안에 있어야 하고(유니코드 NFKC와 공백을 맞춘 뒤 비교, 8자 이상), 아니면 Vault를 부르지 않고 `rejected`다. `basis`가 `inferred`면 `quote`는 선택이고, 주면 같은 확인을 한다. 근거가 세션 교환을 가리키지 않으면 확인하지 않는다.
+- MCP prompt `curate_memory`의 4단계에 "세션 교환을 근거로 `stated`를 쓸 때는 사용자가 친 문장을 `quote`에 넣는다"를 더한다.
+
 ## 6. 외부 계약
 
 1. `vault-map.json` version 2 읽기

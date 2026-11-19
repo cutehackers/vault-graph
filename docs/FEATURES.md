@@ -133,6 +133,42 @@ A failed job stays in the queue. Extractor and Vault command failures retry
 after 30 minutes. A job the Vault rejects is removed. The first job ever queued
 prints one notice that extraction is on.
 
+### Dreaming
+
+- **What it does**: after a session is saved, reads session exchanges that no
+  memory page cites yet and proposes memories for a person to review. It also
+  checks existing pages against later exchanges on the same topic and proposes
+  corrections. It never publishes anything.
+- **When it runs**: in a background worker after a capture that writes a
+  session, and only when all of these hold. It is off by default.
+  1. Dreaming is on (`vg dream on`).
+  2. The project's last run was more than 24 hours ago.
+  3. The write Vault has fewer than 10 memory proposals waiting for review.
+  4. At least 20 exchanges were never judged, or their median age is over 7
+     days.
+- **Command**: `vg dream on` and `vg dream off` switch it. `vg dream status`
+  shows the settings, the last run of each project, how many dream proposals
+  were accepted, rejected, or still wait, and whether a Vault reached the
+  pending cap. `vg dream run --cwd PATH` does one run by hand, and
+  `--dry-run` judges without sending anything.
+- **How it judges**: it runs the logged-in Claude Code as `claude -p` with model
+  `claude-sonnet-5-5`, no tools, and no MCP servers. It uses your login, not
+  `ANTHROPIC_API_KEY`. The vault-graph hooks do nothing inside that child
+  session.
+- **What the code checks before sending a proposal**:
+  1. The quote is in what you typed in that exchange.
+  2. A page to change was shown for that exchange, is current, is not pinned,
+     and is not the project brief.
+  3. An update only adds text to a page that `remember` wrote, and keeps its
+     earlier evidence lines.
+  4. A claim to replace is in the page.
+- **Reads and writes**: every proposal goes through the Vault's
+  `review propose` with `basis` `inferred`, at most 10 per run. You accept or
+  reject each one with the Vault's `review resolve`. Settings are in
+  `configs/dream.json`, runs in `logs/dream-runs.jsonl`, and exchanges judged
+  without a proposal in `dream/judged.jsonl`, all in the Data Home. An exchange
+  judged without a proposal still shows up in a manual memory cleanup.
+
 ### Memory writes
 
 - **What it does**: adds, changes, retires, or restores memory pages in a Vault.
@@ -159,6 +195,12 @@ All tools except `import_auto_memory` require `basis`:
    `review propose` puts it in the Vault review queue (`scratch/review/`), and
    the result is `proposed` with a `review_path`. A person accepts it with the
    Vault's `review resolve`. A proposal is not in recall or search until then.
+
+`remember`, `update_memory`, and `supersede_claim` take an optional `quote`.
+When `basis` is `stated` and the evidence names a session exchange
+(`<path> L<a>-L<b>`), `quote` is required: your own words, copied exactly from
+that exchange. The tool checks that the words are in what you typed there and
+returns `rejected` when they are not.
 
 The target Vault must be linked to the `cwd` project. A new page goes to the
 `vault` argument, else the project's `default_write_vault`, else the only linked
@@ -301,6 +343,7 @@ or local HTTP acceptance tests.
 | Session-start recall | `vg hook session-start` (SessionStart hook) | - | - | Markdown memory bundle: pinned pages, project summary, memory list, notices |
 | Session capture | `vg hook capture` (PreCompact and SessionEnd hooks) | - | - | Normalized session handed to the Vault hook launcher |
 | Session fact extraction | `vg facts on`, `vg facts off`, `vg facts status`, `vg facts worker` | - | - | Facts per session exchange, written by the Vault's `sessions attach-facts` |
+| Dreaming | `vg dream on`, `vg dream off`, `vg dream status`, `vg dream run` | - | - | `inferred` memory proposals in the Vault review queue |
 | Export sessions | `vg session export --agent claude-code --out PATH` | - | - | Raw copies and normalized session files outside every Vault |
 | Write memory | - | `remember`, `update_memory`, `retire_memory`, `supersede_claim`, `restore_memory`, `import_auto_memory` | - | `published`, `proposed` (review queue), `rejected`, or `vault_required` |
 | Clean up memory | - | `list_memory_candidates`, `mark_candidates_reviewed`, prompt `curate_memory` | - | Cleanup candidates with comparison pages and keys |

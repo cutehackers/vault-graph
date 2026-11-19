@@ -33,6 +33,9 @@ vault-builder가 관리하는 Vault에 저장됩니다. Vault Graph는 이 Vault
    검색은 이 사실을 단서로 대화의 해당 부분을 찾습니다. 기본으로 켜져 있으며
    `vg facts off` 명령으로 끌 수 있습니다.
    - 직접 실행: 대기열 확인은 `vg facts status`, 처리는 `vg facts worker`
+   - 선택 기능: `vg dream on`을 켜면 백그라운드 작업자가 저장된 세션에서 기억할 만한 것을
+     골라 제안합니다. Vault 검토 대기열에서 승인하기 전에는 아무것도 저장되지 않습니다.
+     보낸 제안은 `vg dream status`로 봅니다.
 4. **사용자가 말한 사실을 Claude가 기억으로 저장하면** Vault Graph가 그 Vault를
    백그라운드에서 다시 색인합니다. 그래서 새 페이지가 검색과 다음 세션 요약에 나옵니다.
    - 직접 실행: `vg index --vault-id ID` 또는 `vg index --all-vaults`
@@ -102,6 +105,7 @@ vg status --graph-home ~/.vault-graph
 | 검색 | `vg search "query"` |
 | 근거와 함께 묻기 | `vg ask "question"` |
 | 사실 추출 상태 | `vg facts status` |
+| 드리밍 상태 | `vg dream status` |
 | 임베딩 모델 보기 | `vg embedding list --graph-home ~/.vault-graph` |
 | 모델이나 모델 폴더 바꾸기 | `vg embedding use arctic-m --models-dir /path/to/models --graph-home ~/.vault-graph` |
 
