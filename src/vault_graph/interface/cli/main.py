@@ -25,6 +25,7 @@ from vault_graph.indexing.publication.projection_generation import ProjectionGen
 from vault_graph.indexing.vector_failure_log import clear_vector_failure, record_vector_failure
 from vault_graph.interface.cli.code_commands import code_app
 from vault_graph.interface.cli.doctor_commands import doctor
+from vault_graph.interface.cli.dream_commands import dream_app
 from vault_graph.interface.cli.embedding_commands import embedding_app
 from vault_graph.interface.cli.facts_commands import facts_app
 from vault_graph.interface.cli.harness_commands import harness_app
@@ -118,6 +119,7 @@ app.add_typer(harness_app, name="harness")
 app.add_typer(hook_app, name="hook")
 app.add_typer(embedding_app, name="embedding")
 app.add_typer(facts_app, name="facts")
+app.add_typer(dream_app, name="dream")
 app.add_typer(reranker_app, name="reranker")
 app.add_typer(session_app, name="session")
 app.command("doctor")(doctor)
