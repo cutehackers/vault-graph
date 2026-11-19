@@ -411,7 +411,8 @@ def _item(candidate: MemoryCandidate, targets: Mapping[str, _Target], ports: Dre
     return DreamItem(
         key=candidate.key,
         date=_day(candidate),
-        user_text=candidate.human_text,
+        # A pasted log can make one turn very long. The judge sees its start; the quote is checked against all of it.
+        user_text=candidate.human_text[:MAX_EXCHANGE_CHARS],
         exchange_text=exchange[:MAX_EXCHANGE_CHARS],
         pages=shown,
         actions=VERIFY_ACTIONS if candidate.kind == VERIFY_KIND else EXCHANGE_ACTIONS,
