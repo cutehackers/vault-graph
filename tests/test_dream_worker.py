@@ -161,6 +161,7 @@ class World:
         self.vault = make_vault(tmp_path, "main")
         self.other = make_vault(tmp_path, "other")
         self.candidates = list(candidates)
+        self.checks: list[MemoryCandidate] = []
         self.judge = judge
         self.writer = RecordingWriter()
         self.pending: dict[Path, int] = {}
@@ -175,6 +176,7 @@ class World:
         self.ports = DreamPorts(
             vault_map=self.vault_map,
             candidates=self.source,
+            verify_candidates=self.verify_source,
             exchange_text=lambda item: f"### user\n{item.human_text}\n### assistant\n네.",
             page_reader=self.page_reader,
             memory=MemoryWriteService(
@@ -193,6 +195,10 @@ class World:
         self.source_calls.append((frozenset(skip_keys), limit, with_comparison))
         left = [item for item in self.candidates if item.key not in skip_keys]
         return MemoryCandidatePackage("project", tuple(left if limit is None else left[:limit]))
+
+    def verify_source(self, skip_keys: Collection[str], limit: int) -> MemoryCandidatePackage:
+        left = [item for item in self.checks if item.key not in skip_keys]
+        return MemoryCandidatePackage("project", tuple(left[:limit]))
 
     def run(self, settings: DreamSettings = ON, **options: Any) -> Any:
         options.setdefault("manual", True)
@@ -665,3 +671,97 @@ def test_exchange_lines_come_from_the_first_vault_that_has_the_file(tmp_path: Pa
     assert read_exchange_lines("raw/sessions/none.md L1-L2", [first, second]) == ""
     assert read_exchange_lines("../secret.md L1-L1", [first]) == ""
     assert read_exchange_lines("raw/sessions/s1.md", [second]) == ""
+
+
+# Checking a page against a later exchange (D3)
+
+
+def check(number: int, path: str = PAGE_PATH) -> MemoryCandidate:
+    target = candidate(number, pages=(path,)).comparison
+    return replace(
+        candidate(number), key=f"verify:main:{path}:pk{number}", kind="verify", comparison=(), targets=target
+    )
+
+
+def test_a_later_exchange_can_replace_a_claim_with_dated_evidence(tmp_path: Path) -> None:
+    item = check(1)
+    judge = FakeJudge([replace(supersede("The default embedding model is e5-small"), key=item.key)])
+    world = World(tmp_path, [], judge)
+    world.checks = [item]
+    world.add_page(text=CLAIM_PAGE)
+
+    run = world.run()
+
+    assert run.outcomes == {"proposed": 1}
+    items, pages = judge.calls[0]
+    assert items[0].actions == ("none", "supersede_claim", "retire_memory")
+    assert items[0].pages == (PAGE_PATH,)
+    assert [shown.path for shown in pages] == [PAGE_PATH]
+    edit = world.writer.drafts[0]["edits"]
+    assert isinstance(edit, list)
+    assert edit[0]["status"] == "inferred"
+    assert edit[0]["evidence"] == f'raw/sessions/2026-11-10-s1.md L10-L20 (2026-11-18) "{QUOTE}"'
+    assert [(entry["candidate_key"], entry["outcome"]) for entry in world.reviewed] == [(item.key, "dream_proposed")]
+
+
+def test_a_later_exchange_can_propose_retiring_a_page(tmp_path: Path) -> None:
+    item = check(1)
+    retire = DreamJudgment(key=item.key, action="retire_memory", quote=QUOTE, path=PAGE_PATH, reason="모델을 바꿨다")
+    world = World(tmp_path, [], FakeJudge([retire]))
+    world.checks = [item]
+    world.add_page()
+
+    run = world.run()
+
+    assert run.outcomes == {"proposed": 1}
+    assert world.writer.calls == []
+    draft = world.writer.drafts[0]
+    assert draft["operation"] == "patch-page"
+    frontmatter = draft["frontmatter"]
+    assert isinstance(frontmatter, dict)
+    assert frontmatter["status"] == "retired"
+    assert frontmatter["retired_reason"] == (
+        f'모델을 바꿨다 (raw/sessions/2026-11-10-s1.md L10-L20 (2026-11-18) "{QUOTE}")'
+    )
+
+
+def test_a_check_cannot_add_a_page_and_a_page_that_still_holds_is_recorded_as_none(tmp_path: Path) -> None:
+    first, second = check(1), check(2)
+    world = World(tmp_path, [], FakeJudge([replace(remember(1), key=first.key), replace(none(2), key=second.key)]))
+    world.checks = [first, second]
+    world.add_page()
+
+    run = world.run()
+
+    assert run.outcomes == {"invalid_answer": 1, "none": 1}
+    assert world.writer.proposals == []
+    assert {entry["candidate_key"] for entry in world.judged} == {first.key, second.key}
+
+
+def test_checks_run_after_the_exchanges_and_only_while_the_run_has_room(tmp_path: Path) -> None:
+    item = check(9)
+    judge = FakeJudge([remember(1), replace(supersede("The default embedding model is e5-small"), key=item.key)])
+    world = World(tmp_path, [candidate(1)], judge)
+    world.checks = [item]
+    world.add_page(text=CLAIM_PAGE)
+
+    full = world.run(replace(ON, proposals_per_run=1))
+    assert full.outcomes == {"proposed": 1}
+    assert len(judge.calls) == 1  # no room left, so the check batch is not paid for
+
+    (tmp_path / "roomy").mkdir()
+    roomy = World(tmp_path / "roomy", [candidate(1)], judge)
+    roomy.checks = [item]
+    roomy.add_page(text=CLAIM_PAGE)
+    judge.calls.clear()
+    assert roomy.run().outcomes == {"proposed": 2}
+    assert [items[0].key for items, _ in judge.calls] == ["session:s1", item.key]
+
+
+def test_a_run_with_nothing_to_judge_is_skipped_and_leaves_no_record(tmp_path: Path) -> None:
+    world = World(tmp_path, [], FakeJudge())
+
+    run = world.run()
+
+    assert (run.status, run.reason) == ("skipped", "nothing_to_judge")
+    assert read_dream_runs(world.graph_home) == []
