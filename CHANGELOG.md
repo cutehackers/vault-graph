@@ -10,7 +10,7 @@ commit history, and `docs/PATCH_LOG.md`. Dates are the tag dates.
 - Dreaming runs the logged-in `claude -p` without tools and checks every quote against what the user typed in the cited exchange.
 - Dreaming also checks existing memory pages against later session exchanges on the same topic and proposes corrections.
 - Dreaming never changes a pinned page or the project brief, and stops while 10 proposals wait for review in the write Vault.
-- `remember`, `update_memory`, and `supersede_claim` accept `quote`. A `stated` write that cites a session exchange now needs the user's own words in `quote` and is rejected when they are not in that exchange.
+- `remember`, `update_memory`, and `supersede_claim` accept `quote`. A `stated` write whose evidence names a session file now needs the exchange location (`<path> L<a>-L<b>`) and the user's own words in `quote`. It is rejected when the words are not in what the user typed in that exchange.
 
 ## v0.7.0 - 2026-11-18
 

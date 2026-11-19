@@ -2511,3 +2511,15 @@ indexer regression tests.
 **Changes Applied:** Added one sentence to B-2 pointing session fact chunks to spec 2026-11-16 D21, D19 and D23. Added the decision entry. Corrected comments in `candidate_ranking.py` and `sqlite_metadata_store.py`.
 
 **Verification:** `bake spec check` passes; focused tests and `bake verify` rerun after the change.
+
+## 2026-11-19 - Close The Gaps Two Reviews Found In Dreaming
+
+**Trigger:** After D1 to D4 of spec `docs/specs/2026-11-19-memory-dreaming/spec.md` were implemented, the architect and researcher agents reviewed the code against the proposal they signed. They found: proposals were recorded only at the end of a run, the manual quote check could be skipped by leaving out the line range or by citing a range that reached into a subagent exchange, the seeded-error test showed the case names to the judge, one exchange could be proposed twice against one page, and the question set required before the first live run (C8) did not exist.
+
+**Scope:** `dream_worker.py`, `dream_judge.py`, `claude_dream_judge.py`, `dream_commands.py`, `memory_write_service.py`, `evidence_quote.py`, `session_exchange_reader.py`, `memory_candidate_sources.py`, `memory_candidates.py`, `tests/benchmarks/measure_dream_verify.py`, new `tests/benchmarks/measure_dream_backlog.py`, the spec §10, `docs/SPEC.md` §4 and §5, and the measurement report.
+
+**Core Values Protected:** Inferred memories wait for a person; a quote given as the user's words is the user's words; a measurement does not leak its answers; a run that dies loses no record of what it sent.
+
+**Changes Applied:** A sent proposal is recorded at once in `memory/reviewed.jsonl` and as its own line in `logs/dream-runs.jsonl`, and judged records are written per batch. A stated write whose evidence names a session file needs a line range and a checked quote; the cited range is read exchange by exchange, and the session file is looked for in every Vault linked to the project. The verify step also runs when the exchange backlog is not due, may add a dated correction to a page without a claim table, and never raises an exchange that was already proposed. One run changes a page at most once and not after the page changed. `vg dream status` shows the pending-cap stop before any dream proposal exists. The seeded test uses neutral names, batches of 8 and counts a whole-page retire of a claim-table page as wrong. The prompt version is `dream-2`, and a test ties the version to the prompt text. 26 questions were written from waiting exchanges, outside the repository, and scored before any dream run.
+
+**Verification:** `ruff check`, `mypy` and the full test suite pass (3832 passed, 20 skipped). The seeded test rerun with `dream-2`: 10 of 10 seeded errors found, 0 false alarms in 10 controls. The backlog questions before dreaming: 0 of 26 remembered, 0 context hits. Results 1 and 2 of the report were measured with `dream-1` and not rerun.

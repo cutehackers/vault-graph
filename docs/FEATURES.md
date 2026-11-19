@@ -162,6 +162,8 @@ prints one notice that extraction is on.
   3. An update only adds text to a page that `remember` wrote, and keeps its
      earlier evidence lines.
   4. A claim to replace is in the page.
+  5. The page did not change after the judge read it, and one run changes a
+     page at most once.
 - **Reads and writes**: every proposal goes through the Vault's
   `review propose` with `basis` `inferred`, at most 10 per run. You accept or
   reject each one with the Vault's `review resolve`. Settings are in
@@ -197,10 +199,12 @@ All tools except `import_auto_memory` require `basis`:
    Vault's `review resolve`. A proposal is not in recall or search until then.
 
 `remember`, `update_memory`, and `supersede_claim` take an optional `quote`.
-When `basis` is `stated` and the evidence names a session exchange
-(`<path> L<a>-L<b>`), `quote` is required: your own words, copied exactly from
-that exchange. The tool checks that the words are in what you typed there and
-returns `rejected` when they are not.
+When `basis` is `stated` and the evidence names a session file
+(`raw/sessions/...md`), `quote` is required: your own words, copied exactly from
+the exchange. The evidence must name the exchange with its line range
+(`<path> L<a>-L<b>`). The tool checks that the words are in what you typed
+there and returns `rejected` when they are not, or when the line range is
+missing. A prompt given to a subagent never counts as your words.
 
 The target Vault must be linked to the `cwd` project. A new page goes to the
 `vault` argument, else the project's `default_write_vault`, else the only linked
