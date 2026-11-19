@@ -3,6 +3,15 @@
 Each release lists its user-visible changes, newest first. Sources: git tags,
 commit history, and `docs/PATCH_LOG.md`. Dates are the tag dates.
 
+## Unreleased
+
+- Added dreaming: after a captured session, a background worker judges waiting session exchanges and sends memory proposals to the Vault review queue. It never publishes.
+- Added `vg dream on`, `vg dream off`, `vg dream status`, and `vg dream run [--dry-run]`. Dreaming is off by default.
+- Dreaming runs the logged-in `claude -p` without tools and checks every quote against what the user typed in the cited exchange.
+- Dreaming also checks existing memory pages against later session exchanges on the same topic and proposes corrections.
+- Dreaming never changes a pinned page or the project brief, and stops while 10 proposals wait for review in the write Vault.
+- `remember`, `update_memory`, and `supersede_claim` accept `quote`. A `stated` write that cites a session exchange now needs the user's own words in `quote` and is rejected when they are not in that exchange.
+
 ## v0.7.0 - 2026-11-18
 
 - Added session fact extraction: after each captured session, a background worker extracts dated facts per exchange.

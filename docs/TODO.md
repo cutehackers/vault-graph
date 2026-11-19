@@ -361,6 +361,24 @@ Status: left open after the 2026-11-13 final measurement
   target, with 546 pending. It passes the target again only if "기억 정리해"
   runs regularly.
 
+## Dreaming Follow-Ups
+
+Status: left open after the 2026-11-19 dry run
+(`docs/design/reports/2026-11-dreaming-dry-run.md`). Dreaming is off by default.
+
+- Acceptance rate of dream proposals has no value yet. The pass condition is
+  0.7 or more over the first 30 resolved proposals. A person turns dreaming on
+  (`vg dream on`) and resolves proposals with the Vault's review resolve.
+  `vg dream status` reports the rate.
+- Context hit before and after acceptance is not measured. Questions whose
+  answer page comes from an accepted dream proposal are written after the first
+  acceptances, outside this repository, and run with
+  `tests/benchmarks/measure_memory_recall.py`.
+- The default (off) is decided again when 30 proposals are resolved.
+- The verify step misses a page when the exchange that overrules it is not in
+  the top 5 evidence search results (`VERIFY_SEARCH_LIMIT`). Measure a higher
+  limit before changing it.
+
 ## CLI And Operations
 
 ### Reset Index Command

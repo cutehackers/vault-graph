@@ -163,3 +163,20 @@
   - C7: 자식 명령에 `--no-session-persistence`를 넣는다.
   - C8: 승인율은 드리밍 실행 기록의 제안만으로 센다. 대기 교환에만 답이 있는 질문으로 전후를 잰다.
 - 남은 점: 사람이 제안을 해결하지 않으면 대기 한도가 드리밍을 멈추고 승인율 값도 생기지 않는다. 첫 버전은 이것을 받아들이고 `status`에 멈춘 이유를 보인다.
+
+## 10. 구현하면서 정한 것
+
+설계에 없던 세부를 코드에서 이렇게 정했다.
+
+- 대기열 파일을 두지 않는다. 훅은 `vg dream worker --cwd <cwd>`를 바로 띄우고, 잠금이 잡혀 있으면 띄우지 않는다. 실행 조건은 상태로 정해지므로 다음 수집이 다시 시도한다.
+- 자식은 위치를 답하지 않는다. 위치는 vg가 만든 후보의 것만 쓴다. 인용 확인은 그 후보의 사람 턴 글에 대해 한다 (C1).
+- `update_memory`는 덧붙이기만 한다. 자식은 덧붙일 글(`addition`)을 답하고, 작업자가 지금 본문 뒤에 붙인다. 페이지가 `remember`가 쓰는 모양(제목, 본문, `## Evidence` 하나)이 아니면 거부한다. 기존 근거 줄은 남긴다. 승인되면 페이지의 `Status` 줄은 `inferred`가 된다. 수동 `update_memory(basis="inferred")`와 같은 동작이다.
+- 대상 페이지는 그 항목에 보여 준 페이지만 된다. 항목마다 비교 페이지 3개까지, 페이지 글은 3,000자까지, 교환 글은 6,000자까지 보여 준다.
+- 한 번에 교환 8개를 판단한다. 실행 한도를 채우면 남은 묶음은 판단하지 않는다.
+- `verify`는 실행마다 한 묶음(8개)이고, 세션 교환 판단 뒤 한도가 남을 때만 한다. 페이지마다 나중 교환은 최신 2개까지다. 근거 줄에 그 교환이 시작된 날을 색인에서 가져와 붙인다.
+- `verify`는 정리 꾸러미 종류가 아니다. `CandidateKind`와 MCP 도구 스키마에 넣지 않고 `AnyCandidateKind`로 따로 둔다.
+- 판단 결과는 `none`, `invalid_answer`, `quote_rejected`, `target_refused`, `vault_rejected`(이상 `dream/judged.jsonl`에 기록), `proposed`, 그리고 기록하지 않는 `deferred`(한도 때문에 미룸)와 `vault_error`(Vault 명령 오류)다.
+- 실패한 실행(판단 명령을 쓸 수 없음)은 1시간 뒤 다시 시도한다.
+- 판단 명령은 `--output-format json`으로 실행해 답(`structured_output`)과 비용(`total_cost_usd`)을 함께 받는다.
+- D4: `quote`는 `remember`, `update_memory`, `supersede_claim`에 있다. `retire_memory`와 `restore_memory`는 근거 인자가 없어 넣지 않았다. 인용된 세션 파일을 읽을 수 없으면 `rejected`다.
+- 측정 결과는 `docs/design/reports/2026-11-dreaming-dry-run.md`에 있다.
