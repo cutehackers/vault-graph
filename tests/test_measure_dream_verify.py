@@ -2,71 +2,108 @@
 
 from __future__ import annotations
 
-from tests.benchmarks.measure_dream_verify import CASES, build_input, page_text, passes_checks, score
+from tests.benchmarks.measure_dream_verify import (
+    CASES,
+    ORDER,
+    build_input,
+    ordered_cases,
+    page_text,
+    passes_checks,
+    score,
+)
 from vault_graph.interface.composition.adapters.dream_judge import VERIFY_ACTIONS, DreamJudgment
+from vault_graph.interface.composition.adapters.dream_worker import BATCH_SIZE
+
+ORDERED = ordered_cases()
+ITEMS, PAGES = build_input(ORDERED)
 
 
-def judgment(index: int, action: str, **fields: str) -> DreamJudgment:
-    items, _ = build_input(CASES)
-    return DreamJudgment(key=items[index].key, action=action, **fields)
+def position(name: str) -> int:
+    return next(index for index, case in enumerate(ORDERED) if case.name == name)
+
+
+def judgment(name: str, action: str, **fields: str) -> DreamJudgment:
+    index = position(name)
+    return DreamJudgment(key=ITEMS[index].key, action=action, path=ITEMS[index].pages[0], **fields)
 
 
 def test_the_cases_are_half_seeded_half_controls_in_two_languages() -> None:
     seeded = [case for case in CASES if case.wrong_claim is not None]
 
-    assert len(seeded) == len(CASES) - len(seeded) == 8
-    assert sum(1 for case in CASES if case.name.startswith("ko-")) == 8
-    assert all(case.wrong_claim in case.claims for case in seeded)
+    assert len(seeded) == len(CASES) - len(seeded) == 10
+    assert sum(1 for case in CASES if case.name.startswith("ko-")) == 10
+    assert sum(1 for case in CASES if not case.claim_table) == 4
     assert all(str(case.wrong_claim) in page_text(case) for case in seeded)
-    items, pages = build_input(CASES)
-    assert all(
-        item.actions == VERIFY_ACTIONS and item.pages == (page.path,) for item, page in zip(items, pages, strict=True)
+    assert all(len(case.claims) == 2 for case in CASES if case.claim_table)
+    assert sorted(ORDER) == list(range(len(CASES)))
+
+
+def test_nothing_the_judge_sees_names_the_kind_of_a_case() -> None:
+    for item, page, case in zip(ITEMS, PAGES, ORDERED, strict=True):
+        shown = f"{item.key} {page.path}"
+        assert case.name not in shown
+        assert "control" not in shown and "seed:" in item.key  # every key has the same neutral prefix
+        assert item.actions == VERIFY_ACTIONS and item.pages == (page.path,)
+
+
+def test_every_batch_mixes_the_kinds_and_holds_no_page_text_twice() -> None:
+    for start in range(0, len(ORDERED), BATCH_SIZE):
+        batch = ORDERED[start : start + BATCH_SIZE]
+        kinds = {case.wrong_claim is None for case in batch}
+        texts = [page_text(case) for case in batch]
+
+        assert kinds == {True, False}
+        assert len(set(texts)) == len(texts)
+
+
+def right_answer(index: int) -> DreamJudgment:
+    case, item = ORDERED[index], ITEMS[index]
+    if case.wrong_claim is None:
+        return DreamJudgment(key=item.key, action="none")
+    if not case.claim_table:
+        return DreamJudgment(
+            key=item.key, action="update_memory", quote=case.user_text, path=item.pages[0], addition="changed"
+        )
+    return DreamJudgment(
+        key=item.key,
+        action="supersede_claim",
+        quote=case.user_text,
+        path=item.pages[0],
+        claim=case.wrong_claim,
+        new_claim="replaced",
     )
 
 
 def test_a_perfect_judge_scores_one_and_one() -> None:
-    items, _ = build_input(CASES)
-    answers = [
-        DreamJudgment(key=item.key, action="none")
-        if case.wrong_claim is None
-        else DreamJudgment(
-            key=item.key,
-            action="supersede_claim",
-            quote=case.user_text,
-            path=item.pages[0],
-            claim=case.wrong_claim,
-            new_claim="replaced",
-        )
-        for case, item in zip(CASES, items, strict=True)
-    ]
+    summary = score(ORDERED, ITEMS, [right_answer(index) for index in range(len(ORDERED))])
 
-    summary = score(CASES, items, answers)
-
-    assert (summary["detected"], summary["precision"], summary["recall"]) == (8, 1.0, 1.0)
+    assert (summary["detected"], summary["precision"], summary["recall"]) == (10, 1.0, 1.0)
     assert summary["missed"] == summary["false_alarms"] == summary["dropped_by_checks"] == []
+    assert summary["retired_whole_page"] == []
 
 
-def test_wrong_rows_invented_quotes_and_false_alarms_are_counted() -> None:
-    items, _ = build_input(CASES)
-    first, control = CASES[0], CASES[8]
-    assert first.wrong_claim is not None and control.wrong_claim is None
+def test_wrong_rows_whole_page_retires_invented_quotes_and_false_alarms_are_counted() -> None:
+    first = CASES[0]
     answers = [
         # The right action on the wrong row: missed.
-        judgment(
-            0, "supersede_claim", quote=first.user_text, path=items[0].pages[0], claim=first.claims[1], new_claim="x"
-        ),
+        judgment(first.name, "supersede_claim", quote=first.user_text, claim=first.claims[1], new_claim="x"),
+        # Retiring a claim-table page whose other row is still true: missed, and counted on its own.
+        judgment(CASES[1].name, "retire_memory", quote=CASES[1].user_text, reason="changed"),
         # A quote the user never typed: dropped by the checks, so also missed.
-        judgment(1, "retire_memory", quote="the user never typed this sentence", path=items[1].pages[0], reason="old"),
-        # A retire with a real quote: detected.
-        judgment(2, "retire_memory", quote=CASES[2].user_text, path=items[2].pages[0], reason="changed"),
+        judgment(CASES[2].name, "retire_memory", quote="the user never typed this sentence", reason="old"),
+        # An update to a claim-table page: a dream run refuses the page shape, so it is dropped.
+        judgment(CASES[3].name, "update_memory", quote=CASES[3].user_text, addition="changed"),
+        # Retiring a one-fact page that is wrong now: detected.
+        judgment("ko-note-seeded", "retire_memory", quote=CASES[16].user_text, reason="changed"),
         # A proposal on a negative control: a false alarm.
-        judgment(8, "retire_memory", quote=control.user_text, path=items[8].pages[0], reason="stale"),
+        judgment("en-note-control", "retire_memory", quote=CASES[19].user_text, reason="stale"),
     ]
 
-    summary = score(CASES, items, answers)
+    summary = score(ORDERED, ITEMS, answers)
 
     assert summary["detected"] == 1
-    assert summary["false_alarms"] == [control.name]
-    assert summary["dropped_by_checks"] == [CASES[1].name]
-    assert (summary["precision"], summary["recall"]) == (0.5, 0.12)
-    assert not passes_checks(answers[1], items[1], CASES[1])
+    assert summary["retired_whole_page"] == [CASES[1].name]
+    assert sorted(summary["dropped_by_checks"]) == sorted([CASES[2].name, CASES[3].name])  # type: ignore[call-overload]
+    assert summary["false_alarms"] == ["en-note-control"]
+    assert (summary["precision"], summary["recall"]) == (0.5, 0.1)
+    assert not passes_checks(answers[2], ITEMS[position(CASES[2].name)], CASES[2])
