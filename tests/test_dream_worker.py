@@ -30,6 +30,7 @@ from vault_graph.interface.composition.adapters.dream_judge import (
 from vault_graph.interface.composition.adapters.dream_worker import (
     BATCH_SIZE,
     DREAM_WORKER_LOCK,
+    NO_ANSWER_LIMIT,
     DreamPorts,
     read_dream_runs,
     read_exchange_lines,
@@ -370,6 +371,18 @@ def test_an_item_the_judge_leaves_out_is_recorded_so_it_is_not_paid_for_again(tm
         ("session:s2", "no_answer"),
     ]
     assert world.reviewed == []  # a manual cleanup still offers both
+
+
+def test_an_item_left_out_once_is_judged_again_and_left_out_after_the_second_time(tmp_path: Path) -> None:
+    world = World(tmp_path, [candidate(1), candidate(2)], FakeJudge([none(1)]))
+
+    world.run()
+    assert read_judged_keys(world.graph_home, model="fake-model") == {"session:s1"}
+    world.run()
+
+    assert NO_ANSWER_LIMIT == 2
+    assert world.judge.judged_keys == ["session:s1", "session:s2", "session:s2"]
+    assert read_judged_keys(world.graph_home, model="fake-model") == {"session:s1", "session:s2"}
 
 
 # Limits (C3, C4)
@@ -819,6 +832,28 @@ def test_checks_run_in_a_hook_run_even_when_the_exchange_backlog_is_not_due(tmp_
 
     assert (run.status, run.outcomes) == ("ran", {"proposed": 1})
     assert judge.judged_keys == [item.key]  # the exchange itself waits until the backlog is due
+
+
+def test_an_exchange_judged_none_on_its_own_is_still_checked_against_a_page_later(tmp_path: Path) -> None:
+    world = World(tmp_path, [candidate(1)], FakeJudge([none(1)]))
+    world.run()
+    world.checks = [check(1), check(2)]
+    world.judge.judgments = {world.checks[0].key: DreamJudgment(key=world.checks[0].key, action="none")}
+    seen: list[frozenset[str]] = []
+    inner = world.ports.verify_candidates
+
+    def source(keys: Collection[str], limit: int) -> MemoryCandidatePackage:
+        seen.append(frozenset(keys))
+        return inner(keys, limit)
+
+    world.ports = replace(world.ports, verify_candidates=source)
+
+    world.run()
+    world.run()
+
+    # The page-check source never gets the session key of a judged exchange, only judged page checks.
+    assert seen[0] == frozenset()
+    assert world.checks[0].key in seen[1] and not any(key.startswith("session:") for key in seen[1])
 
 
 def test_an_exchange_proposed_in_this_run_is_not_checked_against_a_page_again(tmp_path: Path) -> None:

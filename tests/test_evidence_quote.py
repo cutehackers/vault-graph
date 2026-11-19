@@ -72,6 +72,15 @@ def test_a_path_without_a_line_range_cites_no_exchange() -> None:
     assert cited_exchanges([PART, "User said so on 2026-11-10.", "wiki/decisions/a.md L3-L9"]) == ()
 
 
+def test_a_path_in_another_letter_case_or_without_the_md_ending_is_still_a_session_file() -> None:
+    bare = "raw/sessions/claude-code/2026-11-10-s1-part1"
+
+    assert session_files([f"{bare} L8-L16"]) == (bare,)
+    assert cited_exchanges([f"{bare} L8-L16"]) == (ExchangeCitation(bare, 8, 16),)
+    assert session_files(["Raw/Sessions/2026-11-10-s1.md L8-L16"]) == ("Raw/Sessions/2026-11-10-s1.md",)
+    assert session_files([f"see {bare}, then ask"]) == (bare,)
+
+
 def test_several_locations_are_read_in_order_and_once() -> None:
     other = "raw/sessions/2026-11-11-s2.md"
 

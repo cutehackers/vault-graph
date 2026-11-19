@@ -13,7 +13,8 @@ The check proves the quote exists. It does not prove that the memory follows fro
 that. This module is pure: the caller reads the session file and passes the text.
 
 ``cited_exchanges`` reads the session exchange locations out of evidence lines. A location is a
-`raw/sessions/...md` path followed on the same line by a line range: `L12-L40`, `#L12-L40` or `lines 12-40`
+`raw/sessions/...` path (any letter case, with or without the `.md` ending)
+followed on the same line by a line range: `L12-L40`, `#L12-L40` or `lines 12-40`
 (the forms `context/memory/memory_candidates.py` counts as citing an exchange). A path with no line range
 cites no exchange. ``session_files`` lists every session file the evidence names, with or without a line range,
 so a caller can refuse evidence that points at a session but not at an exchange.
@@ -28,7 +29,8 @@ from dataclasses import dataclass
 
 MIN_QUOTE_CHARS = 8
 
-_SESSION_PATH_RE = re.compile(r"raw/sessions/[^\s`|,;)>\]#]+\.md")
+# Lazy up to the first `.md`, else up to the next delimiter, so a path typed without the ending is still seen.
+_SESSION_PATH_RE = re.compile(r"raw/sessions/[^\s`|,;)>\]#]+?(?:\.md|(?=[\s`|,;)>\]#]|$))", re.IGNORECASE)
 _LINE_RANGE_RES = (
     re.compile(r"(?<![\w-])L(\d+)(?:-L?(\d+))?(?!\w)"),
     re.compile(r"\blines? (\d+)(?:-(\d+))?\b", re.IGNORECASE),
