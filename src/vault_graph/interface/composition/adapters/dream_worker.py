@@ -634,12 +634,12 @@ def _iso(moment: datetime) -> str:
 # Process ----------------------------------------------------------------------------------------
 
 
-def start_dream_worker(graph_home: Path, cwd: Path) -> bool:
+def start_dream_worker(graph_home: Path, cwd: Path, *, vault_map_file: Path | None = None) -> bool:
     """Start one dream run for ``cwd`` in a detached process. False when a worker holds the lock.
 
-    The child is `vg dream worker --graph-home <graph home> --cwd <cwd> --lock-fd <fd>`. It inherits this
-    process's flock on `logs/dream-worker.lock` and holds it until it ends. Its output goes to
-    `logs/dream-worker.log`.
+    The child is `vg dream worker --graph-home <graph home> --cwd <cwd> --lock-fd <fd>`, with `--vault-map` when
+    ``vault_map_file`` is given. It inherits this process's flock on `logs/dream-worker.lock` and holds it until
+    it ends. Its output goes to `logs/dream-worker.log`.
     """
     logs = graph_home / DREAM_WORKER_LOCK.parent
     logs.mkdir(parents=True, exist_ok=True)
@@ -662,6 +662,8 @@ def start_dream_worker(graph_home: Path, cwd: Path) -> bool:
             "--lock-fd",
             str(lock_descriptor),
         ]
+        if vault_map_file is not None:
+            arguments += ["--vault-map", str(vault_map_file)]
         log_path = graph_home / DREAM_WORKER_LOG
         mode = "wb" if log_path.exists() and log_path.stat().st_size > _LOG_MAX_BYTES else "ab"
         with log_path.open(mode) as log:
