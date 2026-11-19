@@ -516,6 +516,30 @@ def exchange_human_text(block: Sequence[str], *, v2: bool) -> str:
     return _turn_text(block, _V2_TURN_RE, top_level_ends_turn=True)
 
 
+def cited_human_text(lines: Sequence[str], line_start: int, line_end: int, *, v2: bool) -> str:
+    """What a person typed in lines ``line_start`` to ``line_end`` (1-based, both included) of a session file.
+
+    In a v2 file the range is cut at every exchange (each `vg:exchange` meta line and the heading above it), and
+    each piece is read with the scope of its own exchange. So a range that starts after the meta line, or that
+    covers a main exchange and a subagent exchange, never gives a subagent prompt as a person's words. Text
+    before the first turn heading inside a piece belongs to no turn and is left out.
+    """
+    if not v2:
+        return exchange_human_text(lines[line_start - 1 : line_end], v2=False)
+    metas = [index for index, line in enumerate(lines) if _META_RE.match(line)]
+    kept: list[str] = []
+    for position, meta in enumerate(metas):
+        first = max(meta - 1, 0)
+        last = metas[position + 1] - 1 if position + 1 < len(metas) else len(lines)
+        low, high = max(first, line_start - 1), min(last, line_end)
+        if low >= high or _meta_fields(lines[meta]).get("scope", "main").startswith("subagent"):
+            continue
+        text = _turn_text(lines[low:high], _V2_TURN_RE, top_level_ends_turn=True)
+        if text:
+            kept.append(text)
+    return "\n".join(kept)
+
+
 def _meta_fields(line: str) -> dict[str, str]:
     match = _META_RE.match(line)
     if match is None:

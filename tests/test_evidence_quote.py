@@ -10,6 +10,7 @@ from vault_graph.operation.memory.evidence_quote import (
     cited_exchanges,
     normalize_evidence_text,
     quote_in_text,
+    session_files,
 )
 
 HUMAN_TURN = "아니야, 그 방법 말고\n임베딩 모델은   arctic-m으로 정했어.\nUse the review queue for anything inferred."
@@ -77,3 +78,10 @@ def test_several_locations_are_read_in_order_and_once() -> None:
     cited = cited_exchanges([f"{PART} L10-L20 and {other} L1-L5", f"{PART} L10-L20\n{other} L30-L31"])
 
     assert cited == (ExchangeCitation(PART, 10, 20), ExchangeCitation(other, 1, 5), ExchangeCitation(other, 30, 31))
+
+
+def test_session_files_lists_every_named_session_file_with_or_without_a_range() -> None:
+    other = "raw/sessions/2026-11-11-s2.md"
+
+    assert session_files([PART, f"{other} L1-L5 and again {PART}:3-9", "wiki/decisions/a.md"]) == (PART, other)
+    assert session_files(["User said so on 2026-11-10."]) == ()

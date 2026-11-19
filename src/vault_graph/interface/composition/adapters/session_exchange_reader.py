@@ -4,16 +4,16 @@ The memory write service uses it to check a quote against the session exchange t
 file under the Vault's `raw/sessions/` and never writes. A path outside that folder, or one that leaves the Vault
 root through `..` or a symbolic link, reads as unreadable (None).
 
-The person turns are found with the same rule the cleanup bundle uses (`memory_candidate_sources.exchange_human_text`),
-so a quote that passes here also passes for the candidate of that exchange. The file format comes from the
-frontmatter `schema` value: `vault-session/v2`, else the v1 rules.
+The person turns are found with the rule the cleanup bundle uses (`memory_candidate_sources.cited_human_text`), read
+exchange by exchange, so a cited range that covers a subagent exchange never gives its prompt as a person's
+words. The file format comes from the frontmatter `schema` value: `vault-session/v2`, else the v1 rules.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from vault_graph.interface.composition.memory_candidate_sources import SESSION_PATH_PREFIX, exchange_human_text
+from vault_graph.interface.composition.memory_candidate_sources import SESSION_PATH_PREFIX, cited_human_text
 
 _SCHEMA_V2 = "vault-session/v2"
 
@@ -32,7 +32,7 @@ class SessionExchangeFileReader:
             return None
         if line_start < 1 or line_start > len(lines) or line_end < line_start:
             return None
-        return exchange_human_text(lines[line_start - 1 : line_end], v2=_is_v2(lines))
+        return cited_human_text(lines, line_start, line_end, v2=_is_v2(lines))
 
 
 def _is_v2(lines: list[str]) -> bool:

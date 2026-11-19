@@ -22,10 +22,13 @@ MEMORY-01). The list is advice: it never blocks the write, and without an index 
 ``remember`` without a ``summary`` is published with a warning (spec 2026-11-11 §4.3.1).
 
 Quote check (spec 2026-11-19 D4), for ``remember``, ``update`` and ``supersede_claim`` when the service has an
-``ExchangeTextReader``. Evidence that names a session exchange (`<path> L<a>-L<b>`) with ``basis="stated"``
-needs ``quote``, the user's own words, and the quote must be part of what the person typed in one of the cited
-exchanges. A quote given with ``basis="inferred"`` is checked the same way. A write that fails the check is
-``rejected`` before anything is sent to the Vault. Evidence that names no session exchange is not checked.
+``ExchangeTextReader``. Evidence that names a session file (`raw/sessions/...md`) with ``basis="stated"`` needs
+``quote``, the user's own words. The evidence must name the exchange with a line range (`<path> L<a>-L<b>`), and
+the quote must be part of what the person typed in one of the cited exchanges. Leaving the line range out does
+not skip the check: such a write is ``rejected``. The session file is looked for in the target Vault first, then
+in the other Vaults linked to the ``cwd`` project. A quote given with ``basis="inferred"`` is checked the same
+way. A write that fails the check is ``rejected`` before anything is sent to the Vault. Evidence that names no
+session file is not checked.
 """
 
 from __future__ import annotations
@@ -36,7 +39,7 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
-from vault_graph.operation.memory.evidence_quote import cited_exchanges, quote_in_text
+from vault_graph.operation.memory.evidence_quote import ExchangeCitation, cited_exchanges, quote_in_text, session_files
 from vault_graph.operation.memory.memory_drafts import (
     build_remember_draft,
     build_restore_draft,
@@ -103,14 +106,21 @@ SIMILAR_PAGES_MESSAGE = (
     "on it or retire_memory(replaced_by=...) instead of keeping the fact twice."
 )
 QUOTE_REQUIRED_MESSAGE = (
-    "basis stated with a session exchange as evidence needs quote: the user's own words, copied from that "
-    "exchange. Pass quote, or use basis inferred when the user did not say it."
+    "basis stated with a session file as evidence needs quote: the user's own words, copied from the cited "
+    "exchange. Pass quote and name the exchange as <path> L<a>-L<b>, or use basis inferred when the user did "
+    "not say it."
+)
+QUOTE_NEEDS_LOCATION_MESSAGE = (
+    "evidence names a session file without a line range, so quote cannot be checked. Name the exchange as "
+    "<path> L<a>-L<b>, the location list_memory_candidates and search show."
 )
 QUOTE_NOT_FOUND_MESSAGE = (
     "quote is not in what the user typed in the cited session exchange. Copy the user's words exactly "
     "(at least 8 characters), or use basis inferred without quote."
 )
-QUOTE_UNREADABLE_MESSAGE = "The cited session exchange cannot be read in this Vault, so quote cannot be checked"
+QUOTE_UNREADABLE_MESSAGE = (
+    "The cited session exchange cannot be read in the project's Vaults, so quote cannot be checked"
+)
 NO_SUMMARY_WARNING = (
     "The page was published without a summary, so search matches it less well. "
     "Add one or two sentences with update_memory(summary=...)."
@@ -213,7 +223,7 @@ class MemoryWriteService:
                     ),
                 )
 
-        unquoted = self._quote_refusal(chosen, request.basis, request.evidence, request.quote)
+        unquoted = self._quote_refusal(chosen, request.cwd, request.basis, request.evidence, request.quote)
         if unquoted is not None:
             return unquoted
         draft = build_remember_draft(request, today=self._today())
@@ -249,7 +259,7 @@ class MemoryWriteService:
         chosen = self._page_vault(request.vault, request.cwd, request.path)
         if not isinstance(chosen, MappedVault):
             return _choice_result(chosen)
-        unquoted = self._quote_refusal(chosen, request.basis, request.evidence, request.quote)
+        unquoted = self._quote_refusal(chosen, request.cwd, request.basis, request.evidence, request.quote)
         if unquoted is not None:
             return unquoted
 
@@ -310,7 +320,7 @@ class MemoryWriteService:
         chosen = self._page_vault(request.vault, request.cwd, request.path)
         if not isinstance(chosen, MappedVault):
             return _choice_result(chosen)
-        unquoted = self._quote_refusal(chosen, request.basis, (request.evidence,), request.quote)
+        unquoted = self._quote_refusal(chosen, request.cwd, request.basis, (request.evidence,), request.quote)
         if unquoted is not None:
             return unquoted
 
@@ -381,25 +391,38 @@ class MemoryWriteService:
         return self._recorded(_result(chosen, outcome), request.candidate_key)
 
     def _quote_refusal(
-        self, vault: MappedVault, basis: str, evidence: tuple[str, ...], quote: str | None
+        self, vault: MappedVault, cwd: str | None, basis: str, evidence: tuple[str, ...], quote: str | None
     ) -> MemoryWriteResult | None:
         """The ``rejected`` result of a write whose quote is missing or not in the cited exchange, else None."""
-        if self._exchange_reader is None:
-            return None
-        cited = cited_exchanges(evidence)
-        if not cited or (quote is None and basis != "stated"):
+        if self._exchange_reader is None or not session_files(evidence):
             return None
         if quote is None:
+            if basis != "stated":
+                return None
             return _result(vault, WriteOutcome("rejected", messages=(QUOTE_REQUIRED_MESSAGE,)))
-        texts = [
-            self._exchange_reader.human_text(vault.path, item.path, item.line_start, item.line_end) for item in cited
-        ]
+        cited = cited_exchanges(evidence)
+        if not cited:
+            return _result(vault, WriteOutcome("rejected", messages=(QUOTE_NEEDS_LOCATION_MESSAGE,)))
+        texts = [self._cited_text(vault, cwd, item) for item in cited]
         if all(text is None for text in texts):
             where = ", ".join(item.location for item in cited)
             return _result(vault, WriteOutcome("rejected", messages=(f"{QUOTE_UNREADABLE_MESSAGE}: {where}.",)))
         if any(text is not None and quote_in_text(quote, text) for text in texts):
             return None
         return _result(vault, WriteOutcome("rejected", messages=(QUOTE_NOT_FOUND_MESSAGE,)))
+
+    def _cited_text(self, vault: MappedVault, cwd: str | None, cited: ExchangeCitation) -> str | None:
+        """What the person typed in a cited exchange, from the target Vault or another Vault of the project."""
+        if self._exchange_reader is None:
+            return None
+        roots = [vault.path]
+        if self._vault_map is not None and cwd is not None:
+            roots += [linked.path for linked in self._vault_map.vaults_for(Path(cwd)) if linked.path != vault.path]
+        for root in roots:
+            text = self._exchange_reader.human_text(root, cited.path, cited.line_start, cited.line_end)
+            if text is not None:
+                return text
+        return None
 
     def _find_similar(self, request: RememberRequest) -> tuple[SimilarMemoryPage, ...]:
         """Existing pages like the new memory. Any lookup failure gives none, so the write goes on."""
@@ -557,6 +580,7 @@ __all__ = [
     "PROPOSAL_LIMIT_MESSAGE",
     "PROPOSED_MESSAGE",
     "PUBLISH_TIMEOUT_SECONDS",
+    "QUOTE_NEEDS_LOCATION_MESSAGE",
     "QUOTE_NOT_FOUND_MESSAGE",
     "QUOTE_REQUIRED_MESSAGE",
     "QUOTE_UNREADABLE_MESSAGE",
