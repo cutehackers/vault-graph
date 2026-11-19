@@ -39,8 +39,12 @@ detached fact worker unless ``logs/facts-worker.lock`` is taken. It never waits 
 output stay the same as with extraction off. The first job ever written prints one stderr notice and records it in
 ``facts/notice-shown``. Sessions captured before are never queued.
 
-With ``VAULT_GRAPH_FACTS_CHILD=1`` (the Claude session the fact extractor runs) both hooks print nothing and exit 0
-without calling the launcher, the refresh or recall (spec 2026-11-16 D17, I9, F11).
+After a ``written`` capture, when dreaming is on (spec 2026-11-19 D2, ``vg dream on``) and the default Graph Home is
+initialized, the hook also starts the detached dream worker for the hook's ``cwd`` unless ``logs/dream-worker.lock``
+is taken. The worker decides whether a run is due. The hook never waits for it and never judges anything itself.
+
+With ``VAULT_GRAPH_FACTS_CHILD=1`` (the Claude session the fact extractor or the dream judge runs) both hooks print
+nothing and exit 0 without calling the launcher, the refresh or recall (spec 2026-11-16 D17, I9, F11).
 """
 
 from __future__ import annotations
@@ -85,6 +89,7 @@ from vault_graph.interface.composition.recall_index_refresh import (
     vectors_need_catch_up,
 )
 from vault_graph.operation.integration.vault_map import VAULT_MAP_ENV, open_vault_map, vault_map_path
+from vault_graph.operation.scope.dream_settings import dream_settings_path, read_dream_settings
 from vault_graph.operation.scope.facts_settings import FactsSettings, facts_settings_path, read_facts_settings
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
 
@@ -448,6 +453,7 @@ def capture(
     )
     if outcome.status == "written":
         _queue_session_facts(graph_home, map_path, outcome)
+        _start_dream(graph_home, hook_json, vault_map)
 
 
 def facts_notice_path(graph_home: Path) -> Path:
@@ -490,6 +496,35 @@ def _queue_session_facts(graph_home: Path, map_path: Path, outcome: CaptureOutco
         start_fact_worker(graph_home)
     except (VaultGraphError, OSError) as exc:
         typer.echo(f"{CAPTURE_COMMAND}: warning: session fact job not started: {exc}", err=True)
+
+
+def _start_dream(graph_home: Path, hook_json: bytes, vault_map: Path | None) -> None:
+    """Start the detached dream worker for the hook's ``cwd`` when dreaming is on (spec 2026-11-19 D2).
+
+    Nothing happens when dreaming is off, the settings file is broken, the Graph Home is not initialized or the
+    hook JSON names no ``cwd``. The worker checks whether a run is due. A problem prints one warning and never
+    changes the exit code.
+    """
+    try:
+        if not GraphHomeResolver().resolve(graph_home).initialized:
+            return
+    except (VaultGraphError, OSError):
+        return
+    if not read_dream_settings(dream_settings_path(graph_home)).settings.enabled:
+        return
+    try:
+        cwd = json.loads(hook_json).get("cwd")
+    except (ValueError, AttributeError):
+        return
+    if not isinstance(cwd, str) or not cwd:
+        return
+    try:
+        # Imported here so the other commands never load the dream judge port and the memory write service.
+        from vault_graph.interface.composition.adapters.dream_worker import start_dream_worker
+
+        start_dream_worker(graph_home, Path(cwd), vault_map_file=vault_map)
+    except (VaultGraphError, OSError) as exc:
+        typer.echo(f"{CAPTURE_COMMAND}: warning: dream worker not started: {exc}", err=True)
 
 
 def _vault_root(map_path: Path, vault_name: str) -> Path | None:
