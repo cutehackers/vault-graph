@@ -2535,3 +2535,15 @@ indexer regression tests.
 **Changes Applied:** The three rule documents list six paths in one order: `publish-draft`, `review propose`, the capture launcher, `import-source`, fact attachment, `review resolve`. The sixth path carries its condition (only from a `vg review` command a person typed) and its limit (an agent that types the command in a shell is not stopped). `docs/SPEC.md` §4 gained the fact attachment path and §5 gained the `vg review` command and the rule that only a published accept counts. A decision entry records the user's approval. The README files and the feature list point to `vg review`. The `proposed` message and the MCP server instructions gained one line about `vg review` and keep the Vault command line. `docs/TODO.md` records that repairing a hand-edited accepted item needs a vault-builder change.
 
 **Verification:** Focused tests pass (`tests/test_memory_write_service.py`, `tests/test_memory_write_boundary.py`, `tests/test_vault_publish_cli.py`, `tests/test_mcp_tools.py`, `tests/test_root_dependency_alignment.py`, the docs contract tests). `ruff check` and `mypy` pass. The manual comparison of the rule documents (spec A10), the terminal run (A11) and the full test run (A12) are left for the person.
+
+## 2026-11-20 - Fix What The Review Of `vg review` Found
+
+**Trigger:** The bake review of spec `docs/specs/2026-11-20-vg-review-accept/spec.md` found three defects in the first commit: the body diff hid changed lines that start with `-- ` or `++ `, the interactive flow moved to the next proposal after a `target-changed` refusal (spec F2), and after that fix a refused accept could end with exit code 0 (spec I5).
+
+**Scope:** `src/vault_graph/operation/memory/proposal_change.py`, `src/vault_graph/interface/cli/review_commands.py`, `tests/test_proposal_change.py`, `tests/test_cli_review.py`.
+
+**Core Values Protected:** A person sees every line an accept would change. Only what the Vault resolved is reported as accepted or rejected.
+
+**Changes Applied:** The diff drops its two header lines by position instead of by content. After a `target-changed` refusal the same proposal is asked again, so it can be rejected at once, and the refused accept counts as a failure of the run (exit code 1).
+
+**Verification:** `tests/test_proposal_change.py` and `tests/test_cli_review.py` hold one new test for each defect. `ruff check`, `mypy` and the full suite pass.

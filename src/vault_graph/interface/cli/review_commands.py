@@ -475,6 +475,8 @@ def _ask(proposal: ReviewProposal, tally: _Tally, published: list[MappedVault]) 
             outcome = _run_resolve(proposal, "accepted", DEFAULT_ACCEPT_REASON, published)
             if outcome.status != "resolved" and outcome.reason == TARGET_CHANGED_REASON:
                 # F2: the page changed after the proposal. Ask again here, so the person can reject it now.
+                # The refused accept is still a failure of this run (I5), whatever is chosen next.
+                tally.failed += 1
                 continue
             _count(tally, "accepted", outcome.status == "resolved")
             return True
