@@ -613,11 +613,10 @@ def test_an_accept_refused_because_the_page_changed_asks_again_so_it_can_be_reje
 
     result = world.interactive("a\nr\npage changed\n")
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output  # I5: the refused accept is a failure of the run
     assert statuses == ["accepted", "rejected"]
     assert "Reject it." in result.output
-    assert "review: accepted=0 rejected=1 skipped=0" in result.output
-    assert "failed=" not in result.output
+    assert "review: accepted=0 rejected=1 skipped=0 failed=1" in result.output
 
 
 # I5: only what the Vault resolved is reported as accepted or rejected.
