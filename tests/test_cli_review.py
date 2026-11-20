@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,6 +24,7 @@ from vault_graph.interface.composition.adapters.vault_review_cli import ReviewRe
 from vault_graph.interface.composition.adapters.vault_review_queue import UNPUBLISHED_FIX
 
 runner = CliRunner()
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 QUOTE = 'session 7f3a#12 user: "배포는 금요일에 하지 않는다"'
 NEW_PAGE_DRAFT: dict[str, object] = {
@@ -777,7 +779,8 @@ def test_a_reject_without_a_reason_is_a_usage_error_and_the_vault_is_not_run(
     result = world.run("reject", "p1", *reason)
 
     assert result.exit_code == 2
-    assert "--reason" in result.output
+    # On CI the usage error is styled, and the style codes split the option name.
+    assert "--reason" in ANSI_ESCAPE.sub("", result.output)
     assert world.cli.calls == []
 
 
