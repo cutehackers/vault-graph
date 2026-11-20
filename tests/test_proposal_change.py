@@ -124,6 +124,21 @@ def test_upsert_on_an_existing_page_shows_the_body_diff_and_the_changed_frontmat
     assert not any(line.startswith("title:") for line in rendered)
 
 
+def test_body_lines_that_look_like_diff_headers_stay_in_the_diff() -> None:
+    draft = update_draft()
+    current = CURRENT_PAGE.split("---\n", 2)
+    before = "# P\n\n-- old sql comment\nkeep\n--\n"
+    draft["body"] = "# P\n\nkeep\n++ added line\n++\n"
+
+    change = build_proposal_change(draft, f"---\n{current[1]}---\n{before}")
+
+    assert "--- old sql comment" in change.body_diff
+    assert "---" in change.body_diff
+    assert "+++ added line" in change.body_diff
+    assert "+++" in change.body_diff
+    assert change.body_diff[0].startswith("@@")
+
+
 def test_upsert_reports_added_and_removed_frontmatter_keys() -> None:
     draft = update_draft()
     frontmatter = dict(draft["frontmatter"])  # type: ignore[call-overload]

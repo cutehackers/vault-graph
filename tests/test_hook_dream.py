@@ -282,9 +282,7 @@ def test_status_counts_only_dream_proposals_and_says_why_dreaming_stopped(world:
     def item(name: str, status: str, kind: str = "memory-proposal") -> str:
         # The Vault's accept writes "Published:" into the resolution; without it an accept is not counted.
         resolution = 'resolution: "ok Published: wiki/a.md."\n' if status == "accepted" else ""
-        (queue / name).write_text(
-            f"---\ntype: {kind}\nstatus: {status}\n{resolution}---\n# item\n", encoding="utf-8"
-        )
+        (queue / name).write_text(f"---\ntype: {kind}\nstatus: {status}\n{resolution}---\n# item\n", encoding="utf-8")
         return f"scratch/review/{name}"
 
     sent = [item("a.md", "accepted"), item("b.md", "accepted"), item("c.md", "rejected"), item("d.md", "pending")]

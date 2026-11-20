@@ -31,7 +31,12 @@ import typer
 
 from vault_graph.errors import VaultGraphError
 from vault_graph.interface.cli.hook_commands import FACTS_CHILD_ENV, start_catch_up_index
-from vault_graph.interface.composition.adapters.vault_review_cli import ResolveStatus, VaultReviewCli
+from vault_graph.interface.composition.adapters.vault_review_cli import (
+    TARGET_CHANGED_REASON,
+    ResolveStatus,
+    ReviewResolveOutcome,
+    VaultReviewCli,
+)
 from vault_graph.interface.composition.adapters.vault_review_queue import (
     MEMORY_PROPOSAL_TYPE,
     REVIEW_QUEUE,
@@ -369,6 +374,13 @@ def _not_resolvable(proposal: ReviewProposal, status: ResolveStatus) -> str | No
 
 def _resolve(proposal: ReviewProposal, status: ResolveStatus, resolution: str, published: list[MappedVault]) -> bool:
     """Run the Vault's ``review resolve`` and print what the Vault answered. True only for ``resolved`` (I5)."""
+    return _run_resolve(proposal, status, resolution, published).status == "resolved"
+
+
+def _run_resolve(
+    proposal: ReviewProposal, status: ResolveStatus, resolution: str, published: list[MappedVault]
+) -> ReviewResolveOutcome:
+    """As ``_resolve``, returning the Vault's outcome so the caller can read why it failed."""
     outcome = VaultReviewCli().resolve(proposal.vault.path, proposal.review_path, status=status, resolution=resolution)
     label = _label(proposal)
     if outcome.status == "resolved":
@@ -377,12 +389,12 @@ def _resolve(proposal: ReviewProposal, status: ResolveStatus, resolution: str, p
             typer.echo(f"published: {', '.join(outcome.written_paths)}")
             if proposal.vault not in published:
                 published.append(proposal.vault)
-        return True
+        return outcome
     reason = f" ({outcome.reason})" if outcome.reason else ""
     typer.echo(f"failed: {label} was not {status}{reason}")
     for line in (*outcome.messages, *outcome.guidance):
         typer.echo(f"  {line}")
-    return False
+    return outcome
 
 
 def _start_index(graph_home: Path, published: list[MappedVault]) -> None:
@@ -460,7 +472,11 @@ def _ask(proposal: ReviewProposal, tally: _Tally, published: list[MappedVault]) 
             if problem is not None:
                 typer.echo(problem)
                 continue
-            _count(tally, "accepted", _resolve(proposal, "accepted", DEFAULT_ACCEPT_REASON, published))
+            outcome = _run_resolve(proposal, "accepted", DEFAULT_ACCEPT_REASON, published)
+            if outcome.status != "resolved" and outcome.reason == TARGET_CHANGED_REASON:
+                # F2: the page changed after the proposal. Ask again here, so the person can reject it now.
+                continue
+            _count(tally, "accepted", outcome.status == "resolved")
             return True
         if choice in {"r", "reject"}:
             try:
