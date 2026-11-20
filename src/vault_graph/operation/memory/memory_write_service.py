@@ -89,6 +89,7 @@ NEXT_INDEX_MESSAGE = "The recorded page becomes searchable after the next index 
 PROPOSED_MESSAGE = (
     "basis inferred: the fact waits in the Vault review queue and is not in recall or search until a person accepts it."
 )
+REVIEW_COMMAND_MESSAGE = "Or a person runs `vg review` in the project folder to read it and accept or reject it."
 PAGE_CHANGED_MESSAGE = (
     "The page changed after vault-graph read it, so the update was not sent. Please read it again and retry."
 )
@@ -558,6 +559,7 @@ def _result(vault: MappedVault, outcome: WriteOutcome) -> MemoryWriteResult:
             *messages,
             PROPOSED_MESSAGE,
             f"To accept it, run in Vault {vault.name}: {approval_command(review_path)}",
+            REVIEW_COMMAND_MESSAGE,
         )
     return MemoryWriteResult(
         outcome.status,

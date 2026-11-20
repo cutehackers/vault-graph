@@ -34,16 +34,16 @@ vault-builder가 관리하는 Vault에 저장됩니다. Vault Graph는 이 Vault
    `vg facts off` 명령으로 끌 수 있습니다.
    - 직접 실행: 대기열 확인은 `vg facts status`, 처리는 `vg facts worker`
    - 선택 기능: `vg dream on`을 켜면 백그라운드 작업자가 저장된 세션에서 기억할 만한 것을
-     골라 제안합니다. Vault 검토 대기열에서 승인하기 전에는 아무것도 저장되지 않습니다.
+     골라 제안합니다. `vg review` 명령으로 승인하기 전에는 아무것도 저장되지 않습니다.
      보낸 제안은 `vg dream status`로 봅니다.
 4. **사용자가 말한 사실을 Claude가 기억으로 저장하면** Vault Graph가 그 Vault를
    백그라운드에서 다시 색인합니다. 그래서 새 페이지가 검색과 다음 세션 요약에 나옵니다.
    - 직접 실행: `vg index --vault-id ID` 또는 `vg index --all-vaults`
 5. **Claude가 스스로 추론한 기억은** 바로 저장되지 않습니다. 사람이 승인할 때까지 Vault
    검토 대기열에서 기다리며, 그동안 검색과 세션 요약에 나오지 않습니다.
-   - 직접 실행: Vault 폴더에서 아래 명령으로 목록을 보고 하나씩 승인합니다.
-     `python3 tools/wiki/cli.py review list --status pending`,
-     `python3 tools/wiki/cli.py review resolve <review_path> --status accepted --resolution "<reason>"`
+   - 직접 실행: 프로젝트 폴더에서 `vg review`를 실행합니다. 대기 중인 제안을 하나씩
+     보여주며, 어떤 글이 바뀌는지와 근거를 확인한 뒤 승인, 거절, 건너뛰기 중에서 고릅니다.
+     승인한 기억은 백그라운드에서 색인됩니다. 목록만 보려면 `vg review list`를 씁니다.
 
 그 밖의 일은 Claude가 MCP 도구로 합니다. 찾을 때는 `search_vault`, `ask_vault` 도구를,
 저장할 때는 `remember`, `update_memory` 도구를 씁니다. 모든 기능과 도구, 각 기능이 읽고
@@ -106,6 +106,7 @@ vg status --graph-home ~/.vault-graph
 | 근거와 함께 묻기 | `vg ask "question"` |
 | 사실 추출 상태 | `vg facts status` |
 | 드리밍 상태 | `vg dream status` |
+| 기억 제안 검토 | `vg review` |
 | 임베딩 모델 보기 | `vg embedding list --graph-home ~/.vault-graph` |
 | 모델이나 모델 폴더 바꾸기 | `vg embedding use arctic-m --models-dir /path/to/models --graph-home ~/.vault-graph` |
 

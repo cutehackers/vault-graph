@@ -58,7 +58,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 1. 원칙1 Local: 검색, 색인, 회상은 이 컴퓨터 안에서 끝난다. 호스팅 서비스를 직접 부르지 않는다(결정7). 검색, 색인, 회상에서는 LLM을 부르지 않는다. 수집 뒤에만 로그인된 Claude Code나 로컬 모델로 세션 사실을 뽑는다(기본 켜짐, `vg facts off`로 끈다). 드리밍도 수집 뒤에만 로그인된 Claude Code로 세션 교환을 판단해 추론 제안을 검토 대기열에 올린다(기본 꺼짐, `vg dream on`으로 켠다, 2026-11-19 사용자 결정). API 키는 쓰지 않는다. 질의 답변과 요약은 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다. 기억 관리에서 vg는 판단 재료를 결정적으로 만들고, 무엇을 기억·수정·폐기할지는 호출한 에이전트가 정한다.
 2. 원칙2 원본은 Vault: 기억의 원본은 Vault의 Markdown 파일이다. vault-graph 색인은 지워도 다시 만들 수 있는 파생 데이터이며 지식 원본이 아니다.
 3. 원칙3 `wiki/`는 검증 경로로만 바뀐다: Vault `wiki/`는 Vault 도구의 검증 경로(publish-draft 등)를 거쳐서만 바뀐다.
-4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 다섯 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 `review resolve`로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`, Claude Code 자동 기억 노트의 근거 사본은 Vault `import-source`다(§4). 다섯째는 사실 첨부(Vault 명령이 세션 옆에 쓴다)다. 수집이 끝난 세션에서 뽑은 사실을 Vault `sessions attach-facts`가 세션 part 파일 옆 첨부 파일로 쓴다(`docs/contracts/vault-session-facts-v1.md`). vg는 자동 기억 파일을 고치거나 옮기거나 지우지 않는다.
+4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 여섯 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 여섯째 길로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`, Claude Code 자동 기억 노트의 근거 사본은 Vault `import-source`다(§4). 다섯째는 사실 첨부(Vault 명령이 세션 옆에 쓴다)다. 수집이 끝난 세션에서 뽑은 사실을 Vault `sessions attach-facts`가 세션 part 파일 옆 첨부 파일로 쓴다(`docs/contracts/vault-session-facts-v1.md`). 여섯째는 `review resolve`다. 사람이 친 `vg review` 명령에서만 실행해 대기 중인 기억 제안을 수락하거나 거절한다. MCP 도구, 훅, 드리밍 작업자, 사실 추출 작업자, 색인, 회상은 실행하지 않는다(2026-11-20 결정, §4). vg는 자동 기억 파일을 고치거나 옮기거나 지우지 않는다.
 5. 원칙5 `raw/`에 직접 쓰지 않는다: vault-graph는 Vault `raw/`에 직접 쓰지 않는다. 세션 원문은 Vault의 `sessions capture`가 쓰고, vault-graph는 그 실행 시점과 넘길 정규화 파일을 정한다. 자동 기억 노트의 사본도 Vault `import-source`가 쓴다(§0 규칙3).
 6. 원칙6 연결 정보는 `vault-map.json` 하나: 프로젝트와 Vault의 연결 정보는 사용자 범위의 `vault-map.json`이 원본이고, vault-graph는 이 파일을 읽기만 한다(결정9).
 
@@ -121,13 +121,15 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 - export 폴더: `vg session export --out PATH`와 export 설정의 `path`. Vault 밖이어야 하고, Graph Home에 등록된 Vault나 `vault-map.json`의 Vault 안이면 쓰지 않고 오류로 끝난다. 폴더 권한은 0700, 파일은 0600이다. 정규화 파일은 export 설정이 없으면 OS 임시 폴더에 쓰고 실행기가 끝나면 지운다. 정규화 JSONL 형식은 [vg-session-jsonl/1 계약](contracts/vg-session-jsonl-v1.md)이다.
 - `vg watch`는 메타데이터·벡터·그래프에 바뀐 것이 있을 때만 새 세대를 발행한다(2026-11-02 3차 검수 발견11).
 - 세대 발행은 프로세스 간 파일 잠금(`projections/.publish.lock`)으로 한 번에 하나만 한다. 발행 뒤에는 현재 세대와 바로 이전 세대만 남기고 나머지 세대 폴더를 지운다. 중단된 실행이 남긴 스테이징 폴더는 1시간이 지나면 다음 스테이징을 시작할 때 지운다(2026-11-02 재검수 발견4·5).
-- Vault에는 Vault 도구를 실행하는 네 경로로만 쓴다.
+- Vault에는 Vault 도구를 실행하는 여섯 경로로만 쓴다.
   1. publish-draft: `remember`(추가), `update_memory`(수정), `retire_memory`(폐기)에 `basis: stated`를 주면 Vault 검증을 통과하는 순간 확정된다.
-  2. `review propose`: 같은 세 도구에 `basis: inferred`를 주면 검토 항목을 만들고 `proposed`와 `review_path`를 돌려준다. 사람이 `review resolve <review_path> --status accepted`로 승인하면 Vault가 발행한다. 승인 전에는 회상과 검색에 나오지 않는다. 사람이 `--status rejected`로 거부하면 기억 페이지는 만들어지거나 바뀌지 않고, `wiki/log.md`에 "Review rejected" 한 줄만 더해진다(2026-11-02 사용자 결정).
+  2. `review propose`: 같은 세 도구에 `basis: inferred`를 주면 검토 항목을 만들고 `proposed`와 `review_path`를 돌려준다. 사람이 프로젝트 폴더에서 `vg review`로 수락하거나(경로 6), Vault 폴더에서 `review resolve <review_path> --status accepted`를 직접 실행하면 Vault가 발행한다. 승인 전에는 회상과 검색에 나오지 않는다. 사람이 `--status rejected`로 거부하면 기억 페이지는 만들어지거나 바뀌지 않고, `wiki/log.md`에 "Review rejected" 한 줄만 더해진다(2026-11-02 사용자 결정).
   3. 수집 실행기: `vg hook capture`가 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 세션 원문을 쓴다. vault-graph는 실행 시점과 넘길 정규화 파일을 정한다. 렌더링과 저장은 Vault 도구가 하고, Vault는 vault-graph가 고르지 않는다.
   4. `import-source`: L1 노트를 근거로 남길 때 vg가 Vault `import-source`를 실행한다. 복사는 Vault 명령이 한다.
-- 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 네 쓰기 경로를 실행하지 않는다. 색인은 `memory-scan --json`, `review list --json` 같은 읽기 전용 Vault 명령을 실행하고 결과를 Graph Home에 둘 수 있다.
-- vg는 기계가 만든 내용(요약, 목록, 점수)을 Vault에 쓰지 않는다. 에이전트나 사람이 판단한 내용만 경로 1, 2, 4로 들어간다.
+  5. 사실 첨부: 세션 수집이 끝나면 사실 추출 작업자가 그 세션에서 날짜가 붙은 사실을 뽑고 Vault `sessions attach-facts`를 실행한다. Vault 명령이 세션 part 파일 옆에 첨부 파일을 쓴다(`docs/contracts/vault-session-facts-v1.md`). 세션 원문 파일은 바뀌지 않는다.
+  6. `review resolve`: 사람이 친 `vg review` 명령(`vg review`의 수락·거절 선택, `vg review accept`, `vg review reject`)이 Vault `review resolve <review_path> --status accepted|rejected --resolution <이유> --json`을 실행한다. 대상은 연결된 Vault의 검토 대기열에 있는 기억 제안(memory-proposal)뿐이다. 수락하면 Vault가 발행하고 항목의 `resolution`에 "Published:"를 적는다. vg는 항목 파일, 위키 페이지, `wiki/log.md`를 직접 고치지 않는다. MCP 도구, 훅, 드리밍 작업자, 사실 추출 작업자, 색인, 회상은 이 경로를 실행하지 않고, 수락·거절하는 MCP 도구는 없다. `VAULT_GRAPH_FACTS_CHILD=1`인 세션에서는 `vg review`가 아무것도 읽거나 실행하지 않고 종료 코드 1로 끝난다. 한계: 에이전트가 셸에서 `vg review accept`를 직접 치는 것은 막지 못한다. Vault 명령도 같은 상태다(spec 2026-11-20, 2026-11-20 결정).
+- 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 여섯 쓰기 경로를 실행하지 않는다. 색인은 `memory-scan --json`, `review list --json` 같은 읽기 전용 Vault 명령을 실행하고 결과를 Graph Home에 둘 수 있다.
+- vg는 기계가 만든 내용(요약, 목록, 점수)을 Vault에 쓰지 않는다. 에이전트나 사람이 판단한 내용만 경로 1, 2, 4로 들어간다. 경로 6은 경로 2가 올린 제안을 수락하거나 거절할 뿐이다. 세션 사실 첨부(경로 5)만 예외이고, 원래 세션을 찾는 단서로만 색인한다.
 쓰지 않는 대상:
 
 - Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다.
@@ -156,7 +158,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
   - `basis`(`stated` 또는 `inferred`)는 세 도구 모두 필수이고 기본값이 없다.
   - 도구 스키마는 `basis`, `kind`(`decision`, `system`, `project`), `memory_kind`(`rule`, `correction`, `decision`, `preference`)의 허용 값을 enum으로 보인다(2026-11-02 의도 검수 F8).
   - `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 `cwd`로 쓴다. 그래서 다른 프로젝트 Vault에 쓰지 않는다(2026-11-02 의도 검수 F7).
-  - 결과 `status`는 `published`, `proposed`, `rejected`, `vault_required`, `error` 중 하나다. `proposed`면 `review_path`가 붙고, `messages`에 사람이 실행할 승인 명령 `review resolve <review_path> --status accepted --resolution "<reason>"`이 들어간다. `vault_required`면 후보 `{name, role}` 목록이 붙는다.
+  - 결과 `status`는 `published`, `proposed`, `rejected`, `vault_required`, `error` 중 하나다. `proposed`면 `review_path`가 붙고, `messages`에 사람이 실행할 승인 명령 `review resolve <review_path> --status accepted --resolution "<reason>"`과, 사람이 프로젝트 폴더에서 `vg review`를 실행해도 된다는 안내 한 줄이 들어간다. `vault_required`면 후보 `{name, role}` 목록이 붙는다.
   - 새 페이지의 저장 Vault는 결정12대로 고른다. `vault`는 `cwd` 프로젝트의 연결 Vault 안에서만 찾고, 연결되지 않은 이름이면 `rejected`와 연결 Vault 목록을 돌려준다. 새 페이지의 `vault_required` 메시지에는 기본 저장 Vault를 정하는 vault-builder 명령 `set-default-write --project <id>`가 들어간다(2026-11-03 F9). 수정·폐기는 `path`가 있는 연결 Vault를 찾는다. 하나면 그 Vault, 없으면 `rejected`, 둘 이상이면 `vault_required`다.
   - `published`면 MCP 서버가 그 Vault를 백그라운드로 색인한다(§4). 색인을 시작하면 `messages`의 "`vg index`를 실행하라" 안내가 "백그라운드로 색인 중" 안내로 바뀐다.
 - CLI `vg hook capture [--vault-map PATH] [--timeout S]`. 표준 입력으로 Claude Code PreCompact 또는 SessionEnd 훅 JSON을 받는다. 훅 JSON의 `transcript_path`를 Claude Code adapter로 정규화 JSONL `vg-session-jsonl/1`로 바꾸고(SessionEnd면 마지막 교환을 닫는다), `vault-map.json` 폴더의 `vault_hooks.py capture --direct --normalized <파일>`에 훅 JSON을 그대로 넘긴다(2026-11-05 spec 4.2.5). 정규화에 실패하거나, 실행기가 `--normalized`를 몰라 종료 코드 2로 끝나거나, 요청S10 전에 설치된 실행기가 usage 줄과 종료 코드 0으로 답하면 같은 훅에서 `capture --direct`로 다시 실행해 v1 파일을 쓰게 한다. 결과(`status`, `vault`, `path`)를 표준 오류에 한 줄로 요약한다. 종료 코드 0은 실행기가 정상으로 끝났음(written, no-new-turns, skipped 모두), 3은 실행기를 찾지 못했거나 실패했거나 시간 제한(기본 20초)을 넘었음이다. 3이면 훅 실행기가 직접 수집한다. 정규화 파일과 export 폴더(§4) 말고는 쓰지 않고 수집 뒤 색인하지 않는다. 수집한 원문은 다음 `vg hook session-start`의 색인 갱신이 반영한다.
@@ -179,7 +181,13 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 
 추가한다(2026-11-19 [기억 드리밍 spec](specs/2026-11-19-memory-dreaming/spec.md)):
 
-- CLI `vg dream on|off|status [--graph-home PATH]`. 드리밍은 기본으로 꺼져 있다. `status`는 설정, 프로젝트마다 마지막 실행, 드리밍이 보낸 제안의 승인·거부·대기 수와 승인율을 보이고, 저장 Vault의 대기 제안이 한도에 닿았으면 "stopped: pending cap reached" 줄을 보인다.
+- CLI `vg review [list|show ID|accept ID|reject ID --reason TEXT] [--cwd PATH] [--vault NAME] [--graph-home PATH] [--vault-map PATH]`(spec 2026-11-20). 프로젝트 폴더에 연결된 모든 Vault의 검토 대기열에서 기억 제안을 읽는다. Graph Home에 등록되지 않은 Vault도 읽는다.
+  - `vg review`는 대기 중인 제안을 하나씩 보여주고 수락, 거절, 건너뛰기, 그만두기를 묻는다. 제안마다 Vault 이름, 대상 페이지, 요약, 바뀌는 글, 근거 인용문을 보인다. 표준 입력과 표준 출력이 둘 다 터미널일 때만 묻고, 아니면 목록만 내고 0으로 끝난다. 건너뛴 제안은 다음 실행에 다시 나온다.
+  - `list`와 `show`는 읽기만 한다. `list`는 대기 중인 제안, 미발행 수락, 다른 종류의 대기 항목 수를 보인다. 기억 제안이 아닌 검토 항목은 처리하지 않는다.
+  - `accept`와 `reject`는 Vault `review resolve`를 실행한다(§4 경로 6). `reject`는 `--reason`이 필수이고 `accept`는 기본 이유가 있다. Vault가 `resolved`로 답했을 때만 수락 또는 거절로 알리고, 그 밖의 답은 실패이며 종료 코드 1이다. 제안 글을 여기서 고칠 수는 없다. 고치려면 거절하고 다시 제안한다.
+  - 수락으로 발행된 Vault는 분리된 프로세스가 백그라운드로 색인한다. 명령은 기다리지 않는다. 색인을 시작하지 못했거나 Vault가 등록되지 않았으면 손으로 색인하는 방법을 알리고 0으로 끝난다.
+  - 수락은 항목의 `status`가 `accepted`이고 `resolution`에 "Published:"가 있을 때만 수락으로 센다. `status`만 손으로 `accepted`로 고친 항목은 미발행(`unpublished`)이다. `vg review list`와 `vg dream status`가 이런 항목을 따로 보이고 고치는 방법을 알린다. 사람이 항목 파일의 `status`를 `pending`으로, `resolution`을 빈 값으로 되돌린 뒤 `vg review`로 수락한다. vg는 되돌리지 않는다.
+- CLI `vg dream on|off|status [--graph-home PATH]`. 드리밍은 기본으로 꺼져 있다. `status`는 설정, 프로젝트마다 마지막 실행, 드리밍이 보낸 제안의 승인·거부·대기·미발행 수와 승인율을 보이고(승인 수와 승인율에는 발행된 수락만 들어가고 미발행은 분자와 분모 어디에도 넣지 않는다), 저장 Vault의 대기 제안이 한도에 닿았으면 "stopped: pending cap reached" 줄을 보인다.
 - CLI `vg dream run [--cwd PATH] [--dry-run] [--graph-home PATH] [--vault-map PATH]`. 그 프로젝트의 드리밍을 한 번 손으로 실행한다. 켜짐 여부, 실행 간격, 실행 조건은 보지 않고 대기 한도는 지킨다. `--dry-run`은 판단까지만 하고 Vault와 드리밍 기록에 쓰지 않는다. 로그인된 Claude Code(`claude -p`, 도구 없음)를 실행한다.
 - `vg hook capture`는 수집 결과가 `written`이고 드리밍이 켜져 있으면 훅 JSON의 `cwd`로 분리된 드리밍 작업자(`vg dream worker`)를 띄운다. 기다리지 않고, 종료 코드와 출력은 그대로다. `logs/dream-worker.lock`이 잡혀 있으면 띄우지 않는다.
 - 드리밍 작업자가 하는 일:

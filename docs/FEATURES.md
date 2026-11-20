@@ -149,7 +149,8 @@ prints one notice that extraction is on.
 - **Command**: `vg dream on` and `vg dream off` switch it. `vg dream status`
   shows the settings, the last run of each project, how many dream proposals
   were accepted, rejected, or still wait, and whether a Vault reached the
-  pending cap. `vg dream run --cwd PATH` does one run by hand, and
+  pending cap. An accept counts only when the Vault published it. An item whose
+  `status` was changed by hand is listed as `unpublished` with how to fix it. `vg dream run --cwd PATH` does one run by hand, and
   `--dry-run` judges without sending anything.
 - **How it judges**: it runs the logged-in Claude Code as `claude -p` with model
   `claude-sonnet-5-5`, no tools, and no MCP servers. It uses your login, not
@@ -166,10 +167,38 @@ prints one notice that extraction is on.
      page at most once.
 - **Reads and writes**: every proposal goes through the Vault's
   `review propose` with `basis` `inferred`, at most 10 per run. You accept or
-  reject each one with the Vault's `review resolve`. Settings are in
+  reject each one with `vg review`. Settings are in
   `configs/dream.json`, runs in `logs/dream-runs.jsonl`, and exchanges judged
   without a proposal in `dream/judged.jsonl`, all in the Data Home. An exchange
   judged without a proposal still shows up in a manual memory cleanup.
+
+### Reviewing memory proposals
+
+- **What it does**: shows the memory proposals that wait in the review queues
+  of the project's linked Vaults, and accepts or rejects them. Proposals come
+  from dreaming and from MCP writes with `basis` `inferred`.
+- **When it runs**: only when a person runs `vg review` in the project folder.
+  No MCP tool, hook, or background worker accepts or rejects a proposal.
+- **Command**:
+  1. `vg review` shows each waiting proposal with its Vault, target page,
+     summary, the text it changes, and its evidence, then asks accept, reject,
+     skip, or quit. A skipped proposal comes back next time. It asks only in a
+     terminal. Anywhere else it prints the list.
+  2. `vg review list` lists the waiting proposals, accepts that were never
+     published, and how many other review items wait.
+  3. `vg review show ID` shows one proposal.
+  4. `vg review accept ID` accepts one. `vg review reject ID --reason TEXT`
+     rejects one.
+- **Reads and writes**: it reads the Vault review queue (`scratch/review/`).
+  Accept and reject run the Vault's `review resolve`. vg never edits a Vault
+  file. After an accept the Vault publishes the page, and vg indexes that Vault
+  in the background.
+- **Limits**: it handles memory proposals only. The proposal text cannot be
+  edited here: reject it and propose again. vg cannot stop an agent that types
+  `vg review accept` in a shell. If you set an item's `status` to `accepted`
+  by hand, nothing is published. Set `status` back to `pending` and
+  `resolution` to an empty value in the item file, then accept it with
+  `vg review`.
 
 ### Memory writes
 
@@ -195,8 +224,9 @@ All tools except `import_auto_memory` require `basis`:
    The result is `published` or `rejected`.
 2. `inferred`: the agent concluded it. Nothing is published. The Vault's
    `review propose` puts it in the Vault review queue (`scratch/review/`), and
-   the result is `proposed` with a `review_path`. A person accepts it with the
-   Vault's `review resolve`. A proposal is not in recall or search until then.
+   the result is `proposed` with a `review_path`. A person accepts it with
+   `vg review` in the project folder. A proposal is not in recall or search
+   until then.
 
 `remember`, `update_memory`, and `supersede_claim` take an optional `quote`.
 When `basis` is `stated` and the evidence names a session file
@@ -348,6 +378,7 @@ or local HTTP acceptance tests.
 | Session capture | `vg hook capture` (PreCompact and SessionEnd hooks) | - | - | Normalized session handed to the Vault hook launcher |
 | Session fact extraction | `vg facts on`, `vg facts off`, `vg facts status`, `vg facts worker` | - | - | Facts per session exchange, written by the Vault's `sessions attach-facts` |
 | Dreaming | `vg dream on`, `vg dream off`, `vg dream status`, `vg dream run` | - | - | `inferred` memory proposals in the Vault review queue |
+| Review memory proposals | `vg review`, `vg review list`, `vg review show ID`, `vg review accept ID`, `vg review reject ID --reason TEXT` | - | - | Waiting proposals with the text they change, then `accepted` or `rejected` by the Vault's `review resolve` |
 | Export sessions | `vg session export --agent claude-code --out PATH` | - | - | Raw copies and normalized session files outside every Vault |
 | Write memory | - | `remember`, `update_memory`, `retire_memory`, `supersede_claim`, `restore_memory`, `import_auto_memory` | - | `published`, `proposed` (review queue), `rejected`, or `vault_required` |
 | Clean up memory | - | `list_memory_candidates`, `mark_candidates_reviewed`, prompt `curate_memory` | - | Cleanup candidates with comparison pages and keys |

@@ -2,17 +2,29 @@
 
 The queue is ``scratch/review/<review_id>.md`` (Vault ``tools/wiki/lib/review.py``). It is never
 indexed, so session start recall reads the item frontmatter from disk. Nothing is written.
+
+``review_item_state`` tells a published accept from a ``status`` a person set to ``accepted`` by hand
+(spec 2026-11-20 D7): the Vault's accept publishes the draft and then writes
+``resolution: "<reason> Published: <paths>."`` (Vault ``tools/wiki/lib/memory_proposal.py`` ``accept``).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from vault_graph.operation.scope.vault_catalog import VaultCatalog
 from vault_graph.operation.scope.vault_frontmatter import parse_vault_frontmatter, split_frontmatter
 
 REVIEW_QUEUE = Path("scratch") / "review"
 MEMORY_PROPOSAL_TYPE = "memory-proposal"
+PUBLISHED_MARK = "Published:"
+# What a person does with an unpublished accept. vault-graph never edits the item itself (I1).
+UNPUBLISHED_FIX = (
+    "set `status` to `pending` and `resolution` to an empty value in the item file, then accept it with `vg review`"
+)
+
+ReviewItemState = Literal["pending", "accepted", "unpublished", "rejected", "resolved", "missing"]
 
 
 class VaultReviewQueue:
@@ -35,23 +47,36 @@ def pending_proposals(vault_root: Path) -> int:
     )
 
 
-def review_item_status(vault_root: Path, review_path: str) -> str | None:
-    """Frontmatter ``status`` of one review item (``pending``, ``accepted``, ``rejected``, ``resolved``).
+def review_item_state(vault_root: Path, review_path: str) -> ReviewItemState:
+    """Review state of one review item, read from its frontmatter.
 
-    None when the item is gone, unreadable, outside the review queue or has no status.
+    ``accepted`` means the Vault published the draft: ``status`` is ``accepted`` and ``resolution`` holds
+    "Published:". ``unpublished`` is ``status: accepted`` without that mark, which is what a hand edit of the
+    file leaves. ``pending``, ``rejected`` and ``resolved`` are the item's own status. ``missing`` is an item
+    that is gone, unreadable, outside the review queue or without one of the four Vault statuses.
     """
     queue = (vault_root / REVIEW_QUEUE).resolve()
     item = (vault_root / review_path).resolve()
     if not item.is_relative_to(queue) or not item.is_file():
-        return None
+        return "missing"
     try:
         block = split_frontmatter(item.read_text(encoding="utf-8", errors="replace"))
     except OSError:
-        return None
+        return "missing"
     if block is None:
-        return None
-    status = parse_vault_frontmatter(block[0]).get("status")
-    return status if isinstance(status, str) and status else None
+        return "missing"
+    fields = parse_vault_frontmatter(block[0])
+    status = fields.get("status")
+    if status == "accepted":
+        resolution = fields.get("resolution")
+        return "accepted" if isinstance(resolution, str) and PUBLISHED_MARK in resolution else "unpublished"
+    if status == "pending":
+        return "pending"
+    if status == "rejected":
+        return "rejected"
+    if status == "resolved":
+        return "resolved"
+    return "missing"
 
 
 def _is_pending_proposal(text: str) -> bool:
@@ -62,4 +87,11 @@ def _is_pending_proposal(text: str) -> bool:
     return fields.get("type") == MEMORY_PROPOSAL_TYPE and fields.get("status") == "pending"
 
 
-__all__ = ["VaultReviewQueue", "pending_proposals", "review_item_status"]
+__all__ = [
+    "PUBLISHED_MARK",
+    "UNPUBLISHED_FIX",
+    "ReviewItemState",
+    "VaultReviewQueue",
+    "pending_proposals",
+    "review_item_state",
+]

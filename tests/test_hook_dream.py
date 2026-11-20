@@ -280,7 +280,11 @@ def test_status_counts_only_dream_proposals_and_says_why_dreaming_stopped(world:
     queue.mkdir(parents=True)
 
     def item(name: str, status: str, kind: str = "memory-proposal") -> str:
-        (queue / name).write_text(f"---\ntype: {kind}\nstatus: {status}\n---\n# item\n", encoding="utf-8")
+        # The Vault's accept writes "Published:" into the resolution; without it an accept is not counted.
+        resolution = 'resolution: "ok Published: wiki/a.md."\n' if status == "accepted" else ""
+        (queue / name).write_text(
+            f"---\ntype: {kind}\nstatus: {status}\n{resolution}---\n# item\n", encoding="utf-8"
+        )
         return f"scratch/review/{name}"
 
     sent = [item("a.md", "accepted"), item("b.md", "accepted"), item("c.md", "rejected"), item("d.md", "pending")]
@@ -318,7 +322,7 @@ def test_status_counts_only_dream_proposals_and_says_why_dreaming_stopped(world:
     assert result.exit_code == 0, result.output
     assert "runs: 1" in result.output
     assert "last_run: project 2026-11-19T01:00:00Z ran judged=12 proposals=5" in result.output
-    assert "proposals: sent=5 accepted=2 rejected=1 pending=1 other=1" in result.output
+    assert "proposals: sent=5 accepted=2 rejected=1 pending=1 unpublished=0 other=1" in result.output
     assert "acceptance_rate: 0.67 of 3 resolved" in result.output
     assert "stopped:" not in result.output
 
@@ -354,5 +358,5 @@ def test_status_shows_the_pending_cap_stop_before_any_dream_proposal_exists(worl
     result = runner.invoke(app, ["dream", "status", "--graph-home", str(graph_home)])
 
     assert "last_run: project 2026-11-19T01:00:00Z skipped pending_cap judged=0 proposals=0" in result.output
-    assert "proposals: sent=0 accepted=0 rejected=0 pending=0 other=0" in result.output
+    assert "proposals: sent=0 accepted=0 rejected=0 pending=0 unpublished=0 other=0" in result.output
     assert "stopped: pending cap reached in proj-vault (10 waiting, cap 10)" in result.output
