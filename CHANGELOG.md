@@ -3,7 +3,7 @@
 Each release lists its user-visible changes, newest first. Sources: git tags,
 commit history, and `docs/PATCH_LOG.md`. Dates are the tag dates.
 
-## Unreleased
+## v0.8.0 - 2026-11-20
 
 - Added dreaming: after a captured session, a background worker judges waiting session exchanges and sends memory proposals to the Vault review queue. It never publishes.
 - Added `vg dream on`, `vg dream off`, `vg dream status`, and `vg dream run [--dry-run]`. Dreaming is off by default.
