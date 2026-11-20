@@ -340,84 +340,84 @@ Claude Code가 Bash로 `vg review accept ID`를 치면 사람 없이 수락된�
 ### A1. 프로젝트 폴더에서 연결된 모든 Vault의 제안을 본다
 - covers: D2, D3, I4, F8
 - check: tests/test_cli_review.py
-- evidence:
+- evidence: tests/test_cli_review.py — "test_list_shows_the_proposals_of_both_vaults_and_only_counts_other_review_items", "test_show_and_list_leave_every_vault_and_graph_home_file_unchanged", "test_a_folder_with_no_linked_vault_points_to_vg_setup_and_exits_1", "test_no_pending_proposal_says_so_and_exits_0", "test_an_unknown_id_exits_1_without_running_the_vault", "test_an_id_in_two_vaults_names_both_and_asks_for_the_vault_option" (104 passed, 1 skipped)
 
 Vault 두 개가 연결된 프로젝트에서 `vg review list`가 두 Vault의 제안을 Vault 이름과 함께 내고, memory-proposal이 아닌 항목은 수로만 낸다. `list`와 `show` 전후로 두 Vault와 Graph Home의 모든 파일 sha256이 같다. 연결 Vault 없음, 제안 없음, 없는 ID, 두 Vault에 있는 ID가 정해진 메시지와 종료 코드를 낸다.
 
 ### A2. 바뀌는 글과 근거가 초안 모양별로 나온다
 - covers: D4, F9
 - check: tests/test_proposal_change.py, tests/test_cli_review.py
-- evidence:
+- evidence: tests/test_proposal_change.py — "test_new_page_shows_the_whole_page_and_its_evidence_lines", "test_upsert_on_an_existing_page_shows_the_body_diff_and_the_changed_frontmatter_keys", "test_retire_draft_shows_the_frontmatter_keys_as_written_and_no_result_page", "test_supersede_claim_shows_the_old_claim_the_new_claim_and_the_evidence"; tests/test_cli_review.py — "test_show_prints_the_whole_new_page_with_korean_text_and_the_quote", "test_a_proposal_with_an_unreadable_draft_is_listed_with_the_reason_and_cannot_be_accepted"
 
 새 페이지 초안은 전체 글, 기존 페이지 `upsert-page`는 본문 diff와 달라지는 frontmatter 키, 폐기 초안은 바뀌는 frontmatter 키, 주장 교체 초안은 옛 주장·새 주장·근거가 나온다. 한국어 본문과 인용문이 깨지지 않는다. 초안이 없거나 깨진 제안은 이유와 함께 목록에 나오고 수락이 거부된다.
 
 ### A3. 어댑터는 Vault의 계약 JSON만 읽고 실패를 수락으로 알리지 않는다
 - covers: D9, I5, F2, F3, F4, F5
 - check: tests/test_vault_review_cli.py
-- evidence:
+- evidence: tests/test_vault_review_cli.py — "test_accept_runs_review_resolve_json_from_the_vault_root_and_reads_written_paths", "test_target_changed_is_a_failure_with_the_vault_message_and_reject_then_propose_guidance", "test_a_publish_refusal_is_a_failure_with_the_vault_messages_unchanged", "test_exit_code_2_asks_for_contract_4_migration", "test_output_that_is_not_json_is_an_error_with_the_last_lines", "test_timeout_stops_the_process_and_says_the_result_is_unknown", "test_vault_without_tools_is_an_error_that_names_the_missing_file"; F2 and I5 in the interactive flow: tests/test_cli_review.py "test_an_accept_refused_because_the_page_changed_asks_again_so_it_can_be_rejected" (exit 1, failed=1)
 
 대역 `cli.py`로 resolved, `target-changed`, 발행 거부, 종료 코드 2, JSON이 아닌 출력, 시간 초과, 파일 없음을 만들고 결과 종류와 메시지를 확인한다. 실행 인자가 `review resolve <path> --status <s> --resolution <text> --json`이고 작업 폴더가 Vault 폴더임을 확인한다.
 
 ### A4. 대화형은 터미널에서만 묻고 자식 세션에서는 거부한다
 - covers: D5, F6, F7
 - check: tests/test_cli_review.py
-- evidence:
+- evidence: tests/test_cli_review.py — "test_without_a_terminal_the_bare_command_lists_and_says_a_terminal_is_needed", "test_a_fact_or_dream_child_session_is_refused_before_anything_is_read"
 
 터미널이 아닌 입력으로 `vg review`를 실행하면 목록만 나오고 Vault 명령이 실행되지 않는다. `VAULT_GRAPH_FACTS_CHILD=1`에서 `list`, `show`, `accept`, `reject`, 인자 없는 실행이 모두 종료 코드 1이고 Vault 명령이 실행되지 않는다.
 
 ### A5. `review resolve` 실행 코드는 `vg review`에서만 닿는다
 - covers: D1, I1, I2
 - check: tests/test_review_write_boundary.py
-- evidence:
+- evidence: tests/test_review_write_boundary.py — "test_only_review_commands_imports_the_review_resolve_adapter", "test_no_mcp_tool_accepts_or_rejects_a_proposal", "test_the_review_modules_hold_no_write_call", "test_accept_and_reject_with_a_stand_in_adapter_leave_every_vault_file_unchanged"
 
 소스의 import를 읽어 `vault_review_cli`를 가져오는 모듈이 `interface/cli/review_commands.py` 하나임을 확인한다. MCP 도구 이름 목록에 수락·거절 도구가 없음을 확인한다. `review_commands.py`, `vault_review_queue.py`, `proposal_change.py`에 파일을 쓰는 호출이 Vault 경로를 향하지 않음을 대역 어댑터로 돌린 수락·거절 전후의 Vault 파일 sha256으로 확인한다.
 
 ### A6. 미발행 수락은 수락 수와 수락률에서 빠지고 따로 보인다
 - covers: D7, I3, F1
 - check: tests/test_vault_review_queue.py, tests/test_cli_dream_status_published.py
-- evidence:
+- evidence: tests/test_cli_dream_status_published.py — "test_a_hand_edited_accept_is_left_out_of_the_accepted_count_and_the_rate", "test_every_state_is_counted_and_each_unpublished_item_gets_one_line"; tests/test_vault_review_queue.py — "test_state_follows_the_status_and_the_published_mark"; tests/test_cli_review.py — "test_a_hand_edited_accept_is_listed_apart_and_accept_refuses_it_without_running_the_vault"
 
 드리밍 제안 기록 세 개(발행된 수락, 손으로 고친 수락, 거절)로 `vg dream status`가 `accepted=1 rejected=1 unpublished=1`과 수락률 0.50을 내고, 미발행 수락의 Vault 이름·경로·고치는 방법을 낸다. `vg review list`도 그 항목을 따로 묶어 보여주고, `vg review accept`는 Vault를 실행하지 않고 안내를 낸다.
 
 ### A7. 수락으로 발행된 Vault의 색인이 한 번 시작되고 명령은 기다리지 않는다
 - covers: D8, F10
 - check: tests/test_cli_review.py
-- evidence:
+- evidence: tests/test_cli_review.py — "test_two_accepts_in_one_vault_start_its_index_once", "test_a_reject_starts_no_index", "test_an_accept_that_wrote_no_path_starts_no_index", "test_an_index_that_cannot_start_gives_the_vg_index_command_and_exit_code_0", "test_an_accept_in_a_vault_that_is_not_registered_gives_the_vg_index_hint_and_exit_code_0"
 
 한 Vault에서 두 제안을 수락한 실행이 색인 시작을 그 Vault에 대해 한 번 부른다. 거절만 한 실행과 실패한 수락은 부르지 않는다. 시작하지 못한 경우와 등록되지 않은 Vault에서는 `vg index` 안내가 나오고 종료 코드가 0이다.
 
 ### A8. 거절에는 이유가 있어야 하고 수락에는 기본 이유가 들어간다
 - covers: D6, F11
 - check: tests/test_cli_review.py
-- evidence:
+- evidence: tests/test_cli_review.py — "test_a_reject_without_a_reason_is_a_usage_error_and_the_vault_is_not_run", "test_an_accept_without_a_reason_passes_the_default_text_as_the_resolution"
 
 `reject`에 이유가 없거나 공백뿐이면 Vault 명령이 실행되지 않는다. 이유 없는 `accept`는 기본 문구를 `--resolution`으로 넘긴다.
 
 ### A9. 실제 vault-builder 도구로 수락과 거절이 끝까지 돈다
 - covers: D1, D2, D7, D8, I1, I5
 - check: tests/e2e/test_review_accept.py
-- evidence:
+- evidence: command run by the reviewer — `VAULT_BUILDER_ROOT=$HOME/workspace/vault-builder uv run pytest tests/e2e/test_review_accept.py -q` → `1 passed in 63.39s` (test "test_a9_vg_review_accepts_and_rejects_through_the_real_vault_tools")
 
 기존 e2e와 같은 방법으로 실제 Vault 도구를 쓰는 Vault를 만든다. 추론 제안 둘을 올린 뒤 `vg review accept`로 하나를 수락하면 대상 페이지가 생기고 항목 `resolution`에 "Published:"가 있으며 상태 판정이 `accepted`다. 그 뒤 색인이 끝나면 그 페이지가 검색에 나온다. `vg review reject --reason`으로 다른 하나를 거절하면 페이지는 생기지 않는다. 셋째 항목의 `status`를 테스트가 손으로 `accepted`로 고치면 상태 판정이 `unpublished`다.
 
 ### A10. 규칙 문서와 안내가 여섯째 길과 `vg review`를 적는다
 - covers: D1, D5, D10
 - check: 수동: AGENTS.md, docs/SPEC.md 원칙4·§4·§5, docs/ARCHITECTURE.md §4, docs/DECISIONS.md, README.md, docs/FEATURES.md를 읽고 길 수와 조건, 한계, 명령 안내가 서로 맞는지 본다
-- evidence:
+- evidence: 수동 — read AGENTS.md, docs/SPEC.md 원칙4·§4·§5, docs/ARCHITECTURE.md §4, docs/DECISIONS.md, README.md and docs/FEATURES.md, and check that the six paths, the condition, the limit and the `vg review` guidance agree
 
 세 규칙 문서가 같은 여섯 길을 같은 순서로 적는다. DECISIONS 새 항목에 조건(사람이 친 `vg review`에서만)과 한계(셸로 치는 에이전트는 막지 못함)가 있다. `vg dream status`의 대기 한도 안내와 README가 `vg review`를 가리킨다.
 
 ### A11. 사람이 터미널에서 명령 하나로 읽고 고른다
 - covers: D2, D4, D5
 - check: 수동: 대기 제안이 있는 프로젝트 폴더의 터미널에서 vg review를 실행해 하나를 수락하고 하나를 건너뛴 뒤 vg dream status를 본다
-- evidence:
+- evidence: 수동 — in a terminal, in a project folder with waiting proposals, run `vg review`, accept one and skip one, then run `vg dream status
 
 Vault 폴더로 이동하거나 파일 경로를 입력하지 않고 끝난다. 건너뛴 제안은 다음 실행에 다시 나온다.
 
 ### A12. 사용자가 준 한계를 지킨다
 - covers: I6
 - check: 수동: ruff, mypy, 전체 테스트를 실행하고 git 브랜치와 vault-builder 저장소의 변경 여부를 본다
-- evidence:
+- evidence: 수동 — run ruff, mypy and the full suite, and check the branch and the vault-builder repository. Reviewer's reference results: `uv run ruff check` → `All checks passed!`; `uv run mypy src` → `Success: no issues found in 276 source files`; bake-verify.log → `3939 passed, 22 skipped`; `git branch --contains HEAD` → only `feat/jh/agent-memory-dream`; vault-builder `git status --short` → empty
 
 ruff, mypy, 전체 테스트가 통과한다. 커밋은 `feat/jh/agent-memory-dream`에만 있다. vault-builder 저장소에 변경이 없다. MCP 도구 수와 이름이 그대로다.
 
