@@ -593,6 +593,33 @@ def test_a_failed_interactive_accept_is_counted_as_failed_and_the_exit_code_is_1
     assert world.index.calls == []
 
 
+def test_an_accept_refused_because_the_page_changed_asks_again_so_it_can_be_rejected(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proposal(world.team, "t1", NEW_PAGE_DRAFT)
+    refused = ReviewResolveOutcome(
+        "rejected", reason="target-changed", messages=("Target page changed.",), guidance=("Reject it.",)
+    )
+    answers = iter([refused, ReviewResolveOutcome("resolved")])
+    statuses: list[str] = []
+
+    class Cli:
+        def resolve(self, vault_root: Path, review_path: str, *, status: str, resolution: str) -> ReviewResolveOutcome:
+            statuses.append(status)
+            return next(answers)
+
+    monkeypatch.setattr(review_commands, "VaultReviewCli", Cli)
+    monkeypatch.setattr(review_commands, "_is_terminal", lambda: True)
+
+    result = world.interactive("a\nr\npage changed\n")
+
+    assert result.exit_code == 0, result.output
+    assert statuses == ["accepted", "rejected"]
+    assert "Reject it." in result.output
+    assert "review: accepted=0 rejected=1 skipped=0" in result.output
+    assert "failed=" not in result.output
+
+
 # I5: only what the Vault resolved is reported as accepted or rejected.
 
 

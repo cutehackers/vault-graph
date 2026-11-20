@@ -181,8 +181,10 @@ def _body_diff(current_body: str, proposed_body: str) -> tuple[str, ...]:
     """Line diff of the two bodies. Blank lines at either end are not compared."""
     before = current_body.strip("\n").splitlines()
     after = proposed_body.strip("\n").splitlines()
-    diff = difflib.unified_diff(before, after, lineterm="", n=_DIFF_CONTEXT_LINES)
-    return tuple(line for line in diff if not line.startswith(("--- ", "+++ ")) and line not in ("---", "+++"))
+    diff = list(difflib.unified_diff(before, after, lineterm="", n=_DIFF_CONTEXT_LINES))
+    # The first two lines are the file headers. They are dropped by position, never by content: a body line such
+    # as "-- comment" shows up as "--- comment" and must stay.
+    return tuple(diff[2:])
 
 
 def _body_evidence(body: str) -> tuple[str, ...]:
