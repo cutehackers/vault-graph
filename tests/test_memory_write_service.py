@@ -360,6 +360,8 @@ def test_inferred_basis_is_proposed_for_review_instead_of_published(
     assert (vault_root, sent_summary, timeout_s) == (main.path, summary, PUBLISH_TIMEOUT_SECONDS)
     assert writer.drafts[0]["operation"] == operation_name
     assert sum(APPROVAL_LINE in message for message in result.messages) == 1
+    # The person can also review from the project folder with `vg review` (spec 2026-11-20 D10).
+    assert sum("`vg review` in the project folder" in message for message in result.messages) == 1
     assert not any("next index" in message for message in result.messages)
 
 

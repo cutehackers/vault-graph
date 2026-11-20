@@ -32,6 +32,7 @@ from vault_graph.interface.cli.harness_commands import harness_app
 from vault_graph.interface.cli.hook_commands import hook_app
 from vault_graph.interface.cli.project_commands import project_app
 from vault_graph.interface.cli.reranker_commands import reranker_app
+from vault_graph.interface.cli.review_commands import review_app
 from vault_graph.interface.cli.session_commands import session_app
 from vault_graph.interface.composition.adapters.text_embeddings import (
     FastEmbedTextEmbeddings,
@@ -121,6 +122,7 @@ app.add_typer(embedding_app, name="embedding")
 app.add_typer(facts_app, name="facts")
 app.add_typer(dream_app, name="dream")
 app.add_typer(reranker_app, name="reranker")
+app.add_typer(review_app, name="review")
 app.add_typer(session_app, name="session")
 app.command("doctor")(doctor)
 

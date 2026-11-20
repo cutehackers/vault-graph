@@ -80,8 +80,8 @@ command or tool if you want to run it yourself.
    conversation. It is on by default. `vg facts off` turns it off.
    - By hand: `vg facts status` to see the queue, `vg facts worker` to process it.
    - Optional: `vg dream on` also lets a background worker propose memories from
-     saved sessions. Nothing is saved until you accept a proposal in the Vault
-     review queue. `vg dream status` shows what it sent.
+     saved sessions. Nothing is saved until you accept a proposal with
+     `vg review`. `vg dream status` shows what it sent.
 4. **After Claude saves a memory you stated**, Vault Graph re-indexes that Vault
    in the background, so the new page shows up in search and in the next
    session's summary.
@@ -89,10 +89,10 @@ command or tool if you want to run it yourself.
 5. **When Claude infers a memory instead of hearing it from you**, it is not
    saved yet. It waits in the Vault's review queue until you accept it. Until
    then it does not appear in search or in the session summary.
-   - By hand, in the Vault folder: `python3 tools/wiki/cli.py review list --status pending`
-     lists them, and
-     `python3 tools/wiki/cli.py review resolve <review_path> --status accepted --resolution "<reason>"`
-     accepts one.
+   - By hand, in the project folder: `vg review` shows each waiting proposal
+     with the text it changes and its evidence, and asks whether to accept,
+     reject, or skip it. An accepted memory is indexed in the background.
+     `vg review list` only lists them.
 
 Claude uses MCP tools for the rest: `search_vault` and `ask_vault` to look
 things up, and `remember` or `update_memory` to save memory. For every feature,
@@ -109,6 +109,7 @@ tool, and file it reads or writes, see [docs/FEATURES.md](docs/FEATURES.md).
 | Ask with evidence | `vg ask "question"` |
 | Fact extraction status | `vg facts status` |
 | Dreaming status | `vg dream status` |
+| Review memory proposals | `vg review` |
 | Show embedding model | `vg embedding list --graph-home ~/.vault-graph` |
 | Change model or model folder | `vg embedding use arctic-m --models-dir /path/to/models --graph-home ~/.vault-graph` |
 

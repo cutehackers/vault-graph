@@ -10,6 +10,10 @@ commit history, and `docs/PATCH_LOG.md`. Dates are the tag dates.
 - Dreaming runs the logged-in `claude -p` without tools and checks every quote against what the user typed in the cited exchange.
 - Dreaming also checks existing memory pages against later session exchanges on the same topic and proposes corrections.
 - Dreaming never changes a pinned page or the project brief, and stops while 10 proposals wait for review in the write Vault.
+- Added `vg review`: in the project folder it shows each waiting memory proposal with the text it changes and its evidence, and asks accept, reject, or skip. `vg review list`, `show ID`, `accept ID`, and `reject ID --reason TEXT` do one step each.
+- An accepted proposal is published by the Vault's `review resolve`, and that Vault is indexed in the background.
+- `vg dream status` counts an accept only when the Vault published it. An item whose `status` was changed by hand is listed as `unpublished` with how to fix it, and is left out of the acceptance rate.
+- The `proposed` result of the memory tools and the MCP server instructions now also point to `vg review`.
 - `remember`, `update_memory`, and `supersede_claim` accept `quote`. A `stated` write whose evidence names a session file now needs the exchange location (`<path> L<a>-L<b>`) and the user's own words in `quote`. It is rejected when the words are not in what the user typed in that exchange.
 
 ## v0.7.0 - 2026-11-18

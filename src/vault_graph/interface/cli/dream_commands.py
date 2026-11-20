@@ -3,7 +3,8 @@
 Dreaming is off when `configs/dream.json` does not exist. `on` and `off` keep the saved model and limits and
 replace a broken file with the defaults. `status` shows the settings in use, the reason a broken file was
 rejected, the last run of each project, how many dream proposals were accepted, rejected or still wait, and
-whether a write Vault is at the pending cap.
+whether a write Vault is at the pending cap. An accept counts only when the Vault published it; an item whose
+`status` was set to `accepted` by hand is counted as unpublished and listed with how to fix it (spec 2026-11-20 D7).
 
 `run` does one dream run for a project folder by hand. It does not look at on or off, at the time since the last
 run, or at whether a run is due; the pending cap still holds. `--dry-run` judges and prints what it would
@@ -173,12 +174,18 @@ def _echo_run(result: DreamRun) -> None:
 def _echo_runs(graph_home: Path, settings: DreamSettings) -> None:
     """The last run of each project, the review state of every dream proposal, and Vaults at the pending cap."""
     from vault_graph.interface.composition.adapters.dream_worker import PROPOSAL_RECORD, RUN_RECORD, read_dream_runs
-    from vault_graph.interface.composition.adapters.vault_review_queue import pending_proposals, review_item_status
+    from vault_graph.interface.composition.adapters.vault_review_queue import (
+        UNPUBLISHED_FIX,
+        pending_proposals,
+        review_item_state,
+    )
 
     records = read_dream_runs(graph_home)
     last: dict[str, Mapping[str, Any]] = {}
     states: dict[str, int] = {}
     vault_roots: dict[str, str] = {}
+    # Accepts the Vault never published, keyed by item file so a repeated record gives one line.
+    unpublished_items: dict[Path, str] = {}
     run_count = 0
     for record in records:
         vault, root = record.get("vault"), record.get("vault_root")
@@ -191,8 +198,10 @@ def _echo_runs(graph_home: Path, settings: DreamSettings) -> None:
         elif record.get("record") == PROPOSAL_RECORD:
             review_path = record.get("review_path")
             if isinstance(root, str) and isinstance(review_path, str):
-                state = review_item_status(Path(root), review_path) or "missing"
+                state = review_item_state(Path(root), review_path)
                 states[state] = states.get(state, 0) + 1
+                if state == "unpublished":
+                    unpublished_items[Path(root) / review_path] = vault if isinstance(vault, str) else "-"
     typer.echo(f"runs: {run_count}")
     for project, record in sorted(last.items()):
         reason = f" {record['reason']}" if record.get("reason") else ""
@@ -202,19 +211,26 @@ def _echo_runs(graph_home: Path, settings: DreamSettings) -> None:
         )
     sent_total = sum(states.values())
     accepted, rejected, pending = states.get("accepted", 0), states.get("rejected", 0), states.get("pending", 0)
+    unpublished = states.get("unpublished", 0)
     typer.echo(
         f"proposals: sent={sent_total} accepted={accepted} rejected={rejected} pending={pending} "
-        f"other={sent_total - accepted - rejected - pending}"
+        f"unpublished={unpublished} other={sent_total - accepted - rejected - pending - unpublished}"
     )
+    # An unpublished accept is in neither side of the rate: nothing was published and nothing was rejected (I3).
     if accepted + rejected:
         typer.echo(f"acceptance_rate: {accepted / (accepted + rejected):.2f} of {accepted + rejected} resolved")
+    for item_path, vault_name in unpublished_items.items():
+        typer.echo(
+            f"unpublished: {vault_name} {item_path} is marked accepted but nothing was published. "
+            f"To fix: {UNPUBLISHED_FIX}."
+        )
     # Every Vault a run looked at is checked now, so the stop shows even before any dream proposal exists.
     for vault, root in sorted(vault_roots.items()):
         waiting = pending_proposals(Path(root))
         if waiting >= settings.pending_cap:
             typer.echo(
                 f"stopped: pending cap reached in {vault} ({waiting} waiting, cap {settings.pending_cap}). "
-                "Resolve them with the Vault's `review resolve`."
+                "Accept or reject them with `vg review`."
             )
 
 

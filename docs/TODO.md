@@ -354,7 +354,7 @@ Status: left open after the 2026-11-13 final measurement
   add Korean `aliases` to all wiki pages before the release. Vault Graph does
   not write this content. It goes through the Vault's own tools.
 - 남은4 Three inferred memory proposals wait in the Vault review queues. A
-  person accepts or rejects each one with the Vault's review resolve.
+  person accepts or rejects each one with `vg review`.
 - 남은5 One memory candidate is held, not published and not skipped. It needs a
   user decision.
 - 남은7 Median age of pending session exchanges is 6.62 days against the 7 day
@@ -368,7 +368,7 @@ Status: left open after the 2026-11-19 dry run
 
 - Acceptance rate of dream proposals has no value yet. The pass condition is
   0.7 or more over the first 30 resolved proposals. A person turns dreaming on
-  (`vg dream on`) and resolves proposals with the Vault's review resolve.
+  (`vg dream on`) and resolves proposals with `vg review`.
   `vg dream status` reports the rate.
 - The 26 backlog questions written before dreaming score 0 remembered and 0
   context hit. Run `tests/benchmarks/measure_dream_backlog.py` again with the
@@ -393,6 +393,13 @@ Status: left open after the 2026-11-19 dry run
 - A page check does not notice that a person published the same exchange by
   hand while the judge ran. Only the `verify:` key is tested.
 - A first batch that fails is tried again every hour with the same candidates.
+- vg cannot repair a review item whose `status` a person set to `accepted` by
+  hand. Nothing was published, and the Vault refuses it as already accepted.
+  `vg review list` and `vg dream status` report it as `unpublished`, and the
+  person has to edit the item file back to `pending`. The repair needs a
+  vault-builder change: `review resolve` should continue publishing an
+  accepted memory proposal that has no "Published:" in its `resolution`, and
+  the Vault lint should warn about such an item.
 
 ## CLI And Operations
 
