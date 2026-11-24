@@ -388,84 +388,84 @@ vault-map.json을 이 작업에서 열지 않아 등록 프로젝트 수를 모�
 ### A1. 설정 파일이 `run_at`을 읽고 쓴다
 - covers: D1, D6, I5, F7, F8
 - check: tests/test_dream_settings.py
-- evidence:
+- evidence: tests/test_dream_settings.py: test_missing_file_runs_at_one_in_the_morning, test_a_version_1_file_without_run_at_still_reads_from_the_file, test_a_valid_run_at_is_read_from_the_file, test_a_bad_run_at_breaks_the_whole_file, test_saving_always_writes_run_at_with_version_1 (bake-verify.log: 4027 passed, 22 skipped)
 
 없는 파일은 `run_at="01:00"`이다. `run_at`이 없는 버전 1 파일은 `source="file"`, 01:00이고 `enabled`와 한도는 파일 값이다. "00:00", "23:59"는 받는다. "1:00", "24:00", "01:60", 숫자 1, 빈 문자열은 `broken`이다. 저장한 파일에는 언제나 `run_at`이 있다.
 
 ### A2. `vg dream at`이 시각을 검사하고 저장한다
 - covers: D6, F8, F9
 - check: tests/test_cli_dream_schedule.py
-- evidence:
+- evidence: tests/test_cli_dream_schedule.py: test_at_saves_the_time_and_reinstalls_when_dreaming_is_on, test_at_only_saves_while_dreaming_is_off, test_at_refuses_a_bad_time_and_leaves_the_file
 
 가짜 스케줄로: 켜져 있으면 저장 뒤 새 시각으로 설치를 한 번 부른다. 꺼져 있으면 저장만 하고 설치를 부르지 않는다. 잘못된 값은 1로 끝나고 파일 바이트가 그대로다.
 
 ### A3. launchd 구현이 plist를 쓰고 올리고 내린다
 - covers: D4, D11, I6
 - check: tests/test_dream_schedule.py
-- evidence:
+- evidence: tests/test_dream_schedule.py: test_install_writes_the_plist_then_bootstraps, test_install_again_boots_out_first, test_remove_boots_out_then_deletes_the_plist, test_label_carries_the_graph_home_hash, test_default_folder_is_the_user_launch_agents_and_tests_never_touch_it
 
 임시 LaunchAgents 폴더와 기록만 하는 `launchctl` 함수로: 설치하면 plist의 `Hour`/`Minute`가 `run_at`과 같고, `ProgramArguments`는 `sys.executable`과 `dream scheduled --graph-home <경로>`를 담고, `EnvironmentVariables`에 `PATH`와 `HOME`이 있고, Label에 Graph Home 해시가 붙고, 출력 경로가 `logs/dream-schedule.log`다. 이어서 `bootstrap`을 부른다. 다시 설치하면 먼저 `bootout`한다. 제거하면 `bootout` 뒤 파일이 없다. 테스트는 `$HOME/Library/LaunchAgents`를 건드리지 않는다.
 
 ### A4. macOS가 아니면 설치하지 않는다
 - covers: D4, F5
 - check: tests/test_cli_dream_schedule.py
-- evidence:
+- evidence: tests/test_cli_dream_schedule.py: test_off_macos_on_saves_and_reports_unsupported_with_0, tests/test_dream_schedule.py: test_other_platforms_are_unsupported_and_touch_nothing
 
 플랫폼을 "linux"로 주면 `vg dream on`은 설정을 저장하고 "schedule: unsupported on linux"를 출력하고 0으로 끝난다. plist 파일도 `launchctl` 호출도 없다.
 
 ### A5. 설치 실패는 설정을 남기고 1로 끝난다
 - covers: D13, F6
 - check: tests/test_cli_dream_schedule.py
-- evidence:
+- evidence: tests/test_cli_dream_schedule.py: test_a_failed_install_keeps_the_settings_and_ends_with_1, tests/test_dream_schedule.py: test_remove_counts_not_loaded_as_success, test_a_plist_that_cannot_be_written_is_reported_not_raised
 
 `launchctl`이 실패하는 가짜로 `vg dream on`을 부르면 `enabled=true`가 저장되고, "schedule: not installed"가 출력되고, 1로 끝난다. `off`에서 "올라가 있지 않음" 실패는 0이다.
 
 ### A6. 시각 실행이 루트가 있는 프로젝트를 차례로 돈다
 - covers: D3, I1, F1, F2, F12
 - check: tests/test_dream_schedule_run.py
-- evidence:
+- evidence: tests/test_dream_schedule_run.py: test_every_project_runs_once_in_turn_from_its_root_as_a_scheduled_run, test_a_missing_or_empty_root_is_skipped_without_a_run_line, test_skipped_and_failed_runs_go_on_to_the_next_project, test_an_error_in_one_project_is_logged_and_the_run_ends_with_1
 
 프로젝트 셋(루트 있음, 루트 없음, git 아닌 루트)과 가짜 `run_dream`으로: id 순서로, 루트가 있는 둘에 대해서만 한 번씩 불리고, 동시에 둘이 불리지 않는다. 루트 없는 프로젝트는 로그 한 줄로 끝난다. 첫 프로젝트에서 `OSError`가 나도 다음 프로젝트가 불리고 전체는 1로 끝난다.
 
 ### A7. 시각 실행은 간격만 건너뛰고 나머지 조건은 지킨다
 - covers: D7, D12, I4, F4
 - check: tests/test_dream_worker.py, tests/test_dream_schedule_run.py
-- evidence:
+- evidence: tests/test_dream_worker.py: test_the_scheduled_run_skips_only_the_interval, test_the_scheduled_run_keeps_off_the_pending_cap_and_the_due_check, tests/test_dream_schedule_run.py: test_off_or_broken_settings_judge_nothing
 
 한 시간 전에 `run` 줄이 있어도 `trigger="schedule"`은 판단한다. 꺼짐, 대기 한도, 실행 조건 미달에서는 판단하지 않는다. `run` 줄에 `trigger="schedule"`이 적힌다. 설정이 꺼짐이거나 `broken`이면 `vg dream scheduled`는 아무 프로젝트도 판단하지 않고 0으로 끝난다.
 
 ### A8. 훅 실행은 바뀌지 않는다
 - covers: D2, I3
 - check: tests/test_hook_dream.py, tests/test_dream_worker.py
-- evidence:
+- evidence: tests/test_hook_dream.py (기존 테스트 통과, bake-verify.log: 4027 passed), tests/test_dream_worker.py: test_a_hook_run_waits_out_the_interval_after_a_scheduled_run
 
 기존 훅 테스트가 그대로 통과한다. `trigger="hook"` 실행은 시각 실행이 남긴 한 시간 전 `run` 줄 때문에 `interval`로 건너뛴다. 훅 실행의 `run` 줄에 `trigger="hook"`이 적힌다.
 
 ### A9. 잠금을 기다리고 시간이 넘으면 건너뛴다
 - covers: D8, I1, F3
 - check: tests/test_dream_schedule_run.py
-- evidence:
+- evidence: tests/test_dream_schedule_run.py: test_a_lock_freed_within_the_wait_lets_the_project_run, test_a_lock_held_past_the_wait_leaves_a_locked_line_and_moves_on, tests/test_dream_worker.py: test_a_locked_line_does_not_start_the_interval
 
 기다림 한도를 짧게 주고 잠금을 다른 프로세스가 잡은 상태에서: 한도 안에 풀리면 그 프로젝트가 돈다. 넘으면 `reason="locked"` `run` 줄이 남고 다음 프로젝트로 간다. 그 줄 뒤에도 훅 실행은 간격에 막히지 않는다.
 
 ### A10. 시각 실행의 판단 명령은 프로젝트 루트에서 돈다
 - covers: D10, I2, F11
 - check: tests/test_dream_judge.py, tests/test_dream_schedule_run.py
-- evidence:
+- evidence: tests/test_dream_judge.py: test_claude_runs_in_the_given_folder_and_otherwise_inherits_it, tests/test_dream_schedule_run.py: test_every_project_runs_once_in_turn_from_its_root_as_a_scheduled_run, test_skipped_and_failed_runs_go_on_to_the_next_project
 
 `ClaudeDreamJudge(cwd=root)`는 `subprocess.run`에 `cwd=root`를 넘긴다. 시각 실행이 각 프로젝트에 넘기는 cwd는 vault-map의 `root`다. 판단 명령이 없으면(`OSError`) 그 프로젝트는 `failed`가 되고 다음 프로젝트가 돈다.
 
 ### A11. `status`가 실행 시각과 스케줄 상태를 보인다
 - covers: D9, D12, F10, F13
 - check: tests/test_cli_dream_schedule.py
-- evidence:
+- evidence: tests/test_cli_dream_schedule.py: test_status_shows_run_at_and_an_installed_schedule, test_status_tells_an_upgraded_user_to_install_the_schedule, test_status_shows_a_stale_schedule_when_the_time_differs, test_status_shows_unsupported_off_macos, test_status_shows_the_last_scheduled_run_only
 
 `run_at: 01:00 (local)`이 나온다. 가짜 스케줄 상태마다 `schedule: installed`, `not_installed`, `stale`, `unsupported`가 나오고, 켜져 있는데 `not_installed`나 `stale`이면 재설치 안내가 붙는다. `trigger="schedule"` 줄이 있으면 `last_scheduled_run`에 그 시각이, 없거나 `trigger` 없는 옛 줄뿐이면 `-`가 나온다.
 
 ### A12. 실제 Mac에서 정해진 시각에 돈다
 - covers: D4, D5, F14
 - check: 수동: macOS에서 `vg dream on` 뒤 `vg dream at`을 2분 뒤 시각으로 바꾸고 기다린 다음, 같은 확인을 Mac을 그 시각 전후로 재워서 한 번 더 한다
-- evidence:
+- evidence: 수동: macOS에서 `vg dream on`을 실행하고 `vg dream at`을 2분 뒤 시각으로 바꾼 다음 기다린다. `logs/dream-runs.jsonl`에 `trigger="schedule"` 줄이 프로젝트마다 생기고 각 줄의 cwd가 vault-map의 루트인지 본다. 그 시각 전후로 Mac을 재워서 한 번 더 확인한다. 마지막으로 `vg dream off`를 실행하고 `launchctl list`에 그 Label이 없는지 본다.
 
 `logs/dream-runs.jsonl`에 `trigger="schedule"` `run` 줄이 등록 프로젝트마다 생기고, 각 줄의 `cwd`가 vault-map의 루트다. 재운 경우 깨어난 뒤 한 번 돈다. `vg dream off` 뒤 `launchctl list`에 그 Label이 없다.
 
