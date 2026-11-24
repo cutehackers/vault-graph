@@ -353,3 +353,16 @@ def test_default_folder_is_the_user_launch_agents_and_tests_never_touch_it(tmp_p
 
     assert default.launch_agents == fake_home / "Library" / "LaunchAgents"
     assert not (fake_home / "Library").exists()
+
+
+def test_a_plist_that_cannot_be_written_is_reported_not_raised(tmp_path: Path) -> None:
+    launchctl = RecordingLaunchctl()
+    schedule = make_schedule(tmp_path, launchctl)
+    # A file where the LaunchAgents folder should be makes the write fail.
+    (tmp_path / "LaunchAgents").write_text("not a folder", encoding="utf-8")
+
+    result = schedule.install("01:00")
+
+    assert (result.ok, result.status, result.plist_path) == (False, "not_installed", None)
+    assert "LaunchAgents" in result.reason
+    assert all(call[0] != "bootstrap" for call in launchctl.calls)
