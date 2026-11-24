@@ -33,7 +33,7 @@
 | F9 | 드리밍이 꺼진 상태에서 시각을 바꾼다 |  | basis D6 | A2 |  | 737184e3 | 5-cli-schedule-commands.md |
 | F10 | plist의 Python 경로가 사라졌다 |  | basis D9, D11 | A11 |  | d3937505 | 6-cli-status-schedule.md |
 | F11 | 시각 실행에서 `claude`를 찾지 못하거나 판단이 실패한다 |  | basis D10, D11 | A10 |  | cf67b198 | 4-scheduled-run-all-projects.md |
-| F12 | 한 프로젝트에서 예상하지 못한 오류가 난다 |  | basis D3 | A6 |  | 2c59c59a | 4-scheduled-run-all-projects.md |
+| F12 | 한 프로젝트에서 예상하지 못한 오류가 난다 |  | basis D3 | A6 |  | 87f818f0 | 4-scheduled-run-all-projects.md |
 | F13 | 이미 드리밍을 켜 둔 사용자가 업그레이드한다 |  | basis D4, D9 | A11 |  | 084e9dd7 | 6-cli-status-schedule.md |
 | F14 | 그 시각에 Mac이 잠들어 있거나 꺼져 있다 |  | basis D5 | A12 |  | f2669f01 | 6-cli-status-schedule.md |
 | R1 | launchd가 잠든 동안 놓친 시각을 깨어난 뒤 돌린다는 전제 |  | basis D5 |  |  | 6923b08e |  |
@@ -333,7 +333,7 @@ uv tool 재설치나 가상 환경 삭제로 plist에 적힌 Python이 없어지
 ### F12. 한 프로젝트에서 예상하지 못한 오류가 난다
 - basis: D3
 
-`VaultGraphError`와 `OSError`는 그 프로젝트 이름과 함께 로그에 적고 다음 프로젝트로 간다. 시각 실행 전체는 한 프로젝트라도 오류가 났으면 1로 끝난다.
+한 프로젝트에서 난 오류는 종류와 상관없이(`VaultGraphError`, `OSError`, 그 밖의 예외) 그 프로젝트 이름과 함께 로그에 적고 다음 프로젝트로 간다. 그래서 id 순서상 뒤에 있는 프로젝트가 한 프로젝트의 오류 때문에 그날 빠지지 않는다. 시각 실행 전체는 한 프로젝트라도 오류가 났으면 1로 끝난다. (2026-11-24 PR 리뷰 뒤 사람이 넓힘)
 
 ### F13. 이미 드리밍을 켜 둔 사용자가 업그레이드한다
 - basis: D4, D9

@@ -11,8 +11,9 @@ For each project:
   that is still going at the set time holds it. Past the wait, the project gets a `locked` `run` line, which does
   not start the hook interval, and the next project gets its own wait (D8, F3).
 - `run_dream_locked` runs with the root as its `cwd`, and the judge runs `claude -p` in the root too (D10).
-- Skipped and failed runs are reported and the walk goes on (F2, F11). A `VaultGraphError` or `OSError`, or ports
-  that cannot be opened, is reported with the project id and the whole run ends with 1 (F12).
+- Skipped and failed runs are reported and the walk goes on (F2, F11). Any error in one project (a `VaultGraphError`,
+  an `OSError`, or another exception), or ports that cannot be opened, is reported with the project id, the later
+  projects still run, and the whole run ends with 1 (F12).
 
 Dreaming off, or a broken settings file, prints "dream: skipped off" and judges nothing (F4, F8).
 """
@@ -88,6 +89,10 @@ def run_scheduled_dreams(
             result = run_locked(graph_home, root, settings, ports, lock_fd=lock_fd, trigger="schedule")
         except (VaultGraphError, OSError) as exc:
             echo(f"error {project_id}: {exc}")
+            errors += 1
+            continue
+        except Exception as exc:  # noqa: BLE001 - one project's failure must not stop the later projects (F12).
+            echo(f"error {project_id}: {type(exc).__name__}: {exc}")
             errors += 1
             continue
         if result is None:
