@@ -186,11 +186,21 @@ class LaunchdDreamSchedule:
         booted_out = self._bootout()
         if booted_out is not None:
             return ScheduleResult(ok=False, status="not_installed", plist_path=None, reason=booted_out)
-        (self.graph_home / DREAM_SCHEDULE_LOG.parent).mkdir(parents=True, exist_ok=True)
-        self.launch_agents.mkdir(parents=True, exist_ok=True)
         temporary = self.plist_path.with_name(f".{self.plist_path.name}.tmp")
-        temporary.write_bytes(text)
-        os.replace(temporary, self.plist_path)
+        try:
+            (self.graph_home / DREAM_SCHEDULE_LOG.parent).mkdir(parents=True, exist_ok=True)
+            self.launch_agents.mkdir(parents=True, exist_ok=True)
+            temporary.write_bytes(text)
+            os.replace(temporary, self.plist_path)
+        except OSError as error:
+            # A failed write is reported like a failed `launchctl`, so `vg dream on` can say why (D13, F6).
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return ScheduleResult(
+                ok=False, status="not_installed", plist_path=None, reason=f"cannot write plist: {error}"
+            )
         loaded = self._launchctl(["bootstrap", self._domain, str(self.plist_path)])
         if loaded.returncode != 0:
             # An unloaded plist would read as installed, so it goes too.
