@@ -388,7 +388,7 @@ vault-map.json을 이 작업에서 열지 않아 등록 프로젝트 수를 모�
 ### A1. 설정 파일이 `run_at`을 읽고 쓴다
 - covers: D1, D6, I5, F7, F8
 - check: tests/test_dream_settings.py
-- evidence: tests/test_dream_settings.py: test_missing_file_runs_at_one_in_the_morning, test_a_version_1_file_without_run_at_still_reads_from_the_file, test_a_valid_run_at_is_read_from_the_file, test_a_bad_run_at_breaks_the_whole_file, test_saving_always_writes_run_at_with_version_1 (bake-verify.log: 4027 passed, 22 skipped)
+- evidence: tests/test_dream_settings.py: test_missing_file_runs_at_one_in_the_morning, test_a_version_1_file_without_run_at_still_reads_from_the_file, test_a_valid_run_at_is_read_from_the_file, test_a_bad_run_at_breaks_the_whole_file, test_saving_always_writes_run_at_with_version_1 (bake-verify.log: 4036 passed, 22 skipped)
 
 없는 파일은 `run_at="01:00"`이다. `run_at`이 없는 버전 1 파일은 `source="file"`, 01:00이고 `enabled`와 한도는 파일 값이다. "00:00", "23:59"는 받는다. "1:00", "24:00", "01:60", 숫자 1, 빈 문자열은 `broken`이다. 저장한 파일에는 언제나 `run_at`이 있다.
 
@@ -416,14 +416,14 @@ vault-map.json을 이 작업에서 열지 않아 등록 프로젝트 수를 모�
 ### A5. 설치 실패는 설정을 남기고 1로 끝난다
 - covers: D13, F6
 - check: tests/test_cli_dream_schedule.py
-- evidence: tests/test_cli_dream_schedule.py: test_a_failed_install_keeps_the_settings_and_ends_with_1, tests/test_dream_schedule.py: test_remove_counts_not_loaded_as_success, test_a_plist_that_cannot_be_written_is_reported_not_raised
+- evidence: tests/test_cli_dream_schedule.py: test_a_failed_install_keeps_the_settings_and_ends_with_1, tests/test_dream_schedule.py: test_remove_counts_not_loaded_as_success, test_a_plist_that_cannot_be_written_is_reported_not_raised, test_a_plist_that_cannot_be_deleted_after_a_failed_bootstrap_is_reported_not_raised
 
 `launchctl`이 실패하는 가짜로 `vg dream on`을 부르면 `enabled=true`가 저장되고, "schedule: not installed"가 출력되고, 1로 끝난다. `off`에서 "올라가 있지 않음" 실패는 0이다.
 
 ### A6. 시각 실행이 루트가 있는 프로젝트를 차례로 돈다
 - covers: D3, I1, F1, F2, F12
 - check: tests/test_dream_schedule_run.py
-- evidence: tests/test_dream_schedule_run.py: test_every_project_runs_once_in_turn_from_its_root_as_a_scheduled_run, test_a_missing_or_empty_root_is_skipped_without_a_run_line, test_skipped_and_failed_runs_go_on_to_the_next_project, test_an_error_in_one_project_is_logged_and_the_run_ends_with_1
+- evidence: tests/test_dream_schedule_run.py: test_every_project_runs_once_in_turn_from_its_root_as_a_scheduled_run, test_a_missing_or_empty_root_is_skipped_without_a_run_line, test_skipped_and_failed_runs_go_on_to_the_next_project, test_an_error_in_one_project_is_logged_and_the_run_ends_with_1, test_any_other_error_in_one_project_is_logged_and_the_rest_still_run
 
 프로젝트 셋(루트 있음, 루트 없음, git 아닌 루트)과 가짜 `run_dream`으로: id 순서로, 루트가 있는 둘에 대해서만 한 번씩 불리고, 동시에 둘이 불리지 않는다. 루트 없는 프로젝트는 로그 한 줄로 끝난다. 첫 프로젝트에서 `OSError`가 나도 다음 프로젝트가 불리고 전체는 1로 끝난다.
 
@@ -437,7 +437,7 @@ vault-map.json을 이 작업에서 열지 않아 등록 프로젝트 수를 모�
 ### A8. 훅 실행은 바뀌지 않는다
 - covers: D2, I3
 - check: tests/test_hook_dream.py, tests/test_dream_worker.py
-- evidence: tests/test_hook_dream.py (기존 테스트 통과, bake-verify.log: 4027 passed), tests/test_dream_worker.py: test_a_hook_run_waits_out_the_interval_after_a_scheduled_run
+- evidence: tests/test_hook_dream.py (기존 테스트 통과, bake-verify.log: 4036 passed), tests/test_dream_worker.py: test_a_hook_run_waits_out_the_interval_after_a_scheduled_run
 
 기존 훅 테스트가 그대로 통과한다. `trigger="hook"` 실행은 시각 실행이 남긴 한 시간 전 `run` 줄 때문에 `interval`로 건너뛴다. 훅 실행의 `run` 줄에 `trigger="hook"`이 적힌다.
 
