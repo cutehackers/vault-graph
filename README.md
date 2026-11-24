@@ -80,8 +80,12 @@ command or tool if you want to run it yourself.
    conversation. It is on by default. `vg facts off` turns it off.
    - By hand: `vg facts status` to see the queue, `vg facts worker` to process it.
    - Optional: `vg dream on` also lets a background worker propose memories from
-     saved sessions. Nothing is saved until you accept a proposal with
-     `vg review`. `vg dream status` shows what it sent.
+     saved sessions. It runs after a saved session and, on macOS, once a day at
+     01:00 local time for every registered project. `vg dream at 02:30` changes
+     the time. Nothing is saved until you accept a proposal with `vg review`.
+     `vg dream status` shows what it sent and whether the daily run is set up.
+     If you turned dreaming on before this version, run `vg dream on` once more
+     to set up the daily run.
 4. **After Claude saves a memory you stated**, Vault Graph re-indexes that Vault
    in the background, so the new page shows up in search and in the next
    session's summary.
@@ -109,6 +113,7 @@ tool, and file it reads or writes, see [docs/FEATURES.md](docs/FEATURES.md).
 | Ask with evidence | `vg ask "question"` |
 | Fact extraction status | `vg facts status` |
 | Dreaming status | `vg dream status` |
+| Change the daily dreaming time | `vg dream at 01:00` |
 | Review memory proposals | `vg review` |
 | Show embedding model | `vg embedding list --graph-home ~/.vault-graph` |
 | Change model or model folder | `vg embedding use arctic-m --models-dir /path/to/models --graph-home ~/.vault-graph` |

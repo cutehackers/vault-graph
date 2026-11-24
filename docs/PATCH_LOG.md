@@ -2547,3 +2547,15 @@ indexer regression tests.
 **Changes Applied:** The diff drops its two header lines by position instead of by content. After a `target-changed` refusal the same proposal is asked again, so it can be rejected at once, and the refused accept counts as a failure of the run (exit code 1).
 
 **Verification:** `tests/test_proposal_change.py` and `tests/test_cli_review.py` hold one new test for each defect. `ruff check`, `mypy` and the full suite pass.
+
+## 2026-11-24 - Report Schedule File Failures And Keep The Daily Dream Going Past One Project
+
+**Trigger:** The bake review of spec `docs/specs/2026-11-24-dream-schedule-time/spec.md` found that a plist that could not be written made `vg dream on` end with a traceback instead of the D13 message. An extra independent review then found that a plist that could not be deleted did the same in `vg dream off`, that an error other than `VaultGraphError` or `OSError` in one project stopped the scheduled run for every later project, and that the launchd adapter had its own `HH:MM` check that accepted some non-ASCII digits.
+
+**Scope:** `src/vault_graph/interface/composition/adapters/dream_schedule.py`, `src/vault_graph/interface/composition/adapters/dream_scheduled_run.py`, `tests/test_dream_schedule.py`, `tests/test_dream_schedule_run.py`, spec F12.
+
+**Core Values Protected:** A person always learns why the daily run is not set up. One project's failure does not cost the other projects their daily run.
+
+**Changes Applied:** `install` and `remove` return a failed result with the reason when writing or deleting the plist fails. After a failed `bootstrap`, an error while cleaning up the plist no longer hides the `launchctl` reason. The scheduled run logs any exception with the project id and its type, goes on to the next project, and ends with 1. `parse_run_at` uses `dream_settings.is_valid_run_at`, so the CLI, the settings file and the plist share one check. The user approved widening F12 on 2026-11-24.
+
+**Verification:** One new test for each case in `tests/test_dream_schedule.py` and `tests/test_dream_schedule_run.py`. `ruff check`, `mypy src tests` and the full suite (4036 tests) pass. The reviewer re-ran the review on 442bdb5: Ready to merge, 12/12 acceptance criteria.
