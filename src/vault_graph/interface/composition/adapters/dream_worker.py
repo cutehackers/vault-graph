@@ -22,7 +22,11 @@ answer `supersede_claim`, `update_memory` (a correction added to a page without 
 `none` for these. The same checks apply, and the evidence line also carries the day the exchange started, taken
 from the index. This batch runs whether or not the exchange backlog is due.
 
-When a run may start (`manual=False`, the run the capture hook starts):
+Every run names its trigger: `hook` (the run the capture hook starts), `manual` (`vg dream run`) or `schedule`
+(the run at the set time of day). The `run` line records it. A `run` line written before triggers were recorded
+has none and is not a scheduled run.
+
+When a run may start (`trigger="hook"`):
 
 - dreaming is on,
 - the project's last run is older than `interval_hours` (a failed run is tried again after `RETRY_INTERVAL`),
@@ -30,7 +34,8 @@ When a run may start (`manual=False`, the run the capture hook starts):
 - and, for judging session exchanges, exchanges that were never judged number `due_exchanges` or more, or their
   median age is over the backlog goal of 7 days (C3). Page checks do not wait for this.
 
-`manual=True` (`vg dream run`) skips the first, second and fourth check. One run sends at most
+`trigger="manual"` skips the first, second and fourth check. `trigger="schedule"` skips only the second: it is the
+day's regular run, so it runs even after a recent hook run. One run sends at most
 `min(proposals_per_run, pending_cap - pending)` proposals (C4).
 
 Records, all in the Graph Home:
@@ -47,8 +52,9 @@ Records, all in the Graph Home:
   is sent, with its Vault and review path; `vg dream status` counts accepted and rejected proposals from these
   lines only (C8). `{"record": "run", ...}` is written when a run ends: one that judged something, one that
   failed, and a skipped one with reason `nothing_to_judge`, `not_due` or `pending_cap` (the last only once in a
-  row). A run that dies midway therefore loses no proposal, and the interval counts from the last `run` line
-  that got past the pending cap.
+  row). A scheduled run that gave up waiting for the worker lock writes one with reason `locked`
+  (`log_locked_run`). A run that dies midway therefore loses no proposal, and the interval counts from the last
+  `run` line that is not `pending_cap` or `locked`.
 
 Outcomes of one judgment: `none`, `no_answer` (the judge left the item out), `invalid_answer`, `quote_rejected`,
 `target_refused`, `vault_rejected` (all recorded in `dream/judged.jsonl`), `proposed`, and `deferred` or
@@ -72,7 +78,7 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from vault_graph.context.memory.memory_candidates import (
     NOT_CURRENT_STATUSES,
@@ -131,7 +137,10 @@ RUN_RECORD = "run"
 PROPOSAL_RECORD = "proposal"
 _FULL_WIDTH_BAR = chr(0xFF5C)
 _LOG_MAX_BYTES = 1_000_000
-_WORKER_SCRIPT = "from vault_graph.interface.cli.main import app; app()"
+WORKER_SCRIPT = "from vault_graph.interface.cli.main import app; app()"
+"""The `python -c` script that runs `vg`. A detached worker runs `python -c WORKER_SCRIPT dream ...`."""
+# `start_dream_worker` reads this name, so tests can replace the script.
+_WORKER_SCRIPT = WORKER_SCRIPT
 _BRIEF_FOLDER = "wiki/projects/"
 _DREAM_KINDS: tuple[CandidateKind, ...] = ("session_exchange",)
 _VERIFY_KINDS: tuple[AnyCandidateKind, ...] = (VERIFY_KIND,)
@@ -141,6 +150,12 @@ _MEMORY_PAGE = re.compile(
     r"\A\s*# [^\n]+\n+(?P<body>.*?)\n+## Evidence\n+Status: [^\n]+\n+(?P<evidence>(?:- Evidence: [^\n]*\n?)+)\s*\Z",
     re.DOTALL,
 )
+
+Trigger = Literal["hook", "manual", "schedule"]
+"""How a run was started: by the capture hook, by `vg dream run`, or at the set time of day."""
+LOCKED_REASON = "locked"
+# `run` lines that do not start the interval: a run stopped by the review queue, or one that never got the lock.
+_NO_INTERVAL_REASONS = frozenset({"pending_cap", LOCKED_REASON})
 
 CandidateSource = Callable[[Collection[str], int | None, bool], MemoryCandidatePackage]
 """`(skip_keys, limit, with_comparison)` to the project's waiting session exchanges."""
@@ -267,7 +282,7 @@ def run_dream(
     settings: DreamSettings,
     ports: DreamPorts,
     *,
-    manual: bool = False,
+    trigger: Trigger,
     dry_run: bool = False,
     now: Callable[[], datetime] | None = None,
 ) -> DreamRun:
@@ -288,14 +303,15 @@ def run_dream(
             "skipped", reason, project_id=project_id, vault=write_vault.name, dry_run=dry_run, message=message
         )
         if log and not dry_run:
-            _log_run(graph_home, cwd, write_vault, run, ports.judge.model, clock())
+            _log_run(graph_home, cwd, write_vault, run, ports.judge.model, clock(), trigger)
         return run
 
+    manual = trigger == "manual"
     runs = read_dream_runs(graph_home)
     if not manual:
         if not settings.enabled:
             return skipped("off")
-        if _ran_recently(runs, project_id, settings, clock()):
+        if trigger == "hook" and _ran_recently(runs, project_id, settings, clock()):
             return skipped("interval")
     pending = ports.pending_count(write_vault.path)
     if pending >= settings.pending_cap:
@@ -357,7 +373,7 @@ def run_dream(
         message=failure[1] if failure is not None else None,
     )
     if not dry_run:
-        _log_run(graph_home, cwd, write_vault, run, ports.judge.model, clock())
+        _log_run(graph_home, cwd, write_vault, run, ports.judge.model, clock(), trigger)
     return run
 
 
@@ -372,9 +388,9 @@ def _last_run(runs: Sequence[Mapping[str, Any]], project_id: str) -> Mapping[str
 
 
 def _ran_recently(runs: Sequence[Mapping[str, Any]], project_id: str, settings: DreamSettings, now: datetime) -> bool:
-    """True while the project's last run that got past the pending cap is younger than its wait time."""
+    """True while the project's last run that got past the pending cap and the lock is younger than its wait time."""
     for run in reversed(_project_runs(runs, project_id)):
-        if run.get("reason") == "pending_cap":
+        if run.get("reason") in _NO_INTERVAL_REASONS:
             continue
         at = _moment(run.get("at"))
         if at is None:
@@ -737,7 +753,32 @@ def _read_jsonl(path: Path) -> list[Mapping[str, Any]]:
     return records
 
 
-def _log_run(graph_home: Path, cwd: Path, vault: MappedVault, run: DreamRun, model: str, now: datetime) -> None:
+def log_locked_run(
+    graph_home: Path,
+    project_id: str,
+    cwd: Path,
+    *,
+    vault: MappedVault | None = None,
+    now: datetime | None = None,
+) -> None:
+    """Append the `run` line of a scheduled run that gave up waiting for the worker lock (spec 2026-11-24 D8).
+
+    ``vault`` is the project's write Vault when the caller found one, else its fields are null. The line has
+    `status="skipped"`, `reason="locked"`, `trigger="schedule"` and does not start the interval.
+    """
+    run = DreamRun("skipped", LOCKED_REASON, project_id=project_id, vault=vault.name if vault else None)
+    _log_run(graph_home, cwd, vault, run, None, now or datetime.now(UTC), "schedule")
+
+
+def _log_run(
+    graph_home: Path,
+    cwd: Path,
+    vault: MappedVault | None,
+    run: DreamRun,
+    model: str | None,
+    now: datetime,
+    trigger: Trigger,
+) -> None:
     """Append the `run` line of one run. Its proposals already have their own lines."""
     _append_jsonl(
         dream_runs_path(graph_home),
@@ -747,8 +788,9 @@ def _log_run(graph_home: Path, cwd: Path, vault: MappedVault, run: DreamRun, mod
                 "at": _iso(now),
                 "project": run.project_id,
                 "cwd": str(cwd),
-                "vault": vault.name,
-                "vault_root": str(vault.path),
+                "vault": vault.name if vault is not None else None,
+                "vault_root": str(vault.path) if vault is not None else None,
+                "trigger": trigger,
                 "status": run.status,
                 "reason": run.reason,
                 "message": run.message,
@@ -843,7 +885,7 @@ def run_dream_locked(
     ports: DreamPorts,
     *,
     lock_fd: int | None = None,
-    manual: bool = False,
+    trigger: Trigger,
     dry_run: bool = False,
 ) -> DreamRun | None:
     """``run_dream`` under the worker lock. None when another worker holds the lock.
@@ -860,15 +902,23 @@ def run_dream_locked(
             os.close(descriptor)
             return None
     try:
-        return run_dream(graph_home, cwd, settings, ports, manual=manual, dry_run=dry_run)
+        return run_dream(graph_home, cwd, settings, ports, trigger=trigger, dry_run=dry_run)
     finally:
         os.close(descriptor)
 
 
 def open_dream_ports(
-    graph_home: Path, cwd: Path, settings: DreamSettings, *, vault_map_file: Path | None = None
+    graph_home: Path,
+    cwd: Path,
+    settings: DreamSettings,
+    *,
+    vault_map_file: Path | None = None,
+    judge_cwd: Path | None = None,
 ) -> DreamPorts | str:
-    """The real ports of a dream run, or the reason none can be built (no usable `vault-map.json`)."""
+    """The real ports of a dream run, or the reason none can be built (no usable `vault-map.json`).
+
+    ``judge_cwd`` is the folder `claude -p` runs in. None leaves it to this process's folder, as the hook run does.
+    """
     from vault_graph.interface.composition.adapters.claude_dream_judge import ClaudeDreamJudge
     from vault_graph.interface.composition.adapters.temporary_draft_files import TemporaryDraftFiles
     from vault_graph.interface.composition.adapters.vault_page_reader import VaultPageFileReader
@@ -929,7 +979,7 @@ def open_dream_ports(
         pending_count=pending_proposals,
         reviewed_log=reviewed_log,
         reviewed_keys=reviewed_log.reviewed_keys,
-        judge=ClaudeDreamJudge(model=settings.model),
+        judge=ClaudeDreamJudge(model=settings.model, cwd=judge_cwd),
     )
 
 

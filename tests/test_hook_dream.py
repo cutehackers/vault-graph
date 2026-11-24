@@ -230,7 +230,7 @@ def test_run_is_a_manual_run_that_ignores_off(world: dict[str, Path], fake_runne
 
     assert result.exit_code == 0, result.output
     call = fake_runner.calls[0]
-    assert (call["cwd"], call["manual"], call["dry_run"], call["lock_fd"]) == (world["project"], True, True, None)
+    assert (call["cwd"], call["trigger"], call["dry_run"], call["lock_fd"]) == (world["project"], "manual", True, None)
     assert "dream: ran" in result.output
     assert "project: project vault: proj-vault" in result.output
     assert "judged: 3 outcomes: none=2 proposed=1" in result.output
@@ -249,7 +249,7 @@ def test_worker_does_nothing_while_dreaming_is_off(world: dict[str, Path], fake_
     turn_on(world["graph_home"])
     on = runner.invoke(app, [*arguments, "--cwd", str(world["project"])])
     assert on.exit_code == 0, on.output
-    assert (fake_runner.calls[0]["manual"], fake_runner.calls[0]["dry_run"]) == (False, False)
+    assert (fake_runner.calls[0]["trigger"], fake_runner.calls[0]["dry_run"]) == ("hook", False)
 
 
 def test_run_reports_a_held_lock_a_failed_run_and_a_missing_map(

@@ -6,6 +6,7 @@ import hashlib
 import json
 import subprocess
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -137,6 +138,14 @@ def test_claude_runs_without_tools_and_without_saving_the_session(fake_run: Fake
         "--strict-mcp-config",
     ]
     assert "--bare" not in command
+
+
+def test_claude_runs_in_the_given_folder_and_otherwise_inherits_it(fake_run: FakeRun, tmp_path: Path) -> None:
+    ClaudeDreamJudge().judge([ITEM], [PAGE])
+    ClaudeDreamJudge(cwd=tmp_path).judge([ITEM], [PAGE])
+
+    assert fake_run.calls[0]["cwd"] is None  # subprocess.run keeps this process's folder
+    assert fake_run.calls[1]["cwd"] == tmp_path
 
 
 def test_claude_child_environment_drops_the_api_key_and_marks_the_child(

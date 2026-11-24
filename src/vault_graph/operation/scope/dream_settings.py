@@ -1,6 +1,8 @@
 """Read and write the dreaming settings file `<graph-home>/configs/dream.json` (spec 2026-11-19 OD2, OD3, OD4).
 
-The file holds `version`, `enabled`, `model` and the five limits of a dream run. A missing file means dreaming is
+The file holds `version`, `enabled`, `model`, the five limits of a dream run and `run_at`, the local "HH:MM" time
+of the scheduled run (spec 2026-11-24-dream-schedule-time D1, D6). A version 1 file written before `run_at` existed
+reads as "01:00" (I5); every save writes the key. A missing file means dreaming is
 off with the default limits (OD2: the user turns it on with `vg dream on`). A broken file also means off, and the
 reading carries the reason so `vg dream status` can show it.
 
@@ -20,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 import tempfile
 from dataclasses import dataclass
@@ -35,6 +38,10 @@ _FORMAT_VERSION = 1
 _MAX_BYTES = 4096
 _LIMIT_KEYS = ("pending_cap", "proposals_per_run", "interval_hours", "bundle_limit", "due_exchanges")
 _KEYS = frozenset({"version", "enabled", "model", *_LIMIT_KEYS})
+_OPTIONAL_KEYS = frozenset({"run_at"})
+DEFAULT_RUN_AT = "01:00"
+"""Local time of the scheduled run when the user has not chosen one (D1)."""
+_RUN_AT = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", re.ASCII)
 
 DreamSettingsSource = Literal["default", "file", "broken"]
 
@@ -48,6 +55,7 @@ class DreamSettings:
     interval_hours: int = 24
     bundle_limit: int = 40
     due_exchanges: int = 20
+    run_at: str = DEFAULT_RUN_AT
 
 
 @dataclass(frozen=True)
@@ -93,6 +101,7 @@ def save_dream_settings(path: Path, settings: DreamSettings) -> None:
     """Write the settings through a temporary file and `os.replace`. Invalid settings raise `CatalogError`."""
     payload: dict[str, Any] = {"version": _FORMAT_VERSION, "enabled": settings.enabled, "model": settings.model}
     payload.update({key: getattr(settings, key) for key in _LIMIT_KEYS})
+    payload["run_at"] = settings.run_at
     _settings_from_payload(path, payload)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary: str | None = None
@@ -138,7 +147,7 @@ def _settings_from_payload(path: Path, payload: Any) -> DreamSettings:
     if not isinstance(payload, dict):
         raise CatalogError(f"dream settings file must contain a JSON object: {path}")
     keys = set(payload)
-    if unknown := sorted(keys - _KEYS):
+    if unknown := sorted(keys - _KEYS - _OPTIONAL_KEYS):
         raise CatalogError(f"dream settings file has unknown keys {unknown}: {path}")
     if missing := sorted(_KEYS - keys):
         raise CatalogError(f"dream settings file is missing keys {missing}: {path}")
@@ -155,10 +164,19 @@ def _settings_from_payload(path: Path, payload: Any) -> DreamSettings:
         value = payload[key]
         if type(value) is not int or value < 1:
             raise CatalogError(f"dream settings file {key} must be a whole number of at least 1: {path}")
-    return DreamSettings(enabled=enabled, model=model, **{key: payload[key] for key in _LIMIT_KEYS})
+    run_at = payload.get("run_at", DEFAULT_RUN_AT)
+    if not is_valid_run_at(run_at):
+        raise CatalogError(f"dream settings file run_at must be HH:MM from 00:00 to 23:59, got {run_at!r}: {path}")
+    return DreamSettings(enabled=enabled, model=model, run_at=run_at, **{key: payload[key] for key in _LIMIT_KEYS})
+
+
+def is_valid_run_at(value: object) -> bool:
+    """True when `value` is a two-digit hour 00-23, a colon and a two-digit minute 00-59 (D6)."""
+    return isinstance(value, str) and _RUN_AT.fullmatch(value) is not None
 
 
 __all__ = [
+    "DEFAULT_RUN_AT",
     "DREAM_MODEL",
     "DreamSettings",
     "DreamSettingsReading",
@@ -166,6 +184,7 @@ __all__ = [
     "dream_judged_path",
     "dream_runs_path",
     "dream_settings_path",
+    "is_valid_run_at",
     "read_dream_settings",
     "save_dream_settings",
 ]
