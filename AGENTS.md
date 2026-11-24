@@ -46,7 +46,9 @@ builds the decision material deterministically; the calling agent decides what
 to remember, update, or retire.
 
 Dreaming (`vg dream`, off by default) is the one unattended judge. After a
-captured session it runs the logged-in Claude Code without tools, checks every
+captured session, and on macOS once a day at `run_at` local time (default
+01:00, one launchd job that `vg dream on` installs and that runs every
+registered project in turn), it runs the logged-in Claude Code without tools, checks every
 quote against the cited exchange in code, and sends only `basis` `inferred`
 proposals through path 2. It never publishes, never changes `pin`, and never
 targets a pinned page or the project brief.

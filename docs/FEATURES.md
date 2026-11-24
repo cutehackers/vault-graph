@@ -139,15 +139,30 @@ prints one notice that extraction is on.
   memory page cites yet and proposes memories for a person to review. It also
   checks existing pages against later exchanges on the same topic and proposes
   corrections. It never publishes anything.
-- **When it runs**: in a background worker after a capture that writes a
-  session, and only when all of these hold. It is off by default.
-  1. Dreaming is on (`vg dream on`).
-  2. The project's last run was more than 24 hours ago.
-  3. The write Vault has fewer than 10 memory proposals waiting for review.
-  4. At least 20 exchanges were never judged, or their median age is over 7
-     days.
-- **Command**: `vg dream on` and `vg dream off` switch it. `vg dream status`
-  shows the settings, the last run of each project, how many dream proposals
+- **When it runs**: it is off by default. When it is on, it runs in two ways.
+  - After a capture that writes a session, a background worker runs for that
+    project when all of these hold:
+    1. Dreaming is on (`vg dream on`).
+    2. The project's last run was more than 24 hours ago.
+    3. The write Vault has fewer than 10 memory proposals waiting for review.
+    4. At least 20 exchanges were never judged, or their median age is over 7
+       days.
+  - Once a day at `run_at` local time (default 01:00), on macOS only. One
+    launchd job runs every project in `vault-map.json` whose root folder
+    exists, one at a time, from that root folder. This run skips condition 2
+    and keeps 1, 3 and 4, so a scheduled run starts the 24 hours for the hook
+    run. If another dream run holds the lock, it waits up to 30 minutes, then
+    skips that project. If the Mac was asleep at that time, launchd runs it once
+    after the Mac wakes. A project that fails is logged and the next one still
+    runs.
+- **Command**: `vg dream on` and `vg dream off` switch it. On macOS `on` also
+  installs the daily launchd job and `off` removes it. If installing fails,
+  dreaming stays on, the reason is printed with "hook runs still work", and the
+  command ends with 1. `vg dream at HH:MM` sets the daily time and, while
+  dreaming is on, installs the job again for that time. `vg dream status`
+  shows the run time, whether the daily job is installed, out of date
+  (`stale`), or not installed, the last scheduled run, and also
+  the settings, the last run of each project, how many dream proposals
   were accepted, rejected, or still wait, and whether a Vault reached the
   pending cap. An accept counts only when the Vault published it. An item whose
   `status` was changed by hand is listed as `unpublished` with how to fix it. `vg dream run --cwd PATH` does one run by hand, and
@@ -168,8 +183,11 @@ prints one notice that extraction is on.
 - **Reads and writes**: every proposal goes through the Vault's
   `review propose` with `basis` `inferred`, at most 10 per run. You accept or
   reject each one with `vg review`. Settings are in
-  `configs/dream.json`, runs in `logs/dream-runs.jsonl`, and exchanges judged
-  without a proposal in `dream/judged.jsonl`, all in the Data Home. An exchange
+  `configs/dream.json` (with `run_at`), runs in `logs/dream-runs.jsonl` (each
+  `run` line records its `trigger`: `hook`, `manual` or `schedule`), the daily
+  run's output in `logs/dream-schedule.log`, and exchanges judged without a
+  proposal in `dream/judged.jsonl`, all in the Data Home. The daily job is one
+  plist in `~/Library/LaunchAgents` named `io.vault-graph.dream.<hash>.plist`. An exchange
   judged without a proposal still shows up in a manual memory cleanup.
 
 ### Reviewing memory proposals
@@ -377,7 +395,7 @@ or local HTTP acceptance tests.
 | Session-start recall | `vg hook session-start` (SessionStart hook) | - | - | Markdown memory bundle: pinned pages, project summary, memory list, notices |
 | Session capture | `vg hook capture` (PreCompact and SessionEnd hooks) | - | - | Normalized session handed to the Vault hook launcher |
 | Session fact extraction | `vg facts on`, `vg facts off`, `vg facts status`, `vg facts worker` | - | - | Facts per session exchange, written by the Vault's `sessions attach-facts` |
-| Dreaming | `vg dream on`, `vg dream off`, `vg dream status`, `vg dream run` | - | - | `inferred` memory proposals in the Vault review queue |
+| Dreaming | `vg dream on`, `vg dream off`, `vg dream at`, `vg dream status`, `vg dream run` | - | - | `inferred` memory proposals in the Vault review queue |
 | Review memory proposals | `vg review`, `vg review list`, `vg review show ID`, `vg review accept ID`, `vg review reject ID --reason TEXT` | - | - | Waiting proposals with the text they change, then `accepted` or `rejected` by the Vault's `review resolve` |
 | Export sessions | `vg session export --agent claude-code --out PATH` | - | - | Raw copies and normalized session files outside every Vault |
 | Write memory | - | `remember`, `update_memory`, `retire_memory`, `supersede_claim`, `restore_memory`, `import_auto_memory` | - | `published`, `proposed` (review queue), `rejected`, or `vault_required` |
