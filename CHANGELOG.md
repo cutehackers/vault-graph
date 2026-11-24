@@ -3,7 +3,7 @@
 Each release lists its user-visible changes, newest first. Sources: git tags,
 commit history, and `docs/PATCH_LOG.md`. Dates are the tag dates.
 
-## Unreleased
+## v0.8.1 - 2026-11-24
 
 - Dreaming now also runs once a day at a set local time, 01:00 by default, on macOS. `vg dream on` installs one launchd job that dreams every registered project in turn from its root folder, and `vg dream off` removes it. The run after a captured session stays.
 - Added `vg dream at HH:MM` to change the daily time.
