@@ -153,7 +153,8 @@ prints one notice that extraction is on.
     and keeps 1, 3 and 4, so a scheduled run starts the 24 hours for the hook
     run. If another dream run holds the lock, it waits up to 30 minutes, then
     skips that project. If the Mac was asleep at that time, launchd runs it once
-    after the Mac wakes. A project that fails is logged and the next one still
+    after the Mac wakes (as `man launchd.plist` describes; not yet checked on a
+    real Mac). A project that fails is logged and the next one still
     runs.
 - **Command**: `vg dream on` and `vg dream off` switch it. On macOS `on` also
   installs the daily launchd job and `off` removes it. If installing fails,
@@ -161,7 +162,7 @@ prints one notice that extraction is on.
   command ends with 1. `vg dream at HH:MM` sets the daily time and, while
   dreaming is on, installs the job again for that time. `vg dream status`
   shows the run time, whether the daily job is installed, out of date
-  (`stale`), or not installed, the last scheduled run, and also
+  (`stale`), not installed, or unsupported on this platform, the last scheduled run, and also
   the settings, the last run of each project, how many dream proposals
   were accepted, rejected, or still wait, and whether a Vault reached the
   pending cap. An accept counts only when the Vault published it. An item whose
