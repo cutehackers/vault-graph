@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 from vault_graph.interface.composition.adapters.dream_judge import (
@@ -212,8 +213,16 @@ def dream_child_environment(environ: Mapping[str, str]) -> dict[str, str]:
 class ClaudeDreamJudge:
     """`DreamJudge` that runs `claude -p` on the user's Claude Code login."""
 
-    def __init__(self, *, model: str = DREAM_MODEL, timeout_seconds: float = CLAUDE_TIMEOUT_SECONDS) -> None:
+    def __init__(
+        self,
+        *,
+        model: str = DREAM_MODEL,
+        timeout_seconds: float = CLAUDE_TIMEOUT_SECONDS,
+        cwd: Path | None = None,
+    ) -> None:
         self.model = model
+        self.cwd = cwd
+        """The folder `claude -p` runs in. None leaves it to this process's folder."""
         self._timeout_seconds = timeout_seconds
 
     def command(self) -> list[str]:
@@ -247,6 +256,7 @@ class ClaudeDreamJudge:
                 env=dream_child_environment(os.environ),
                 timeout=self._timeout_seconds,
                 check=False,
+                cwd=self.cwd,
             )
         except subprocess.TimeoutExpired as exc:
             raise DreamJudgeUnavailable(f"claude did not answer within {self._timeout_seconds:g} seconds") from exc

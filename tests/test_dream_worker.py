@@ -31,7 +31,10 @@ from vault_graph.interface.composition.adapters.dream_worker import (
     BATCH_SIZE,
     DREAM_WORKER_LOCK,
     NO_ANSWER_LIMIT,
+    WORKER_SCRIPT,
     DreamPorts,
+    log_locked_run,
+    open_dream_ports,
     read_dream_runs,
     read_exchange_lines,
     read_judged_keys,
@@ -204,7 +207,7 @@ class World:
         return MemoryCandidatePackage("project", tuple(left[:limit]))
 
     def run(self, settings: DreamSettings = ON, **options: Any) -> Any:
-        options.setdefault("manual", True)
+        options.setdefault("trigger", "manual")
         return run_dream(self.graph_home, self.cwd, settings, self.ports, now=lambda: self.now, **options)
 
     def add_page(self, path: str = PAGE_PATH, text: str = MEMORY_PAGE, vault: MappedVault | None = None) -> None:
@@ -398,12 +401,12 @@ def test_a_full_review_queue_stops_the_run_before_the_judge(tmp_path: Path) -> N
     assert world.judge.calls == []
     # Logged once, so `vg dream status` can show the stop before any dream proposal exists.
     world.run()
-    world.run(manual=False)
+    world.run(trigger="hook")
     assert [(line["status"], line["reason"]) for line in world.run_lines] == [("skipped", "pending_cap")]
     assert world.run_lines[0]["vault_root"] == str(world.vault.path)
 
     world.pending[world.vault.path] = 0
-    assert world.run(manual=False).reason == "not_due"  # the pending cap line does not start the interval
+    assert world.run(trigger="hook").reason == "not_due"  # the pending cap line does not start the interval
 
 
 def test_a_run_sends_only_what_fits_under_the_pending_cap(tmp_path: Path) -> None:
@@ -431,7 +434,7 @@ def test_a_run_sends_at_most_proposals_per_run_and_stops_judging(tmp_path: Path)
 def test_the_hook_run_needs_dreaming_on(tmp_path: Path) -> None:
     world = World(tmp_path, [candidate(n) for n in range(30)], FakeJudge())
 
-    run = world.run(DreamSettings(enabled=False), manual=False)
+    run = world.run(DreamSettings(enabled=False), trigger="hook")
 
     assert (run.status, run.reason) == ("skipped", "off")
     assert world.judge.calls == []
@@ -439,45 +442,145 @@ def test_the_hook_run_needs_dreaming_on(tmp_path: Path) -> None:
 
 def test_the_hook_run_waits_until_enough_exchanges_wait_or_they_are_old(tmp_path: Path) -> None:
     few = World(tmp_path / "few", [candidate(n) for n in range(19)], FakeJudge())
-    assert few.run(manual=False).reason == "not_due"
+    assert few.run(trigger="hook").reason == "not_due"
     assert few.judge.calls == []
 
     many = World(tmp_path / "many", [candidate(n) for n in range(20)], FakeJudge())
-    assert many.run(manual=False).status == "ran"
+    assert many.run(trigger="hook").status == "ran"
 
     old = World(tmp_path / "old", [candidate(n, age_days=8.0) for n in range(3)], FakeJudge())
-    assert old.run(manual=False).status == "ran"
+    assert old.run(trigger="hook").status == "ran"
 
     manual = World(tmp_path / "manual", [candidate(1)], FakeJudge())
-    assert manual.run(manual=True).status == "ran"
+    assert manual.run(trigger="manual").status == "ran"
 
 
 def test_the_hook_run_runs_once_per_interval_for_a_project(tmp_path: Path) -> None:
     world = World(tmp_path, [candidate(n) for n in range(30)], FakeJudge([none(n) for n in range(30)]))
     settings = replace(ON, bundle_limit=5)
 
-    assert world.run(settings, manual=False).status == "ran"
+    assert world.run(settings, trigger="hook").status == "ran"
     world.now = NOW + timedelta(hours=23)
-    assert world.run(settings, manual=False).reason == "interval"
-    assert world.run(settings, manual=True).status == "ran"  # a manual run does not wait
+    assert world.run(settings, trigger="hook").reason == "interval"
+    assert world.run(settings, trigger="manual").status == "ran"  # a manual run does not wait
     world.now = NOW + timedelta(hours=48)
-    assert world.run(settings, manual=False).status == "ran"
+    assert world.run(settings, trigger="hook").status == "ran"
 
 
 def test_a_failed_run_is_tried_again_after_an_hour(tmp_path: Path) -> None:
     world = World(tmp_path, [candidate(n) for n in range(30)], FakeJudge())
     world.judge.error = DreamJudgeUnavailable("claude cannot run")
 
-    failed = world.run(manual=False)
+    failed = world.run(trigger="hook")
 
     assert (failed.status, failed.reason, failed.message) == ("failed", "judge_unavailable", "claude cannot run")
     assert world.run_lines[0]["status"] == "failed"
     assert world.judged == []
     world.judge.error = None
     world.now = NOW + timedelta(minutes=30)
-    assert world.run(manual=False).reason == "interval"
+    assert world.run(trigger="hook").reason == "interval"
     world.now = NOW + timedelta(minutes=61)
-    assert world.run(manual=False).status == "ran"
+    assert world.run(trigger="hook").status == "ran"
+
+
+def test_the_scheduled_run_skips_only_the_interval(tmp_path: Path) -> None:
+    world = World(tmp_path, [candidate(n) for n in range(30)], FakeJudge([none(n) for n in range(30)]))
+    settings = replace(ON, bundle_limit=5)
+    assert world.run(settings, trigger="hook").status == "ran"
+    world.now = NOW + timedelta(hours=1)
+
+    assert world.run(settings, trigger="hook").reason == "interval"
+    assert world.run(settings, trigger="schedule").status == "ran"
+    assert [line["trigger"] for line in world.run_lines] == ["hook", "schedule"]
+
+
+def test_the_scheduled_run_keeps_off_the_pending_cap_and_the_due_check(tmp_path: Path) -> None:
+    off = World(tmp_path / "off", [candidate(n) for n in range(30)], FakeJudge())
+    assert off.run(DreamSettings(enabled=False), trigger="schedule").reason == "off"
+
+    full = World(tmp_path / "full", [candidate(n) for n in range(30)], FakeJudge())
+    full.pending[full.vault.path] = 10
+    assert full.run(trigger="schedule").reason == "pending_cap"
+
+    few = World(tmp_path / "few", [candidate(n) for n in range(19)], FakeJudge())
+    assert few.run(trigger="schedule").reason == "not_due"
+    for world in (off, full, few):
+        assert world.judge.calls == []
+    assert [(line["reason"], line["trigger"]) for line in full.run_lines + few.run_lines] == [
+        ("pending_cap", "schedule"),
+        ("not_due", "schedule"),
+    ]
+
+
+def test_a_hook_run_waits_out_the_interval_after_a_scheduled_run(tmp_path: Path) -> None:
+    world = World(tmp_path, [candidate(n) for n in range(30)], FakeJudge([none(n) for n in range(30)]))
+    settings = replace(ON, bundle_limit=5)
+    assert world.run(settings, trigger="schedule").status == "ran"
+    world.now = NOW + timedelta(hours=1)
+
+    assert world.run(settings, trigger="hook").reason == "interval"
+    world.now = NOW + timedelta(hours=25)
+    assert world.run(settings, trigger="hook").status == "ran"
+    assert world.run(settings, trigger="manual").status == "ran"
+    assert [line["trigger"] for line in world.run_lines] == ["schedule", "hook", "manual"]
+
+
+def test_an_old_run_line_without_a_trigger_still_counts_for_the_interval(tmp_path: Path) -> None:
+    world = World(tmp_path, [candidate(n) for n in range(30)], FakeJudge())
+    path = dream_runs_path(world.graph_home)
+    path.parent.mkdir(parents=True)
+    old_line = {"record": "run", "at": "2026-11-19T11:00:00Z", "project": "project", "status": "ran"}
+    path.write_text(json.dumps(old_line) + "\n", encoding="utf-8")
+
+    assert world.run(trigger="hook").reason == "interval"
+
+
+def test_a_locked_line_does_not_start_the_interval(tmp_path: Path) -> None:
+    world = World(tmp_path, [candidate(n) for n in range(30)], FakeJudge([none(n) for n in range(30)]))
+    settings = replace(ON, bundle_limit=5)
+
+    log_locked_run(world.graph_home, "project", world.cwd, vault=world.vault, now=NOW - timedelta(minutes=5))
+    log_locked_run(world.graph_home, "project", world.cwd, now=NOW - timedelta(minutes=1))
+
+    locked = world.run_lines
+    assert [(line["status"], line["reason"], line["trigger"]) for line in locked] == [
+        ("skipped", "locked", "schedule"),
+        ("skipped", "locked", "schedule"),
+    ]
+    assert (locked[0]["vault"], locked[0]["vault_root"], locked[0]["cwd"]) == (
+        "main",
+        str(world.vault.path),
+        str(world.cwd),
+    )
+    assert (locked[1]["vault"], locked[1]["vault_root"], locked[1]["at"]) == (None, None, "2026-11-19T11:59:00Z")
+    assert world.run(settings, trigger="hook").status == "ran"
+
+    # A locked line after a real run does not hide that run either.
+    world.now = NOW + timedelta(hours=1)
+    log_locked_run(world.graph_home, "project", world.cwd, now=world.now)
+    assert world.run(settings, trigger="hook").reason == "interval"
+
+
+def test_the_judge_runs_in_judge_cwd_only_when_it_is_given(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    vault_map = tmp_path / "vault-map.json"
+    vault_map.write_text(
+        json.dumps({"version": 2, "vaults": {"main": {"path": str(vault), "role": "personal"}}, "projects": {}}),
+        encoding="utf-8",
+    )
+    root = tmp_path / "project"
+
+    hook = open_dream_ports(tmp_path, root, ON, vault_map_file=vault_map)
+    scheduled = open_dream_ports(tmp_path, root, ON, vault_map_file=vault_map, judge_cwd=root)
+
+    assert isinstance(hook, DreamPorts) and isinstance(scheduled, DreamPorts)
+    assert getattr(hook.judge, "cwd", "missing") is None
+    assert getattr(scheduled.judge, "cwd", "missing") == root
+
+
+def test_the_worker_script_has_a_public_name() -> None:
+    assert WORKER_SCRIPT == "from vault_graph.interface.cli.main import app; app()"
 
 
 def test_an_answer_off_the_schema_fails_the_run(tmp_path: Path) -> None:
@@ -493,11 +596,11 @@ def test_an_answer_off_the_schema_fails_the_run(tmp_path: Path) -> None:
 def test_a_folder_outside_a_project_or_without_one_write_vault_is_skipped(tmp_path: Path) -> None:
     world = World(tmp_path, [candidate(1)], FakeJudge([remember(1)]))
 
-    outside = run_dream(world.graph_home, tmp_path / "elsewhere", ON, world.ports, manual=True)
+    outside = run_dream(world.graph_home, tmp_path / "elsewhere", ON, world.ports, trigger="manual")
     assert (outside.status, outside.reason) == ("skipped", "no_project")
 
     no_default = FakeVaultMap((world.vault, world.other), {str(world.cwd): (world.vault, world.other)})
-    run = run_dream(world.graph_home, world.cwd, ON, replace(world.ports, vault_map=no_default), manual=True)
+    run = run_dream(world.graph_home, world.cwd, ON, replace(world.ports, vault_map=no_default), trigger="manual")
     assert (run.status, run.reason) == ("skipped", "no_write_vault")
     assert world.judge.calls == []
 
@@ -682,12 +785,12 @@ def test_only_one_dream_run_holds_the_lock(tmp_path: Path) -> None:
     descriptor = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
     fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
     try:
-        assert run_dream_locked(world.graph_home, world.cwd, ON, world.ports, manual=True) is None
+        assert run_dream_locked(world.graph_home, world.cwd, ON, world.ports, trigger="manual") is None
         assert world.judge.calls == []
     finally:
         os.close(descriptor)
 
-    run = run_dream_locked(world.graph_home, world.cwd, ON, world.ports, manual=True)
+    run = run_dream_locked(world.graph_home, world.cwd, ON, world.ports, trigger="manual")
     assert run is not None and run.status == "ran"
 
 
@@ -799,12 +902,12 @@ def test_checks_run_after_the_exchanges_and_only_while_the_run_has_room(tmp_path
 def test_a_run_with_nothing_to_judge_is_skipped_and_starts_the_interval(tmp_path: Path) -> None:
     world = World(tmp_path, [], FakeJudge())
 
-    run = world.run(manual=False)
+    run = world.run(trigger="hook")
 
     assert (run.status, run.reason) == ("skipped", "nothing_to_judge")
     # Logged, so the next hook run waits one interval before it looks for page checks again.
     assert [(line["status"], line["reason"]) for line in world.run_lines] == [("skipped", "nothing_to_judge")]
-    assert world.run(manual=False).reason == "interval"
+    assert world.run(trigger="hook").reason == "interval"
     assert world.judged == [] and world.reviewed == []
 
 
@@ -828,7 +931,7 @@ def test_checks_run_in_a_hook_run_even_when_the_exchange_backlog_is_not_due(tmp_
     world.checks = [item]
     world.add_page(text=CLAIM_PAGE)
 
-    run = world.run(manual=False)
+    run = world.run(trigger="hook")
 
     assert (run.status, run.outcomes) == ("ran", {"proposed": 1})
     assert judge.judged_keys == [item.key]  # the exchange itself waits until the backlog is due

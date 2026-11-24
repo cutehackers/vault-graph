@@ -110,6 +110,77 @@ def test_a_broken_file_reads_as_off_with_the_reason(tmp_path: Path, payload: obj
     assert reading.problem is not None and words in reading.problem
 
 
+def test_missing_file_runs_at_one_in_the_morning(tmp_path: Path) -> None:
+    reading = read_dream_settings(dream_settings_path(tmp_path))
+
+    assert DreamSettings().run_at == "01:00"
+    assert reading.settings.run_at == "01:00"
+
+
+def test_a_version_1_file_without_run_at_still_reads_from_the_file(tmp_path: Path) -> None:
+    path = dream_settings_path(tmp_path)
+    _write(path, {**VALID, "enabled": True, "pending_cap": 3, "due_exchanges": 7})
+
+    reading = read_dream_settings(path)
+
+    assert reading.source == "file"
+    assert reading.problem is None
+    assert reading.settings == replace(DreamSettings(), enabled=True, pending_cap=3, due_exchanges=7, run_at="01:00")
+
+
+@pytest.mark.parametrize("run_at", ["00:00", "23:59", "13:05"])
+def test_a_valid_run_at_is_read_from_the_file(tmp_path: Path, run_at: str) -> None:
+    path = dream_settings_path(tmp_path)
+    _write(path, {**VALID, "run_at": run_at})
+
+    reading = read_dream_settings(path)
+
+    assert reading.source == "file"
+    assert reading.settings.run_at == run_at
+
+
+@pytest.mark.parametrize(
+    "run_at", ["1:00", "24:00", "01:60", 1, "", "01:00:00", "0100", " 01:00", "01:0", "１２:００", None]
+)
+def test_a_bad_run_at_breaks_the_whole_file(tmp_path: Path, run_at: object) -> None:
+    path = dream_settings_path(tmp_path)
+    _write(path, {**VALID, "run_at": run_at})
+
+    reading = read_dream_settings(path)
+
+    assert reading.source == "broken"
+    assert reading.settings == DreamSettings()
+    assert reading.problem is not None and "run_at must be HH:MM" in reading.problem
+
+
+def test_saving_always_writes_run_at_with_version_1(tmp_path: Path) -> None:
+    path = dream_settings_path(tmp_path)
+    _write(path, {**VALID, "enabled": False})
+
+    save_dream_settings(path, replace(read_dream_settings(path).settings, enabled=True))
+    first = json.loads(path.read_text(encoding="utf-8"))
+    assert first["run_at"] == "01:00"
+    assert first["version"] == 1
+
+    save_dream_settings(path, replace(DreamSettings(), run_at="23:59"))
+    second = json.loads(path.read_text(encoding="utf-8"))
+    assert second["run_at"] == "23:59"
+    assert second["version"] == 1
+    assert read_dream_settings(path).settings.run_at == "23:59"
+
+
+@pytest.mark.parametrize("run_at", ["24:00", "1:00", ""])
+def test_saving_a_bad_run_at_raises_and_keeps_the_file(tmp_path: Path, run_at: str) -> None:
+    path = dream_settings_path(tmp_path)
+    save_dream_settings(path, DreamSettings())
+    before = path.read_bytes()
+
+    with pytest.raises(CatalogError):
+        save_dream_settings(path, replace(DreamSettings(), run_at=run_at))
+
+    assert path.read_bytes() == before
+
+
 def test_saving_invalid_settings_raises_and_writes_nothing(tmp_path: Path) -> None:
     path = dream_settings_path(tmp_path)
 

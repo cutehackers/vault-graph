@@ -110,6 +110,11 @@ class VaultMap(VaultMapReader):
         return self._vaults
 
     @property
+    def projects(self) -> tuple[MappedProject, ...]:
+        """Every registered project, sorted by project id."""
+        return tuple(self._projects[pid] for pid in sorted(self._projects))
+
+    @property
     def default_write_vaults(self) -> dict[str, str | None]:
         """Each project id with its usable default write Vault name, sorted by project id."""
         return {pid: self._projects[pid].default_write_vault for pid in sorted(self._projects)}
