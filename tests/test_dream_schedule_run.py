@@ -288,3 +288,18 @@ def test_the_default_lock_wait_is_thirty_minutes() -> None:
     from vault_graph.interface.composition.adapters import dream_scheduled_run
 
     assert dream_scheduled_run.LOCK_WAIT_SECONDS == 30 * 60
+
+
+@pytest.mark.parametrize("error", [RuntimeError("sqlite went away"), ValueError("bad json"), KeyError("vault")])
+def test_any_other_error_in_one_project_is_logged_and_the_rest_still_run(
+    tmp_path: Path, graph_home: Path, roots: dict[str, Path], error: Exception
+) -> None:
+    vault_map = _map(tmp_path, [_project(name, str(root)) for name, root in roots.items()])
+    runner = FakeRunner({"alpha": error})
+
+    code, lines = _run(graph_home, vault_map, runner, _opener(roots))
+
+    assert code == 1
+    assert any(line.startswith("error alpha:") and type(error).__name__ in line for line in lines)
+    assert [call["cwd"] for call in runner.calls] == [roots["alpha"], roots["beta"], roots["gamma"]]
+    assert _lock_is_free(graph_home)

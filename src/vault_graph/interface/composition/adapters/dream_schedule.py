@@ -16,16 +16,18 @@ touches no file and runs no command.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import plistlib
-import re
 import subprocess
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
+
+from vault_graph.operation.scope.dream_settings import is_valid_run_at
 
 DREAM_SCHEDULE_LOG = Path("logs") / "dream-schedule.log"
 LABEL_PREFIX = "io.vault-graph.dream."
@@ -37,7 +39,6 @@ OPTIONAL_ENVIRONMENT_KEYS: tuple[str, ...] = ("VAULT_GRAPH_VAULT_MAP", "CLAUDE_C
 _NOT_LOADED_CODES = frozenset({3, 113})
 _NOT_LOADED_TEXTS = ("No such process", "Could not find specified service")
 _LAUNCHCTL_TIMEOUT_SECONDS = 30
-_RUN_AT = re.compile(r"([01]\d|2[0-3]):([0-5]\d)")
 
 ScheduleStatus = Literal["installed", "not_installed", "stale", "unsupported"]
 
@@ -107,10 +108,10 @@ def dream_schedule_label(graph_home: Path) -> str:
 
 def parse_run_at(run_at: str) -> tuple[int, int]:
     """``(hour, minute)`` from "HH:MM" (00:00 to 23:59). Raises ``ValueError`` for any other text."""
-    match = _RUN_AT.fullmatch(run_at)
-    if match is None:
+    if not is_valid_run_at(run_at):
         raise ValueError(f"run_at must be HH:MM between 00:00 and 23:59, got {run_at!r}")
-    return int(match.group(1)), int(match.group(2))
+    hour, minute = run_at.split(":")
+    return int(hour), int(minute)
 
 
 def render_dream_plist(
@@ -203,8 +204,9 @@ class LaunchdDreamSchedule:
             )
         loaded = self._launchctl(["bootstrap", self._domain, str(self.plist_path)])
         if loaded.returncode != 0:
-            # An unloaded plist would read as installed, so it goes too.
-            self.plist_path.unlink(missing_ok=True)
+            # An unloaded plist would read as installed, so it goes too. The `launchctl` reason is what matters.
+            with contextlib.suppress(OSError):
+                self.plist_path.unlink(missing_ok=True)
             return ScheduleResult(ok=False, status="not_installed", plist_path=None, reason=_failure(loaded))
         return ScheduleResult(ok=True, status="installed", plist_path=self.plist_path, reason="")
 
@@ -217,7 +219,12 @@ class LaunchdDreamSchedule:
             status: ScheduleStatus = "installed" if self.plist_path.exists() else "not_installed"
             plist_path = self.plist_path if status == "installed" else None
             return ScheduleResult(ok=False, status=status, plist_path=plist_path, reason=booted_out)
-        self.plist_path.unlink(missing_ok=True)
+        try:
+            self.plist_path.unlink(missing_ok=True)
+        except OSError as error:
+            # Reported like a failed `launchctl`, so `vg dream off` can say why (D13).
+            reason = f"cannot delete plist: {error}"
+            return ScheduleResult(ok=False, status="installed", plist_path=self.plist_path, reason=reason)
         return ScheduleResult(ok=True, status="not_installed", plist_path=None, reason="")
 
     def state(self, run_at: str | None = None) -> ScheduleState:

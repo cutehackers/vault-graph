@@ -23,6 +23,7 @@ from vault_graph.interface.composition.adapters.dream_schedule import (
     ScheduleResult,
     ScheduleState,
     dream_schedule_label,
+    parse_run_at,
     render_dream_plist,
 )
 
@@ -366,3 +367,44 @@ def test_a_plist_that_cannot_be_written_is_reported_not_raised(tmp_path: Path) -
     assert (result.ok, result.status, result.plist_path) == (False, "not_installed", None)
     assert "LaunchAgents" in result.reason
     assert all(call[0] != "bootstrap" for call in launchctl.calls)
+
+
+def test_a_plist_that_cannot_be_deleted_on_remove_is_reported_not_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    schedule = make_schedule(tmp_path, RecordingLaunchctl())
+    assert schedule.install("01:00").ok
+
+    def refuse(self: Path, missing_ok: bool = False) -> None:
+        raise PermissionError(13, "Permission denied", str(self))
+
+    monkeypatch.setattr(Path, "unlink", refuse)
+    result = schedule.remove()
+
+    assert (result.ok, result.status) == (False, "installed")
+    assert "cannot delete plist" in result.reason
+
+
+def test_a_plist_that_cannot_be_deleted_after_a_failed_bootstrap_is_reported_not_raised(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launchctl = RecordingLaunchctl([LaunchctlResult(0, ""), LaunchctlResult(5, "Input/output error")])
+    schedule = make_schedule(tmp_path, launchctl)
+    real_unlink = Path.unlink
+
+    def refuse_plist(self: Path, missing_ok: bool = False) -> None:
+        if self.suffix == ".plist":
+            raise PermissionError(13, "Permission denied", str(self))
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", refuse_plist)
+    result = schedule.install("01:00")
+
+    assert (result.ok, result.status) == (False, "not_installed")
+    assert "Input/output error" in result.reason
+
+
+@pytest.mark.parametrize("value", ["0١:00", "01:0٠", "1:00", "24:00"])
+def test_parse_run_at_takes_only_ascii_hh_mm(value: str) -> None:
+    with pytest.raises(ValueError):
+        parse_run_at(value)
