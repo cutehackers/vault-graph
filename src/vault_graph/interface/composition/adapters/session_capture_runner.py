@@ -104,13 +104,19 @@ def launcher_rejected_normalized(outcome: CaptureOutcome) -> bool:
 
 
 def recapture_session(
-    session: ClaudeCodeSession, normalized: Path, *, launcher: Path, timeout_s: float = RECAPTURE_TIMEOUT_S
+    session: ClaudeCodeSession,
+    normalized: Path,
+    *,
+    launcher: Path,
+    timeout_s: float = RECAPTURE_TIMEOUT_S,
+    hook_cwd: str | None = None,
 ) -> CaptureOutcome:
     """Run ``capture --direct --normalized <normalized> --rerender`` with a hook JSON built for ``session``.
 
     The hook JSON carries what the launcher reads to choose the Vault: ``session_id``,
     ``transcript_path``, ``cwd`` from the normalized session line, and ``hook_event_name``
     (SessionEnd for an ended session, PreCompact for the newest one, which may still run).
+    ``hook_cwd`` replaces only the hook JSON ``cwd``. The normalized file is not changed.
     """
 
     hook: dict[str, str] = {
@@ -118,7 +124,7 @@ def recapture_session(
         "transcript_path": str(session.main_file),
         "hook_event_name": PRE_COMPACT_EVENT if session.newest else SESSION_END_EVENT,
     }
-    cwd = _session_cwd(normalized)
+    cwd = hook_cwd or _session_cwd(normalized)
     if cwd is not None:
         hook["cwd"] = cwd
     return run_capture(

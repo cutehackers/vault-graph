@@ -28,6 +28,7 @@ class CaptureOutcome:
     ``sessions capture --json`` status, or ``"unknown"`` when stdout had no readable result.
     ``problem`` says why the launcher did not finish (missing, failed to start, timed out, non-zero exit).
     ``exit_code`` is the launcher's exit code, or None when it did not start or was stopped.
+    ``exchange_count`` is the result's ``exchange_count`` (sent with ``written``), or None when absent.
     """
 
     finished: bool
@@ -37,6 +38,7 @@ class CaptureOutcome:
     problem: str | None = None
     stderr: str = ""
     exit_code: int | None = None
+    exchange_count: int | None = None
 
 
 def run_capture(
@@ -84,8 +86,16 @@ def run_capture(
             stderr=_text(stderr),
             exit_code=process.returncode,
         )
-    status, vault, path = _result(_text(stdout))
-    return CaptureOutcome(finished=True, status=status, vault=vault, path=path, stderr=_text(stderr), exit_code=0)
+    status, vault, path, exchange_count = _result(_text(stdout))
+    return CaptureOutcome(
+        finished=True,
+        status=status,
+        vault=vault,
+        path=path,
+        stderr=_text(stderr),
+        exit_code=0,
+        exchange_count=exchange_count,
+    )
 
 
 def _stop(process: subprocess.Popen[bytes]) -> None:
@@ -95,7 +105,7 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
         process.kill()
 
 
-def _result(stdout: str) -> tuple[str, str | None, str | None]:
+def _result(stdout: str) -> tuple[str, str | None, str | None, int | None]:
     """Read the last JSON object line of stdout as the ``sessions capture --json`` result."""
 
     for line in reversed(stdout.splitlines()):
@@ -104,12 +114,21 @@ def _result(stdout: str) -> tuple[str, str | None, str | None]:
         except ValueError:
             continue
         if isinstance(payload, dict) and isinstance(payload.get("status"), str):
-            return payload["status"], _optional(payload.get("vault")), _optional(payload.get("path"))
-    return "unknown", None, None
+            return (
+                payload["status"],
+                _optional(payload.get("vault")),
+                _optional(payload.get("path")),
+                _count(payload.get("exchange_count")),
+            )
+    return "unknown", None, None, None
 
 
 def _optional(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
+
+
+def _count(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
 def _text(raw: bytes) -> str:

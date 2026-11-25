@@ -31,6 +31,7 @@ from vault_graph.interface.composition.adapters.session_export_files import (
     valid_session_id,
     vault_containing,
 )
+from vault_graph.interface.composition.adapters.session_migration import MigrationVault, SessionResult, migrate
 from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME
 from vault_graph.operation.integration.vault_map import open_vault_map, vault_map_path
 from vault_graph.operation.scope.catalog_service import CatalogService
@@ -117,6 +118,51 @@ def export(
     typer.echo(f"exported_sessions: {len(selected)} out: {target}")
     if recapture_failures:
         _fail(f"recapture_failed_sessions: {recapture_failures}")
+
+
+_MIGRATE_VAULT_OPTION = typer.Option(
+    None, "--vault", help="Vault name from vault-map.json to migrate. Repeat for more. Default: every mapped Vault."
+)
+_DRY_RUN_OPTION = typer.Option(False, "--dry-run", help="List the sessions to re-capture; write and run nothing.")
+
+
+@session_app.command("migrate")
+def migrate_command(
+    vault: list[str] | None = _MIGRATE_VAULT_OPTION,
+    dry_run: bool = _DRY_RUN_OPTION,
+    state: Path = _GRAPH_HOME_OPTION,
+    vault_map: Path | None = _VAULT_MAP_OPTION,
+) -> None:
+    """Re-capture Claude Code sessions whose vault-session/v1 parts no v2 part covers, through the Vault launcher."""
+    del state  # accepted for a uniform session CLI; the Vault list comes from vault-map.json
+    map_path = vault_map_path(vault_map)
+    opening = open_vault_map(map_path)
+    if opening.state == "invalid":
+        _fail(f"vault_map_invalid: {opening.warning}")
+    if opening.vault_map is None:
+        _fail(f"vault_map_invalid: no vault-map.json at {map_path}")
+    mapped = {item.name: Path(item.path).expanduser() for item in opening.vault_map.vaults}
+    names = list(dict.fromkeys(vault)) if vault else sorted(mapped)
+    for name in names:
+        if name not in mapped:
+            _fail(f"unknown_vault: {name}")
+
+    def show(result: SessionResult) -> None:
+        typer.echo(result.line())
+
+    report = migrate(
+        [MigrationVault(name=name, root=mapped[name]) for name in names],
+        projects_root=claude_config_dir() / "projects",
+        launcher=map_path.parent / LAUNCHER_NAME,
+        dry_run=dry_run,
+        on_result=show,
+    )
+    for summary in report.summaries:
+        typer.echo(summary.line())
+    if report.stopped:
+        _fail("migrate_stopped: a session was written to another Vault; nothing more was run")
+    if report.failed:
+        _fail(f"migrate_failed_sessions: {sum(1 for result in report.sessions if result.failed)}")
 
 
 def _recapture(session: ClaudeCodeSession, normalized: Path, launcher: Path) -> bool:

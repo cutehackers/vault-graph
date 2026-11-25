@@ -64,6 +64,21 @@ vg session export --agent {claude-code,codex} --out PATH (--session ID | --since
 - `--recapture`: export한 각 세션의 정규화 파일로 훅 실행기 `capture --direct --normalized <파일> --rerender`를 실행한다. 실행기에 주는 훅 JSON은 `session_id`, `transcript_path`, 정규화 파일 첫 줄의 `cwd`, `hook_event_name`(끝난 세션은 `SessionEnd`, 가장 최근 세션은 `PreCompact`)이다. 세션마다 시간 제한은 120초다. 실행기가 `--normalized`를 모르면(종료 코드 2) v1로 돌아가지 않고 종료 코드 1로 끝난다.
 - 수집 훅(`vg hook capture`)은 SessionEnd에서 `session_ended=True`, 그 밖의 이벤트에서 `False`로 정규화한다. export 설정은 `$HOME/.vault-graph/configs/session-export.json`에서만 읽는다.
 
+### 4.1 `vg session migrate` (spec 2026-11-25-v1-session-recapture)
+
+```
+vg session migrate [--vault NAME]... [--dry-run] [--graph-home PATH] [--vault-map PATH]
+```
+
+- 대상: `vault-map.json`의 Vault(`--vault`가 있으면 그 이름만) 아래 `raw/sessions/claude-code/*.md`(`.facts.md` 제외). vg는 frontmatter와 v2 본문의 `vg:exchange` 메타 줄을 읽기만 한다. 폴더가 없는 Vault는 `v1_parts=0`이다.
+- 덮음: v1 part는 같은 Vault, 같은 `agent`·`session_id`의 v2 part 하나가 그 범위를 포함하면 덮였다. v2 범위는 메타 줄의 가장 이른 `started`부터 가장 늦은 `ended`까지다(frontmatter `last_turn_at`은 파일 순서상 마지막 턴이라 쓰지 않는다). v1 범위는 frontmatter `first_turn_at`~`last_turn_at`이다. 시각은 시각 값으로 비교하고, 두 v2 part를 이어 붙이지 않는다. 덮이지 않은 v1 part가 있는 세션이 대상이다.
+- 원본: `$CLAUDE_CONFIG_DIR/projects/`(기본 `~/.claude/projects/`)에서 찾는다. 없으면 `source_missing`, 두 프로젝트 폴더에 있으면 `failed:duplicate_source`, main 원본이나 `subagents/` 파일이 1시간 안에 바뀌었으면 `recent`다. `--dry-run`은 여기까지 하고 나머지 대상을 `target`으로 적는다.
+- 정규화: 가장 최근 세션이라도 `session_ended=True`로 정규화해 OS 임시 폴더에 쓰고, 실행기가 끝나면 지운다. 훅 JSON 이벤트는 `SessionEnd`다. 세션 `cwd`가 지금 없는 폴더면 훅 JSON `cwd`에 가장 가까운 존재하는 상위 폴더를 넣고(`cwd_fallback=`), 정규화 파일은 바꾸지 않는다. Vault는 실행기와 Vault 도구가 고른다.
+- 중복 막기: 같은 세션의 v2 part 중 `first_exchange_id`·`last_exchange_id`가 정규화 파일의 턴 있는 첫·끝 교환과 같은 것이 있으면 쓰지 않고 `already_recaptured_uncovered`(실패)로 적는다.
+- 확인: 결과가 `written`이고, 결과 `vault`가 v1 part의 Vault 이름과 같고, `exchange_count`가 정규화 파일의 "턴이 하나 이상인 교환 수"와 같고, 다시 읽었을 때 그 세션의 v1 part가 모두 덮여야 `written`이다. Vault가 다르면 `failed:vault_mismatch`로 적고 남은 세션을 돌리지 않는다. 그 밖의 문제는 `failed:<이유>`로 적고 다음 세션으로 간다.
+- 출력: 세션마다 `<vault> <session_id> <결과> v1_parts=N exchanges=N [cwd_fallback=…] [path=…] [자세한 이유]`, Vault마다 `vault=<이름> v1_parts= covered= uncovered= source_missing= unreadable=`. 실패, Vault 불일치, 읽지 못한 part가 있으면 종료 코드 1이다. `source_missing`과 `recent`만 있으면 0이다.
+- 사실 대기열(`facts/queue/`)에 넣지 않는다. 기존 part를 대기열에 넣는 일은 spec 2026-11-25-memory-intent-layers 3b다.
+
 ## 5. export 설정 `configs/session-export.json`
 
 - 위치: Graph Home `configs/session-export.json`. 읽기·쓰기와 형식 확인은 `operation/scope/session_export_settings.py`가 한다.
