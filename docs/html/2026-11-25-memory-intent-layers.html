@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vg 기억 층 재설계</title>
+<style>
+/* 읽는 열(72ch) 위에 넓은 도식을 얹는다. 면 색은 층(기록·관측·지식·현재 상태)을, 강조색은 LLM이 도는 곳을 뜻한다. */
+:root {
+  --bg: #F2F4F7; --surface: #FFFFFF; --ink: #17212D; --muted: #586577;
+  --line: #C6CED9; --line-soft: #E0E5EC; --focus: #2457C5;
+  --llm: #A8215A; --warn: #B54708;
+  --l-record: #F4EDDD; --l-observe: #E1EFE9; --l-know: #E3EBF8; --l-state: #EEE6F6;
+  --tag: #E6EAF0;
+  --f-body: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --f-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E131A; --surface: #151C26; --ink: #E4E9F0; --muted: #97A3B3; --line: #344151; --line-soft: #232D3A;
+    --focus: #86A9FF; --llm: #F07CA8; --warn: #F2A25A;
+    --l-record: #29251A; --l-observe: #152824; --l-know: #18233A; --l-state: #241B30; --tag: #222C3A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E131A; --surface: #151C26; --ink: #E4E9F0; --muted: #97A3B3; --line: #344151; --line-soft: #232D3A;
+  --focus: #86A9FF; --llm: #F07CA8; --warn: #F2A25A;
+  --l-record: #29251A; --l-observe: #152824; --l-know: #18233A; --l-state: #241B30; --tag: #222C3A;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.7;
+  padding: 32px max(16px, env(safe-area-inset-left, 0px)) 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 48px; }
+.prose { max-width: 72ch; }
+h1 { font-size: 28px; line-height: 1.3; margin: 0; }
+h2 { font-size: 20px; margin: 0 0 12px; }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+p { margin: 0 0 12px; }
+code { font-family: var(--f-mono); font-size: 0.88em; background: var(--tag); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--focus); }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase; }
+.lead { color: var(--muted); max-width: 72ch; }
+section { display: grid; gap: 12px; }
+/* 좁은 화면: 넓은 그림과 표는 자기 상자 안에서만 가로로 밀리고, 페이지는 가로로 밀리지 않는다. */
+.wrap > *, section > *, .grid2 > * { min-width: 0; }
+code { overflow-wrap: anywhere; }
+.card { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px; padding: 20px 22px; }
+.intent { display: grid; gap: 10px; counter-reset: n; padding: 0; margin: 0; list-style: none; }
+.intent li { counter-increment: n; display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: start; }
+.intent li::before { content: "의도" counter(n); font-family: var(--f-mono); font-size: 12px; color: var(--muted); padding-top: 3px; }
+.intent b { display: block; }
+.statement { font-size: 18px; line-height: 1.6; border-left: 3px solid var(--focus); padding: 4px 0 4px 16px; margin: 0; }
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px; padding: 18px; overflow-x: auto; }
+figure svg { display: block; width: 100%; height: auto; min-width: 640px; color: var(--ink); }
+.grid2 figure svg { min-width: 460px; }
+figcaption { color: var(--muted); font-size: 13.5px; margin-top: 10px; max-width: 80ch; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+.tbl { overflow-x: auto; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 10px; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; border: 1px solid var(--line); vertical-align: -1px; }
+.grid2 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
+.note { font-size: 13.5px; color: var(--muted); }
+.warn { color: var(--warn); font-weight: 600; }
+.st { display: inline-block; font-family: var(--f-mono); font-size: 11.5px; line-height: 1.5; padding: 0 7px; border-radius: 999px; white-space: nowrap; border: 1px solid; }
+.st-decided { color: var(--focus); border-color: var(--focus); }
+.st-proposed { color: var(--muted); border-color: var(--line); border-style: dashed; }
+td.nowrap { white-space: nowrap; }
+ul.tight { margin: 0; padding-left: 20px; }
+ul.tight li { margin: 2px 0; }
+/* SVG 안의 면 색은 클래스로 준다. */
+.f-record { fill: var(--l-record); } .f-observe { fill: var(--l-observe); }
+.f-know { fill: var(--l-know); } .f-state { fill: var(--l-state); }
+.f-surface { fill: var(--surface); } .f-tag { fill: var(--tag); }
+.s-line { stroke: var(--line); } .s-llm { stroke: var(--llm); } .t-llm { fill: var(--llm); }
+.t-muted { fill: var(--muted); } .s-warn { stroke: var(--warn); } .t-warn { fill: var(--warn); }
+svg text { font-family: var(--f-body); font-size: 12.5px; fill: currentColor; }
+svg .small { font-size: 11px; }
+svg .mono { font-family: var(--f-mono); font-size: 11px; }
+svg .h { font-weight: 700; font-size: 13.5px; }
+</style>
+</head>
+<body>
+<main class="wrap">
+
+<header class="prose">
+  <div class="eyebrow">vault-graph · spec 2026-11-25-memory-intent-layers</div>
+  <h1>vg 의도와 기억 층 재설계</h1>
+  <p class="lead">세션에 답이 있어도 기본 질의가 세션을 보지 않고, 무관한 wiki 조각을 확인된 근거처럼 돌려주던 문제에서 출발했다. 이 문서는 새 의도, 처리 단계로 다시 나눈 기억 층, 개념 사전 기반 질의, 코드와 기억을 잇는 방식, 개선 순서를 그림으로 보여 준다. 세부 계약과 수용 기준은 <a href="../specs/2026-11-25-memory-intent-layers/spec.md">spec</a>에 있다.</p>
+</header>
+
+<section>
+  <h2>새 의도</h2>
+  <p class="statement">vault-graph는 지난 작업 경험에서 지금 유효한 뜻을 뽑아, Claude Code가 작업하는 순간에 상태와 출처를 붙여 전달한다.</p>
+  <div class="card">
+    <ol class="intent">
+      <li><div><b>원천은 작업 경험이다.</b>세션의 대화와 행동, 바뀐 파일, 사용자가 직접 한 말, commit이 원천이다. 원천은 Vault <code>raw/</code>에 저장하고(세션, 자동 기억 노트 사본, 외부 문서), commit은 git에 두고 가리키기만 한다. 원천은 한 번 쓰면 바뀌지 않는다. wiki 페이지는 원천에서 뽑아 확정한 지식을 담고, 고치거나 대체하거나 폐기할 수 있다.</div></li>
+      <li><div><b>기억은 상태와 시간을 가진다.</b>모든 기억 단위는 관측, 제안, 확정, 대체됨 중 한 상태와 날짜를 가진다. 질의는 기본으로 지금 유효한 것을 답하고, 요청하면 이력을 답한다.</div></li>
+      <li><div><b>뜻은 쓸 때 만들고 읽을 때는 전달만 한다.</b>LLM은 수집 뒤(사실 추출, 드리밍)에만 쓰고 질의 때는 부르지 않는다. vg는 검색 조각이 아니라 정리된 기억 단위를 돌려준다.</div></li>
+      <li><div><b>전달 시점은 작업 흐름을 따른다.</b>세션 시작, 사용자 프롬프트(개념이 강하게 걸릴 때만), 요청할 때 기억을 준다. 파일을 읽거나 고칠 때마다 넣지는 않는다. 코드 경로는 기억을 찾는 일급 열쇠다.</div></li>
+      <li><div><b>저장 경계는 그대로다.</b>Vault가 저장소이고, 쓰기는 Vault 도구를 거치며, vg는 다시 만들 수 있는 색인만 가진다. SPEC 원칙2~6은 바뀌지 않는다.</div></li>
+    </ol>
+  </div>
+  <p class="note">이 다섯 문장이 <code>docs/SPEC.md</code> §0 의도를 대신한다 <span class="st st-decided">decided · D1</span></p>
+</section>
+
+<section>
+  <h2>기억 층: 저장 위치에서 기억의 상태로 <span class="st st-decided">decided · D2</span></h2>
+  <p class="prose">예전 L1·L2·L3는 기억이 어디에 저장되는지로 나눴다. 그래서 최근 만든 세션 수집, 사실 추출, 드리밍, 검토 승인은 어느 층에도 속하지 못했다. 새 층은 기억이 어떤 상태에 있는지로 나눈다. 기록, 관측, 지식, 현재 상태 네 층이 L1/L2/L3를 대신한다.</p>
+  <figure>
+    <svg viewBox="0 0 1060 360" role="img" aria-label="왼쪽은 예전 L1 자동 기억, L2 wiki, L3 요약과 그 밖에 떨어진 세션과 사실 첨부. 오른쪽은 기록, 관측, 지식, 현재 상태가 한 흐름으로 이어진 새 층.">
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+        <marker id="a1w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="t-llm"/></marker>
+      </defs>
+      <text x="20" y="26" class="h">예전: 저장 위치 기준</text>
+      <rect x="20" y="44" width="200" height="48" rx="8" class="f-surface s-line" stroke-width="1"/>
+      <text x="36" y="66" class="h">L1 자동 기억 노트</text><text x="36" y="83" class="small t-muted">~/.claude/projects/…/memory</text>
+      <rect x="20" y="108" width="200" height="48" rx="8" class="f-surface s-line" stroke-width="1"/>
+      <text x="36" y="130" class="h">L2 wiki 페이지</text><text x="36" y="147" class="small t-muted">wiki/</text>
+      <rect x="20" y="172" width="200" height="48" rx="8" class="f-surface s-line" stroke-width="1"/>
+      <text x="36" y="194" class="h">L3 프로젝트 요약</text><text x="36" y="211" class="small t-muted">계산 목록 + brief</text>
+      <line x1="120" y1="92" x2="120" y2="106" stroke="currentColor" marker-end="url(#a1)"/>
+      <text x="128" y="103" class="small t-muted">정리(사람이 시작)</text>
+      <line x1="120" y1="156" x2="120" y2="170" stroke="currentColor" marker-end="url(#a1)"/>
+      <rect x="250" y="250" width="200" height="86" rx="8" fill="none" class="s-warn" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <text x="266" y="272" class="h t-warn">어느 층에도 없음</text>
+      <text x="266" y="292" class="small">세션 원문 79 part</text>
+      <text x="266" y="308" class="small">사실 첨부 9 part</text>
+      <text x="266" y="324" class="small">기본 질의에서 빠짐</text>
+
+      <line x1="490" y1="30" x2="490" y2="340" class="s-line" stroke-width="1"/>
+
+      <text x="520" y="26" class="h">새로: 기억 상태 기준</text>
+      <rect x="520" y="44" width="250" height="60" rx="8" class="f-record s-line" stroke-width="1"/>
+      <text x="536" y="66" class="h">기록</text><text x="536" y="84" class="small">세션 교환, 노트 사본, 외부 문서</text><text x="536" y="98" class="small t-muted">raw/ · 바뀌지 않음</text>
+      <rect x="520" y="134" width="250" height="60" rx="8" class="f-observe s-line" stroke-width="1"/>
+      <text x="536" y="156" class="h">관측</text><text x="536" y="174" class="small">교환별 날짜 사실 + 종류·개념·코드 앵커</text><text x="536" y="188" class="small t-muted">*.facts.md · 상태 관측</text>
+      <rect x="520" y="224" width="250" height="60" rx="8" class="f-know s-line" stroke-width="1"/>
+      <text x="536" y="246" class="h">지식</text><text x="536" y="264" class="small">결정·규칙·개념의 주장, 근거, 대체 관계</text><text x="536" y="278" class="small t-muted">wiki/ · 확정 / 대체됨</text>
+      <rect x="810" y="134" width="230" height="150" rx="8" class="f-state s-line" stroke-width="1"/>
+      <text x="826" y="156" class="h">현재 상태 (뷰)</text>
+      <text x="826" y="178" class="small">유효한 결정·규칙</text>
+      <text x="826" y="196" class="small">열린 일</text>
+      <text x="826" y="214" class="small">최근 관측</text>
+      <text x="826" y="240" class="small t-muted">질의할 때 계산</text>
+      <text x="826" y="256" class="small t-muted">저장하지 않음</text>
+
+      <line x1="645" y1="104" x2="645" y2="132" class="s-llm" stroke="currentColor" stroke-width="1.8" marker-end="url(#a1w)"/>
+      <text x="654" y="123" class="small t-llm">사실 추출 (LLM, 자동)</text>
+      <line x1="645" y1="194" x2="645" y2="222" class="s-llm" stroke-width="1.8" marker-end="url(#a1w)"/>
+      <text x="654" y="213" class="small t-llm">제안 → vg review 승인</text>
+      <line x1="770" y1="254" x2="808" y2="240" stroke="currentColor" marker-end="url(#a1)"/>
+      <line x1="770" y1="164" x2="808" y2="180" stroke="currentColor" marker-end="url(#a1)"/>
+      <text x="520" y="318" class="small t-muted">예전 L1 노트 → 기록의 한 출처 · 예전 L3 목록 → 현재 상태 뷰 · brief → 지식 페이지</text>
+    </svg>
+    <figcaption>왼쪽은 장소로 나눈 예전 층이다. 세션과 사실 첨부가 층 밖에 떨어져 기본 질의에서 빠졌다. 오른쪽은 기록이 관측이 되고, 관측이 검토를 거쳐 지식이 되며, 현재 상태는 그 둘에서 계산하는 흐름이다. 분홍 화살표만 LLM이 도는 곳이다.</figcaption>
+  </figure>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>층</th><th>담는 것</th><th>만드는 방법</th><th>상태</th><th>Vault 위치</th></tr></thead>
+      <tbody>
+        <tr><td><span class="sw" style="background:var(--l-record)"></span>기록</td><td>세션 교환 원문, 가져온 자동 기억 노트, 외부 문서, commit(가리키기만)</td><td><code>sessions capture</code>, <code>import-source</code>, ingest</td><td>바뀌지 않음</td><td>Vault <code>raw/</code>, commit은 git</td></tr>
+        <tr><td><span class="sw" style="background:var(--l-observe)"></span>관측</td><td>교환마다 날짜가 붙은 사실. 교환 위치, 종류, 개념 태그, 코드 앵커를 단다</td><td>사실 작업자가 자동으로</td><td>관측(검토 전)</td><td><code>raw/…/*.facts.md</code></td></tr>
+        <tr><td><span class="sw" style="background:var(--l-know)"></span>지식</td><td>결정, 규칙, 개념을 근거 링크와 대체 링크가 달린 주장으로</td><td>사용자가 말한 것(stated) 또는 수락된 제안(드리밍, 정리)</td><td>확정, 대체됨</td><td><code>wiki/</code></td></tr>
+        <tr><td><span class="sw" style="background:var(--l-state)"></span>현재 상태</td><td>유효한 결정과 규칙, 열린 일, 최근 관측</td><td>질의 때 계산</td><td>저장하지 않음</td><td>없음</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note prose">"제안" 상태는 Vault 검토 대기열에 있는 지식 후보이고, 수락 전에는 회상과 검색에 나오지 않는다. 그래프는 두 가지 일만 한다. 대체 사슬을 따라가는 일과 개념·코드 경로를 잇는 일이다.</p>
+</section>
+
+<section>
+  <h2>쓰는 흐름: LLM은 여기서만 돈다</h2>
+  <figure>
+    <svg viewBox="0 0 1060 300" role="img" aria-label="세션이 끝나면 Vault가 원문을 저장하고, 사실 작업자가 auto 추출기로 로컬 서버가 응답하면 로컬 모델을, 아니면 Claude를 써서 사실을 뽑아 첨부한다. 드리밍과 기억 정리가 제안을 만들고 사람이 vg review로 승인하면 wiki에 발행된다.">
+      <defs>
+        <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <rect x="20" y="40" width="150" height="56" rx="8" class="f-surface s-line"/>
+      <text x="36" y="63" class="h">세션 종료·압축</text><text x="36" y="82" class="small t-muted">vg hook capture</text>
+      <rect x="210" y="40" width="160" height="56" rx="8" class="f-record s-line"/>
+      <text x="226" y="63" class="h">기록</text><text x="226" y="82" class="small">raw/sessions/…-partN.md</text>
+      <rect x="410" y="24" width="250" height="150" rx="8" class="f-surface s-line"/>
+      <text x="426" y="46" class="h">사실 작업자</text>
+      <text x="426" y="66" class="small">extractor = auto (기본)</text>
+      <rect x="426" y="78" width="218" height="34" rx="6" class="f-tag"/>
+      <text x="436" y="99" class="small t-llm">127.0.0.1:8080 응답 → 로컬 모델</text>
+      <rect x="426" y="118" width="218" height="34" rx="6" class="f-tag"/>
+      <text x="436" y="139" class="small t-llm">응답 없음 → claude -p</text>
+      <text x="426" y="168" class="small t-muted">vg facts on --extractor …로 고정 가능</text>
+      <rect x="700" y="40" width="170" height="56" rx="8" class="f-observe s-line"/>
+      <text x="716" y="63" class="h">관측</text><text x="716" y="82" class="small">…-partN.facts.md (v2)</text>
+      <rect x="700" y="160" width="170" height="56" rx="8" class="f-surface s-line"/>
+      <text x="716" y="183" class="h">제안</text><text x="716" y="202" class="small">드리밍 · "기억 정리해"</text>
+      <rect x="700" y="240" width="170" height="50" rx="8" class="f-know s-line"/>
+      <text x="716" y="262" class="h">지식</text><text x="716" y="280" class="small">wiki/ 발행</text>
+      <rect x="900" y="40" width="140" height="120" rx="8" class="f-tag"/>
+      <text x="914" y="62" class="h">추출기 표시</text>
+      <text x="914" y="84" class="small">vg facts status</text>
+      <text x="914" y="102" class="small">세션 시작 한 줄</text>
+      <text x="914" y="120" class="small">.facts.md extractor</text>
+      <text x="914" y="138" class="small">· model 칸</text>
+      <line x1="170" y1="68" x2="208" y2="68" stroke="currentColor" marker-end="url(#a2)"/>
+      <line x1="370" y1="68" x2="408" y2="68" stroke="currentColor" marker-end="url(#a2)"/>
+      <text x="374" y="60" class="small t-muted">대기열</text>
+      <line x1="660" y1="68" x2="698" y2="68" stroke="currentColor" marker-end="url(#a2)"/>
+      <text x="664" y="60" class="small t-muted">attach-facts</text>
+      <line x1="785" y1="96" x2="785" y2="158" stroke="currentColor" marker-end="url(#a2)"/>
+      <text x="792" y="132" class="small t-llm">LLM 판단</text>
+      <line x1="785" y1="216" x2="785" y2="238" stroke="currentColor" marker-end="url(#a2)"/>
+      <text x="792" y="231" class="small">사람이 vg review 승인</text>
+      <line x1="870" y1="68" x2="898" y2="80" stroke="currentColor" stroke-dasharray="3 3"/>
+      <rect x="20" y="200" width="350" height="86" rx="8" fill="none" class="s-warn" stroke-dasharray="5 4"/>
+      <text x="36" y="222" class="h t-warn">먼저 채울 빈칸</text>
+      <text x="36" y="242" class="small">v1 part 35개: 교환 메타 없음 → 원본으로 v2 재수집</text>
+      <text x="36" y="260" class="small">사실 없는 70 part(11MB) → vg facts backfill</text>
+      <text x="36" y="278" class="small">원본 jsonl은 Claude Code 기본 30일만 보관</text>
+    </svg>
+    <figcaption>흐름은 수집 → 사실 추출 → 제안·검토 → wiki다. LLM은 사실 추출과 드리밍 판단 두 곳에서만 돈다. 추출기는 auto가 기본이며 로컬 서버가 응답할 때만 로컬 모델을 쓴다(3e). 어느 쪽이 처리했는지는 세 곳에서 볼 수 있고, 세션 시작 한 줄은 매 세션 나온다. 사실에는 종류와 개념 태그가 붙고, 파일과 commit은 LLM이 아니라 교환 메타와 정규식으로 달고 <code>git cat-file</code>로 확인한다(3c). 프롬프트에 넣기 전에 도구 이름만 있는 줄을 뺀다(3d). 지식으로 올라가는 길은 언제나 사람의 승인을 거친다. 각 방향의 decided/proposed는 아래 개선 순서 표에 있다.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>질의 흐름: 개념 사전과 층별 답 <span class="st st-proposed">proposed · D3</span></h2>
+  <p class="prose">NVIDIA Auto Ontology에서 개념 사전, 매핑, 인증, 답 가능성 검사를 가져왔다. 질의 때 LLM이 ReAct로 도는 부분은 가져오지 않았다(의도3).</p>
+  <figure>
+    <svg viewBox="0 0 1060 330" role="img" aria-label="질문이 개념 사전과 맞춰지고, 답 가능성 검사를 통과하면 개념마다 현재 상태, 지식, 관측, 기록 순서로 따로 찾아 출처와 상태가 붙은 답 단위로 돌려준다. 통과하지 못하면 없는 개념과 가까운 개념을 알린다. 개념이 없으면 혼합 검색을 개념 미연결로 표시해 돌려준다.">
+      <defs>
+        <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <rect x="20" y="60" width="140" height="56" rx="8" class="f-surface s-line"/>
+      <text x="36" y="83" class="h">질문 또는</text><text x="36" y="101" class="h">파일 경로</text>
+      <rect x="196" y="40" width="190" height="96" rx="8" class="f-surface s-line"/>
+      <text x="212" y="62" class="h">질의2 해석</text>
+      <text x="212" y="82" class="small">개념 사전(별칭·이름 임베딩)</text>
+      <text x="212" y="100" class="small">질문 유형: 현재 상태·이유·</text>
+      <text x="212" y="116" class="small">사건·코드 위치 · 날짜 범위</text>
+      <rect x="422" y="40" width="170" height="96" rx="8" class="f-surface s-line"/>
+      <text x="438" y="62" class="h">질의3 답 가능성</text>
+      <text x="438" y="82" class="small">핵심어 중 개념에</text>
+      <text x="438" y="100" class="small">걸린 비율</text>
+      <rect x="628" y="20" width="200" height="156" rx="8" class="f-surface s-line"/>
+      <text x="644" y="42" class="h">질의4 층별 조회</text>
+      <rect x="644" y="52" width="168" height="24" rx="5" class="f-state"/><text x="654" y="69" class="small">1 현재 상태</text>
+      <rect x="644" y="80" width="168" height="24" rx="5" class="f-know"/><text x="654" y="97" class="small">2 지식 (대체 따라 현재로)</text>
+      <rect x="644" y="108" width="168" height="24" rx="5" class="f-observe"/><text x="654" y="125" class="small">3 관측 (검토 전 표시)</text>
+      <rect x="644" y="136" width="168" height="24" rx="5" class="f-record"/><text x="654" y="153" class="small">4 기록 인용</text>
+      <rect x="864" y="20" width="176" height="156" rx="8" class="f-tag"/>
+      <text x="878" y="42" class="h">질의5 답 단위</text>
+      <text x="878" y="64" class="small">문장</text>
+      <text x="878" y="82" class="small">층 · 상태 · 날짜</text>
+      <text x="878" y="100" class="small">개념</text>
+      <text x="878" y="118" class="small">코드 앵커</text>
+      <text x="878" y="136" class="small">원천 경로·줄 범위</text>
+      <text x="878" y="158" class="small t-muted">개념별로 묶음</text>
+      <line x1="160" y1="88" x2="194" y2="88" stroke="currentColor" marker-end="url(#a3)"/>
+      <line x1="386" y1="88" x2="420" y2="88" stroke="currentColor" marker-end="url(#a3)"/>
+      <line x1="592" y1="88" x2="626" y2="88" stroke="currentColor" marker-end="url(#a3)"/>
+      <text x="596" y="80" class="small t-muted">충분</text>
+      <line x1="828" y1="98" x2="862" y2="98" stroke="currentColor" marker-end="url(#a3)"/>
+      <line x1="507" y1="136" x2="507" y2="214" stroke="currentColor" marker-end="url(#a3)"/>
+      <text x="514" y="180" class="small t-muted">낮음</text>
+      <rect x="422" y="216" width="250" height="50" rx="8" fill="none" class="s-warn"/>
+      <text x="438" y="238" class="small">"이 Vault에 해당 개념 없음"</text>
+      <text x="438" y="256" class="small">+ 가까운 개념 몇 개</text>
+      <line x1="291" y1="136" x2="291" y2="274" stroke="currentColor" stroke-dasharray="4 3"/>
+      <line x1="291" y1="274" x2="196" y2="274" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#a3)"/>
+      <text x="298" y="210" class="small t-muted">개념 0개</text>
+      <rect x="20" y="246" width="174" height="62" rx="8" fill="none" class="s-line"/>
+      <text x="34" y="266" class="small">질의6 대체 길</text>
+      <text x="34" y="283" class="small t-muted">관측·기록에 하이브리드 검색</text>
+      <text x="34" y="299" class="small t-muted">+ "개념 미연결" 표시</text>
+      <rect x="20" y="150" width="170" height="62" rx="8" class="f-tag"/>
+      <text x="34" y="172" class="h">질의1 개념 사전</text>
+      <text x="34" y="190" class="small">쓸 때 만든다</text>
+      <text x="34" y="205" class="small t-muted">새 개념은 vg review 인증</text>
+      <line x1="190" y1="170" x2="238" y2="139" stroke="currentColor" stroke-dasharray="3 3" marker-end="url(#a3)"/>
+      <text x="700" y="232" class="small t-muted">층을 섞어 한 순위로 매기지 않는다.</text>
+      <text x="700" y="250" class="small t-muted">출처 원천 없는 지식은 그렇게 표시한다.</text>
+      <text x="700" y="268" class="small t-muted">대체된 주장은 대체됨으로 표시한다.</text>
+    </svg>
+    <figcaption>예전에는 wiki 조각, 세션 조각, 다른 프로젝트 페이지를 벡터 유사도로 한 줄에 섞어 모두 supported로 돌려줬다. 새 질의는 개념에 먼저 맞추고, 걸리지 않으면 없다고 말하며, 걸리면 층마다 따로 찾아 상태와 출처를 붙인다. 개념 사전(질의1)은 쓰는 시점에 페이지 제목·<code>aliases</code>, 사실 추출의 개념 태그, 코드 심볼로 만들고 새 개념은 vg review로 인증한다. 원천이 없는 지식에는 "출처 원천 없음"을 붙인다. 질의 설계 전체는 제안 단계이고, 관측과 앵커가 찬 뒤에 효과를 재고 정한다.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>코드와 기억 잇기</h2>
+  <div class="grid2">
+    <figure>
+      <svg viewBox="0 0 520 300" role="img" aria-label="개념, 관측, 지식 주장이 파일 경로와 commit에 연결된다. 경로로 조회하면 연결된 주장과 관측을 돌려주고, 주장의 commit 뒤에 파일이 바뀌었으면 코드 바뀜으로 표시한다.">
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+        </defs>
+        <rect x="20" y="30" width="150" height="44" rx="8" class="f-tag"/><text x="34" y="57" class="h">개념</text>
+        <rect x="20" y="110" width="150" height="44" rx="8" class="f-know s-line"/><text x="34" y="137" class="h">지식 주장</text>
+        <rect x="20" y="190" width="150" height="44" rx="8" class="f-observe s-line"/><text x="34" y="217" class="h">관측</text>
+        <rect x="320" y="90" width="180" height="84" rx="8" class="f-surface s-line"/>
+        <text x="336" y="114" class="h">코드 위치</text>
+        <text x="336" y="134" class="mono">src/…/fact_worker.py</text>
+        <text x="336" y="152" class="mono">commit 9ddce0c</text>
+        <text x="336" y="168" class="small t-muted">심볼은 코드 색인이 풀 때만</text>
+        <line x1="170" y1="52" x2="318" y2="110" stroke="currentColor" marker-end="url(#a4)"/>
+        <text x="200" y="70" class="small t-muted">매핑</text>
+        <line x1="170" y1="132" x2="318" y2="132" stroke="currentColor" marker-end="url(#a4)"/>
+        <text x="200" y="126" class="small t-muted">인용 교환에서 물려받음</text>
+        <line x1="170" y1="212" x2="318" y2="160" stroke="currentColor" marker-end="url(#a4)"/>
+        <text x="190" y="206" class="small t-muted">교환 메타 files=</text>
+        <rect x="300" y="210" width="200" height="66" rx="8" fill="none" class="s-warn"/>
+        <text x="314" y="232" class="small">git log &lt;commit&gt;..HEAD -- 경로</text>
+        <text x="314" y="250" class="small">비어 있지 않으면</text>
+        <text x="314" y="268" class="small t-warn">"코드 바뀜, 다시 확인"</text>
+        <line x1="410" y1="174" x2="410" y2="208" stroke="currentColor" marker-end="url(#a4)"/>
+      </svg>
+      <figcaption><span class="st st-proposed">proposed · D7</span> 앵커(4a·4b·4c)와 신선도(4e). 앵커는 저장소 기준 상대 파일 경로, commit, 심볼이고 파일부터 한다. 위치 연결은 다시 만들 수 있는 파생 데이터라 Graph Home 색인에 둔다. 신선도 검사는 <code>explore_project</code>가 cwd 저장소를 보는 일(<span class="st st-decided">decided · D9</span>)이 먼저 있어야 한다. 코드가 지금 동작의 기준이고, 기억은 왜 그렇게 정했는지를 알려 준다. 둘이 다르면 기억을 사실로 내보내지 않는다.</figcaption>
+    </figure>
+    <figure>
+      <svg viewBox="0 0 520 300" role="img" aria-label="기억을 넣는 시점 세 가지. 세션 시작 recall, 사용자 요청마다 개념이 강하게 걸릴 때만 200토큰 이내 주입, Claude가 부르는 도구. 파일을 읽거나 고칠 때마다 넣는 방식은 버렸다.">
+        <defs>
+          <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+        </defs>
+        <line x1="20" y1="60" x2="500" y2="60" class="s-line" stroke-width="2"/>
+        <text x="20" y="40" class="small t-muted">한 세션의 시간 →</text>
+        <circle cx="40" cy="60" r="7" class="f-state s-line"/>
+        <text x="20" y="90" class="small">세션 시작</text><text x="20" y="106" class="small t-muted">recall 1,500토큰</text>
+        <circle cx="180" cy="60" r="7" class="f-know s-line"/>
+        <circle cx="330" cy="60" r="7" class="f-know s-line"/>
+        <text x="150" y="90" class="small">사용자 요청</text><text x="150" y="106" class="small t-muted">개념 강하게 걸릴 때</text><text x="150" y="122" class="small t-muted">≤200토큰, 요청당 1번</text>
+        <text x="300" y="90" class="small">사용자 요청</text><text x="300" y="106" class="small t-muted">걸림 없음 → 넣지 않음</text>
+        <rect x="430" y="76" width="74" height="40" rx="6" class="f-tag"/>
+        <text x="438" y="93" class="small">필요할 때</text><text x="438" y="109" class="mono">memory_for_*</text>
+        <rect x="20" y="160" width="480" height="116" rx="8" fill="none" class="s-warn" stroke-dasharray="5 4"/>
+        <text x="36" y="184" class="h t-warn">버린 방식: 파일을 다룰 때마다 넣기</text>
+        <text x="36" y="206" class="small">v2 세션 44 part의 도구 호출</text>
+        <rect x="36" y="216" width="300" height="10" class="f-tag"/><text x="344" y="226" class="small">Bash 8,368</text>
+        <rect x="36" y="232" width="55" height="10" class="f-tag"/><text x="99" y="242" class="small">Read 1,521</text>
+        <rect x="36" y="248" width="35" height="10" class="f-tag"/><text x="79" y="258" class="small">Edit 974</text>
+        <text x="190" y="258" class="small t-muted">읽기 상당수가 Bash라 Read hook으로는 다 잡지도 못한다</text>
+      </svg>
+      <figcaption><span class="st st-decided">decided · D8</span> 프롬프트 주입(4d, 옵션A). Claude는 코드를 질문이 아니라 파일 경로로 다룬다. 그래서 경로를 조회 열쇠로 두되, 넣는 시점은 파일 이벤트가 아니라 사용자 요청 단위로 정했다. 요청 문장이 개념에 강하게 걸릴 때만 그 개념의 현재 결정·규칙과 걸린 코드 경로를 넣는다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <h2>개선 순서</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>순서</th><th>방향</th><th>할 일</th><th>상태</th><th>왜 이 순서인가</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>3a</td><td>v1 세션 35 part를 원본 jsonl로 v2 재수집</td><td class="nowrap"><span class="st st-proposed">proposed · D4</span></td><td class="warn">원본은 Claude Code 기본 30일 뒤 지워질 수 있다</td></tr>
+        <tr><td>2</td><td>3b</td><td><code>vg facts backfill</code>: 사실 파일이 없거나 원문이 바뀐 part를 대기열에 넣는다</td><td class="nowrap"><span class="st st-proposed">proposed · D4</span></td><td>관측 층이 비어 있으면 질의가 바뀌어도 줄 것이 없다</td></tr>
+        <tr><td>3</td><td>3c</td><td>사실 계약 v2(종류, 개념 태그, 확인된 파일·commit)와 vault-builder <code>attach-facts</code></td><td class="nowrap"><span class="st st-decided">decided · D5</span></td><td>개념 사전과 코드 앵커의 재료</td></tr>
+        <tr><td>4</td><td>3d</td><td>프롬프트에 넣기 전 도구 이름만 있는 줄(<code>Tools: Bash</code>) 빼기</td><td class="nowrap"><span class="st st-proposed">proposed · D4</span></td><td>assistant 줄 상당수가 도구 이름 줄이다</td></tr>
+        <tr><td>5</td><td>3e</td><td>추출기 기본값 <code>auto</code>, 설정·명령으로 바꾸기, 상태 표시(세션 시작 한 줄은 매 세션)</td><td class="nowrap"><span class="st st-decided">decided · D6</span></td><td>로컬 모델이 있으면 그것을 쓰고, 어느 쪽인지 사용자가 안다</td></tr>
+        <tr><td>6</td><td>결정5</td><td><code>explore_project</code>가 등록 없이 cwd의 git 저장소를 본다</td><td class="nowrap"><span class="st st-decided">decided · D9</span></td><td>코드 앵커 확인과 신선도 검사에 필요</td></tr>
+        <tr><td>7</td><td>4a·4b·4c</td><td>관측과 지식에 코드 앵커 달기, Graph Home 파생 데이터와 그래프 간선</td><td class="nowrap"><span class="st st-proposed">proposed · D7</span></td><td>경로로 기억을 찾으려면 앵커가 있어야 한다</td></tr>
+        <tr><td>8</td><td>4d</td><td>프롬프트마다 개념이 강하게 걸릴 때만 주입(UserPromptSubmit, 옵션A)과 <code>memory_for_path</code>·<code>memory_for_concept</code></td><td class="nowrap"><span class="st st-decided">decided · D8</span></td><td>강한 걸림을 판단하려면 개념과 앵커가 있어야 한다</td></tr>
+        <tr><td>9</td><td>4e</td><td>신선도 표시 "코드 바뀜, 다시 확인"</td><td class="nowrap"><span class="st st-proposed">proposed · D7</span></td><td><code>git log</code>가 필요해 결정5가 먼저다</td></tr>
+        <tr><td>10</td><td>질의 설계</td><td>개념 사전, 답 가능성 검사, 층별 조회, 답 단위, 대체 길, 코드 경로 조회(질의1~6)</td><td class="nowrap"><span class="st st-proposed">proposed · D3</span></td><td>관측과 앵커가 차야 효과를 잴 수 있다</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note"><span class="st st-decided">decided</span>는 사용자가 2026-11-25 대화에서 정한 결정이고, <span class="st st-proposed">proposed</span>는 제안이라 그 방향의 구현 spec에서 확정한다. 이 순서 자체도 제안(D10)이다. 방향마다 나중 spec을 따로 쓰고 측정한다. 개념 일치 강도, 답 가능성 비율, 주입 예산 200토큰은 구현 spec에서 잰다. 결정 근거와 수용 기준 초안은 <a href="../specs/2026-11-25-memory-intent-layers/spec.md">spec</a> §4.3과 §5에 있다.</p>
+</section>
+
+<section class="prose">
+  <h2>이번에 정리한 문서</h2>
+  <ul class="tight">
+    <li><code>docs/SPEC.md</code>: §0 의도를 위 다섯 문장으로 바꾸고 그 아래에 층 표 네 줄을 두었다. 원칙1에 "질의 때도 LLM을 부르지 않는다"를 적었다. 옛 층 이름은 새 이름(자동 기억 노트, 현재 상태 목록, 현재 상태 구획)으로 바꾸고, 코드가 출력하거나 받는 문구만 따옴표로 남겼다. <code>archive/</code> 링크는 git history를 가리키게 고쳤다.</li>
+    <li><code>docs/DECISIONS.md</code>: 사용자가 정한 결정(D1, D2, D5, D6, D8, D9)을 2026-11-25 항목으로 더했다. 2026-11-06 두 항목(L1·L2·L3 관리 이전, L3 목록 계산과 brief)은 본문을 두고 끝에 "Replaced by" 한 줄을 달았다. proposed 결정은 적지 않았다.</li>
+    <li><code>docs/TODO.md</code>: "Memory Intent Redesign (spec 2026-11-25)" 절에 개선 방향을 위 순서의 체크박스로 적었다. n차-11(UserPromptSubmit 회상)에는 4d로 옮겼다고 적었다.</li>
+    <li><code>AGENTS.md</code>: Project Boundary 첫 문장만 새 의도에 맞게 바꿨다. 나머지 문장과 여섯 쓰기 경로는 그대로다.</li>
+    <li>지운 것: <code>docs/superpowers/</code>, <code>docs/stenc/</code>와 이를 여는 <code>open-docs.sh</code>, <code>docs/archive/</code>, 이 문서가 대신하는 <code>docs/html/2026-10-29-vault-memory-design.html</code>. 원본은 git history에 남는다.</li>
+    <li>남긴 것: <code>docs/design/specs/</code>, <code>docs/design/plans/</code>, <code>docs/design/intents/</code>(ARCHITECTURE, DEVELOPMENT, SPEC §8이 계약으로 링크한다), <code>docs/design/reports/</code>, <code>docs/specs/</code>.</li>
+  </ul>
+  <p class="note">제품 코드, 테스트, 설정은 바꾸지 않았다. 코드 속 옛 이름(<code>l1_note</code>, "L1 노트" 출력 문구 등)은 구현 spec에서 바꾼다.</p>
+</section>
+
+</main>
+</body>
+</html>

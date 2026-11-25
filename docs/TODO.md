@@ -26,7 +26,7 @@ See [`docs/SPEC.md`](SPEC.md) §9 for the summary and
 for full contracts and acceptance criteria.
 
 The former Software Invariant Engine roadmap (VS-1 to VS-6) is archived in
-[`docs/archive/SPEC-v5.0.md`](archive/SPEC-v5.0.md) and will not be implemented.
+git history as `docs/archive/SPEC-v5.0.md` (commit `9ddce0c`) and will not be implemented.
 
 ### First Pass (1차)
 
@@ -65,7 +65,8 @@ Promote each item to its own spec before starting.
 - [ ] **n차-10:** Read-only `vg memory review` over usage records (needs 1차-3
   and two weeks of usage records)
 - [ ] **n차-11:** UserPromptSubmit recall from the first prompt (needs
-  measurement 1 and an extended 의존1)
+  measurement 1 and an extended 의존1). Moved to 4d in
+  [Memory Intent Redesign](#memory-intent-redesign-spec-2026-11-25).
 - [ ] **n차-12:** Count `m:` ID mentions in `raw/sessions/` to improve usage
   counts (needs 의존2)
 
@@ -85,6 +86,108 @@ Vault Graph does not build these. The owner implements them.
 
 vault-builder request document: vault-builder repository
 `docs/superpowers/specs/2026-10-29-vault-graph-requests-ko.md` (not committed yet).
+
+## Memory Intent Redesign (spec 2026-11-25)
+
+Status: open. Each item below becomes its own spec before code changes, in
+the order listed (spec D10). The directions and their draft acceptance
+criteria are in
+[spec 2026-11-25-memory-intent-layers](specs/2026-11-25-memory-intent-layers/spec.md)
+§4.3. The failure and boundary behavior they must keep is in §6 (F6 to F9).
+
+The spec names four memory layers: 기록 (record: sessions, imported auto
+memory notes, external documents, and commits by reference, never changed
+after writing), 관측 (observation: dated facts per exchange, not reviewed),
+지식 (knowledge: confirmed wiki claims that can be superseded), and 현재 상태
+(current state: computed at query time, not stored). Thresholds (concept
+match strength, answerability ratio, the 200 token injection budget) are
+measured in each implementation spec.
+
+### 결정3 (decision 3): Fill The Observation Layer For Every Session
+
+- [ ] **3a:** Re-capture the 35 v1 session parts as v2 parts with exchange
+  metadata. Do this first: Claude Code may delete the original transcripts
+  (`~/.claude/projects/*/<session_id>.jsonl`) after 30 days by default. Draft:
+  no v1 part remains, and each re-captured part has as many exchanges as its
+  original.
+- [ ] **3b:** `vg facts backfill` queues parts that have no facts file or whose
+  `source_sha256` changed. It reuses the current worker, lock, and
+  per-exchange cache. Draft: a second run adds no extraction calls, and after
+  a run no v2 part is left without facts.
+- [ ] **3c:** Fact contract v2. The LLM adds a kind (decision, change, problem,
+  preference, question) and concept tags. Files and commits come from exchange
+  metadata and regular expressions, not the LLM, and each commit is checked
+  with `git cat-file`. Needs a vault-builder `attach-facts` change. Draft:
+  unverified commits are not attached, and v1 attachments still read.
+- [ ] **3d:** Drop lines that hold only tool names (`Tools: Bash`) before
+  building the extraction prompt. Draft: prompt bytes for the same part go
+  down and the number of extracted facts does not.
+- [ ] **3e:** Extractor `auto` becomes the default. It uses llama-server when
+  `127.0.0.1:8080` answers and claude otherwise. A person changes it with
+  `vg facts on --extractor auto|llama-server|claude` or `configs/facts.json`.
+  `vg facts status` shows the setting, the extractor it picks now, and the
+  extractor and model of the last job. Session-start recall prints one
+  extractor line (about 15 tokens, such as `facts: auto → claude`) every
+  session, not only when it changes, so a stopped server does not go unnoticed
+  (spec D19). `.facts.md` records `extractor` and `model`. With `auto`, each
+  job checks the endpoint and uses claude when it does not answer. A job whose
+  server stops midway fails, and the next job picks again. A fixed
+  `llama-server` setting never falls back to claude and reports the failure
+  (F6). Draft: status output changes when the server stops or starts, and the
+  attached fields match the extractor actually used.
+
+### 결정5 (decision 5): `explore_project` Without Registration
+
+- [ ] **결정5:** `explore_project` reads the git repository of cwd when no
+  repository is registered. It only reads the repository. A `repository_id`
+  still selects a registered repository. Outside a git repository it returns a
+  "not a git repository" error instead of the registration hint, and prompt
+  injection works from concepts alone (F9). Draft: with zero registered
+  repositories, `explore_project` returns results from a cwd inside a git
+  repository.
+
+### 결정4 (decision 4): Code Anchors
+
+- [ ] **4a:** An anchor is a repository-relative file path, a commit, and a
+  symbol (only when the code index resolves it). Start with files.
+- [ ] **4b:** Anchor sources: exchange metadata `files=` (absolute paths turned
+  into paths relative to the git root), commits found in the text and
+  verified, and anchors inherited from the exchanges a knowledge page cites.
+- [ ] **4c:** Anchors are derived data in Graph Home (principle 5), rebuilt from
+  Vault sources and git. Graph edges are concept to path, observation to path,
+  claim to path, and supersedes.
+- [ ] **4d:** Delivery is option A. On UserPromptSubmit, when the prompt matches
+  a concept strongly, inject the current decisions and rules with their code
+  paths, within 200 tokens, once per prompt. With no strong match, inject
+  nothing. Never inject on each file read or edit. Add pull tools
+  `memory_for_path` and `memory_for_concept`. Needs the vault-builder hook
+  runner to handle UserPromptSubmit (an extended 의존1). This item replaces
+  n차-11.
+- [ ] **4e:** Freshness follows the code path lookup rule in spec §4.2. When
+  `git log <commit>..HEAD -- <path>` is not empty, the claim gets "code
+  changed, check again" and stays in the results. When the commit is not in
+  the cwd repository, it gets "cannot check" (F8). Needs 결정5 first.
+- Draft for 4a to 4e: a lookup by one path returns the observations from
+  exchanges that changed that path and the knowledge that cites those
+  observations. Deleting anchor data and indexing again gives the same
+  result. A prompt that matches no concept gets empty injection output, and
+  injection never exceeds 200 tokens.
+
+### Query Design (spec §4.2)
+
+- [ ] **Query design:** concept dictionary, query interpretation,
+  answerability check, lookup per layer, answer unit, fallback, and code path
+  lookup. No LLM runs at query time. Each layer (current state, knowledge,
+  observation, record) returns its own result list, never one merged ranking
+  (spec I5). The concept dictionary, code anchors, and concept and path edges
+  are rebuildable derived data in Graph Home. Concepts a person certified must
+  also live in the Vault (page `aliases` and similar) so a rebuild gives the
+  same result (spec I7). When the share of query words that match a concept is
+  below the threshold, return "no such concept in this Vault" and the nearest
+  concepts. When no concept matches at all, run the current hybrid search over
+  the observation and record layers and label the results "concept not
+  linked" (F7). This item comes last because its effect can only be measured
+  once observations and anchors are filled.
 
 ## Deferred Product Candidates
 
