@@ -347,15 +347,25 @@ def test_duplicate_source_fails_without_running(world: dict[str, Path]) -> None:
     assert all(ORIGIN_ID not in str(call["stdin"]) for call in calls(world))
 
 
-def test_unreadable_v1_part_is_reported_and_fails(world: dict[str, Path]) -> None:
+def test_unreadable_v1_part_is_reported_and_its_session_is_not_recaptured(world: dict[str, Path]) -> None:
     (world["sessions"] / "2026-11-04-bad-part1.md").write_text(
         v1_part("bad", 1, "not a time", "2026-11-04T00:00:00Z"), encoding="utf-8"
     )
+    (world["sessions"] / f"2026-11-01-{ORIGIN_ID}-part2.md").write_text(
+        v1_part(ORIGIN_ID, 2, "2026-11-01T10:00:30.000Z", "broken"), encoding="utf-8"
+    )
 
-    result = migrate(world, "--dry-run")
+    result = migrate(world)
 
     assert result.exit_code == 1
-    assert "unreadable=1" in summary(result, "proj-vault")
+    assert (
+        "proj-vault bad failed:unreadable_part v1_parts=1 exchanges=- raw/sessions/claude-code/2026-11-04-bad-part1.md"
+        in (result.output)
+    )
+    assert f"proj-vault {ORIGIN_ID} failed:unreadable_part " in result.output
+    assert f"proj-vault {ORIGIN_ID} written" not in result.output
+    assert all(ORIGIN_ID not in str(call["stdin"]) for call in calls(world))
+    assert "unreadable=2" in summary(result, "proj-vault")
 
 
 def test_unknown_vault_or_broken_map_runs_nothing(world: dict[str, Path]) -> None:

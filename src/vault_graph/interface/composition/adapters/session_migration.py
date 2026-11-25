@@ -171,6 +171,9 @@ def migrate(
     for vault in vaults:
         parts = read_vault_parts(vault)
         if not report.stopped:
+            for unreadable in _unreadable_results(parts):
+                report.sessions.append(unreadable)
+                on_result(unreadable)
             for session_id, v1_heads in _targets(parts.heads):
                 result = _migrate_session(
                     vault,
@@ -210,12 +213,30 @@ def migrate(
 
 
 def _targets(heads: Iterable[PartHead]) -> list[tuple[str, tuple[PartHead, ...]]]:
-    """Sessions with an uncovered v1 part, sorted by session id, with those parts."""
+    """Sessions with an uncovered v1 part, sorted by session id, with those parts.
+
+    A session with an unreadable v1 part is left out: its coverage is unknown (F9).
+    """
+    coverage = uncovered_v1_parts(heads)
+    blocked = {head.session_id for head in coverage.unreadable if head.session_id}
     uncovered: dict[str, list[PartHead]] = {}
-    for head in uncovered_v1_parts(heads).uncovered:
+    for head in coverage.uncovered:
         assert head.session_id is not None  # uncovered parts always have one
-        uncovered.setdefault(head.session_id, []).append(head)
+        if head.session_id not in blocked:
+            uncovered.setdefault(head.session_id, []).append(head)
     return [(session_id, tuple(items)) for session_id, items in sorted(uncovered.items())]
+
+
+def _unreadable_results(parts: VaultParts) -> list[SessionResult]:
+    """One ``failed:unreadable_part <path>`` line per v1 part or part file that could not be read (F9)."""
+    heads = uncovered_v1_parts(parts.heads).unreadable
+    items = [(head.session_id or "-", head.path) for head in heads] + [("-", path) for path in parts.unreadable_files]
+    return [
+        SessionResult(
+            vault=parts.vault.name, session_id=session_id, status="failed:unreadable_part", v1_parts=1, detail=path
+        )
+        for session_id, path in items
+    ]
 
 
 def _migrate_session(
