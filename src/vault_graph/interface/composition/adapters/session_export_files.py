@@ -24,7 +24,7 @@ from pathlib import Path
 
 from vault_graph.operation.scope.git_command import run_git
 from vault_graph.operation.sessions.claude_code_adapter import CLAUDE_CODE_AGENT, ClaudeCodeAdapter
-from vault_graph.operation.sessions.models import SourceRecord
+from vault_graph.operation.sessions.models import NormalizedSession, SourceRecord
 from vault_graph.operation.sessions.normalized_jsonl import encode_session
 
 CLAUDE_CONFIG_ENV = "CLAUDE_CONFIG_DIR"
@@ -160,11 +160,15 @@ def location_warnings(path: Path, *, home: Path | None = None) -> tuple[str, ...
     return tuple(warnings)
 
 
+def normalize_claude_code_session(session: ClaudeCodeSession) -> NormalizedSession:
+    """Read the session's source files and normalize them. ``newest`` keeps the last exchange open."""
+    return _normalize(session, _read_sources(session))
+
+
 def export_claude_code_session(session: ClaudeCodeSession, out: Path, *, raw: bool) -> SessionExportResult:
     """Normalize one session and write it under ``out``. ``newest`` keeps the last exchange open."""
     sources = _read_sources(session)
-    records = [record for relative, data in sources for record in _records(relative, data)]
-    normalized = ClaudeCodeAdapter(session_ended=not session.newest).normalize_session(records)
+    normalized = _normalize(session, sources)
     normalized_path = out / "normalized" / CLAUDE_CODE_AGENT / f"{session.session_id}.jsonl"
     normalized_written = _write_if_changed(normalized_path, encode_session(normalized.lines).encode("utf-8"))
     written = unchanged = 0
@@ -185,6 +189,11 @@ def export_claude_code_session(session: ClaudeCodeSession, out: Path, *, raw: bo
         invalid_lines=normalized.invalid_lines,
         unknown_record_types=dict(normalized.unknown_record_types),
     )
+
+
+def _normalize(session: ClaudeCodeSession, sources: list[tuple[str, bytes]]) -> NormalizedSession:
+    records = [record for relative, data in sources for record in _records(relative, data)]
+    return ClaudeCodeAdapter(session_ended=not session.newest).normalize_session(records)
 
 
 def _read_sources(session: ClaudeCodeSession) -> list[tuple[str, bytes]]:
