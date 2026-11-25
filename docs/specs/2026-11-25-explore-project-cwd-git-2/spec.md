@@ -46,7 +46,7 @@
 | A9 | 인자가 없으면 D11의 순서로 저장소를 고른다 |  | covers D11, F2 |  |  | c2d46268 | 2-service-live-repository.md |
 | A10 | 안내문, FEATURES, TODO가 새 동작을 적는다 |  | covers D10 |  |  | 81d43c88 | 3-mcp-cwd-docs.md |
 | A11 | 바뀐 파일이 §4.5 목록 안에 있고 push와 PR이 없다 |  | covers D3, D10 |  |  | 03602fb8 | 3-mcp-cwd-docs.md |
-| A12 | 이 저장소에서 실제 MCP 호출이 몇 초 안에 코드 증거를 내고 전체 검증이 통과한다 |  | covers D1, D3, I7 |  |  | cb36a4cf | 3-mcp-cwd-docs.md |
+| A12 | 이 저장소에서 실제 호출의 git 읽기가 10초 안에 코드 증거를 내고 전체 검증이 통과한다 |  | covers D1, D3, I7 |  |  | 865e9e73 | 3-mcp-cwd-docs.md |
 | O1 | 등록되지 않은 저장소의 코드 결과를 어떻게 만들까? |  | decides D3, D5, D6 |  |  | e3a5bef6 |  |
 | O2 | 인자 없이 부르고 등록 저장소도 하나뿐일 때 어느 저장소를 볼까? |  | decides D11 |  |  | 6b5f1880 |  |
 | X1 | 등록 저장소가 없으면 `explore_project`는 범위 오류로 실패한다 |  |  |  |  | aac4803e |  |
@@ -441,12 +441,12 @@ binding이 있는 등록 저장소가 하나면 서버 작업 폴더와 관계�
 - check: 수동: change 끝에서 base와의 차이 파일 목록을 §4.5와 대조하고, 사실 추출기, vault-builder, `src/vault_graph/project/code/source_scanning.py`, `repository_catalog.py`가 없는지, 원격 branch와 PR이 새로 생기지 않았는지 본다
 - evidence:
 
-### A12. 이 저장소에서 실제 MCP 호출이 몇 초 안에 코드 증거를 내고 전체 검증이 통과한다
+### A12. 이 저장소에서 실제 호출의 git 읽기가 10초 안에 코드 증거를 내고 전체 검증이 통과한다
 - covers: D1, D3, I7
-- check: 수동: 등록 저장소가 없는 Graph Home으로 MCP 서버를 띄워 이 저장소 worktree를 `cwd`로 `explore_project(task="explore_project repository resolution")`를 부르고 걸린 시간과 코드 증거를 본 뒤, 저장소의 전체 검증 명령을 실행한다
+- check: 수동: 등록 저장소가 없는 Graph Home으로 이 저장소 worktree를 `cwd`로 `explore_project(task="resolve repository for explore_project in ProjectContextService")`를 부르고, git 읽기 시간, 전체 호출 시간, 코드 증거를 본 뒤 저장소의 전체 검증 명령을 실행한다
 - evidence:
 
-`ProjectContextService` 심볼 증거가 나오고 호출이 10초 안에 끝난다. 전체 검증 명령이 통과한다. `tests/test_project_context_import_boundaries.py`도 통과한다.
+`ProjectContextService` 심볼 증거가 나오고 git 읽기가 10초 안에 끝난다. 전체 호출 시간은 기록만 한다. 그 시간은 대부분 기존 Vault context pack이 쓰고, 등록 저장소에서도 같다. 2026-11-25 리뷰 뒤 사람이 이 기준으로 고쳤다(처음 기준: task "explore_project repository resolution", 전체 호출 10초). 전체 검증 명령이 통과한다. `tests/test_project_context_import_boundaries.py`도 통과한다.
 
 ## 9. Open decisions
 

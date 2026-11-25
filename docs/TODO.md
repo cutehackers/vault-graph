@@ -149,6 +149,10 @@ measured in each implementation spec.
   the whole tree with `rglob` and stop on an untracked symlink that points
   outside the repository, such as `.venv/bin/python`, so `vg code index` fails
   on a normal Python checkout. List files through git, as the live reader does.
+- [ ] **Follow-up:** `explore_project` on this repository spends 11.8 s on the
+  first call and 6.7 s after that in the Vault context pack, while the live git
+  read takes under 1 s. Make the Vault side of `explore_project` fast enough for
+  a tool agents call first.
 
 ### 결정4 (decision 4): Code Anchors
 
