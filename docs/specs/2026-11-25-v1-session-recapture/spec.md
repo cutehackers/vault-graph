@@ -369,84 +369,84 @@ Vault 결과 `vault`는 Vault 도구가 고른 이름이고, v1 part의 Vault �
 ### A1. 덮음 규칙이 part 머리와 교환 시각으로 맞게 나뉜다
 - covers: D2, I2, F9
 - check: tests/test_session_v1_coverage.py
-- evidence:
+- evidence: tests/test_session_v1_coverage.py: test_v2_exchange_range_containing_v1_range_covers_it, test_v2_frontmatter_last_turn_at_is_ignored, test_mixed_session_later_v2_part_does_not_cover_earlier_v1, test_other_vault_or_other_session_v2_part_is_not_counted, test_two_v2_parts_are_not_joined, test_same_instant_with_and_without_milliseconds_is_equal, test_unreadable_v1_parts_come_back_separately, test_same_input_gives_same_result (uv run pytest 결과 172 passed in 4.84s)
 
 다음 경우를 확인한다. 교환 메타 범위가 포함하면 덮임. v2 frontmatter `last_turn_at`이 v1 끝보다 이르더라도 교환 메타의 가장 늦은 `ended`가 포함하면 덮임. 같은 세션의 뒤 v2 part만 있으면(섞인 세션) 덮이지 않음. 다른 Vault나 다른 세션의 v2 part는 세지 않음. 두 v2 part를 이어야 포함되면 덮이지 않음. 시각 표기가 달라도(밀리초 유무) 같은 시각이면 같게 봄. 시각을 읽지 못하는 v1 part는 판단 불가로 따로 나옴. 같은 입력이면 같은 결과다.
 
 ### A2. 교환 수가 다르거나 빠지면 실패로 끝난다
 - covers: D7, F6
 - check: tests/test_session_v1_coverage.py, tests/test_cli_session_migrate.py
-- evidence:
+- evidence: tests/test_session_v1_coverage.py test_exchange_summary_counts_exchanges_with_turns_and_takes_first_and_last_ids, tests/test_cli_session_migrate.py test_exchange_count_mismatch_fails와 test_run_recaptures_through_the_launcher_as_ended_sessions, tests/test_session_capture_runner_options.py test_exchange_count_is_none_without_a_result_line (172 passed)
 
 `exchange_summary`는 턴 없는 교환을 세지 않는다. 가짜 실행기가 `exchange_count`를 정규화 파일의 턴 있는 교환 수와 같게 내면 세션은 `written`이고 종료 코드 0이다. 하나 적게 내거나 빼면 세션은 `failed:exchange_count`이고 종료 코드는 1이다.
 
 ### A3. `--dry-run`은 대상 목록만 내고 아무것도 쓰거나 돌리지 않는다
 - covers: D3, F11
 - check: tests/test_cli_session_migrate.py
-- evidence:
+- evidence: tests/test_cli_session_migrate.py: test_dry_run_lists_targets_and_writes_and_runs_nothing (172 passed)
 
 v1 part가 있는 세션, 덮인 세션, 원본 없는 세션, 세션 폴더 없는 Vault가 섞인 임시 Vault 두 개로 돌린다. 출력에 세션마다 한 줄과 Vault 요약 줄이 있고, 세션 폴더 없는 Vault는 `v1_parts=0`이다. 가짜 실행기 기록은 비어 있고 Vault 폴더와 OS 임시 폴더에 새 파일이 없다.
 
 ### A4. 실행기만 Vault에 쓰고, 정규화는 끝난 세션으로 한다
 - covers: I1, D5, F2
 - check: tests/test_cli_session_migrate.py
-- evidence:
+- evidence: tests/test_cli_session_migrate.py: test_run_recaptures_through_the_launcher_as_ended_sessions, test_recent_source_is_skipped_without_failing (172 passed)
 
 대상 세션마다 가짜 실행기가 `capture --direct --normalized <파일> --rerender`를 받고, 훅 JSON 이벤트는 `SessionEnd`다. 프로젝트 폴더의 가장 최근 세션도 정규화 파일의 모든 교환이 `closed: true`다. 정규화 파일은 Vault 밖에 있었고 명령이 끝나면 없다. 실행 앞뒤로 Vault 폴더를 비교하면 가짜 실행기가 쓴 part 말고 바뀐 파일이 없다. 원본 수정 시각이 1시간 안인 세션은 `recent`이고 실행기 기록에 없으며 종료 코드는 0이다.
 
 ### A5. 두 번 돌려도 새 part가 생기지 않는다
 - covers: I3, D8, F7
 - check: tests/test_cli_session_migrate.py
-- evidence:
+- evidence: tests/test_cli_session_migrate.py: test_second_run_writes_nothing, test_uncovered_after_write_fails_and_is_not_written_again (172 passed)
 
 첫 실행 뒤 같은 상태로 다시 돌리면 실행기 기록이 늘지 않고 Vault part 수가 같다. 가짜 실행기가 v1 범위를 덮지 못하는 part를 쓰게 하면 첫 실행은 `failed:uncovered`, 두 번째 실행은 `already_recaptured_uncovered`이고 실행기를 다시 부르지 않는다.
 
 ### A6. cwd가 없으면 상위 폴더를 넘기고, 다른 Vault에 쓰면 멈춘다
 - covers: D6, I4, F3, F4
 - check: tests/test_cli_session_migrate.py
-- evidence:
+- evidence: tests/test_cli_session_migrate.py: test_missing_cwd_falls_back_to_the_nearest_existing_parent, test_existing_cwd_is_passed_as_is, test_written_to_another_vault_stops_the_run (172 passed)
 
 세션 cwd가 없는 폴더면 훅 JSON `cwd`는 가장 가까운 존재하는 상위 폴더이고, 정규화 파일의 세션 `cwd`는 원래 값이다. 출력에 `cwd_fallback=`이 있다. 가짜 실행기가 다른 Vault 이름을 내면 그 세션은 `failed:vault_mismatch`이고, 뒤의 세션은 실행기 기록에 없으며 종료 코드는 1이다.
 
 ### A7. 원본 없음은 보고만 하고, 고칠 수 없는 문제는 실패로 끝난다
 - covers: D9, F1, F5, F8, F10
 - check: tests/test_cli_session_migrate.py
-- evidence:
+- evidence: tests/test_cli_session_migrate.py: test_launcher_problems_fail_and_the_run_continues, test_missing_launcher_fails, test_duplicate_source_fails_without_running, test_unknown_vault_or_broken_map_runs_nothing, test_unreadable_v1_part_is_reported_and_its_session_is_not_recaptured, test_dry_run_lists_targets_and_writes_and_runs_nothing (source_missing, exit 0) (172 passed)
 
 원본 없는 세션만 있으면 `source_missing`이 Vault 요약에 세어지고 종료 코드는 0이다. 같은 세션 id가 두 프로젝트 폴더에 있으면 `failed:duplicate_source`, 가짜 실행기가 `skipped`를 내거나 0이 아닌 코드로 끝나거나 실행기가 없으면 `failed:<이유>`이고, 다음 세션은 계속 돈 뒤 종료 코드 1이다. `vault-map.json`이 깨졌거나 `--vault` 이름이 없으면 실행기를 부르지 않고 종료 코드 1이다.
 
 ### A8. 사실 대기열이 바뀌지 않는다
 - covers: D10
 - check: tests/test_cli_session_migrate.py
-- evidence:
+- evidence: tests/test_cli_session_migrate.py: test_run_recaptures_through_the_launcher_as_ended_sessions, Graph Home facts/queue가 비어 있는지 확인함 (172 passed)
 
 `written` 세션이 있는 실행 뒤에도 Graph Home `facts/queue/`에 작업 파일이 없고 사실 작업자를 띄우지 않는다.
 
 ### A9. 배치 규칙을 지키고 `vg session export --recapture`는 그대로다
 - covers: D4
 - check: tests/test_feature_import_direction.py, tests/test_functional_module_boundaries.py, tests/test_module_import_cycles.py, tests/test_grouped_module_layout.py, tests/test_cli_session_recapture.py, tests/test_cli_session_export.py
-- evidence:
+- evidence: uv run pytest -q tests/test_feature_import_direction.py tests/test_functional_module_boundaries.py tests/test_module_import_cycles.py tests/test_grouped_module_layout.py tests/test_cli_session_recapture.py tests/test_cli_session_export.py (A1·A2 테스트와 같이 실행): 172 passed in 4.84s. export·recapture 테스트 파일은 diff에 없음
 
 `operation/sessions/v1_coverage.py`는 M01 밖의 기능 영역과 `interface/`를 가져오지 않는다. 기존 export와 `--recapture` 테스트는 고치지 않고 통과한다. 호환 범위 제한이다.
 
 ### A10. SPEC, 정규화 계약, ARCHITECTURE가 새 명령과 파일을 적는다
 - covers: D11
 - check: 수동: `docs/SPEC.md`의 `vg session export` 줄 근처, `docs/contracts/vg-session-jsonl-v1.md` §4, `docs/ARCHITECTURE.md` §1 파일 표와 §4 세션 수집 행에서 `vg session migrate`, `v1_coverage.py`, `session_migration.py`를 찾는다
-- evidence:
+- evidence: git diff HEAD~2 HEAD -- docs/SPEC.md docs/contracts/vg-session-jsonl-v1.md docs/ARCHITECTURE.md AGENTS.md: SPEC.md에 migrate 줄이 있음. 계약 §4.1에 형식, 덮음, 1시간 규칙, unreadable_part, 출력, 종료 코드가 있음. ARCHITECTURE §1 M19 행, 파일 표, §4 세션 수집 행에 명령과 두 파일이 있음. AGENTS.md diff는 없음
 
 계약 §4에는 명령 형식, 덮음 규칙, 끝난 세션 정규화와 1시간 규칙, 출력, 종료 코드가 있다. AGENTS.md는 바뀌지 않았다.
 
 ### A11. 실제 실행 뒤 등록 Vault마다 원본 있는 세션의 덮이지 않은 v1 part가 0개다
 - covers: D1, D12
 - check: 수동: 구현 검증 뒤 `vg session migrate --dry-run`, `vg session migrate`, 다시 `vg session migrate --dry-run`을 차례로 돌리고 마지막 출력의 Vault 요약 줄을 본다
-- evidence:
+- evidence: 수동: main session이 실제 Vault에 돌린 결과를 인용함. `vg session migrate --dry-run`은 exit 0이고 target 53, source_missing 2였다. `vg session migrate`는 exit 0이고 53 written, 요약은 vault-graph 36/36/0, sgp-981-app 30/30/0, vault-builder 13/13/0, 981park-flutter-app 1/1/0, bake v1_parts=9 covered=7 uncovered=2 source_missing=2였다. 두 번째 `--dry-run`은 exit 0이고 bake의 source_missing 2세션만 남았다. 기존 세션 파일 388개는 실행 전 복사본과 바이트가 같았고 53개 파일이 새로 생겼다. 새 part 53개 모두 교환 수가 맞았다. 리뷰어가 실제 Vault에서 직접 재현하지는 않았다
 
 마지막 dry-run에서 Vault 다섯 곳 모두 `uncovered`가 0이고, 남은 v1 part는 `source_missing`뿐이다(bake의 두 세션). 실제 실행에서 `written`인 세션은 모두 교환 수가 맞았다. 보고에는 Vault별 v1 part 수, 덮인 수, 원본 없음 수, 실패 세션과 이유를 조사 값(89개)과 함께 적는다. 실패가 남으면 그 세션과 이유를 적고 끝 조건을 채우지 못했다고 보고한다.
 
 ### A12. 실제 이전은 상위 spec의 다른 구현보다 먼저 끝난다
 - covers: D12
 - check: 수동: 이 change의 실제 실행 보고 시각이 3b~3e 구현 commit보다 앞서는지 git log와 보고로 확인한다
-- evidence:
+- evidence: 수동: git log --oneline main..HEAD 결과 c785d8b, dcf189d, fd21e3f, 6091e59만 있고 3b~3e 구현 commit은 없음. A11 실제 실행이 3b보다 먼저 끝났다는 main session 보고와 맞음
 
 원본 보관 기한 때문에 사용자가 정한 시간 제한이다. 실행 보고가 나오기 전에 3b 이후 작업을 이 branch에 commit하지 않는다.
 
