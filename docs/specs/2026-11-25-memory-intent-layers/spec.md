@@ -483,70 +483,70 @@ Auto Ontology의 coverage는 DB 개념용이다. 한국어와 영어가 섞인 �
 ### A1. 제품 코드, 테스트, 설정이 바뀌지 않는다
 - covers: D10
 - check: 수동: base `9ddce0c`과 change 끝 commit의 차이 파일 목록을 보고 `src/`, `packages/`, `tests/`, `scripts/`, `pyproject.toml`, `uv.lock`, `.github/`가 없는지 확인한다
-- evidence:
+- evidence: 명령 `git diff --name-only main...HEAD | grep -vE '^docs/'` 결과는 `AGENTS.md`, `open-docs.sh`(삭제, D15) 두 줄이다. `src/`, `packages/`, `tests/`, `scripts/`, `pyproject.toml`, `uv.lock`, `.github/`는 없다.
 
 ### A2. SPEC §0이 의도1~5 다섯 문장을 담는다
 - covers: D1, I1, I2, I3, I6
 - check: 수동: `docs/SPEC.md` §0을 열어 이 spec §2의 다섯 문장과 한 문장씩 대조한다
-- evidence:
+- evidence: `sed -n 20,66p docs/SPEC.md`로 §0을 읽어 spec §2와 대조했다. 머리 문장과 의도1~5 다섯 문장이 글자 그대로 같다. 머리말("자주 바뀌지 않고, 바꿀 때는 사용자 확인이 필요하다")과 결정12~15도 남아 있다.
 
 머리말과 결정12~15도 남아 있어야 한다.
 
 ### A3. SPEC에 옛 층 이름이 코드 인용 말고는 없다
 - covers: D2, D11, I4, F3, F5
 - check: 수동: `docs/SPEC.md`에서 `L1`, `L2`, `L3`, `§0 규칙`을 찾아 남은 줄이 모두 따옴표나 백틱 안의 코드 문구인지 확인하고, §0 아래에 층 표 네 줄이 있는지 본다
-- evidence:
+- evidence: `grep -nE 'L1|L2|L3|§0 규칙' docs/SPEC.md` 결과는 193줄 하나다. 이 줄의 "L1 노트 N개"는 따옴표 안 출력 문구다. `l1_note`는 백틱 안에 있어 패턴에 걸리지 않는다. §0 아래 층 표 네 줄(기록, 관측, 지식, 현재 상태)도 확인했다.
 
 ### A4. DECISIONS에 승인된 결정이 들어가고 옛 층 두 항목에 대체 표시가 있다
 - covers: D12, D5, D6, D8, D9
 - check: 수동: `docs/DECISIONS.md`에서 `2026-11-25` 항목과 두 2026-11-06 항목의 "Replaced by" 줄을 확인한다
-- evidence:
+- evidence: `git diff main...HEAD -- docs/DECISIONS.md` 결과: 2026-11-25 항목 넷이 D1+D2, D5+D6(+D19), D8, D9를 담는다. 2026-11-06 두 항목에는 "**Replaced by:**" 줄만 더해졌고 본문 삭제는 없다. proposed 결정(D3, D4, D7)은 적지 않았다.
 
 2026-11-06 두 항목의 본문은 그대로이고, `proposed` 결정은 없다.
 
 ### A5. TODO가 개선 방향을 순서대로 열린 일로 적는다
 - covers: D3, D4, D7, D13, I5, I7, F6, F7, F8, F9
 - check: 수동: `docs/TODO.md`의 "Memory Intent Redesign" 절에서 항목 수, 순서, 링크를 이 spec §4.3, §6과 대조한다
-- evidence:
+- evidence: `git diff main...HEAD -- docs/TODO.md` 결과: "Memory Intent Redesign (spec 2026-11-25)" 절에 3a~3e, 결정5, 4a~4e, Query design이 D10 순서의 체크박스로 있다. spec §4.3과 §6 링크, F6~F9, I5, I7 내용이 있고, n차-11에 4d로 옮겼다는 표시가 있다.
 
 ### A6. 네 묶음이 지워졌다
 - covers: D15
 - check: 수동: `docs/superpowers`, `docs/stenc`, `open-docs.sh`, `docs/archive`, `docs/html/2026-10-29-vault-memory-design.html`이 작업 트리와 git index에 없는지 확인한다
-- evidence:
+- evidence: 명령 `git ls-files docs/superpowers docs/stenc docs/archive open-docs.sh docs/html/2026-10-29-vault-memory-design.html | wc -l` 결과는 0이다. `ls`로 확인해도 다섯 경로 모두 "No such file or directory"다.
 
 ### A7. 현재 문서에 지운 경로 링크가 없다
 - covers: F1, F2
 - check: 수동: README 두 개, AGENTS, `docs/` 바로 아래 `.md`(DECISIONS, PATCH_LOG 제외), `docs/design/glossary.md`에서 `superpowers/`, `stenc`, `open-docs`, `archive/`, `2026-10-29-vault-memory-design`을 찾는다
-- evidence:
+- evidence: README.md, README-kr.md, AGENTS.md, `docs/*.md`(DECISIONS, PATCH_LOG 제외), `docs/design/glossary.md`에서 `superpowers/|stenc|open-docs|archive/|2026-10-29-vault-memory-design`을 grep했다. 링크는 0건이다. 남은 줄은 git history 표기와 vault-builder 경로 예외뿐이다(발견3).
 
 결과는 0줄이다. 예외는 SPEC과 TODO가 vault-builder 저장소의 `docs/superpowers/…` 파일을 가리키는 줄이다. 다른 저장소 경로라 남긴다.
 
 ### A8. 10월 모듈 설계 묶음과 그 링크가 살아 있다
 - covers: D16
 - check: 수동: `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT.md`, `docs/SPEC.md` §8, `docs/design/glossary.md`의 `design/` 링크 대상 파일이 모두 있는지 확인한다
-- evidence:
+- evidence: ARCHITECTURE, DEVELOPMENT, SPEC의 `design/` 링크와 glossary의 상대 링크 대상 존재를 확인하는 셸 루프를 돌렸다. 결과는 모두 OK이고 MISSING은 0건이다.
 
 ### A9. 문서를 읽는 기존 테스트가 통과한다
 - covers: F4
 - check: tests/test_context_pack_docs_contract.py, tests/test_retired_search_filter.py, tests/test_naming_conventions.py, tests/test_readme_onboarding_contract.py
-- evidence:
+- evidence: `uv run pytest -q tests/test_context_pack_docs_contract.py tests/test_retired_search_filter.py tests/test_naming_conventions.py tests/test_readme_onboarding_contract.py` 결과는 "12 passed in 0.35s"다. `bake-verify.log`(13:59, HEAD commit 13:57 뒤)의 결과는 "4036 passed, 22 skipped, 1 warning"이다.
 
 ### A10. HTML이 오프라인에서 열리고 다섯 부분을 보인다
 - covers: D17
 - check: 수동: 네트워크를 끊고 `docs/html/2026-11-25-memory-intent-layers.html`을 브라우저로 연다. 파일 안에 `http://`, `https://`로 시작하는 `src`나 스타일시트 `href`가 없는지 찾는다
-- evidence:
+- evidence: 명령 `grep -nE 'https?://' docs/html/2026-11-25-memory-intent-layers.html` 결과는 0줄이다. `<link`, `<script`, `@import`도 없고 `url(#…)`은 내부 SVG marker뿐이다. 한국어 섹션 다섯 개(새 의도, 기억 층, 쓰는 흐름, 질의 흐름, 코드와 기억 잇기)가 있고 decided/proposed 표시와 spec 링크도 있다. 네트워크를 끊고 브라우저로 열어 보는 일은 사람이 한다.
 
 의도1~5, 층 네 개, 쓰기 흐름, 질의 흐름, 코드 연결이 한국어로 보여야 한다.
 
 ### A11. 고치지 않기로 한 문서가 그대로이고 AGENTS.md는 첫 문장만 바뀌었다
 - covers: D14, D18
 - check: 수동: base `9ddce0c`과 비교해 `CLAUDE.md`, `docs/ARCHITECTURE.md`, `docs/FEATURES.md`, README 두 개, `docs/design/glossary.md`에 차이가 없고, `AGENTS.md`의 차이가 Project Boundary 첫 문장 하나뿐인지 본다
-- evidence:
+- evidence: 명령 `git diff --stat main...HEAD -- CLAUDE.md docs/ARCHITECTURE.md docs/FEATURES.md README.md README-kr.md docs/design/glossary.md` 결과는 차이 없음이다. 루트에 CLAUDE.md는 없다. `AGENTS.md` diff는 Project Boundary 첫 문장 하나를 D18의 문장으로 바꾼 것뿐이고, 여섯 쓰기 경로와 나머지 문장은 그대로다.
 
 ### A12. 추출기 회상 줄의 빈도가 TODO 3e 항목에 적혀 있다
 - covers: D19
 - check: 수동: `docs/TODO.md`의 3e 항목에 회상 줄을 매 세션 낸다고 적혀 있는지 확인한다
-- evidence:
+- evidence: `docs/TODO.md` 3e 항목에 "Session-start recall prints one extractor line ... every session, not only when it changes ... (spec D19)"가 적혀 있다(`git diff main...HEAD -- docs/TODO.md`로 확인).
 
 ## 9. Open decisions
 
