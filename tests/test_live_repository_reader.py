@@ -265,3 +265,20 @@ def test_reader_never_runs_writing_git_commands(tmp_path: Path, command: str) ->
 
     assert command not in seen
     assert set(seen) <= {"rev-parse", "ls-files", "grep", "--version"}
+
+
+def test_line_match_files_do_not_take_the_parse_budget_of_source_files(tmp_path: Path) -> None:
+    root = _repository(tmp_path / "demo")
+    for index in range(60):
+        _write(root, f"a_docs/note_{index:02d}.md", "gadget resolver pipeline\n")
+    _write(root, "z_src/core.py", "def resolve_gadget():\n    return 1\n")
+    _commit(root)
+    reader = LiveRepositoryReader()
+    repository = reader.find_repository(root)
+    assert repository is not None
+
+    result = reader.search(repository, "gadget resolver pipeline", limit=100)
+
+    symbols = [hit for hit in result.hits if hit.kind == "symbol"]
+    assert [hit.title.rsplit(".", 1)[-1] for hit in symbols] == ["resolve_gadget"]
+    assert symbols[0].relative_path == "z_src/core.py"
