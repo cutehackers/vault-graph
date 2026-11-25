@@ -316,6 +316,11 @@ def test_existing_eleven_tool_schemas_match_commit_28f1c96(tmp_path: Path) -> No
         for added in ("since", "until"):
             assert date_input["properties"].pop(added)["default"] is None
             assert added not in date_input.get("required", [])
+    # Spec 2026-11-25-explore-project-cwd-git-2 D8 adds one optional input `cwd` to `explore_project` (A8).
+    explore_input = schemas["explore_project"]["input"]
+    assert explore_input is not None
+    assert explore_input["properties"].pop("cwd")["default"] is None
+    assert "cwd" not in explore_input.get("required", [])
 
     assert len(read_tools) == 11
     digest = hashlib.sha256(json.dumps(schemas, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

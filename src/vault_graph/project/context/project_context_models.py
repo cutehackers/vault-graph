@@ -41,11 +41,14 @@ class ProjectContextRequest:
     max_tokens: int = DEFAULT_PROJECT_CONTEXT_TOKENS
     depth: int = DEFAULT_PROJECT_CONTEXT_DEPTH
     limit: int = DEFAULT_PROJECT_CONTEXT_LIMIT
+    cwd: str | None = None
 
     def __post_init__(self) -> None:
         _require_non_empty(self.task, "task")
         if self.project_path is not None:
             _require_non_empty(self.project_path, "project_path")
+        if self.cwd is not None:
+            _require_non_empty(self.cwd, "cwd")
         if self.repository_id is not None:
             _require_non_empty(self.repository_id, "repository_id")
         _require_bounded(self.max_tokens, "max_tokens", MIN_PROJECT_CONTEXT_TOKENS, MAX_PROJECT_CONTEXT_TOKENS)
@@ -174,7 +177,8 @@ class ProjectContextBudget:
 class ProjectContext:
     task: str
     repository_id: str
-    binding: ProjectBinding
+    # None when no vault-map project or project binding selects a Vault for an unregistered git repository.
+    binding: ProjectBinding | None
     freshness: ProjectFreshness
     code_evidence: tuple[ProjectEvidence, ...]
     vault_evidence: tuple[ProjectEvidence, ...]
@@ -189,7 +193,7 @@ class ProjectContext:
     def __post_init__(self) -> None:
         _require_non_empty(self.task, "task")
         _require_non_empty(self.repository_id, "repository_id")
-        if self.binding.repository_id != self.repository_id:
+        if self.binding is not None and self.binding.repository_id != self.repository_id:
             raise ValueError("binding repository_id must match context repository_id")
         _require_freshness(self.freshness)
         for field_name in (

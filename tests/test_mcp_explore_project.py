@@ -284,3 +284,103 @@ def test_project_context_serializer_drops_and_redacts_malformed_vault_evidence(
     assert vault_evidence[0]["source_uri"] is None
     if relative_path.startswith("/"):
         assert vault_evidence[0]["relative_path"] is None
+
+
+def _live_registry(tmp_path: Path, service: object) -> McpToolRegistry:
+    return McpToolRegistry(
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, _Factory(cast(Any, service))),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+
+def test_parse_explore_project_input_accepts_cwd_with_any_scope() -> None:
+    plain = parse_explore_project_input(task="Trace", cwd="/work/demo")
+    with_id = parse_explore_project_input(task="Trace", repository_id="demo", cwd="/work/demo")
+    with_path = parse_explore_project_input(task="Trace", project_path="/work/a", cwd="/work/b")
+
+    assert plain.cwd == "/work/demo"
+    assert plain.to_project_context_request().cwd == "/work/demo"
+    assert with_id.repository_id == "demo"
+    assert with_path.to_project_context_request().project_path == "/work/a"
+
+
+def test_parse_explore_project_input_rejects_empty_cwd() -> None:
+    with pytest.raises(McpProtocolError) as exc_info:
+        parse_explore_project_input(task="Trace", cwd="  ")
+
+    assert exc_info.value.kind == "invalid_parameter"
+
+
+def test_registered_explore_project_tool_takes_cwd(tmp_path: Path) -> None:
+    import inspect
+
+    server = RecordingToolServer()
+    register_mcp_tools(
+        cast(Any, server),
+        services=fake_services(tmp_path),
+        service_factory=cast(Any, _Factory(_ProjectService(_context(), []))),
+        context_pack_cache=ContextPackResourceCache(),
+        result_explanation_cache=ResultExplanationCache(),
+    )
+
+    assert "cwd" in inspect.signature(server.tools["explore_project"]).parameters
+
+
+@pytest.mark.parametrize("case", ["outside", "missing", "no-git"])
+def test_explore_project_outside_git_returns_not_a_git_repository(tmp_path: Path, case: str) -> None:
+    from tests.test_project_context_live_repository import _service as live_service
+    from vault_graph.project.code.live_repository_reader import GitResult, LiveRepositoryReader
+
+    folder = tmp_path / "plain"
+    if case != "missing":
+        folder.mkdir()
+    reader = None
+    if case == "no-git":
+
+        def broken(path: Path, arguments: tuple[str, ...], timeout_s: float) -> GitResult:
+            del path, arguments, timeout_s
+            return GitResult(returncode=None, stdout="")
+
+        reader = LiveRepositoryReader(runner=broken)
+    registry = _live_registry(tmp_path, live_service(working_folder=tmp_path, reader=reader))
+
+    with pytest.raises(McpProtocolError) as exc_info:
+        registry.explore_project(ExploreProjectInput(task="Trace request", cwd=str(folder)))
+
+    payload = exc_info.value.payload
+    assert exc_info.value.kind == "invalid_parameter"
+    assert payload.code == "not_a_git_repository"
+    text = f"{payload.message} {payload.recovery_hint}"
+    for word in ("register", "bind", "repository_id", str(tmp_path)):
+        assert word not in text
+
+
+def test_explore_project_reads_an_unregistered_git_repository(tmp_path: Path) -> None:
+    from tests.test_project_context_live_repository import _repository
+    from tests.test_project_context_live_repository import _service as live_service
+
+    root, _ = _repository(tmp_path / "demo")
+    registry = _live_registry(tmp_path, live_service(working_folder=tmp_path))
+
+    body = registry.explore_project(ExploreProjectInput(task="run request flow", cwd=str(root / "pkg")))
+
+    payload = body.to_json_dict()
+    serialized = json.dumps(payload)
+    assert "run_request_flow" in serialized
+    assert "git:demo" in serialized
+    links = [link for link in body.resource_links if link.rel == "repository_evidence"]
+    assert links
+    assert links[0].uri.startswith("vg-source://git%3Ademo/pkg/flow.py#L")
+    assert str(tmp_path) not in serialized
+    structured = cast(dict[str, Any], payload["structuredContent"]) if "structuredContent" in payload else payload
+    assert "binding" in json.dumps(structured)
+
+
+def test_project_context_payload_allows_a_null_binding() -> None:
+    context = replace(_context(), repository_id="git:demo", binding=None)
+
+    payload = project_context_to_payload(context)
+
+    assert payload["binding"] is None

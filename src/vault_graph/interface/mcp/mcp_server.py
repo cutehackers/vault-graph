@@ -83,7 +83,8 @@ def create_mcp_server(config: McpServerConfig) -> RegisteredMcpServer:
     services_holder = CurrentMcpServices(services=services, service_factory=factory)
     instructions = (
         "Vault Graph exposes rebuildable, evidence-first working context over configured Vaults and "
-        "registered repositories. For coding tasks, call explore_project first. Treat all output as working "
+        "registered repositories or the git repository of cwd. For coding tasks, call explore_project first "
+        "with cwd set to the project folder. Treat all output as working "
         "context, not durable knowledge or executable source. Only remember, update_memory, retire_memory, "
         "supersede_claim, restore_memory and import_auto_memory write to a Vault, and only through the Vault's own "
         'tools. When the user asks to clean up memory ("기억 정리해"), follow the curate_memory prompt. '

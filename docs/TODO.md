@@ -138,13 +138,17 @@ measured in each implementation spec.
 
 ### 결정5 (decision 5): `explore_project` Without Registration
 
-- [ ] **결정5:** `explore_project` reads the git repository of cwd when no
+- [x] **결정5:** `explore_project` reads the git repository of cwd when no
   repository is registered. It only reads the repository. A `repository_id`
   still selects a registered repository. Outside a git repository it returns a
   "not a git repository" error instead of the registration hint, and prompt
   injection works from concepts alone (F9). Draft: with zero registered
   repositories, `explore_project` returns results from a cwd inside a git
-  repository.
+  repository. Done in spec `docs/specs/2026-11-25-explore-project-cwd-git-2/`.
+- [ ] **Follow-up:** the registered code scanner and registry validation walk
+  the whole tree with `rglob` and stop on an untracked symlink that points
+  outside the repository, such as `.venv/bin/python`, so `vg code index` fails
+  on a normal Python checkout. List files through git, as the live reader does.
 
 ### 결정4 (decision 4): Code Anchors
 
