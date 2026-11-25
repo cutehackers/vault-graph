@@ -208,8 +208,13 @@ def recall(
     ports: RecallPorts,
     now: datetime | None = None,
     index_failures: Mapping[str, str] | None = None,
+    facts_line: str | None = None,
 ) -> RecallBundle:
-    """``index_failures`` maps a Vault id to its index failure line. Block D shows those of linked Vaults."""
+    """``index_failures`` maps a Vault id to its index failure line. Block D shows those of linked Vaults.
+
+    ``facts_line`` is the session fact extractor line (spec 2026-11-25-facts-extractor-auto D10). Block D shows it
+    right after how to open pages, so it appears in every full recall and never in the notice-only output.
+    """
     moment = now or datetime.now(UTC)
     scope = ports.scope.resolve(cwd)
     if not scope.vault_ids:
@@ -277,6 +282,7 @@ def recall(
             backlog=backlog,
             alert=alert,
             failures=_failure_lines(index_failures or {}, scope.vault_ids),
+            facts_line=facts_line,
         )
 
     events = [
@@ -737,6 +743,7 @@ def _layout(
     backlog: Sequence[str] = (),
     alert: Sequence[str] = (),
     failures: Sequence[str] = (),
+    facts_line: str | None = None,
 ) -> _Layout:
     def fits(text: str) -> bool:
         return estimate_recall_tokens(text) <= max_tokens and len(text) <= max_chars
@@ -749,15 +756,23 @@ def _layout(
     block_d = (
         _block(
             BLOCK_D_TITLE,
-            [_how_to_open(library), *failures, *_proposal_lines(library, proposals or {}), *backlog],
+            [
+                _how_to_open(library),
+                *([facts_line] if facts_line else []),
+                *failures,
+                *_proposal_lines(library, proposals or {}),
+                *backlog,
+            ],
         )
         if full
         else ""
     )
     # Block C gives block D the room block D needs beyond its own 30 tokens, so C and D stay inside
-    # 150 + 30. Block B still reserves block C's whole share (``b_fits``).
+    # 150 + 30. Block B still reserves block C's whole share (``b_fits``). The fact extractor line is
+    # left out of that count: it shows every session, so block B makes room for it, not block C.
     d_max_tokens, _ = _block_share(BLOCK_D_MAX_TOKENS, max_tokens=max_tokens, max_chars=max_chars)
-    notice_max_tokens = c_max_tokens - max(0, estimate_recall_tokens(block_d) - d_max_tokens)
+    d_tokens = estimate_recall_tokens(block_d) - (estimate_recall_tokens(facts_line) if full and facts_line else 0)
+    notice_max_tokens = c_max_tokens - max(0, d_tokens - d_max_tokens)
     notice_lines: list[str] = []
     for notice in notices:
         candidate = [*notice_lines, _notice_line(notice)]

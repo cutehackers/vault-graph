@@ -78,6 +78,7 @@ from vault_graph.indexing.vector_failure_log import (
     record_vector_failure,
     vector_retry_pending,
 )
+from vault_graph.interface.composition.adapters import llama_health
 from vault_graph.interface.composition.adapters.fact_queue import enqueue_fact_job
 from vault_graph.interface.composition.adapters.session_capture_runner import capture_hook
 from vault_graph.interface.composition.adapters.vault_capture_cli import LAUNCHER_NAME, CaptureOutcome
@@ -116,6 +117,11 @@ _FACTS_NOTICE_TEXT = {
     "llama-server": (
         "session fact extraction is on. After each captured session it runs the local llama-server "
         "in the background. Run `vg facts off` to turn it off."
+    ),
+    "auto": (
+        "session fact extraction is on. After each captured session it runs the local llama-server when it "
+        "answers, otherwise the logged-in Claude Code (`claude -p`), in the background. Run `vg facts off` to "
+        "turn it off."
     ),
 }
 
@@ -201,6 +207,7 @@ def session_start(
         max_chars=DEFAULT_RECALL_MAX_CHARS,
         ports=ports,
         index_failures=failure_lines,
+        facts_line=facts_recall_line(state),
     )
     for warning in bundle.warnings:
         typer.echo(f"{COMMAND}: warning: {warning}", err=True)
@@ -210,6 +217,29 @@ def session_start(
         typer.echo(bundle.text, nl=False)
     for _, line in sorted(failure_lines.items()):
         typer.echo(f"{COMMAND}: warning: {line}", err=True)
+
+
+def facts_recall_line(graph_home: Path) -> str:
+    """The session fact extractor line of block D (spec 2026-11-25-facts-extractor-auto D10, F4, F6).
+
+    It names the setting and, for ``auto``, the extractor a job would use now. llama-server is checked with the
+    hook's short time limit, so a slow server reads as not answering.
+    """
+
+    reading = read_facts_settings(facts_settings_path(graph_home))
+    settings = reading.settings
+    if reading.source == "broken":
+        return "- facts: off (settings broken)"
+    if not settings.enabled:
+        return "- facts: off"
+    if settings.extractor == "claude":
+        return "- facts: claude"
+    answers = llama_health.llama_server_answers(
+        settings.endpoint or "", timeout_seconds=llama_health.HOOK_HEALTH_TIMEOUT_SECONDS
+    )
+    if settings.extractor == "auto":
+        return f"- facts: auto → {'llama-server' if answers else 'claude'}"
+    return "- facts: llama-server" if answers else "- facts: llama-server (not answering)"
 
 
 def _sharable_notices(cwd: Path, map_path: Path) -> tuple[str, ...]:

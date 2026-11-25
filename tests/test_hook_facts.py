@@ -227,6 +227,7 @@ def test_first_job_prints_the_notice_once_and_records_it(world: dict[str, Path])
     lines = notice_lines(first)
     assert len(lines) == 1
     assert "on" in lines[0] and "Claude Code" in lines[0]
+    assert "local llama-server when it answers" in lines[0]
     assert notice_lines(second) == []
     assert hook_commands.facts_notice_path(world["graph_home"]).is_file()
     # Past sessions are not queued: only the two new captures are.

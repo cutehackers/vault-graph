@@ -6,9 +6,25 @@ catch-up: the starter takes the lock without waiting, passes the locked descript
 A lock that is taken means a worker runs, so nothing starts. A worker that dies leaves its jobs in the queue for the
 next one.
 
-For each job the worker reads the part file, hands the exchanges that have no cache entry to the `FactExtractor`,
-caches what comes back per exchange, and writes the attachment only through the Vault command
+For each job the worker reads the part file, picks the extractor, hands the exchanges that have no cache entry to the
+`FactExtractor`, caches what comes back per exchange, and writes the attachment only through the Vault command
 `sessions attach-facts` (`vault_attach_facts_cli.py`). It never writes a Vault file itself.
+
+Picking (spec 2026-11-25-facts-extractor-auto D6, I1, I2, I3). With `auto` every job checks whether llama-server
+answers (`llama_health.py`) before it reads the cache, and uses `llama-server` or `claude`. The cache key, the
+attachment's `extractor` and `model`, and the last job record hold that real choice, never `auto`. Once llama-server
+fails as unavailable in a run, the later `auto` jobs of that run use `claude` without checking. A fixed extractor is
+never swapped: once it fails as unavailable, the later jobs of the run fail without calling it.
+
+What the extractor reads (spec 2026-11-25-facts-extractor-auto D1, D2, D3). Tool call lines (`- <tool>` or
+`- <tool> <arguments>`, the tool named in the exchange meta `tools=`) outside `### user` turns are left out, and so is
+a non-user turn that has nothing else. The cache key stays the hash of the exchange text as written in the part. An
+exchange with nothing left goes to the cache as no facts and never to the extractor.
+
+Last job record `logs/facts-last-job.json`, written after each job that picked an extractor:
+
+    {"job": "<job file name>", "status": "<result status>", "extractor": "claude|llama-server",
+     "model": "<model>", "finished_at": "<UTC ISO>"}
 
 Failure log `logs/facts-failures.json` is a JSON list with one entry per job that failed last time it ran:
 
@@ -36,10 +52,11 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+from vault_graph.interface.composition.adapters import llama_health
 from vault_graph.interface.composition.adapters.fact_cache import (
     CachedFact,
     FactCache,
@@ -66,7 +83,12 @@ from vault_graph.interface.composition.adapters.vault_attach_facts_cli import (
     AttachFactsOutcome,
     run_attach_facts,
 )
-from vault_graph.operation.scope.facts_settings import FactsSettings, facts_failures_path
+from vault_graph.operation.scope.facts_settings import (
+    FactsSettings,
+    facts_failures_path,
+    facts_last_job_path,
+    resolve_facts_settings,
+)
 
 FACTS_WORKER_LOCK = Path("logs") / "facts-worker.lock"
 FACTS_WORKER_LOG = Path("logs") / "facts-worker.log"
@@ -83,6 +105,9 @@ _FRONT_VALUE = re.compile(r'^(?P<key>[A-Za-z_]+):\s*"?(?P<value>[^"]*?)"?\s*$')
 _FILE_DATE = re.compile(r"^(\d{4}-\d{2}-\d{2})-")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _SPACE = re.compile(r"\s+")
+_META_TOOLS = re.compile(r"(?:^|\s)tools=(?P<value>\S*)")
+_TURN_HEADING = re.compile(r"^### +(?P<role>\S+)")
+_TOOL_LINE = re.compile(r"^- (?P<name>[^\s`]+)(?: .*)?$")
 
 AttachRunner = Callable[[Path, Path, Path], AttachFactsOutcome]
 
@@ -120,6 +145,8 @@ class _Exchange:
     exchange_id: str
     date: str
     text: str
+    tools: frozenset[str] = frozenset()
+    """Tool names of the exchange meta `tools=`."""
 
 
 @dataclass(frozen=True)
@@ -140,23 +167,35 @@ class _JobFailed(Exception):
 
 @dataclass
 class _Extraction:
-    """The extractor of this run, built only when an exchange misses the cache."""
+    """Picks the extractor of each job and builds each extractor once, only when an exchange misses the cache."""
 
     settings: FactsSettings
-    extractor: FactExtractor | None = None
-    down: str | None = None
-    """Why the extractor could not run earlier in this run. Later jobs do not call it again."""
+    extractors: dict[tuple[str, str], FactExtractor] = field(default_factory=dict)
+    down: dict[str, str] = field(default_factory=dict)
+    """Why an extractor could not run earlier in this run, by name. Later jobs do not call it again."""
 
-    def extract(self, exchanges: list[FactExchange]) -> list[ExtractedFact]:
-        if self.down is not None:
-            raise FactExtractorUnavailable(self.down)
-        if self.extractor is None:
-            self.extractor = select_fact_extractor(self.settings)
+    def choose(self) -> FactsSettings:
+        """The settings of the extractor this job uses (D6). Checks llama-server only for `auto`."""
+        if self.settings.extractor == "auto" and "llama-server" in self.down:
+            return resolve_facts_settings(self.settings, local_answers=lambda endpoint: False)
+        return resolve_facts_settings(self.settings, local_answers=_local_answers)
+
+    def extract(self, chosen: FactsSettings, exchanges: list[FactExchange]) -> list[ExtractedFact]:
+        if chosen.extractor in self.down:
+            raise FactExtractorUnavailable(self.down[chosen.extractor])
+        key = (chosen.extractor, chosen.model)
+        extractor = self.extractors.get(key)
+        if extractor is None:
+            extractor = self.extractors[key] = select_fact_extractor(chosen)
         try:
-            return self.extractor.extract(exchanges)
+            return extractor.extract(exchanges)
         except FactExtractorUnavailable as exc:
-            self.down = str(exc)
+            self.down[chosen.extractor] = str(exc)
             raise
+
+
+def _local_answers(endpoint: str) -> bool:
+    return llama_health.llama_server_answers(endpoint, timeout_seconds=llama_health.WORKER_HEALTH_TIMEOUT_SECONDS)
 
 
 def start_fact_worker(graph_home: Path, *, cache_dir: Path | None = None) -> bool:
@@ -279,8 +318,10 @@ def _drain(
             if previous is not None and _waiting(previous, clock()):
                 held_back.append(path.name)
                 continue
-            result, failure = _run_job(graph_home, path, settings, cache, extraction, clock, attach)
+            result, failure, chosen = _run_job(graph_home, path, cache, extraction, clock, attach)
             results.append(result)
+            if chosen is not None:
+                _write_last_job(graph_home, result, chosen, clock())
             if failure is None:
                 failures.pop(path.name, None)
             else:
@@ -292,32 +333,35 @@ def _drain(
 def _run_job(
     graph_home: Path,
     path: Path,
-    settings: FactsSettings,
     cache: FactCache,
     extraction: _Extraction,
     clock: Callable[[], datetime],
     attach: AttachRunner,
-) -> tuple[FactJobResult, FactFailure | None]:
+) -> tuple[FactJobResult, FactFailure | None, FactsSettings | None]:
+    """Run one job. The third value is the extractor the job picked, or None when it failed before picking."""
     job: FactJob | None = None
+    chosen: FactsSettings | None = None
     try:
         try:
             job = read_fact_job(path)
         except FactJobInvalid as exc:
             raise _JobFailed("job_invalid", str(exc), closed=True, retry=False) from exc
         part = _read_part(job.part_path)
-        facts = _facts_for_part(part, settings, cache, extraction)
+        chosen = extraction.choose()
+        facts = _facts_for_part(part, chosen, cache, extraction)
         if not facts:
             remove_fact_job(path)
-            return FactJobResult(job=path.name, status="no_facts"), None
-        outcome = _attach(graph_home, job, part, settings, facts, attach)
+            return FactJobResult(job=path.name, status="no_facts"), None, chosen
+        outcome = _attach(graph_home, job, part, chosen, facts, attach)
     except _JobFailed as failed:
         if failed.closed:
             remove_fact_job(path)
         failure = _failure(path.name, job, failed, clock())
         status = "closed" if failed.closed else "waiting"
-        return FactJobResult(job=path.name, status=status, reason=failed.reason, message=failed.message), failure
+        result = FactJobResult(job=path.name, status=status, reason=failed.reason, message=failed.message)
+        return result, failure, chosen
     remove_fact_job(path)
-    return FactJobResult(job=path.name, status=outcome.status), None
+    return FactJobResult(job=path.name, status=outcome.status), None, chosen
 
 
 def _read_part(part_path: Path) -> _Part:
@@ -362,7 +406,7 @@ def _split_frontmatter(text: str) -> tuple[dict[str, str], list[str]]:
 
 def _exchanges(lines: list[str], fallback_date: str) -> list[_Exchange]:
     """Exchanges with a `vg:exchange` meta line, in file order. Text is the lines after the meta line."""
-    starts: list[tuple[int, str, str]] = []
+    starts: list[tuple[int, str, str, frozenset[str]]] = []
     for index in range(len(lines) - 1):
         if not _EXCHANGE_HEADING.match(lines[index]):
             continue
@@ -371,14 +415,54 @@ def _exchanges(lines: list[str], fallback_date: str) -> list[_Exchange]:
             continue
         started = _META_STARTED.search(meta.group("body"))
         day = started.group("value")[:10] if started else ""
-        starts.append((index, id_match.group("value"), day if _real_date(day) else fallback_date))
+        tools_match = _META_TOOLS.search(meta.group("body"))
+        tools = frozenset(
+            item.split(":", 1)[0] for item in (tools_match.group("value") if tools_match else "").split(",") if item
+        )
+        starts.append((index, id_match.group("value"), day if _real_date(day) else fallback_date, tools))
     exchanges: list[_Exchange] = []
-    for position, (index, exchange_id, day) in enumerate(starts):
+    for position, (index, exchange_id, day, tools) in enumerate(starts):
         end = starts[position + 1][0] if position + 1 < len(starts) else len(lines)
         text = "\n".join(lines[index + 2 : end]).strip()
         if text and day:
-            exchanges.append(_Exchange(exchange_id=exchange_id, date=day, text=text))
+            exchanges.append(_Exchange(exchange_id=exchange_id, date=day, text=text, tools=tools))
     return exchanges
+
+
+def extractor_text(text: str, tools: frozenset[str]) -> str:
+    """`text` as the extractor reads it: without tool call lines and the non-user turns they leave empty (D1, D3).
+
+    A tool call line is `- <name>` or `- <name> <arguments>` with `<name>` in `tools`, outside a `### user` turn.
+    Returns an empty string when no turn text is left.
+    """
+    turns: list[tuple[str | None, list[str]]] = [(None, [])]
+    for line in text.splitlines():
+        if _TURN_HEADING.match(line) is not None:
+            turns.append((line, []))
+        else:
+            turns[-1][1].append(line)
+    kept: list[str] = []
+    has_text = False
+    for heading, body in turns:
+        match = _TURN_HEADING.match(heading) if heading is not None else None
+        user = match is not None and match.group("role") == "user"
+        if not user:
+            body = [line for line in body if not _tool_call_line(line, tools)]
+        filled = any(line.strip() for line in body)
+        if heading is not None and not user and not filled:
+            continue
+        has_text = has_text or filled
+        if heading is not None:
+            kept.append(heading)
+        kept.extend(body)
+    if not has_text:
+        return ""
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
+
+
+def _tool_call_line(line: str, tools: frozenset[str]) -> bool:
+    match = _TOOL_LINE.match(line)
+    return match is not None and match.group("name") in tools
 
 
 def _facts_for_part(
@@ -397,7 +481,7 @@ def _facts_for_part(
         else:
             known[exchange.exchange_id] = cached
     if misses:
-        extracted = _extract(misses, extraction)
+        extracted = _extract(misses, settings, extraction)
         for exchange in misses:
             found = extracted.get(exchange.exchange_id, [])
             cache.put(settings.extractor, settings.model, hashes[exchange.exchange_id], found)
@@ -415,15 +499,21 @@ def _facts_for_part(
     return facts
 
 
-def _extract(misses: list[_Exchange], extraction: _Extraction) -> dict[str, list[CachedFact]]:
-    inputs = [FactExchange(exchange_id=item.exchange_id, date=item.date, text=item.text) for item in misses]
+def _extract(misses: list[_Exchange], chosen: FactsSettings, extraction: _Extraction) -> dict[str, list[CachedFact]]:
+    inputs = [
+        FactExchange(exchange_id=item.exchange_id, date=item.date, text=text)
+        for item in misses
+        if (text := extractor_text(item.text, item.tools))
+    ]
+    if not inputs:
+        return {}
     try:
-        answer = extraction.extract(inputs)
+        answer = extraction.extract(chosen, inputs)
     except FactExtractorUnavailable as exc:
         raise _JobFailed("extractor_unavailable", str(exc), closed=False, retry=True) from exc
     except FactOutputInvalid as exc:
         raise _JobFailed("extractor_output_invalid", str(exc), closed=False, retry=True) from exc
-    wanted = {item.exchange_id for item in misses}
+    wanted = {item.exchange_id for item in inputs}
     found: dict[str, list[CachedFact]] = {}
     for index, fact in enumerate(answer):
         text = _SPACE.sub(" ", fact.text).strip() if isinstance(fact.text, str) else ""
@@ -526,6 +616,30 @@ def _write_failures(graph_home: Path, failures: list[FactFailure]) -> None:
         ) as stream:
             temporary = stream.name
             json.dump(payload, stream, ensure_ascii=False, indent=1)
+        os.replace(temporary, path)
+        temporary = None
+    finally:
+        if temporary is not None and os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _write_last_job(graph_home: Path, result: FactJobResult, chosen: FactsSettings, now: datetime) -> None:
+    path = facts_last_job_path(graph_home)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "job": result.job,
+        "status": result.status,
+        "extractor": chosen.extractor,
+        "model": chosen.model,
+        "finished_at": _iso(now),
+    }
+    temporary: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, prefix=".facts-last-job-", suffix=".tmp", delete=False
+        ) as stream:
+            temporary = stream.name
+            json.dump(payload, stream, ensure_ascii=False)
         os.replace(temporary, path)
         temporary = None
     finally:

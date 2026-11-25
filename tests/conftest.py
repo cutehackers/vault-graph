@@ -55,6 +55,31 @@ def fake_fact_extractor(monkeypatch: pytest.MonkeyPatch) -> FakeFactExtractor:
     return fake
 
 
+class FakeLlamaHealth:
+    """The local llama-server in every test (spec 2026-11-25-facts-extractor-auto D5).
+
+    Set `up`; `calls` records each check.
+    """
+
+    def __init__(self) -> None:
+        self.up = False
+        self.calls: list[tuple[str, float]] = []
+
+    def __call__(self, endpoint: str, timeout_seconds: float) -> bool:
+        self.calls.append((endpoint, timeout_seconds))
+        return self.up
+
+
+@pytest.fixture(autouse=True)
+def fake_llama_health(monkeypatch: pytest.MonkeyPatch) -> FakeLlamaHealth:
+    """Keep tests off a real server on 127.0.0.1:8080: `llama_server_answers` asks this fake, which says down."""
+    from vault_graph.interface.composition.adapters import llama_health
+
+    fake = FakeLlamaHealth()
+    monkeypatch.setattr(llama_health, "_check", fake)
+    return fake
+
+
 class FakeDreamSchedule:
     """The launchd schedule in every test (spec 2026-11-24 I6). Set `fail` or `platform` to test errors."""
 
