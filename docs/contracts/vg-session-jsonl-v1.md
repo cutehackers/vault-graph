@@ -71,7 +71,7 @@ vg session migrate [--vault NAME]... [--dry-run] [--graph-home PATH] [--vault-ma
 ```
 
 - 대상: `vault-map.json`의 Vault(`--vault`가 있으면 그 이름만) 아래 `raw/sessions/claude-code/*.md`(`.facts.md` 제외). vg는 frontmatter와 v2 본문의 `vg:exchange` 메타 줄을 읽기만 한다. 폴더가 없는 Vault는 `v1_parts=0`이다.
-- 덮음: v1 part는 같은 Vault, 같은 `agent`·`session_id`의 v2 part 하나가 그 범위를 포함하면 덮였다. v2 범위는 메타 줄의 가장 이른 `started`부터 가장 늦은 `ended`까지다(frontmatter `last_turn_at`은 파일 순서상 마지막 턴이라 쓰지 않는다). v1 범위는 frontmatter `first_turn_at`~`last_turn_at`이다. 시각은 시각 값으로 비교하고, 두 v2 part를 이어 붙이지 않는다. 덮이지 않은 v1 part가 있는 세션이 대상이다.
+- 덮음: v1 part는 같은 Vault, 같은 `agent`·`session_id`의 v2 part 하나가 그 범위를 포함하면 덮였다. v2 범위는 메타 줄의 가장 이른 `started`부터 가장 늦은 `ended`까지다(frontmatter `last_turn_at`은 파일 순서상 마지막 턴이라 쓰지 않는다). v1 범위는 frontmatter `first_turn_at`~`last_turn_at`이다. 시각은 시각 값으로 비교하고, 두 v2 part를 이어 붙이지 않는다. 덮이지 않은 v1 part가 있는 세션이 대상이다. frontmatter를 읽지 못하거나 `session_id`·시각이 없는 v1 part는 `failed:unreadable_part <경로>`로 적고, 그 세션은 다시 수집하지 않는다.
 - 원본: `$CLAUDE_CONFIG_DIR/projects/`(기본 `~/.claude/projects/`)에서 찾는다. 없으면 `source_missing`, 두 프로젝트 폴더에 있으면 `failed:duplicate_source`, main 원본이나 `subagents/` 파일이 1시간 안에 바뀌었으면 `recent`다. `--dry-run`은 여기까지 하고 나머지 대상을 `target`으로 적는다.
 - 정규화: 가장 최근 세션이라도 `session_ended=True`로 정규화해 OS 임시 폴더에 쓰고, 실행기가 끝나면 지운다. 훅 JSON 이벤트는 `SessionEnd`다. 세션 `cwd`가 지금 없는 폴더면 훅 JSON `cwd`에 가장 가까운 존재하는 상위 폴더를 넣고(`cwd_fallback=`), 정규화 파일은 바꾸지 않는다. Vault는 실행기와 Vault 도구가 고른다.
 - 중복 막기: 같은 세션의 v2 part 중 `first_exchange_id`·`last_exchange_id`가 정규화 파일의 턴 있는 첫·끝 교환과 같은 것이 있으면 쓰지 않고 `already_recaptured_uncovered`(실패)로 적는다.
