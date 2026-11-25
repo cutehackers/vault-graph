@@ -22,7 +22,7 @@
 | D1 | 3d는 v2 part에서 도구 호출 줄을 인자까지 모두 뺀다 | decided | basis X1, X2, X3, X12 | A1, A3 |  | 58403465 | 2-worker-tool-lines-and-pick.md |
 | D2 | 필터는 작업자가 추출기 입력을 만들 때 하고 캐시 키는 그대로 둔다 | decided | basis X4, X6, I1; depends D1 | A2, A3 |  | 73b0f95d | 2-worker-tool-lines-and-pick.md |
 | D3 | 거른 뒤 빈 교환은 추출기에 넘기지 않는다 | decided | depends D2 | A2 |  | 3fe3aacb | 2-worker-tool-lines-and-pick.md |
-| D4 | 추출기 값 `auto`를 더하고 설정 파일이 없을 때의 기본값으로 한다 | decided | basis X5, 2026-11-25-memory-intent-layers:D6 | A4 | 사실 추출 | 0a4b5bab | 1-auto-settings-health-facts-cli.md |
+| D4 | 추출기 값 `auto`를 더하고 설정 파일이 없을 때의 기본값으로 한다 | decided | basis X5, 2026-11-25-memory-intent-layers:D6; replaces 2026-11-16-longmemeval-session-memory:D19 | A4 | 사실 추출 | 5d7630d7 | 1-auto-settings-health-facts-cli.md |
 | D5 | "답한다"는 `GET <endpoint>/health`가 시간 안에 HTTP 200을 돌려준 것이다 | decided | basis I4; depends D4 | A7, A11 | 사실 추출 | ee1eedf0 | 1-auto-settings-health-facts-cli.md |
 | D6 | `auto`는 작업마다 고르고, 중간에 실패한 작업은 실패로 남긴다 | decided | basis X6, X7, I1, I3; depends D5 | A6, A13 | 사실 추출 | e9afecfe | 2-worker-tool-lines-and-pick.md |
 | D7 | `auto` 설정 파일은 로컬 끝점과 모델을 담고 형식 version은 1 그대로다 | decided | basis X5; depends D4 | A4, A5 | 사실 추출 | b2e658b6 | 1-auto-settings-health-facts-cli.md |
@@ -221,8 +221,9 @@ brief는 `build_facts_prompt` 안에서 거르자고 했지만, D1은 교환 메
 - status: decided
 - area: 사실 추출
 - basis: X5, 2026-11-25-memory-intent-layers:D6
+- replaces: 2026-11-16-longmemeval-session-memory:D19
 
-추출기 값은 `auto`, `llama-server`, `claude` 셋이다. `auto`는 llama-server 끝점이 답하면 llama-server를, 아니면 claude를 쓴다. 파일이 없을 때 지금은 claude지만(X5) 이제 `auto`다.
+추출기 값은 `auto`, `llama-server`, `claude` 셋이다. `auto`는 llama-server 끝점이 답하면 llama-server를, 아니면 claude를 쓴다. 파일이 없을 때 지금은 claude지만(X5) 이제 `auto`다. 2026-11-16-longmemeval-session-memory:D19("설정 파일이 없으면 claude로 켜진 것으로 본다")를 대신하고, 같은 spec에서 "측정에서 차이가 작을 때만 기본값을 로컬로 바꾼다"고 한 조건도 사용자가 2026-11-25에 이 결정으로 바꿨다. 같은 spec의 수용 기준이 근거로 든 테스트는 `test_missing_file_means_on_with_auto`로 이름이 바뀌었다.
 
 ### D5. "답한다"는 `GET <endpoint>/health`가 시간 안에 HTTP 200을 돌려준 것이다
 - by: 사람 (부모 spec 옵션1, 끝점이 답할 때만 로컬), 가정 (`/health`, 200만 인정, 시간 제한 값)
