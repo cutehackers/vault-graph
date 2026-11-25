@@ -380,87 +380,87 @@ llama-server 쪽 `model`은 설정 값이다(X6). 서버가 다른 모델 파일
 ### A1. 메타에 있는 이름의 도구 호출 줄만 빠진다
 - covers: D1, F7
 - check: tests/test_fact_worker.py
-- evidence:
+- evidence: tests/test_fact_worker.py "test_extractor_text_drops_tool_call_lines_outside_user_turns", "test_extractor_text_keeps_everything_without_meta_tools"
 
 assistant 구획에서 메타 `tools=`에 있는 이름의 `- <이름>` 줄과 `- <이름> <인자…>` 줄(실패 표시 줄 포함)은 빠진다. `### user` 구획의 같은 모양 줄, 메타에 없는 이름의 줄, 이름 뒤에 공백 없이 글자가 이어지는 줄, 사용자 글머리표 문장, 문장 중간에 `Tools:`가 있는 줄은 남는다.
 
 ### A2. 같은 part의 추출기 입력이 줄고 교환과 캐시 키는 그대로다
 - covers: D2, D3, I1, F8
 - check: tests/test_fact_worker.py
-- evidence:
+- evidence: tests/test_fact_worker.py "test_worker_sends_less_text_and_keeps_ids_facts_and_cache_keys", "test_a_part_of_tool_lines_only_never_calls_the_extractor", "test_extractor_text_of_tool_lines_only_is_empty"
 
 도구 호출 줄이 섞인 v2 fixture part에서 가짜 추출기가 받은 `build_facts_prompt` 바이트가 필터 전보다 작다. 받은 교환 id 목록과 첨부 사실 수는 같고, 캐시 키는 원문 해시와 같다. 도구 줄뿐인 교환은 추출기에 가지 않고 빈 목록으로 캐시된다.
 
 ### A3. 실제 part에서 뽑힌 사실 수가 줄지 않는다
 - covers: D1, D2
 - check: 수동: 도구 호출 줄이 있는 실제 v2 part를 claude 추출기로 필터 없이 한 번, 필터와 함께 한 번 추출해 프롬프트 바이트와 사실 수를 비교한다
-- evidence: 2026-11-25 spec 단계 측정(X12): part 3개에서 프롬프트 바이트 17%, 13%, 28% 감소, 사실 수 합 40→39, 빠진 사실은 합쳐진 것.
+- evidence: 수동: 도구 호출 줄이 있는 실제 v2 part를 claude 추출기로 필터 없이 한 번, 필터와 함께 한 번 추출해 비교한다. 구현자 측정(spec X12): part 3개에서 프롬프트 바이트 -17/-13/-28%, 사실 수 40→39(빠진 사실은 합쳐짐), 등록 v2 part 219개 전체 -29.2%.
 
 ### A4. 설정 파일이 없으면 `auto`이고 `auto` 파일 검사가 맞다
 - covers: D4, D7
 - check: tests/test_facts_config.py
-- evidence:
+- evidence: tests/test_facts_config.py "test_missing_file_means_on_with_auto", "test_auto_defaults_hold_the_local_endpoint_and_model", "test_broken_file_means_off_with_reason"(auto 경우 2개), "test_resolve_auto_picks_llama_server_when_it_answers", "test_resolve_auto_picks_claude_when_llama_server_does_not_answer"
 
 파일이 없으면 켜진 `auto`, 로컬 끝점, 로컬 모델이다. `auto` 파일의 `endpoint`가 null이거나 http(s)가 아니면 깨진 파일이다. `resolve_facts_settings`는 답하면 llama-server 설정을, 아니면 claude와 `CLAUDE_FACTS_MODEL`을 돌려준다.
 
 ### A5. 기존 `claude`, `llama-server` 설정 파일은 그대로 동작한다
 - covers: D7, I3
 - check: tests/test_facts_config.py, tests/test_fact_worker.py
-- evidence:
+- evidence: tests/test_facts_config.py "test_saved_claude_file_keeps_working", "test_resolve_keeps_fixed_extractors_without_checking", "test_on_with_llama_server_selects_local_extractor"; tests/test_fact_worker.py "test_fixed_llama_server_never_falls_back_to_claude", "test_fixed_claude_never_checks_llama_server"
 
 이번 change 전에 저장한 두 형식의 파일을 그대로 읽어 같은 설정이 나오고, 작업자는 끝점을 확인하지 않고 그 추출기를 쓴다.
 
 ### A6. 작업자가 작업마다 고르고 실제 값을 캐시와 첨부에 적는다
 - covers: D6, I2, I3, F1, F2, F3
 - check: tests/test_fact_worker.py
-- evidence:
+- evidence: tests/test_fact_worker.py "test_auto_uses_claude_when_llama_server_does_not_answer", "test_auto_uses_llama_server_when_it_answers", "test_auto_job_fails_when_llama_server_stops_and_the_next_job_uses_claude", "test_fixed_llama_server_never_falls_back_to_claude"
 
 확인 함수를 가짜로 바꿔 본다. 답하면 캐시 키와 첨부 입력이 `llama-server`와 로컬 모델, 답하지 않으면 `claude`와 `CLAUDE_FACTS_MODEL`이다. llama-server가 작업 중 실패하면 그 작업은 `extractor_unavailable`이고 같은 실행의 뒤 작업은 확인 없이 claude다. 고정 `llama-server`는 서버가 답하지 않아도 claude를 부르지 않는다.
 
 ### A7. 끝점 확인은 200만 답으로 친다
 - covers: D5
 - check: tests/test_llama_health.py
-- evidence:
+- evidence: tests/test_llama_health.py "test_http_200_on_health_answers", "test_http_503_while_the_model_loads_does_not_answer", "test_refused_connection_does_not_answer", "test_slow_server_does_not_answer_within_the_hook_timeout"
 
 테스트 안의 로컬 HTTP 서버로 200은 참, 503·연결 거부·시간 초과는 거짓이다.
 
 ### A8. 훅과 status는 추출기 모듈을 불러오지 않는다
 - covers: I4
 - check: tests/test_llama_health.py
-- evidence:
+- evidence: tests/test_llama_health.py "test_hook_status_and_health_do_not_import_extractor_modules"
 
 새 하위 프로세스에서 `hook_commands`, `facts_commands`, `llama_health`를 import한 뒤 `sys.modules`에 두 추출기 모듈과 `fact_worker`가 없다.
 
 ### A9. `vg facts on|off|status`가 `auto`를 다루고 두 줄을 더 보인다
 - covers: D8, D9, F9
 - check: tests/test_facts_config.py
-- evidence:
+- evidence: tests/test_facts_config.py "test_off_writes_enabled_false_and_on_turns_it_back", "test_on_with_extractor_saves_that_extractor", "test_status_shows_auto_picks_claude_when_llama_server_is_down", "test_status_shows_fixed_llama_server_not_answering", "test_status_shows_no_extractor_when_off", "test_status_shows_last_job_record"
 
 파일이 없을 때 `on`과 `off`는 `auto`를 저장한다. `on --extractor auto|llama-server|claude`가 그 값을 저장한다. `status`는 `extractor_now`와 `last_job` 줄을 내고, 기록 파일이 없으면 `last_job: none`, 깨졌으면 `last_job: unreadable`이다.
 
 ### A10. 세션 시작 회상에 추출기 줄이 하나 나온다
 - covers: D10, F4, F5, F6
 - check: tests/test_cli_hook_session_start.py, tests/test_session_recall.py
-- evidence:
+- evidence: tests/test_cli_hook_session_start.py "test_startup_shows_auto_picks_claude_when_llama_server_is_down", "test_startup_facts_line_follows_the_setting_and_the_server", "test_broken_facts_settings_show_off_settings_broken", "test_resume_and_handoff_show_no_facts_line", "test_the_hook_check_of_a_silent_server_ends_within_its_time_limit"; tests/test_session_recall.py "test_facts_line_follows_how_to_open_in_block_d", "test_facts_line_is_not_in_the_notice_only_output"
 
 전체 회상의 구획D에 D10 문구 중 상태에 맞는 한 줄이 열기 안내 다음에 있다. resume, fork, handoff에는 없다. 확인이 시간을 넘으면 `- facts: auto → claude`다.
 
 ### A11. 추출기 줄은 약 15토큰이고 훅 확인은 0.3초를 넘지 않는다
 - covers: D10, D5
 - check: tests/test_session_recall.py, tests/test_llama_health.py
-- evidence:
+- evidence: tests/test_session_recall.py "test_every_facts_line_is_about_15_tokens_or_less"(문구 7개); 직접 실행: 응답하지 않는 소켓에 `uv run python -I -c "... check_llama_health(..., HOOK_HEALTH_TIMEOUT_SECONDS) ..."` 5회 → `False [0.302, 0.301, 0.302, 0.301, 0.301]
 
 D10의 일곱 문구 모두 `estimate_recall_tokens`로 15토큰 이하이고, 답하지 않는 서버에 대한 훅 확인은 0.3초 안에 끝난다.
 
 ### A12. 수집 알림에 `auto` 문구가 있다
 - covers: D11
 - check: tests/test_hook_facts.py
-- evidence:
+- evidence: tests/test_hook_facts.py "test_first_job_prints_the_notice_once_and_records_it"
 
 ### A13. 서버를 끄고 켜면 status와 첨부가 따라 바뀐다
 - covers: D6, D9, I2
 - check: 수동: llama-server를 끈 채 세션 하나를 수집하고 `vg facts status`와 새 `.facts.md`를 본 뒤, 서버를 켜고 같은 일을 다시 한다
-- evidence:
+- evidence: 수동: llama-server를 끈 채 세션 하나를 수집하고 `vg facts status`와 새 `.facts.md`를 본 뒤, 서버를 켜고 같은 일을 다시 해 `extractor_now`, `last_job`, 첨부 `extractor`를 비교한다. 아직 끝까지 돌리지 않았다.
 
 끈 때는 `extractor_now: claude …`와 첨부 `extractor: claude`, 켠 때는 `extractor_now: llama-server …`와 첨부 `extractor: llama-server`다. `last_job` 줄도 첨부와 같다.
 
