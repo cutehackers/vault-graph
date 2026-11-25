@@ -32,6 +32,7 @@ MAX_TERMS = 8
 GIT_COMMAND_TIMEOUT_S = 5.0
 GIT_TOTAL_TIMEOUT_S = 10.0
 MAX_PARSED_FILES = 50
+MAX_LINE_FILES = 50
 MAX_FILE_BYTES = 512 * 1024
 
 _SYMLINK_MODE = "120000"
@@ -258,9 +259,13 @@ class LiveRepositoryReader:
                     matches.setdefault(path, set()).add(term)
         truncated = budget.exhausted
         ranked = sorted(matches, key=lambda path: (-len(matches[path]), path))
-        if len(ranked) > MAX_PARSED_FILES:
-            ranked = ranked[:MAX_PARSED_FILES]
+        # Source files and line-match files have separate caps, so many matching docs cannot
+        # push the parsed source files out of the read (review 발견1).
+        source = [path for path in ranked if _is_parsed_language(path, self._parsers)]
+        other = [path for path in ranked if not _is_parsed_language(path, self._parsers)]
+        if len(source) > MAX_PARSED_FILES or len(other) > MAX_LINE_FILES:
             truncated = True
+        ranked = source[:MAX_PARSED_FILES] + other[:MAX_LINE_FILES]
         symbol_hits: list[LiveCodeHit] = []
         line_hits: list[LiveCodeHit] = []
         files_parsed = 0
@@ -364,6 +369,11 @@ class LiveRepositoryReader:
                 )
             )
         return hits
+
+
+def _is_parsed_language(relative: str, parsers: Mapping[str, CodeParserAdapter]) -> bool:
+    language = _LANGUAGES.get(PurePosixPath(relative).suffix.casefold())
+    return language is not None and language in parsers
 
 
 def _split_ls_entry(entry: str) -> tuple[str, str, str]:
