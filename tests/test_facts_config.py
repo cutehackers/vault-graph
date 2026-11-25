@@ -90,7 +90,11 @@ def test_resolve_auto_picks_llama_server_when_it_answers() -> None:
     asked: list[str] = []
     settings = FactsSettings(enabled=True, extractor="auto", endpoint="http://127.0.0.1:9000", model="/m.gguf")
 
-    resolved = resolve_facts_settings(settings, local_answers=lambda endpoint: asked.append(endpoint) or True)
+    def answers(endpoint: str) -> bool:
+        asked.append(endpoint)
+        return True
+
+    resolved = resolve_facts_settings(settings, local_answers=answers)
 
     assert resolved == FactsSettings(
         enabled=True, extractor="llama-server", endpoint="http://127.0.0.1:9000", model="/m.gguf"
