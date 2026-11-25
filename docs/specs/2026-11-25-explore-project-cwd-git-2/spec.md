@@ -371,80 +371,80 @@ A1~A4는 사용자가 정한 성공 기준이고, A11~A12는 사용자가 준 �
 ### A1. 등록 저장소가 0개일 때 git 저장소 안의 cwd에서 코드 증거가 나온다
 - covers: D1, D3, D5, D6
 - check: tests/test_project_context_live_repository.py, tests/test_live_repository_reader.py
-- evidence:
+- evidence: tests/test_project_context_live_repository.py `test_zero_registered_repositories_return_live_code_evidence`, tests/test_live_repository_reader.py `test_search_returns_symbol_hits_before_line_hits`, `test_linked_worktree_uses_main_worktree_folder_name
 
 `def run_request_flow()`가 든 `.py` 파일과 `.md` 파일 하나가 있는 저장소에서 `task="run request flow"`, `cwd=<저장소 하위 폴더>`로 부르면, 심볼 증거 하나 이상이 줄 위치 증거보다 앞에 온다. 증거는 `repository_id="git:<폴더 이름>"`, 상대 경로, 줄 범위, `revision="git:<HEAD>"`, 이유 `live_symbol_match`와 `working_tree`를 갖고, 경고 `code_live_read`가 있으며 `impact_evidence`, `test_evidence`는 비어 있다. linked worktree에서 불러도 이름표는 주 worktree 폴더 이름이다.
 
 ### A2. git 저장소 밖이면 등록 안내 없는 `not_a_git_repository` 오류가 난다
 - covers: D9, F1, I5
 - check: tests/test_mcp_explore_project.py, tests/test_project_context_live_repository.py
-- evidence:
+- evidence: tests/test_mcp_explore_project.py `test_explore_project_outside_git_returns_not_a_git_repository`[outside/missing/no-git], tests/test_project_context_live_repository.py `test_outside_git_raises_not_a_git_repository_without_registration_hint`, `test_git_that_cannot_run_raises_not_a_git_repository
 
 git 밖 폴더, 없는 경로, git을 실행할 수 없는 환경(PATH에서 git을 뺌) 세 경우 모두 오류 kind가 `invalid_parameter`, 코드가 `not_a_git_repository`다. 메시지와 안내에 `register`, `bind`, `repository_id`, 받은 경로 문자열이 없다.
 
 ### A3. `repository_id`와 등록 저장소 경로는 지금과 같이 동작한다
 - covers: I2, I3, F3, F9
 - check: tests/test_project_context_service.py, tests/test_mcp_explore_project.py, tests/test_project_context_scope.py
-- evidence:
+- evidence: tests/test_project_context_live_repository.py `test_repository_id_skips_live_reading`, `test_path_inside_registered_repository_keeps_registered_path`, `test_path_inside_registered_repository_without_binding_keeps_scope_error`. 기존 tests/test_project_context_service.py와 tests/test_project_context_scope.py는 바뀌지 않았고 bake-verify.log "4078 passed, 22 skipped, 1 warning"에서 통과했다.
 
 기존 테스트를 고치지 않고 통과한다. 새 사례: `repository_id`와 `cwd`를 함께 주면 등록 저장소 결과가 나오고 git 읽기는 불리지 않는다. 등록 저장소 안의 경로는 투영이 없을 때 `code_index_unavailable`을, binding이 없을 때 `scope_required`를 지금처럼 낸다. `project_path`와 `repository_id`를 함께 주면 지금처럼 거절된다.
 
 ### A4. 호출 뒤 저장소와 Graph Home의 바이트가 그대로다
 - covers: I1, F8
 - check: tests/test_project_context_live_repository.py
-- evidence:
+- evidence: tests/test_project_context_live_repository.py `test_live_reading_leaves_repository_and_graph_home_unchanged`, `test_repository_without_commits_has_null_revision`, tests/test_live_repository_reader.py `test_reader_never_runs_writing_git_commands
 
 `.git` 폴더를 포함한 저장소 전체와 Graph Home 폴더의 파일 바이트와 목록이 호출 전후에 같다. commit 안 된 변경이 있는 파일을 읽어도 같고, 그 증거의 `revision`은 `git:<HEAD>`, 이유에 `working_tree`가 있다. commit이 없는 저장소에서는 `revision`이 null이다.
 
 ### A5. 파일 목록은 git에서 오고 무시된 폴더와 symlink를 읽지 않는다
 - covers: D4, F7
 - check: tests/test_live_repository_reader.py
-- evidence:
+- evidence: tests/test_live_repository_reader.py `test_search_reads_files_from_git_and_skips_ignored_symlinks_and_large_files
 
 `.gitignore`에 든 `.venv` 아래 저장소 밖을 가리키는 symlink, 추적되는 symlink, 512 KiB를 넘는 파일, 문법 오류 `.py`가 있어도 예외 없이 결과가 나온다. symlink와 큰 파일은 결과에 없고 `code_live_files_skipped` 경고가 하나 있다. 문법 오류 파일은 줄 위치 증거로 나온다. 무시되지 않은 새 파일(추적 전)은 결과에 나올 수 있다.
 
 ### A6. 상한에 걸리면 자른 결과와 경고를 내고, 낱말이 없으면 빈 결과로 성공한다
 - covers: I7, F5, F6, D5
 - check: tests/test_live_repository_reader.py
-- evidence:
+- evidence: tests/test_live_repository_reader.py `test_search_caps_parsed_files_and_reports_truncation`, `test_search_stops_on_git_timeout_and_returns_partial_result`, `test_search_without_terms_or_matches_succeeds_with_warnings`, `test_extract_terms_keeps_first_eight_and_drops_stop_words`, `test_line_match_files_do_not_take_the_parse_budget_of_source_files
 
 후보 파일 60개를 만들면 파싱한 파일이 50개 이하이고 `code_live_read_truncated` 경고와 `partial` freshness가 나온다. git 실행을 시간 초과로 바꾼 가짜 runner에서도 그때까지의 결과와 같은 경고가 나온다. 낱말이 9개 이상이면 앞의 8개만 쓴다. `task="??"`는 `code_live_no_terms`, 어디에도 없는 낱말은 `code_live_no_match` 경고로 성공한다.
 
 ### A7. Vault는 vault-map과 binding으로만 정하고, 없으면 binding이 null이다
 - covers: D7, I4, I6, F4
 - check: tests/test_project_context_live_repository.py, tests/test_project_context_models.py
-- evidence:
+- evidence: tests/test_project_context_live_repository.py `test_no_vault_leaves_binding_null_and_reads_no_vault`, `test_zero_registered_repositories_return_live_code_evidence`, tests/test_project_context_models.py `test_project_context_allows_no_binding_but_binding_still_needs_vaults
 
 `vault-map.json`에 그 저장소 프로젝트가 있으면 그 Vault 근거가 붙고 `binding.vault_ids`가 그 Vault다. 없으면 `binding`이 null, `vault_evidence`가 비고, `project_vault_scope_unresolved` 경고가 나오며, 활성 Vault를 읽는 가짜 서비스가 한 번도 불리지 않는다. `ProjectBinding(vault_ids=())`은 지금처럼 `ValueError`다.
 
 ### A8. `cwd` 인자를 받고 범위 인자의 우선순위가 D2, D8대로다
 - covers: D2, D8
 - check: tests/test_mcp_explore_project.py, tests/test_project_context_live_repository.py
-- evidence:
+- evidence: tests/test_mcp_explore_project.py `test_registered_explore_project_tool_takes_cwd`, `test_parse_explore_project_input_rejects_empty_cwd`, `test_parse_explore_project_input_accepts_cwd_with_any_scope`, tests/test_project_context_live_repository.py `test_project_path_wins_over_cwd
 
 MCP 도구 서명에 `cwd`가 있다. `project_path`와 `cwd`가 서로 다른 git 저장소면 `project_path` 쪽 결과가 나온다. 빈 문자열 `cwd`는 `invalid_arguments`다. 등록 저장소 밖의 `project_path`는 더 이상 `unregistered_project_path`를 내지 않는다.
 
 ### A9. 인자가 없으면 D11의 순서로 저장소를 고른다
 - covers: D11, F2
 - check: tests/test_project_context_service.py, tests/test_project_context_live_repository.py
-- evidence:
+- evidence: tests/test_project_context_live_repository.py `test_no_arguments_prefer_the_single_bound_registered_repository`, `test_no_arguments_without_registered_repository_read_the_working_folder`, `test_no_arguments_outside_git_raise_not_a_git_repository
 
 binding이 있는 등록 저장소가 하나면 서버 작업 폴더와 관계없이 그것을 쓴다(기존 테스트). 0개이고 서버 작업 폴더가 git 안이면 그 저장소를 읽는다. 0개이고 git 밖이면 `not_a_git_repository`다. 서버 작업 폴더는 테스트에서 주입하고 프로세스 cwd를 바꾸지 않는다.
 
 ### A10. 안내문, FEATURES, TODO가 새 동작을 적는다
 - covers: D10
 - check: 수동: `mcp_server.py` 안내문, `mcp_prompts.py`의 Implementation Context 프롬프트, `docs/FEATURES.md`의 `explore_project` 세 곳, `docs/TODO.md` 결정5 항목을 읽어 "등록 필요"라는 문장이 없고 `cwd`와 git 저장소 읽기가 적혀 있으며, 등록 스캐너의 `.venv` symlink 문제가 후속 항목으로 있는지 본다
-- evidence:
+- evidence: 수동: 사람이 `mcp_server.py` 안내문, `mcp_prompts.py:147`, `docs/FEATURES.md`의 `explore_project` 세 곳, `docs/TODO.md`의 결정5와 Follow-up 항목을 읽는다. 리뷰에서 diff를 읽었을 때 "등록 필요" 문장은 없었고 `cwd`와 git 읽기가 적혀 있었다.
 
 ### A11. 바뀐 파일이 §4.5 목록 안에 있고 push와 PR이 없다
 - covers: D3, D10
 - check: 수동: change 끝에서 base와의 차이 파일 목록을 §4.5와 대조하고, 사실 추출기, vault-builder, `src/vault_graph/project/code/source_scanning.py`, `repository_catalog.py`가 없는지, 원격 branch와 PR이 새로 생기지 않았는지 본다
-- evidence:
+- evidence: 수동: 사람이 `git diff --stat main...HEAD`를 §4.5와 대조한다. 이 change에서 §4.5 밖 파일은 `mcp_service_factory.py`와 `tests/test_mcp_tools.py`이고, 둘 다 구현에 필요하다. 앞의 commit 두 개는 다른 spec 것이다. 금지 파일 변경은 없고 upstream도 없다.
 
 ### A12. 이 저장소에서 실제 호출의 git 읽기가 10초 안에 코드 증거를 내고 전체 검증이 통과한다
 - covers: D1, D3, I7
 - check: 수동: 등록 저장소가 없는 Graph Home으로 이 저장소 worktree를 `cwd`로 `explore_project(task="resolve repository for explore_project in ProjectContextService")`를 부르고, git 읽기 시간, 전체 호출 시간, 코드 증거를 본 뒤 저장소의 전체 검증 명령을 실행한다
-- evidence:
+- evidence: 수동: 사람이 등록 저장소가 없는 Graph Home으로 worktree를 `cwd`로 `explore_project(task="resolve repository for explore_project in ProjectContextService")`를 부른다. 리뷰에서 live reader만 실행했을 때 1.06 s가 걸렸고 첫 증거가 `ProjectContextService._resolve_repository`였다. 구현자가 실제 Graph Home으로 잰 값은 git 읽기 1.11 s, 전체 호출 22.2 s(cold, 기록만 한다)다. bake-verify.log는 "4078 passed"이고 `tests/test_project_context_import_boundaries.py`도 통과했다.
 
 `ProjectContextService` 심볼 증거가 나오고 git 읽기가 10초 안에 끝난다. 전체 호출 시간은 기록만 한다. 그 시간은 대부분 기존 Vault context pack이 쓰고, 등록 저장소에서도 같다. 2026-11-25 리뷰 뒤 사람이 이 기준으로 고쳤다(처음 기준: task "explore_project repository resolution", 전체 호출 10초). 전체 검증 명령이 통과한다. `tests/test_project_context_import_boundaries.py`도 통과한다.
 
