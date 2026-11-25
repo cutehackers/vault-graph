@@ -2,7 +2,9 @@
 
 ## Project Boundary
 
-Vault Graph is a local search and recall layer over Vault. Its indexes are
+Vault Graph is a local long-term memory layer over Vault. It delivers what is
+valid now, distilled from captured work, with its state, date and source, and
+calls no LLM at query time. Its indexes are
 rebuildable derived data, not a durable knowledge source. Vault Graph never
 creates, edits, renames, rewrites, or deletes Vault files directly. It changes
 Vault only by running the Vault's own tools, so every change passes Vault's

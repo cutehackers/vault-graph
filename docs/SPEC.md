@@ -3,7 +3,7 @@
 - 상태: 활성 제품 계약
 - 시작: 2026-10-29 (결정4 옵션1, [DECISIONS](DECISIONS.md))
 - 상세 설계: [spec 2026-10-29-local-graph-memory-layer](specs/2026-10-29-local-graph-memory-layer/spec.md)
-- 보관 문서: [SPEC v1.2](archive/SPEC-v1.2.md), [SPEC v5.0 Software Invariant Engine](archive/SPEC-v5.0.md)
+- 보관 문서: SPEC v1.2와 SPEC v5.0 Software Invariant Engine은 git history의 `docs/archive/SPEC-v1.2.md`, `docs/archive/SPEC-v5.0.md`(커밋 `9ddce0c`)에 있다
 
 ## 목차
 
@@ -21,15 +21,28 @@
 
 ## 0. 의도
 
-이 절은 자주 바뀌지 않는다. 아래 절의 세부 계약은 모두 이 절의 규칙 중 하나를 따라야 한다(2026-11-02 사용자 확정).
+이 절은 자주 바뀌지 않고, 바꿀 때는 사용자 확인이 필요하다. 아래 절의 세부 계약은 모두 이 절의 의도 중 하나를 따라야 한다(2026-11-02 사용자 확정, 2026-11-25 의도1~5로 다시 씀, [spec 2026-11-25-memory-intent-layers](specs/2026-11-25-memory-intent-layers/spec.md)).
 
-vault-graph는 Vault를 기반으로 한 Claude Code용 장기 기억 도구다.
+vault-graph는 지난 작업 경험에서 지금 유효한 뜻을 뽑아, Claude Code가 작업하는 순간에 상태와 출처를 붙여 전달한다.
 
-1. 기억이 사는 곳: 기억은 Vault에만 저장한다. vault-graph는 여러 Vault를 함께 다루며, Vault마다 종류가 있다. 기본 종류는 개인(personal)과 프로젝트(project)이고, 소유자가 팀(team) Vault를 더할 수 있으며, 다른 종류가 더 생길 수 있다. 프로젝트가 쓰는 Vault와 각 Vault의 종류는 `vault-map.json`이 정한다.
-2. vault-graph가 쓰는 것: Vault의 기억 페이지를 추가, 수정, 폐기, 되살린다. Claude Code 자동 기억 노트를 근거로 쓸 때는 Vault 도구로 그 사본을 남긴다. 사용자가 직접 말한 사실은 Vault 검증을 통과하면 확정한다. 에이전트가 추론한 사실은 승인될 때까지 Vault 검토 대기열에 둔다.
-3. 쓰는 방법: 모든 쓰기는 Vault 자체 도구를 거친다. vault-graph는 Vault 파일을 직접 고치지 않는다. 세션 원문 저장도 같다. 저장은 Vault의 `sessions capture`가 하고, vault-graph가 없으면 사용자가 직접 실행하며, vault-graph가 있으면 vault-graph가 실행 시점과 넘길 정규화 세션 파일을 정한다. 렌더링과 저장은 Vault 도구가 한다.
-4. 에이전트에 기억을 주는 방법: 세션 시작 때 정해진 토큰 예산 안에서 짧은 회상을 넣는다. 작업 중에는 의미, 코드, 페이지 간 연결로 검색하고, 모든 결과에 출처를 붙인다.
-5. vault-graph 쪽에 남기는 것: 다시 만들거나 버려도 되는 데이터(검색 색인, 사용 기록)만 둔다. 사용 기록이 순위나 정리에 영향을 주기 시작하면 그 값은 Vault로 옮긴다. 예외: 사용 기록과 정리 건너뜀 기록은 Graph Home에 두고 정리 후보 제안에만 쓸 수 있다. 회상과 검색 순위에는 쓰지 않는다. 기억을 쓸지는 에이전트가 정하고 Vault 검증을 거친다(2026-11-06 사용자 결정). vault-graph 저장소를 지워도 기억은 사라지지 않는다.
+1. 의도1 원천은 작업 경험이다. 세션의 대화와 행동, 바뀐 파일, 사용자가 직접 한 말, commit이 원천이다. 원천은 Vault `raw/`에 저장하고(세션, 자동 기억 노트 사본, 외부 문서), commit은 git에 두고 가리키기만 한다. 원천은 한 번 쓰면 바뀌지 않는다. wiki 페이지는 원천에서 뽑아 확정한 지식을 담고, 고치거나 대체하거나 폐기할 수 있다.
+2. 의도2 기억은 상태와 시간을 가진다. 모든 기억 단위는 관측, 제안, 확정, 대체됨 중 한 상태와 날짜를 가진다. 질의는 기본으로 지금 유효한 것을 답하고, 요청하면 이력을 답한다.
+3. 의도3 뜻은 쓸 때 만들고 읽을 때는 전달만 한다. LLM은 수집 뒤(사실 추출, 드리밍)에만 쓰고 질의 때는 부르지 않는다. vg는 검색 조각이 아니라 정리된 기억 단위를 돌려준다.
+4. 의도4 전달 시점은 작업 흐름을 따른다. 세션 시작, 사용자 프롬프트(개념이 강하게 걸릴 때만), 요청할 때 기억을 준다. 파일을 읽거나 고칠 때마다 넣지는 않는다. 코드 경로는 기억을 찾는 일급 열쇠다.
+5. 의도5 저장 경계는 그대로다. Vault가 저장소이고, 쓰기는 Vault 도구를 거치며, vg는 다시 만들 수 있는 색인만 가진다. SPEC 원칙2~6은 바뀌지 않는다.
+
+2026-11-25 전 이 절의 다섯 규칙에 있던 세부 중 위 문장에 없는 것은 아래 절에 있다. 사용자가 말한 사실과 추론한 사실의 쓰기 길은 원칙4와 §4, 세션 원문 수집의 실행 시점은 원칙5와 §4 쓰기 경로3, 사용 기록과 정리 건너뜀 기록의 예외는 §4, Vault 종류는 결정15와 §6-1, 세션 시작 회상 예산은 결정14와 §5에 있다.
+
+기억 층(2026-11-25 사용자 결정, [spec 2026-11-25-memory-intent-layers](specs/2026-11-25-memory-intent-layers/spec.md) §4.1): 층은 "어디에 저장하나"가 아니라 "기억이 어떤 상태에 있나"로 나눈다. 아래 네 층이 예전의 세 층 이름을 대신한다.
+
+| 층 | 담는 것 | 만드는 방법 | 상태 | 위치 |
+|---|---|---|---|---|
+| 기록 | 세션 교환 원문, 가져온 자동 기억 노트, 외부 문서, commit(가리키기만) | `sessions capture`, `import-source`, ingest | 바뀌지 않음 | Vault `raw/`, commit은 git |
+| 관측 | 교환마다 날짜가 붙은 사실. 교환 위치, 종류, 개념 태그, 코드 앵커를 단다 | 사실 작업자가 자동으로 | 관측(검토 전) | `raw/…/*.facts.md` |
+| 지식 | 결정, 규칙, 개념을 근거 링크와 대체 링크가 달린 주장으로 | 사용자가 말한 것(stated) 또는 수락된 제안(드리밍, 정리) | 확정, 대체됨 | `wiki/` |
+| 현재 상태 | 유효한 결정과 규칙, 열린 일, 최근 관측 | 질의 때 계산 | 저장하지 않음 | 없음 |
+
+Claude Code 자동 기억 노트는 이제 기록 층의 원천 하나다. 회상이 계산하던 목록(열린 일, 현재 결정, 교정·규칙)은 현재 상태 목록이 된다. 프로젝트 brief는 지식 층 페이지(`type: project`)로 남는다. 의도2의 "제안" 상태는 Vault 검토 대기열에 있는 지식 후보이고, 수락 전에는 회상과 검색에 나오지 않는다. 그래프는 두 가지 일만 한다. 대체 사슬을 따라가는 일과 개념·코드 경로를 잇는 일이다. 관측 층의 종류·개념 태그·코드 앵커와 질의 설계는 아직 구현 전이고, 방향마다 나중 spec으로 구현한다.
 
 이유: Claude Code 기본 기억은 매 세션 통째로 읽는 평평한 파일 몇 개이고, 대화 기록은 기본 30일 뒤 지워진다. vault-graph는 기억을 Vault에 영구히 두고, 지금 작업에 필요한 부분을 찾아 정해진 예산 안에 넣는다.
 
@@ -55,11 +68,11 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 
 방향 이름은 Local-Graph다. 핵심은 Local이고, Graph(관계 추적)는 보조 가치다.
 
-1. 원칙1 Local: 검색, 색인, 회상은 이 컴퓨터 안에서 끝난다. 호스팅 서비스를 직접 부르지 않는다(결정7). 검색, 색인, 회상에서는 LLM을 부르지 않는다. 수집 뒤에만 로그인된 Claude Code나 로컬 모델로 세션 사실을 뽑는다(기본 켜짐, `vg facts off`로 끈다). 드리밍도 수집 뒤와 매일 정한 현지 시각(기본 01:00, macOS launchd)에만 로그인된 Claude Code로 세션 교환을 판단해 추론 제안을 검토 대기열에 올린다(기본 꺼짐, `vg dream on`으로 켠다, 2026-11-19·2026-11-24 사용자 결정). API 키는 쓰지 않는다. 질의 답변과 요약은 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다. 기억 관리에서 vg는 판단 재료를 결정적으로 만들고, 무엇을 기억·수정·폐기할지는 호출한 에이전트가 정한다.
+1. 원칙1 Local: 검색, 색인, 회상은 이 컴퓨터 안에서 끝난다. 호스팅 서비스를 직접 부르지 않는다(결정7). 검색, 색인, 회상에서는 LLM을 부르지 않고, 질의 때도 LLM을 부르지 않는다(의도3). 수집 뒤에만 로그인된 Claude Code나 로컬 모델로 세션 사실을 뽑는다(기본 켜짐, `vg facts off`로 끈다). 지금은 설정 파일이 없으면 추출기로 `claude`를 쓴다. 계획: 추출기 기본값을 `auto`로 바꾼다. `auto`는 로컬 llama-server(`127.0.0.1:8080`)가 답하면 그것을 쓰고 아니면 `claude`를 쓰며, 지금 고른 추출기를 `vg facts status`와 세션 시작 회상에 보인다(spec 2026-11-25-memory-intent-layers D6, 구현 전). 드리밍도 수집 뒤와 매일 정한 현지 시각(기본 01:00, macOS launchd)에만 로그인된 Claude Code로 세션 교환을 판단해 추론 제안을 검토 대기열에 올린다(기본 꺼짐, `vg dream on`으로 켠다, 2026-11-19·2026-11-24 사용자 결정). API 키는 쓰지 않는다. 질의 답변과 요약은 vault-graph 안에서 생성하지 않는다. 추론은 호출한 에이전트가 한다. 기억 관리에서 vg는 판단 재료를 결정적으로 만들고, 무엇을 기억·수정·폐기할지는 호출한 에이전트가 정한다.
 2. 원칙2 원본은 Vault: 기억의 원본은 Vault의 Markdown 파일이다. vault-graph 색인은 지워도 다시 만들 수 있는 파생 데이터이며 지식 원본이 아니다.
 3. 원칙3 `wiki/`는 검증 경로로만 바뀐다: Vault `wiki/`는 Vault 도구의 검증 경로(publish-draft 등)를 거쳐서만 바뀐다.
 4. 원칙4 vault-graph는 Vault 파일을 직접 쓰지 않는다: vault-graph 프로세스는 Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다. Vault에 쓸 때는 Vault 도구를 실행해 그 검증을 거친다. 구현된 길은 여섯 가지다. 사용자가 말한 사실의 추가·수정·폐기는 publish-draft, 에이전트가 추론한 사실은 `review propose`(사람이 여섯째 길로 승인), 세션 원문은 훅 실행기를 거친 `sessions capture`, Claude Code 자동 기억 노트의 근거 사본은 Vault `import-source`다(§4). 다섯째는 사실 첨부(Vault 명령이 세션 옆에 쓴다)다. 수집이 끝난 세션에서 뽑은 사실을 Vault `sessions attach-facts`가 세션 part 파일 옆 첨부 파일로 쓴다(`docs/contracts/vault-session-facts-v1.md`). 여섯째는 `review resolve`다. 사람이 친 `vg review` 명령에서만 실행해 대기 중인 기억 제안을 수락하거나 거절한다. MCP 도구, 훅, 드리밍 작업자, 사실 추출 작업자, 색인, 회상은 실행하지 않는다(2026-11-20 결정, §4). vg는 자동 기억 파일을 고치거나 옮기거나 지우지 않는다.
-5. 원칙5 `raw/`에 직접 쓰지 않는다: vault-graph는 Vault `raw/`에 직접 쓰지 않는다. 세션 원문은 Vault의 `sessions capture`가 쓰고, vault-graph는 그 실행 시점과 넘길 정규화 파일을 정한다. 자동 기억 노트의 사본도 Vault `import-source`가 쓴다(§0 규칙3).
+5. 원칙5 `raw/`에 직접 쓰지 않는다: vault-graph는 Vault `raw/`에 직접 쓰지 않는다. 세션 원문은 Vault의 `sessions capture`가 쓰고, vault-graph는 그 실행 시점과 넘길 정규화 파일을 정한다. 자동 기억 노트의 사본도 Vault `import-source`가 쓴다(의도5).
 6. 원칙6 연결 정보는 `vault-map.json` 하나: 프로젝트와 Vault의 연결 정보는 사용자 범위의 `vault-map.json`이 원본이고, vault-graph는 이 파일을 읽기만 한다(결정9).
 
 ## 2. 역할 분담
@@ -115,7 +128,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 - 색인이 Graph Home에 쓰는 파일(2026-11-05 spec). 모두 지워도 다시 만든다.
   - 임베딩 캐시 `cache/embeddings.sqlite3`: 임베딩 키(모델 spec 키 + 임베딩 입력의 sha256) → 벡터. 세대 밖에 두며, 내용이 같은 입력은 모델에 다시 넣지 않고 중간에 죽은 run을 이어 간다. 발행이 성공하면 활성 세대에 없는 키를 지운다. 파일이 깨지면 캐시 없이 임베딩하고 경고 한 줄을 낸다.
   - `memory-scan` 결과 `memory/memory-scan-<vault>.json`: `vg index`(세션 시작 백그라운드 색인이 실행하는 `vg index` 포함)가 발행한 뒤 색인한 Vault마다 읽기 전용 Vault 명령 `memory-scan --json`을 실행해 저장한다. 세션 시작 빠른 갱신, MCP 백그라운드 색인, `vg watch`는 실행하지 않는다. 실패해도 발행을 되돌리지 않고 경고 한 줄을 낸다.
-- 기억 정리 기록 `memory/reviewed.jsonl`(2026-11-05 spec 4.4.4, 결정44): MCP `mark_candidates_reviewed`와, `candidate_key`를 받은 쓰기 도구가 결과 `published`·`proposed`일 때 `{candidate_key, at, outcome}`을 덧붙인다. 정리 후보 제안에만 쓰고 회상·검색 순위에는 쓰지 않는다(§0 규칙5 예외).
+- 기억 정리 기록 `memory/reviewed.jsonl`(2026-11-05 spec 4.4.4, 결정44): MCP `mark_candidates_reviewed`와, `candidate_key`를 받은 쓰기 도구가 결과 `published`·`proposed`일 때 `{candidate_key, at, outcome}`을 덧붙인다. 정리 후보 제안에만 쓰고 회상·검색 순위에는 쓰지 않는다(위 사용 기록 문단과 같은 예외).
 - 드리밍(spec 2026-11-19, 2026-11-24): 설정 `configs/dream.json`(매일 실행 시각 `run_at` 포함), 판단만 하고 제안하지 않은 후보 `dream/judged.jsonl`, 실행 기록 `logs/dream-runs.jsonl`(보낸 제안마다 `proposal` 줄, 실행마다 `run` 줄, `run` 줄에는 실행 길 `trigger`가 `hook`, `manual`, `schedule` 중 하나로 적힌다), 매일 실행의 출력 `logs/dream-schedule.log`, 작업자 잠금 `logs/dream-worker.lock`. Graph Home 밖에는 `vg dream on`, `at`, `off`만 `$HOME/Library/LaunchAgents/io.vault-graph.dream.<Graph Home 경로 해시>.plist` 하나를 쓰고 지운다. 드리밍 작업자는 Vault에 `review propose`(둘째 길)로만 쓰고 `basis`는 언제나 `inferred`다. `dream/judged.jsonl`은 드리밍 작업자만 읽고 정리 후보 목록, 회상, 검색에는 쓰지 않는다. 제안한 후보는 `memory/reviewed.jsonl`에 결과 `dream_proposed`로 적는다.
 - 세션 export 설정 `configs/session-export.json`(`path`, `agents`, `raw`). 형식 확인과 읽기·쓰기는 M01 `operation/scope/session_export_settings.py`가 한다. 이 파일이 있으면 `vg hook capture`가 수집 때마다 같은 export를 한다.
 - export 폴더: `vg session export --out PATH`와 export 설정의 `path`. Vault 밖이어야 하고, Graph Home에 등록된 Vault나 `vault-map.json`의 Vault 안이면 쓰지 않고 오류로 끝난다. 폴더 권한은 0700, 파일은 0600이다. 정규화 파일은 export 설정이 없으면 OS 임시 폴더에 쓰고 실행기가 끝나면 지운다. 정규화 JSONL 형식은 [vg-session-jsonl/1 계약](contracts/vg-session-jsonl-v1.md)이다.
@@ -125,7 +138,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
   1. publish-draft: `remember`(추가), `update_memory`(수정), `retire_memory`(폐기)에 `basis: stated`를 주면 Vault 검증을 통과하는 순간 확정된다.
   2. `review propose`: 같은 세 도구에 `basis: inferred`를 주면 검토 항목을 만들고 `proposed`와 `review_path`를 돌려준다. 사람이 프로젝트 폴더에서 `vg review`로 수락하거나(경로 6), Vault 폴더에서 `review resolve <review_path> --status accepted`를 직접 실행하면 Vault가 발행한다. 승인 전에는 회상과 검색에 나오지 않는다. 사람이 `--status rejected`로 거부하면 기억 페이지는 만들어지거나 바뀌지 않고, `wiki/log.md`에 "Review rejected" 한 줄만 더해진다(2026-11-02 사용자 결정).
   3. 수집 실행기: `vg hook capture`가 훅 실행기 `vault_hooks.py capture --direct`를 실행하고, 실행기가 Vault `sessions capture`로 세션 원문을 쓴다. vault-graph는 실행 시점과 넘길 정규화 파일을 정한다. 렌더링과 저장은 Vault 도구가 하고, Vault는 vault-graph가 고르지 않는다.
-  4. `import-source`: L1 노트를 근거로 남길 때 vg가 Vault `import-source`를 실행한다. 복사는 Vault 명령이 한다.
+  4. `import-source`: 자동 기억 노트를 근거로 남길 때 vg가 Vault `import-source`를 실행한다. 복사는 Vault 명령이 한다.
   5. 사실 첨부: 세션 수집이 끝나면 사실 추출 작업자가 그 세션에서 날짜가 붙은 사실을 뽑고 Vault `sessions attach-facts`를 실행한다. Vault 명령이 세션 part 파일 옆에 첨부 파일을 쓴다(`docs/contracts/vault-session-facts-v1.md`). 세션 원문 파일은 바뀌지 않는다.
   6. `review resolve`: 사람이 친 `vg review` 명령(`vg review`의 수락·거절 선택, `vg review accept`, `vg review reject`)이 Vault `review resolve <review_path> --status accepted|rejected --resolution <이유> --json`을 실행한다. 대상은 연결된 Vault의 검토 대기열에 있는 기억 제안(memory-proposal)뿐이다. 수락하면 Vault가 발행하고 항목의 `resolution`에 "Published:"를 적는다. vg는 항목 파일, 위키 페이지, `wiki/log.md`를 직접 고치지 않는다. MCP 도구, 훅, 드리밍 작업자, 사실 추출 작업자, 색인, 회상은 이 경로를 실행하지 않고, 수락·거절하는 MCP 도구는 없다. `VAULT_GRAPH_FACTS_CHILD=1`인 세션에서는 `vg review`가 아무것도 읽거나 실행하지 않고 종료 코드 1로 끝난다. 한계: 에이전트가 셸에서 `vg review accept`를 직접 치는 것은 막지 못한다. Vault 명령도 같은 상태다(spec 2026-11-20, 2026-11-20 결정).
 - 일반 조회·색인·watch·회상과 다른 MCP 도구는 이 여섯 쓰기 경로를 실행하지 않는다. 색인은 `memory-scan --json`, `review list --json` 같은 읽기 전용 Vault 명령을 실행하고 결과를 Graph Home에 둘 수 있다.
@@ -133,7 +146,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 쓰지 않는 대상:
 
 - Vault 파일을 직접 만들거나 고치거나 이름을 바꾸거나 지우지 않는다.
-- Vault `raw/`에 직접 쓰지 않는다. 세션 원문 저장은 Vault `sessions capture`의 몫이다(§0 규칙3).
+- Vault `raw/`에 직접 쓰지 않는다. 세션 원문 저장은 Vault `sessions capture`의 몫이다(의도5, 원칙5).
 - 코드 저장소 소스와 `vault-map.json`은 고치지 않는다.
 
 이 경계는 `AGENTS.md` Project Boundary, [ARCHITECTURE.md](ARCHITECTURE.md) §4, [VG-MOD](design/specs/2026-10-15-vault-graph-modular-architecture-ko.md) INV-01·INV-02·INV-04와 같은 원칙이다.
@@ -143,7 +156,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 유지한다:
 
 - 기존 CLI 명령(`vg setup`, `vg vault add`, `vg index`, `vg watch`, `vg search`, `vg ask`, `vg context`, `vg status` 등)의 이름·인자·응답 형식.
-- 기존 MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 기존 이름과 입력·출력 필드를 바꾸지 않는다. `search_vault`, `ask_vault`, `build_context_pack`과 `find_related`, `get_decision_trace`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`는 선택 입력 `cwd`를 더 받는다. `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 쓰고, 그 프로젝트에 연결되고 등록된 Vault 전부를 범위로 쓴다(뒤의 다섯 도구는 2026-11-02 의도 검수 F4). `search_vault` 결과에는 선택 필드 `vault_name`, `vault_role`이 붙는다. `cwd`를 받는 나머지 일곱 도구도 결과 안에서 `vault_id`를 가진 모든 객체(답변 인용, context pack 항목, 그래프 개체, 기억 항목)에 같은 두 필드를 붙인다. 지도에 없는 Vault는 둘 다 `null`이다(2026-11-03 F12, §0 규칙4).
+- 기존 MCP 도구 11개: `ask_vault`, `search_vault`, `build_context_pack`, `find_related`, `get_decision_trace`, `check_index_status`, `explain_result`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`, `explore_project`. 기존 이름과 입력·출력 필드를 바꾸지 않는다. `search_vault`, `ask_vault`, `build_context_pack`과 `find_related`, `get_decision_trace`, `summarize_project_memory`, `get_open_questions`, `get_recent_changes`는 선택 입력 `cwd`를 더 받는다. `cwd`가 없으면 MCP 서버 프로세스의 작업 디렉터리를 쓰고, 그 프로젝트에 연결되고 등록된 Vault 전부를 범위로 쓴다(뒤의 다섯 도구는 2026-11-02 의도 검수 F4). `search_vault` 결과에는 선택 필드 `vault_name`, `vault_role`이 붙는다. `cwd`를 받는 나머지 일곱 도구도 결과 안에서 `vault_id`를 가진 모든 객체(답변 인용, context pack 항목, 그래프 개체, 기억 항목)에 같은 두 필드를 붙인다. 지도에 없는 Vault는 둘 다 `null`이다(2026-11-03 F12, §0 결정13).
 - 호환 규칙: 기존 필드는 바꾸지 않는다. 선택 필드와 도구를 더하는 것은 허용한다. 기존 호출자는 모르는 필드를 무시하면 그대로 동작한다(2026-11-02, 위험12).
 - MCP 리소스와 로컬 HTTP(FastAPI) 응답.
 - `project-bindings.json`, `vg setup --vault`, `vg vault add`는 1차에서 지우지 않는다. 제거는 n차-7이다.
@@ -167,17 +180,17 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 추가한다(2026-11-05 [세션·색인·기억 관리 spec](specs/2026-11-05-session-memory-indexing/spec.md)):
 
 - MCP 도구는 모두 19개다. 새 도구는 다섯이고 기존 14개의 이름과 입출력 필드는 바꾸지 않는다. 기존 도구에는 선택 입력만 더한다(호환 규칙).
-  - `list_memory_candidates(cwd=None, kinds=None, limit=20)`: 읽기 도구. 정리 후보 꾸러미를 돌려준다. `kinds`는 `l1_note`, `session_exchange`, `merge`, `retire`, `brief`다. 후보마다 후보 키, 근거 위치, 비교 재료(비슷한 기존 페이지와 status)가 붙는다. 같은 색인과 같은 기록이면 같은 결과다. 이 호출이 "한 정리"를 시작한다.
+  - `list_memory_candidates(cwd=None, kinds=None, limit=20)`: 읽기 도구. 정리 후보 꾸러미를 돌려준다. `kinds`는 `l1_note`(자동 기억 노트, 이름 변경은 구현 spec에서 한다), `session_exchange`, `merge`, `retire`, `brief`다. 후보마다 후보 키, 근거 위치, 비교 재료(비슷한 기존 페이지와 status)가 붙는다. 같은 색인과 같은 기록이면 같은 결과다. 이 호출이 "한 정리"를 시작한다.
   - `mark_candidates_reviewed(keys, cwd=None)`: 건너뛴 후보 키를 Graph Home `memory/reviewed.jsonl`에 기록한다. Vault에 쓰지 않는다.
   - `import_auto_memory(note, cwd=None, vault=None, candidate_key=None)`: Claude Code 자동 기억 노트 하나를 Vault 명령 `import-source --into raw/imports/claude-memory/ --json`(쓰기 경로4)으로 Vault에 복사하고 그 경로를 돌려준다. 같은 sha256이면 새 파일 없이 기존 경로를 돌려준다. 저장 Vault는 결정12로 고른다.
   - `supersede_claim(path, claim, new_claim, evidence, basis, cwd=None, vault=None, candidate_key=None)`: 기존 페이지의 claim 행 하나를 대체한다. Vault `patch-page`의 `supersede-claim` 편집을 `basis`에 따라 publish-draft 또는 `review propose`로 보낸다.
   - `restore_memory(path, reason, basis, cwd=None, vault=None, candidate_key=None)`: status가 `retired`, `deprecated`, `superseded`인 페이지의 frontmatter를 `status: active`, `restored_at`, `restored_reason`으로 바꾼다. `retired_reason`, `retired_at`, `superseded_by`는 이력으로 남긴다. 그 밖의 페이지는 Vault를 부르지 않고 `rejected`다.
 - 쓰기 도구(`remember`, `update_memory`, `retire_memory`와 위의 셋)는 선택 입력 `candidate_key`를 받는다. 결과가 `published`나 `proposed`면 처리 기록을 남겨 그 후보가 다시 올라오지 않는다. `rejected`나 `error`면 기록하지 않는다. 한 정리에서 `basis: inferred` 제안은 10개까지이고 11번째부터 `rejected`다.
 - `remember`의 `kind` 허용 값에 `project`를 더한다. `kind="project"`는 프로젝트 brief를 쓴다. 경로는 제목이 아니라 `cwd` 프로젝트 id로 정한 `wiki/projects/<project>.md`이고, 저장 Vault는 `vault`를 비웠을 때 결정12가 고르는 Vault 하나(보통 기본 저장 Vault)다. 프로젝트가 정해지지 않거나 `vault`가 그 Vault가 아니면 `rejected`다. brief를 고칠 때는 `update_memory`를 쓴다.
-- `search_vault`와 `vg search`에 선택 입력 `include_retired`(CLI `--include-retired`, 기본 false)를 더한다. 기본 검색은 지금처럼 status `retired` 페이지만 뺀다. 참이면 `retired` 페이지도 넣고, 결과마다 `status`, `retired_reason`, `retired_at`, `superseded_by`를 붙인다. 회상과 L3 목록은 이 옵션을 쓰지 않는다.
-- MCP prompt `curate_memory(cwd=None)`: 에이전트에게 정리 순서를 준다. `list_memory_candidates`로 후보를 받고, 후보마다 `remember`, `supersede_claim`, `update_memory`, `retire_memory(replaced_by=...)`, `restore_memory`, 건너뜀 중 하나를 고른다. L1 노트를 근거로 쓰기 전에 `import_auto_memory`로 사본을 남기고, 세션 교환은 교환 위치(`<path> L<a>-L<b>`)를 근거로 적는다. 세션 파일은 원본 근거라 기본 knowledge 모드 검색에 나오지 않으므로, 세션 내용은 `search_vault(mode="evidence")`나 `vg search --mode evidence`로 찾는다. 정리는 사용자가 시작하고 훅 안에서 하지 않는다.
+- `search_vault`와 `vg search`에 선택 입력 `include_retired`(CLI `--include-retired`, 기본 false)를 더한다. 기본 검색은 지금처럼 status `retired` 페이지만 뺀다. 참이면 `retired` 페이지도 넣고, 결과마다 `status`, `retired_reason`, `retired_at`, `superseded_by`를 붙인다. 회상과 현재 상태 목록은 이 옵션을 쓰지 않는다.
+- MCP prompt `curate_memory(cwd=None)`: 에이전트에게 정리 순서를 준다. `list_memory_candidates`로 후보를 받고, 후보마다 `remember`, `supersede_claim`, `update_memory`, `retire_memory(replaced_by=...)`, `restore_memory`, 건너뜀 중 하나를 고른다. 자동 기억 노트를 근거로 쓰기 전에 `import_auto_memory`로 사본을 남기고, 세션 교환은 교환 위치(`<path> L<a>-L<b>`)를 근거로 적는다. 세션 파일은 원본 근거라 기본 knowledge 모드 검색에 나오지 않으므로, 세션 내용은 `search_vault(mode="evidence")`나 `vg search --mode evidence`로 찾는다. 정리는 사용자가 시작하고 훅 안에서 하지 않는다.
 - CLI `vg session export --agent {claude-code,codex} --out PATH [--session ID | --since DATE | --all] [--raw/--no-raw] [--recapture] [--graph-home PATH] [--vault-map PATH]`. `PATH/normalized/<agent>/<session_id>.jsonl`에 정규화 JSONL을, `--raw`(기본)면 `PATH/raw/<agent>/<session_id>/`에 원본 jsonl과 `subagents/`를 바이트 그대로 가림 없이 복사한다. 쓸 바이트가 기존 파일과 같으면 다시 쓰지 않는다. `--out`이 Vault 안이면 쓰지 않고 오류로 끝나고, git 작업 트리나 동기화 폴더 안이면 경고 한 줄을 낸 뒤 쓴다. `--recapture`는 export한 세션마다 훅 실행기 `capture --direct --normalized <파일> --rerender`를 실행해 Vault가 v2 파트를 다시 쓰게 하는 이전용 선택이다. `--agent codex`는 backlog B-1 전까지 "Codex adapter 없음" 오류로 끝난다. 형식은 [vg-session-jsonl/1 계약](contracts/vg-session-jsonl-v1.md)이다.
-- 세션 시작 회상(`vg hook session-start`)에 더하는 것: brief 앞부분과 L3 목록(열린 일, 현재 결정, 교정·규칙)을 담은 구획L3, 정리 대기 한 줄(L1 노트 수와 근거로 쓰이지 않은 세션 교환 수), brief 갱신 안내 한 줄(brief 뒤 새 결정이 5개 이상일 때). 총 예산 1,500토큰은 그대로다. MCP `summarize_project_memory`도 같은 L3 목록을 돌려준다. 회상, L3 목록, 정리 꾸러미의 페이지 범위는 §6-4다.
+- 세션 시작 회상(`vg hook session-start`)에 더하는 것: brief 앞부분과 현재 상태 목록(열린 일, 현재 결정, 교정·규칙)을 담은 현재 상태 구획, 정리 대기 한 줄(자동 기억 노트 수와 근거로 쓰이지 않은 세션 교환 수, 출력 문구는 "L1 노트 N개"이고 이름 변경은 구현 spec에서 한다), brief 갱신 안내 한 줄(brief 뒤 새 결정이 5개 이상일 때). 총 예산 1,500토큰은 그대로다. MCP `summarize_project_memory`도 같은 현재 상태 목록을 돌려준다. 회상, 현재 상태 목록, 정리 꾸러미의 페이지 범위는 §6-4다.
 
 추가한다(2026-11-19 [기억 드리밍 spec](specs/2026-11-19-memory-dreaming/spec.md)):
 
@@ -226,7 +239,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
    - 성공 기준: 두 조건 모두에서 `vg search`의 상위 5개 적중률이 Vault 검색보다 높다.
    - 질문과 질문별 결과는 저장소 밖에 두고, 합계만 `docs/design/reports/`에 커밋한다.
 4. 프로젝트 범위 규칙(2026-11-05 spec 4.4.2, 결정25·40)
-   - 세션 시작 회상, MCP `summarize_project_memory`와 L3 목록, 정리 꾸러미는 페이지가 이 프로젝트 것인지를 한 규칙 함수 `page_in_project`(M10 `context/memory/project_scope.py`)로 정한다.
+   - 세션 시작 회상, MCP `summarize_project_memory`와 현재 상태 목록, 정리 꾸러미는 페이지가 이 프로젝트 것인지를 한 규칙 함수 `page_in_project`(M10 `context/memory/project_scope.py`)로 정한다.
      1. 페이지 frontmatter `project`가 이 프로젝트면 넣는다. 다른 프로젝트만 적혀 있으면 넣지 않는다.
      2. `project`가 없고, 그 Vault를 연결한 프로젝트가 이 프로젝트 하나뿐이면 넣는다. `vault-map.json`에 연결이 없는 Vault도 이 프로젝트의 연결로 찾았으므로 넣는다.
      3. `project`가 없고, 그 Vault를 연결한 프로젝트가 둘 이상이면 그 Vault의 `sharable` 값을 따른다.
@@ -236,7 +249,7 @@ vault-graph는 Vault 위에서 도는 로컬 장기 기억 계층이다. Vault �
 
 ## 7. Context Pack 계약
 
-보관본 [SPEC v5.0](archive/SPEC-v5.0.md) §9.6 "기존 Context Pack 호환성 계약"을 그대로 옮긴다. 이 절의 JSON은 `tests/test_context_pack_docs_contract.py`가 DTO와 비교한다.
+git history의 `docs/archive/SPEC-v5.0.md`(커밋 `9ddce0c`)에 있는 보관본 SPEC v5.0 §9.6 "기존 Context Pack 호환성 계약"을 그대로 옮긴다. 이 절의 JSON은 `tests/test_context_pack_docs_contract.py`가 DTO와 비교한다.
 
 1단계(공존 단계)에서 기존 Vault Graph 컨텍스트 팩 빌더 및 회귀 테스트 스위트와의 100% 하위 호환성을 보장하기 위해 유지되는 Context Pack JSON 규격입니다:
 
@@ -339,7 +352,7 @@ Minimum JSON shape:
 
 ## 8. 독립 모듈 5개
 
-보관본 [SPEC v5.0](archive/SPEC-v5.0.md) §10~12를 그대로 옮긴다. 이미 구현된 패키지(`graph_search`, `graph_document`, `text_embeddings`, `vector_search`, `vector_index`)의 계약이기 때문이다. 아래 본문의 §10은 8.1절을 가리키고, §1.7·§7.1·§9.3은 보관본 SPEC v5.0의 절을 가리킨다.
+git history의 `docs/archive/SPEC-v5.0.md`(커밋 `9ddce0c`)에 있는 보관본 SPEC v5.0 §10~12를 그대로 옮긴다. 이미 구현된 패키지(`graph_search`, `graph_document`, `text_embeddings`, `vector_search`, `vector_index`)의 계약이기 때문이다. 아래 본문의 §10은 8.1절을 가리키고, §1.7·§7.1·§9.3은 보관본 SPEC v5.0의 절을 가리킨다.
 
 ### 8.1 Independent Graph Search Design Proposal
 
@@ -453,7 +466,7 @@ vault-builder 요청 문서: vault-builder 저장소 `docs/superpowers/specs/202
 
 ## 10. 보관 문서
 
-- [SPEC v1.2](archive/SPEC-v1.2.md): Vault 위 읽기 전용 검색 계층 시기의 계약. 현재 코드 대부분이 이 시기에 만들어졌다.
-- [SPEC v5.0](archive/SPEC-v5.0.md): Software Invariant Engine. 2026-10-29에 보관했다. VS-1~6은 구현하지 않는다.
+- SPEC v1.2, git history의 `docs/archive/SPEC-v1.2.md`(커밋 `9ddce0c`): Vault 위 읽기 전용 검색 계층 시기의 계약. 현재 코드 대부분이 이 시기에 만들어졌다.
+- SPEC v5.0, git history의 `docs/archive/SPEC-v5.0.md`(커밋 `9ddce0c`): Software Invariant Engine. 2026-10-29에 보관했다. VS-1~6은 구현하지 않는다.
 
-보관 문서는 고치지 않는다. 과거 설계 문서가 `docs/SPEC.md`의 절을 가리키면 해당 시기의 보관본에서 찾는다.
+`docs/archive/` 폴더는 2026-11-25에 지웠다. 지운 보관 문서는 git history에서 찾는다(예: `git show 9ddce0c:docs/archive/SPEC-v5.0.md`). 보관 문서는 고치지 않는다. 과거 설계 문서가 `docs/SPEC.md`의 절을 가리키면 해당 시기의 보관본에서 찾는다.

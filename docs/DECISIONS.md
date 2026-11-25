@@ -929,6 +929,8 @@ source of truth.
 
 **Implications:** New MCP tools `list_memory_candidates`, `mark_candidates_reviewed`, `import_auto_memory`, `supersede_claim` and `restore_memory` bring the count to 19 (`docs/SPEC.md` §5). A session-start line shows the cleanup backlog. Targets such as the 10-proposal cap and the 180-day age limit for session candidates are checked again in each measurement.
 
+**Replaced by:** `2026-11-25 - Redefine The Intent And Replace L1, L2 And L3 With Four Memory Layers`. The cleanup rules above stay in force under the new layer names.
+
 ## 2026-11-06 - Scope Recall By Project Links And A Per-Vault Sharable Flag
 
 **Question:** Pages without a `project` field reached the recall of every project linked to their Vault. How should recall decide which pages belong to a project (spec `docs/specs/2026-11-05-session-memory-indexing/spec.md`, §9.1 question 4, §9.3 question 15, review 1)?
@@ -958,6 +960,8 @@ source of truth.
 **Reason:** Lists can be computed again, and the approved boundary forbids writing machine-made content to a Vault. Only judged knowledge goes to the Vault.
 
 **Implications:** `remember` accepts `kind` `project` (`docs/SPEC.md` §5). The Vault schema change is vault-builder request S9.
+
+**Replaced by:** `2026-11-25 - Redefine The Intent And Replace L1, L2 And L3 With Four Memory Layers`. The computed lists become the current-state layer and the brief stays a knowledge page.
 
 ## 2026-11-06 - Change The Boundary Sentences For Memory Management
 
@@ -1058,3 +1062,45 @@ source of truth.
 **Limits:** Nothing is installed outside macOS, where only the hook run exists. A Mac that was off at the set time has no scheduled run that day. Whether a `claude -p` started by launchd can read the user's login, and whether the run really happens after wake, is checked by hand on a real Mac (spec A12), not by tests.
 
 **Implications:** This replaces "one run per project per 24 hours" from the 2026-11-19 decision for the scheduled run only. Vault Graph now writes one file outside the Graph Home, the plist in `$HOME/Library/LaunchAgents`, and only from a command a person typed. `vg dream status` shows `run_at`, the job state and the last scheduled run. A user who turned dreaming on before this change runs `vg dream on` once more to install the job.
+
+## 2026-11-25 - Redefine The Intent And Replace L1, L2 And L3 With Four Memory Layers
+
+**Question:** The user wanted "올바른 메모리 조회 및 결과 제공" and asked what separate memory layers mean. L1, L2 and L3 were split by where memory is stored, and nothing said which memory is valid now. What should Vault Graph promise, and how should memory be split (spec `docs/specs/2026-11-25-memory-intent-layers/spec.md` §2, §4.1, D1, D2)?
+
+**Decision:** The user approved decisions 1 and 2 on 2026-11-25. `docs/SPEC.md` §0 now states five intents: sources are captured work and are never changed once written, every memory unit has one state (observed, proposed, confirmed, superseded) and a date, meaning is made at write time and only delivered at read time with no LLM at query time, delivery follows the work (session start, a prompt with a strong concept match, or a request) with code paths as a first-class key, and the storage boundary is unchanged. Four layers replace L1, L2 and L3: record (Vault `raw/`, commits only pointed to in git), observation (dated session facts), knowledge (`wiki/` claims that can be superseded) and current state (computed at query and recall time, never stored). At the spec gate the user also chose to change only the first sentence of `AGENTS.md` Project Boundary now (D18, "이번에 같이 바꿈").
+
+**Reason:** The user put the point of the layers in "원본 데이터에 대한 3계층 메모리 관리 그리고 올바른 의미전달". Splitting by state answers "what is valid now" and keeps unreviewed observations apart from confirmed knowledge.
+
+**Implications:** This replaces `2026-11-06 - Move L1, L2 And L3 Memory Management To Vault Graph` and `2026-11-06 - Keep L3 Lists Computed And The Brief As A Vault Page`. What they decided still holds under the new names: the agent judges cleanup, the lists are computed, and the brief is a knowledge page. Old L1 auto-memory becomes one record source. Code output and inputs such as "L1 노트", `l1_note` and `project_l3_list` keep their names until an implementation spec renames them. SPEC principles 2 to 6 and the six write paths do not change.
+
+## 2026-11-25 - Add Kinds And Concept Tags To Session Facts And Default The Extractor To auto
+
+**Question:** Session facts carry no kind and no concept, and the modified file list is indexed only as keyword text, so memory cannot be found by concept or path. The extractor is `claude` unless a setting says otherwise, although a local `llama-server` may be running. What should facts carry, and which extractor should run (spec `docs/specs/2026-11-25-memory-intent-layers/spec.md` §4.3 3c and 3e, D5, D6, D19)?
+
+**Decision:** The user approved question 2 (3c) and question 1 with option 1 (3e) on 2026-11-25. Fact contract v2: the model adds a kind (decision, change, problem, preference, question) and concept tags. Files and commits are attached by code from exchange metadata and patterns, and a commit is kept only when `git cat-file` confirms it. For the extractor the user asked for "로컬 ai가 존재하면 기본으로 이것을 사용하고 아니라면 claude", "설정이나 명령어로도 변경가능", and a way to see "로컬 ai인지 아니면 claude 인지". The new default `auto` uses `llama-server` only when `127.0.0.1:8080` answers, otherwise `claude`. `vg facts on --extractor auto|llama-server|claude` and `configs/facts.json` change it. `vg facts status` shows the setting, the chosen extractor and the last job's real extractor and model, and the `.facts.md` attachment records `extractor` and `model`. At the spec gate the user chose to show the extractor line in session-start recall every session (D19, "매 세션 보임").
+
+**Reason:** A model that writes file paths or commits can invent them, so those stay with code. A line shown only on change would let a day pass with the local server off and nobody noticing.
+
+**Limits:** Fact contract v2 needs a change to the vault-builder `sessions attach-facts` contract first, and v1 attachments must still be read. The local extractor may be too slow on long session parts. The wording of the recall line is set by the 3e implementation spec.
+
+**Implications:** Session fact attachments stay the only machine-made Vault content, as in `2026-11-16 - Allow Session Fact Attachments As The Only Machine-Made Vault Content`.
+
+## 2026-11-25 - Inject Memory On A Prompt Only When It Strongly Matches A Concept
+
+**Question:** Memory reaches Claude Code only at session start or when asked. Should Vault Graph add memory on every file read or edit, or on user prompts (spec `docs/specs/2026-11-25-memory-intent-layers/spec.md` §4.3 4d, D8)?
+
+**Decision:** The user rejected adding memory on every file read or edit as "좋지 못한 선택" and chose option A on 2026-11-25. On `UserPromptSubmit`, when the prompt strongly matches a concept, Vault Graph adds the decisions and rules valid now, with their code paths, once per prompt and within about 200 tokens. A prompt with no strong match gets nothing. Pull tools `memory_for_path` and `memory_for_concept` serve requests.
+
+**Reason:** Adding memory on every file access fills the context with repeats. A prompt is where the user states the subject, so a strong concept match there is the useful moment.
+
+**Limits:** The vault-builder hook runner handles only SessionStart, PreCompact and SessionEnd today, so it needs a `UserPromptSubmit` extension first. The match threshold and the 200-token budget are measured in the implementation spec. Matching uses rules and embeddings only, with no LLM.
+
+## 2026-11-25 - Let explore_project Read The Git Repository Of cwd Without Registration
+
+**Question:** The MCP instructions tell agents to call `explore_project` first for coding work, but it fails when no code repository is registered, which is the case on the user's machine. Should it need registration (spec `docs/specs/2026-11-25-memory-intent-layers/spec.md` §4.3 decision 5, D9)?
+
+**Decision:** The user approved decision 5 on 2026-11-25. `explore_project` uses the git repository that contains `cwd`, with no registration. It only reads the repository. When `cwd` is outside any git repository it returns a "not a git repository" error instead of a registration hint.
+
+**Reason:** A tool that agents are told to call first must work without a setup step most users never do. Code anchors and their freshness check (`git log <commit>..HEAD -- <path>`) also need this repository.
+
+**Implications:** Code anchor freshness depends on this change, so it comes before the freshness check.
