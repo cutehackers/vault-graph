@@ -870,3 +870,49 @@ def test_pending_proposals_are_not_printed_on_resume() -> None:
     run(ports(BASE_DOCS, usage=usage, proposals={"main": 3}))
 
     assert "추론 제안" not in run(ports(BASE_DOCS, usage=usage, proposals={"main": 3}), source="resume").text
+
+
+# Fact extractor line (spec 2026-11-25-facts-extractor-auto D10, A10, A11) ---------------------
+
+FACTS_LINES = (
+    "- facts: auto → llama-server",
+    "- facts: auto → claude",
+    "- facts: llama-server",
+    "- facts: llama-server (not answering)",
+    "- facts: claude",
+    "- facts: off",
+    "- facts: off (settings broken)",
+)
+
+
+def _recall_with_facts_line(recall_ports: RecallPorts, *, source: str = "startup", max_tokens: int = 1500) -> str:
+    return recall(
+        CWD,
+        source=source,
+        session_id="s-1",
+        max_tokens=max_tokens,
+        max_chars=DEFAULT_RECALL_MAX_CHARS,
+        ports=recall_ports,
+        now=NOW,
+        facts_line="- facts: auto → claude",
+    ).text
+
+
+def test_facts_line_follows_how_to_open_in_block_d() -> None:
+    text = _recall_with_facts_line(ports(BASE_DOCS, proposals={"main": 2}))
+
+    lines = section(text, "## 가져오는 방법")
+    assert lines[1] == "- facts: auto → claude"
+    assert lines[2].startswith("- 승인을 기다리는 추론 제안")
+
+
+def test_facts_line_is_not_in_the_notice_only_output() -> None:
+    usage = FakeUsage()
+    _recall_with_facts_line(ports(BASE_DOCS, usage=usage))
+
+    assert "facts:" not in _recall_with_facts_line(ports(BASE_DOCS, usage=usage), source="resume")
+
+
+@pytest.mark.parametrize("line", FACTS_LINES)
+def test_every_facts_line_is_about_15_tokens_or_less(line: str) -> None:
+    assert estimate_recall_tokens(line) <= 15

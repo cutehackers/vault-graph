@@ -1,8 +1,10 @@
 """Thin Typer adapter for session fact extraction: `vg facts on|off|status|worker`.
 
-Spec 2026-11-16 D16, D18, D19, F13. Extraction is on with `claude` when `configs/facts.json` does not exist. `off`
-writes `enabled: false`. `status` shows the settings in use, the reason a broken file was rejected, and the
-job queue and failure log of the fact worker when they exist. `worker` drains the job queue once
+Spec 2026-11-16 D16, D18, D19, F13 and spec 2026-11-25-facts-extractor-auto D8, D9. Extraction is on with `auto`
+when `configs/facts.json` does not exist. `off` writes `enabled: false`. `status` shows the settings in use, the
+reason a broken file was rejected, the extractor that would run now (`extractor_now`, checking llama-server for
+`auto` and `llama-server`), the last job's real extractor and model (`last_job`), and the job queue and failure log
+of the fact worker when they exist. `worker` drains the job queue once
 (`interface/composition/adapters/fact_worker.py`); the capture hook starts it detached.
 """
 
@@ -16,15 +18,18 @@ from pathlib import Path
 import typer
 
 from vault_graph.errors import DataHomeNotInitializedError, VaultGraphError
+from vault_graph.interface.composition.adapters import llama_health
 from vault_graph.operation.scope.catalog_service import CatalogService
 from vault_graph.operation.scope.facts_settings import (
     FACT_EXTRACTORS,
     FactsSettings,
     default_facts_settings,
     facts_failures_path,
+    facts_last_job_path,
     facts_queue_dir,
     facts_settings_path,
     read_facts_settings,
+    resolve_facts_settings,
     save_facts_settings,
 )
 from vault_graph.operation.scope.graph_home import GraphHomeResolver
@@ -36,7 +41,7 @@ _GRAPH_HOME_OPTION = typer.Option(Path.home() / ".vault-graph", "--graph-home", 
 _EXTRACTOR_OPTION = typer.Option(
     None,
     "--extractor",
-    help=f"Fact extractor: {', '.join(FACT_EXTRACTORS)}. Default: keep the saved one, else claude.",
+    help=f"Fact extractor: {', '.join(FACT_EXTRACTORS)}. Default: keep the saved one, else auto.",
 )
 _CACHE_DIR_OPTION = typer.Option(
     None, "--cache-dir", help="Fact cache folder. Default: <graph-home>/facts/cache. LongMemEval shares one."
@@ -62,7 +67,7 @@ def turn_on(extractor: str | None = _EXTRACTOR_OPTION, state: Path = _GRAPH_HOME
         if reading.source == "file" and extractor in (None, reading.settings.extractor):
             settings = replace(reading.settings, enabled=True)
         else:
-            settings = default_facts_settings(extractor or "claude")
+            settings = default_facts_settings(extractor or "auto")
         _save(catalog_service, settings_path, settings)
     except VaultGraphError as exc:
         typer.echo(str(exc))
@@ -78,7 +83,7 @@ def turn_off(state: Path = _GRAPH_HOME_OPTION) -> None:
         catalog_service = _catalog_service(state)
         settings_path = facts_settings_path(catalog_service.graph_home_path)
         reading = read_facts_settings(settings_path)
-        saved = reading.settings if reading.source == "file" else default_facts_settings("claude")
+        saved = reading.settings if reading.source == "file" else default_facts_settings("auto")
         settings = replace(saved, enabled=False)
         _save(catalog_service, settings_path, settings)
     except VaultGraphError as exc:
@@ -108,6 +113,8 @@ def status(state: Path = _GRAPH_HOME_OPTION) -> None:
     typer.echo(f"settings: {_SOURCE_LABELS[reading.source]} {settings_path}")
     if reading.problem is not None:
         typer.echo(f"problem: {reading.problem}")
+    typer.echo(f"extractor_now: {_extractor_now(settings)}")
+    typer.echo(f"last_job: {_last_job(facts_last_job_path(graph_home))}")
     typer.echo(f"queue: {_count_queue(facts_queue_dir(graph_home))} {facts_queue_dir(graph_home)}")
     typer.echo(f"failures: {_count_failures(facts_failures_path(graph_home))} {facts_failures_path(graph_home)}")
 
@@ -149,6 +156,37 @@ def _save(catalog_service: CatalogService, settings_path: Path, settings: FactsS
     catalog = catalog_service.load_catalog()
     catalog_service.assert_graph_home_write_target_safe(target_path=settings_path, catalog=catalog)
     save_facts_settings(settings_path, settings)
+
+
+def _local_answers(endpoint: str) -> bool:
+    return llama_health.llama_server_answers(endpoint, timeout_seconds=llama_health.STATUS_HEALTH_TIMEOUT_SECONDS)
+
+
+def _extractor_now(settings: FactsSettings) -> str:
+    """The extractor and model a job would use now, with why llama-server is not used when it is not."""
+    if not settings.enabled:
+        return "none"
+    now = resolve_facts_settings(settings, local_answers=_local_answers)
+    text = f"{now.extractor} {now.model}"
+    if settings.extractor == "auto" and now.extractor == "claude":
+        return f"{text} (llama-server not answering at {settings.endpoint})"
+    if settings.extractor == "llama-server" and not _local_answers(settings.endpoint or ""):
+        return f"{text} (not answering)"
+    return text
+
+
+def _last_job(path: Path) -> str:
+    """The last job record the worker wrote (format in `fact_worker.py`)."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return "none"
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return "unreadable"
+    keys = ("job", "status", "extractor", "model", "finished_at")
+    if not isinstance(payload, dict) or not all(isinstance(payload.get(key), str) for key in keys):
+        return "unreadable"
+    return " ".join(payload[key] for key in keys)
 
 
 def _count_queue(queue_dir: Path) -> str:

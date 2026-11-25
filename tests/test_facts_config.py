@@ -1,6 +1,6 @@
 """Fact extraction settings, extractor port and selection, `vg facts on|off|status`.
 
-Spec 2026-11-16 D18, D19, F13, A17.
+Spec 2026-11-16 D18, D19, F13, A17 and spec 2026-11-25-facts-extractor-auto A4, A9.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from tests.conftest import FakeFactExtractor
+from tests.conftest import FakeFactExtractor, FakeLlamaHealth
 from vault_graph.errors import CatalogError
 from vault_graph.interface.cli.main import app
 from vault_graph.interface.composition.adapters import fact_extractor_selection
@@ -23,10 +23,12 @@ from vault_graph.operation.scope.facts_settings import (
     FactsSettings,
     default_facts_settings,
     facts_failures_path,
+    facts_last_job_path,
     facts_queue_dir,
     facts_settings_path,
     local_facts_model,
     read_facts_settings,
+    resolve_facts_settings,
     save_facts_settings,
 )
 
@@ -55,12 +57,15 @@ def test_settings_file_lives_in_graph_home_configs(tmp_path: Path) -> None:
     assert facts_settings_path(tmp_path) == tmp_path / "configs" / "facts.json"
     assert facts_queue_dir(tmp_path) == tmp_path / "facts" / "queue"
     assert facts_failures_path(tmp_path) == tmp_path / "logs" / "facts-failures.json"
+    assert facts_last_job_path(tmp_path) == tmp_path / "logs" / "facts-last-job.json"
 
 
-def test_missing_file_means_on_with_claude(tmp_path: Path) -> None:
+def test_missing_file_means_on_with_auto(tmp_path: Path) -> None:
     reading = read_facts_settings(facts_settings_path(tmp_path))
 
-    assert reading.settings == FactsSettings(enabled=True, extractor="claude", endpoint=None, model=CLAUDE_FACTS_MODEL)
+    assert reading.settings == FactsSettings(
+        enabled=True, extractor="auto", endpoint=LOCAL_FACTS_ENDPOINT, model=local_facts_model()
+    )
     assert reading.source == "default"
     assert reading.problem is None
     assert not facts_settings_path(tmp_path).exists()
@@ -75,10 +80,47 @@ def test_local_defaults_point_at_llama_server_and_qwen_model() -> None:
     assert local_facts_model() == str(Path.home() / "llm" / "models" / "Qwen3.5-27B-Q4_K_M.gguf")
 
 
+def test_auto_defaults_hold_the_local_endpoint_and_model() -> None:
+    assert default_facts_settings("auto") == FactsSettings(
+        enabled=True, extractor="auto", endpoint=LOCAL_FACTS_ENDPOINT, model=local_facts_model()
+    )
+
+
+def test_resolve_auto_picks_llama_server_when_it_answers() -> None:
+    asked: list[str] = []
+    settings = FactsSettings(enabled=True, extractor="auto", endpoint="http://127.0.0.1:9000", model="/m.gguf")
+
+    resolved = resolve_facts_settings(settings, local_answers=lambda endpoint: asked.append(endpoint) or True)
+
+    assert resolved == FactsSettings(
+        enabled=True, extractor="llama-server", endpoint="http://127.0.0.1:9000", model="/m.gguf"
+    )
+    assert asked == ["http://127.0.0.1:9000"]
+
+
+def test_resolve_auto_picks_claude_when_llama_server_does_not_answer() -> None:
+    settings = FactsSettings(enabled=True, extractor="auto", endpoint="http://127.0.0.1:9000", model="/m.gguf")
+
+    resolved = resolve_facts_settings(settings, local_answers=lambda endpoint: False)
+
+    assert resolved == FactsSettings(enabled=True, extractor="claude", endpoint=None, model=CLAUDE_FACTS_MODEL)
+
+
+@pytest.mark.parametrize("extractor", ["claude", "llama-server"])
+def test_resolve_keeps_fixed_extractors_without_checking(extractor: str) -> None:
+    settings = default_facts_settings(extractor)
+
+    def refuse(endpoint: str) -> bool:
+        raise AssertionError("a fixed extractor must not check the server")
+
+    assert resolve_facts_settings(settings, local_answers=refuse) is settings
+
+
 @pytest.mark.parametrize(
     "settings",
     [
         FactsSettings(enabled=False, extractor="claude", endpoint=None, model=CLAUDE_FACTS_MODEL),
+        FactsSettings(enabled=True, extractor="auto", endpoint="http://127.0.0.1:9000", model="/m/q.gguf"),
         FactsSettings(enabled=True, extractor="llama-server", endpoint="http://127.0.0.1:9000", model="/m/q.gguf"),
     ],
 )
@@ -125,6 +167,8 @@ _GOOD = {"version": 1, "enabled": True, "extractor": "claude", "endpoint": None,
         (json.dumps({**_GOOD, "endpoint": "http://x"}), "endpoint"),
         (json.dumps({**_GOOD, "extractor": "llama-server", "endpoint": None}), "endpoint"),
         (json.dumps({**_GOOD, "extractor": "llama-server", "endpoint": "ftp://x"}), "endpoint"),
+        (json.dumps({**_GOOD, "extractor": "auto", "endpoint": None}), "endpoint"),
+        (json.dumps({**_GOOD, "extractor": "auto", "endpoint": "ftp://x"}), "endpoint"),
     ],
 )
 def test_broken_file_means_off_with_reason(tmp_path: Path, text: str, reason: str) -> None:
@@ -158,6 +202,11 @@ def test_selection_returns_the_fake_extractor_installed_by_conftest(fake_fact_ex
 
     assert extractor is fake_fact_extractor
     assert isinstance(extractor, FactExtractor)
+
+
+def test_selection_refuses_unresolved_auto() -> None:
+    with pytest.raises(CatalogError, match="auto"):
+        select_fact_extractor(default_facts_settings("auto"))
 
 
 def test_selection_refuses_disabled_settings() -> None:
@@ -213,14 +262,14 @@ def test_selection_module_does_not_import_adapters_at_load_time() -> None:
 # CLI
 
 
-def test_status_without_file_shows_on_claude_and_empty_queue(tmp_path: Path) -> None:
+def test_status_without_file_shows_on_auto_and_empty_queue(tmp_path: Path) -> None:
     graph_home = _init_graph_home(tmp_path)
 
     result = runner.invoke(app, ["facts", "status", "--graph-home", str(graph_home)])
 
     assert result.exit_code == 0, result.output
     assert "facts: on" in result.output
-    assert "extractor: claude" in result.output
+    assert "extractor: auto" in result.output
     assert "settings: default (no file)" in result.output
     assert "queue: 0" in result.output
     assert "failures: 0" in result.output
@@ -235,9 +284,103 @@ def test_off_writes_enabled_false_and_on_turns_it_back(tmp_path: Path) -> None:
     assert json.loads(path.read_text(encoding="utf-8"))["enabled"] is False
     assert "facts: off" in runner.invoke(app, ["facts", "status", "--graph-home", str(graph_home)]).output
 
+    assert read_facts_settings(path).settings.extractor == "auto"
+
     on = runner.invoke(app, ["facts", "on", "--graph-home", str(graph_home)])
     assert on.exit_code == 0, on.output
+    assert read_facts_settings(path).settings == default_facts_settings("auto")
+
+
+@pytest.mark.parametrize("extractor", ["auto", "claude", "llama-server"])
+def test_on_with_extractor_saves_that_extractor(tmp_path: Path, extractor: str) -> None:
+    graph_home = _init_graph_home(tmp_path)
+
+    result = runner.invoke(app, ["facts", "on", "--extractor", extractor, "--graph-home", str(graph_home)])
+
+    assert result.exit_code == 0, result.output
+    assert f"facts: on {extractor}" in result.output
+    assert read_facts_settings(facts_settings_path(graph_home)).settings == default_facts_settings(extractor)
+
+
+def test_saved_claude_file_keeps_working(tmp_path: Path) -> None:
+    graph_home = _init_graph_home(tmp_path)
+    path = facts_settings_path(graph_home)
+    _write(path, json.dumps(_GOOD))
+
+    status = runner.invoke(app, ["facts", "status", "--graph-home", str(graph_home)]).output
+    on = runner.invoke(app, ["facts", "on", "--graph-home", str(graph_home)])
+
+    assert "extractor: claude" in status
+    assert f"extractor_now: claude {CLAUDE_FACTS_MODEL}" in status
+    assert on.exit_code == 0, on.output
     assert read_facts_settings(path).settings == default_facts_settings("claude")
+
+
+def _status(graph_home: Path) -> str:
+    result = runner.invoke(app, ["facts", "status", "--graph-home", str(graph_home)])
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+def test_status_shows_auto_picks_claude_when_llama_server_is_down(
+    tmp_path: Path, fake_llama_health: FakeLlamaHealth
+) -> None:
+    graph_home = _init_graph_home(tmp_path)
+
+    output = _status(graph_home)
+
+    assert (
+        f"extractor_now: claude {CLAUDE_FACTS_MODEL} (llama-server not answering at {LOCAL_FACTS_ENDPOINT})" in output
+    )
+    assert fake_llama_health.calls == [(LOCAL_FACTS_ENDPOINT, 1.0)]
+
+
+def test_status_shows_auto_picks_llama_server_when_it_answers(
+    tmp_path: Path, fake_llama_health: FakeLlamaHealth
+) -> None:
+    graph_home = _init_graph_home(tmp_path)
+    fake_llama_health.up = True
+
+    output = _status(graph_home)
+
+    assert f"extractor_now: llama-server {local_facts_model()}\n" in output
+
+
+def test_status_shows_fixed_llama_server_not_answering(tmp_path: Path) -> None:
+    graph_home = _init_graph_home(tmp_path)
+    save_facts_settings(facts_settings_path(graph_home), default_facts_settings("llama-server"))
+
+    output = _status(graph_home)
+
+    assert f"extractor_now: llama-server {local_facts_model()} (not answering)" in output
+
+
+def test_status_shows_no_extractor_when_off(tmp_path: Path, fake_llama_health: FakeLlamaHealth) -> None:
+    graph_home = _init_graph_home(tmp_path)
+    runner.invoke(app, ["facts", "off", "--graph-home", str(graph_home)])
+
+    output = _status(graph_home)
+
+    assert "extractor_now: none" in output
+    assert fake_llama_health.calls == []
+
+
+def test_status_shows_last_job_record(tmp_path: Path) -> None:
+    graph_home = _init_graph_home(tmp_path)
+    assert "last_job: none" in _status(graph_home)
+    record = {
+        "job": "j1.json",
+        "status": "written",
+        "extractor": "claude",
+        "model": CLAUDE_FACTS_MODEL,
+        "finished_at": "2026-11-25T01:02:03Z",
+    }
+    _write(facts_last_job_path(graph_home), json.dumps(record))
+
+    assert f"last_job: j1.json written claude {CLAUDE_FACTS_MODEL} 2026-11-25T01:02:03Z" in _status(graph_home)
+
+    _write(facts_last_job_path(graph_home), "{broken")
+    assert "last_job: unreadable" in _status(graph_home)
 
 
 def test_on_with_llama_server_selects_local_extractor(tmp_path: Path) -> None:

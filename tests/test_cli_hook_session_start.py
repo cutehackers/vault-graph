@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,7 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner, Result
 
+from tests.conftest import FakeLlamaHealth
 from tests.test_cli_setup import _deterministic_text_embeddings
 from vault_graph.context.pack.recall import estimate_recall_tokens, memory_item_id
 from vault_graph.indexing.vector_failure_log import clear_vector_failure, read_vector_failures, record_vector_failure
@@ -31,6 +33,13 @@ from vault_graph.interface.cli.main import app
 from vault_graph.interface.composition.adapters.auto_memory_reader import memory_folder_key
 from vault_graph.interface.composition.local_index_service_factory import LocalIndexServiceBundle
 from vault_graph.interface.composition.recall_index_refresh import vectors_need_catch_up
+from vault_graph.operation.scope.facts_settings import (
+    LOCAL_FACTS_ENDPOINT,
+    FactsSettings,
+    default_facts_settings,
+    facts_settings_path,
+    save_facts_settings,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "session_recall"
 runner = CliRunner()
@@ -573,7 +582,7 @@ def test_pending_memory_proposals_of_the_vault_are_counted(base: Path, graph_hom
     result = hook(graph_home, base)
 
     assert result.exit_code == 0, result.output
-    assert "- 승인을 기다리는 추론 제안: main 2개." in section(result.stdout, "## 가져오는 방법")[1]
+    assert "- 승인을 기다리는 추론 제안: main 2개." in section(result.stdout, "## 가져오는 방법")[2]
 
 
 def test_l1_notes_waiting_for_cleanup_give_one_backlog_line_and_change_no_file(base: Path, graph_home: Path) -> None:
@@ -1446,9 +1455,9 @@ def test_vector_failure_of_a_linked_vault_is_one_block_d_line_and_still_warns_on
     assert after.exit_code == 0, after.output
     expected = f"벡터 색인이 main에서 3시간째 실패 중: {INDEX_ERROR}"
     assert section(after.stdout, "## 가져오는 방법") == [
-        section(before.stdout, "## 가져오는 방법")[0],
+        *section(before.stdout, "## 가져오는 방법")[:2],
         f"- {expected}",
-        *section(before.stdout, "## 가져오는 방법")[1:],
+        *section(before.stdout, "## 가져오는 방법")[2:],
     ]
     assert [line for line in after.stderr.splitlines() if "벡터 색인이" in line] == [
         f"vg hook session-start: warning: {expected}"
@@ -1540,3 +1549,91 @@ def test_catch_up_process_that_dies_records_the_vault_it_was_on(
     failures = read_vector_failures(tmp_path)
     assert set(failures) == {"other"}
     assert failures["other"].error_head == "background catch-up stopped: RuntimeError: index catalog is unreadable"
+
+
+# Fact extractor line (spec 2026-11-25-facts-extractor-auto D10, F4, F5, F6, A10, A11) ------------
+
+
+def _facts_line(stdout: str) -> list[str]:
+    return [line for line in section(stdout, "## 가져오는 방법") if line.startswith("- facts:")]
+
+
+def test_startup_shows_auto_picks_claude_when_llama_server_is_down(
+    base: Path, graph_home: Path, fake_llama_health: FakeLlamaHealth
+) -> None:
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert _facts_line(result.stdout) == ["- facts: auto → claude"]
+    assert section(result.stdout, "## 가져오는 방법")[1] == "- facts: auto → claude"
+    assert fake_llama_health.calls == [(LOCAL_FACTS_ENDPOINT, 0.3)]
+
+
+@pytest.mark.parametrize(
+    ("settings", "up", "expected"),
+    [
+        (default_facts_settings("auto"), True, "- facts: auto → llama-server"),
+        (default_facts_settings("llama-server"), True, "- facts: llama-server"),
+        (default_facts_settings("llama-server"), False, "- facts: llama-server (not answering)"),
+        (default_facts_settings("claude"), True, "- facts: claude"),
+        (replace(default_facts_settings("auto"), enabled=False), True, "- facts: off"),
+    ],
+)
+def test_startup_facts_line_follows_the_setting_and_the_server(
+    base: Path,
+    graph_home: Path,
+    fake_llama_health: FakeLlamaHealth,
+    settings: FactsSettings,
+    up: bool,
+    expected: str,
+) -> None:
+    save_facts_settings(facts_settings_path(graph_home), settings)
+    fake_llama_health.up = up
+
+    result = hook(graph_home, base)
+
+    assert result.exit_code == 0, result.output
+    assert _facts_line(result.stdout) == [expected]
+
+
+def test_broken_facts_settings_show_off_settings_broken(base: Path, graph_home: Path) -> None:
+    facts_settings_path(graph_home).parent.mkdir(parents=True, exist_ok=True)
+    facts_settings_path(graph_home).write_text("{broken", encoding="utf-8")
+
+    assert _facts_line(hook(graph_home, base).stdout) == ["- facts: off (settings broken)"]
+
+
+def test_resume_and_handoff_show_no_facts_line(base: Path, graph_home: Path) -> None:
+    hook(graph_home, base)
+    supersede_use_sqlite(base)
+    reindex(graph_home)
+
+    resumed = hook(graph_home, base, source="resume")
+    handed_off = hook(graph_home, base, repo="loose")
+
+    assert "facts:" not in resumed.stdout
+    assert handed_off.exit_code == 3
+    assert handed_off.stdout == ""
+
+
+def test_the_hook_check_of_a_silent_server_ends_within_its_time_limit(
+    graph_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import socket
+    import time
+
+    from vault_graph.interface.composition.adapters import llama_health
+
+    with socket.socket() as silent:
+        silent.bind(("127.0.0.1", 0))
+        silent.listen()
+        settings = replace(default_facts_settings("auto"), endpoint=f"http://127.0.0.1:{silent.getsockname()[1]}")
+        save_facts_settings(facts_settings_path(graph_home), settings)
+        monkeypatch.setattr(llama_health, "_check", llama_health.check_llama_health)
+
+        started = time.monotonic()
+        line = hook_commands.facts_recall_line(graph_home)
+        elapsed = time.monotonic() - started
+
+    assert line == "- facts: auto → claude"
+    assert elapsed < 1.0

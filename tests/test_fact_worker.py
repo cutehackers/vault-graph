@@ -20,7 +20,7 @@ from typing import Any, NoReturn
 import pytest
 from typer.testing import CliRunner
 
-from tests.conftest import FakeFactExtractor
+from tests.conftest import FakeFactExtractor, FakeLlamaHealth
 from tests.test_cli_setup import _deterministic_text_embeddings
 from vault_graph.interface.cli.main import app
 from vault_graph.interface.composition.adapters import fact_extractor_selection, fact_worker
@@ -779,3 +779,245 @@ def test_search_index_mcp_and_session_start_pass_with_processes_and_network_bloc
     assert session_start.exit_code == 0, session_start.output
     # The only refused process is the session start catch-up `vg index`. No model and no connection was tried.
     assert attempts and all("run_catch_up_index" in attempt for attempt in attempts), attempts
+
+
+# Tool call lines (spec 2026-11-25-facts-extractor-auto D1, D2, D3, F7, F8, A1, A2).
+
+TOOL_EXCHANGE_ID = "x0004"
+TOOL_STARTED = "2023-05-23T09:00:00.000Z"
+TOOL_EXCHANGE = (
+    f"## Fix the build {TOOL_STARTED} · {TOOL_EXCHANGE_ID}\n"
+    f"<!-- vg:exchange id={TOOL_EXCHANGE_ID} scope=main started={TOOL_STARTED} ended={TOOL_STARTED} "
+    "tools=Bash:2,Read:1,mcp__ccd_turn__update_plan:1 errors=1 outcome=answered files= -->\n\n"
+    f"### user · {TOOL_STARTED} · u-{TOOL_EXCHANGE_ID}\n\n"
+    "Fix the build.\n- Read the error first\n- Bash is fine\n\n"
+    f"### assistant · {TOOL_STARTED} · a1-{TOOL_EXCHANGE_ID}\n\n"
+    "- mcp__ccd_turn__update_plan\n- Bash `uv run pytest -q`\n\n"
+    f"### assistant · {TOOL_STARTED} · a2-{TOOL_EXCHANGE_ID}\n\n"
+    "The build failed because of a missing import. Tools: none needed beyond pytest.\n"
+    "- Readme stays\n- Grep not in meta\n\n"
+    "- Read `src/app.py`\n- Bash `uv run pytest -q` ✗: ImportError: no module named x\n"
+)
+ONLY_TOOLS_ID = "x0005"
+ONLY_TOOLS_EXCHANGE = (
+    f"## (continued) {TOOL_STARTED} · {ONLY_TOOLS_ID}\n"
+    f"<!-- vg:exchange id={ONLY_TOOLS_ID} scope=main started={TOOL_STARTED} ended={TOOL_STARTED} "
+    "tools=Bash:1 errors=0 outcome=answered continued=1 files= -->\n\n"
+    f"### assistant · {TOOL_STARTED} · a-{ONLY_TOOLS_ID}\n\n- Bash `git status`\n"
+)
+
+
+def test_extractor_text_drops_tool_call_lines_outside_user_turns() -> None:
+    body = TOOL_EXCHANGE.split("-->\n", 1)[1].strip()
+
+    text = fact_worker.extractor_text(body, frozenset({"Bash", "Read", "mcp__ccd_turn__update_plan"}))
+
+    assert text == (
+        f"### user · {TOOL_STARTED} · u-{TOOL_EXCHANGE_ID}\n\n"
+        "Fix the build.\n- Read the error first\n- Bash is fine\n\n"
+        f"### assistant · {TOOL_STARTED} · a2-{TOOL_EXCHANGE_ID}\n\n"
+        "The build failed because of a missing import. Tools: none needed beyond pytest.\n"
+        "- Readme stays\n- Grep not in meta"
+    )
+
+
+def test_extractor_text_keeps_everything_without_meta_tools() -> None:
+    body = TOOL_EXCHANGE.split("-->\n", 1)[1].strip()
+
+    assert fact_worker.extractor_text(body, frozenset()) == body
+
+
+def test_extractor_text_of_tool_lines_only_is_empty() -> None:
+    body = ONLY_TOOLS_EXCHANGE.split("-->\n", 1)[1].strip()
+
+    assert fact_worker.extractor_text(body, frozenset({"Bash"})) == ""
+
+
+def test_worker_sends_less_text_and_keeps_ids_facts_and_cache_keys(
+    graph_home: Path, vault: Vault, fake_fact_extractor: FakeFactExtractor
+) -> None:
+    from vault_graph.interface.composition.adapters.claude_fact_extractor import build_facts_prompt
+    from vault_graph.interface.composition.adapters.fact_extractor import FactExchange
+
+    vault.add_part(PART1, part_text(1, EX1, TOOL_EXCHANGE, ONLY_TOOLS_EXCHANGE))
+    enqueue(graph_home, vault, PART1)
+    fake_fact_extractor.facts = [
+        fact("User inherited jewelry.", "x0001"),
+        fact("The build failed on a missing import.", TOOL_EXCHANGE_ID, "2023-05-23"),
+    ]
+
+    result = run(graph_home)
+
+    assert [item.status for item in result.results] == ["written"]
+    [call] = fake_fact_extractor.calls
+    assert [item.exchange_id for item in call] == ["x0001", TOOL_EXCHANGE_ID]
+    raw = {item.exchange_id: item.text for item in fact_worker._read_part(vault.root / PART1).exchanges}
+    unfiltered = [
+        FactExchange(exchange_id=key, date=item.date, text=raw[key]) for key, item in zip(raw, call, strict=False)
+    ]
+    assert len(build_facts_prompt(call).encode()) < len(build_facts_prompt(unfiltered).encode())
+    assert "uv run pytest" not in call[1].text and "missing import" in call[1].text
+    assert len(vault.calls()[0]["input"]["facts"]) == 2
+    cache = FactCache(fact_cache_dir(graph_home))
+    for text in raw.values():
+        assert cache.get("claude", SETTINGS.model, exchange_content_hash(text)) is not None
+    assert cache.get("claude", SETTINGS.model, exchange_content_hash(raw[ONLY_TOOLS_ID])) == []
+
+
+def test_a_part_of_tool_lines_only_never_calls_the_extractor(
+    graph_home: Path, vault: Vault, fake_fact_extractor: FakeFactExtractor
+) -> None:
+    vault.add_part(PART1, part_text(1, ONLY_TOOLS_EXCHANGE))
+    enqueue(graph_home, vault, PART1)
+
+    result = run(graph_home)
+
+    assert [item.status for item in result.results] == ["no_facts"]
+    assert fake_fact_extractor.calls == []
+    assert vault.calls() == []
+
+
+# Picking the extractor per job (spec 2026-11-25-facts-extractor-auto D6, I1, I2, I3, F1, F2, F3, A5, A6).
+
+AUTO = default_facts_settings("auto")
+CLAUDE_NOW = FactsSettings(enabled=True, extractor="claude", endpoint=None, model=SETTINGS.model)
+LLAMA_NOW = FactsSettings(enabled=True, extractor="llama-server", endpoint=AUTO.endpoint, model=AUTO.model)
+
+
+def _last_job(graph_home: Path) -> dict[str, Any]:
+    record: dict[str, Any] = json.loads((graph_home / "logs" / "facts-last-job.json").read_text(encoding="utf-8"))
+    return record
+
+
+def test_auto_uses_claude_when_llama_server_does_not_answer(
+    graph_home: Path, vault: Vault, fake_fact_extractor: FakeFactExtractor, fake_llama_health: FakeLlamaHealth
+) -> None:
+    vault.add_part(PART1, part_text(1, EX1))
+    vault.add_part(PART2, part_text(2, EX2))
+    enqueue(graph_home, vault, PART1)
+    enqueue(graph_home, vault, PART2)
+    fake_fact_extractor.facts = [fact("User inherited jewelry.", "x0001"), fact("Busan appraiser.", "x0002")]
+
+    result = run(graph_home, settings=AUTO)
+
+    assert [item.status for item in result.results] == ["written", "written"]
+    assert fake_llama_health.calls == [(AUTO.endpoint, 2.0), (AUTO.endpoint, 2.0)]
+    assert fake_fact_extractor.settings == [CLAUDE_NOW]
+    assert [(call["input"]["extractor"], call["input"]["model"]) for call in vault.calls()] == [
+        ("claude", SETTINGS.model)
+    ] * 2
+    assert (
+        FactCache(fact_cache_dir(graph_home)).get(
+            "claude",
+            SETTINGS.model,
+            exchange_content_hash(fact_worker._read_part(vault.root / PART1).exchanges[0].text),
+        )
+        is not None
+    )
+    last = _last_job(graph_home)
+    assert (last["status"], last["extractor"], last["model"], last["finished_at"]) == (
+        "written",
+        "claude",
+        SETTINGS.model,
+        "2026-11-16T03:00:00Z",
+    )
+
+
+def test_auto_uses_llama_server_when_it_answers(
+    graph_home: Path, vault: Vault, fake_fact_extractor: FakeFactExtractor, fake_llama_health: FakeLlamaHealth
+) -> None:
+    vault.add_part(PART1, part_text(1, EX1))
+    enqueue(graph_home, vault, PART1)
+    fake_llama_health.up = True
+    fake_fact_extractor.facts = [fact("User inherited jewelry.", "x0001")]
+
+    run(graph_home, settings=AUTO)
+
+    assert fake_fact_extractor.settings == [LLAMA_NOW]
+    [call] = vault.calls()
+    assert (call["input"]["extractor"], call["input"]["model"]) == ("llama-server", AUTO.model)
+    assert (_last_job(graph_home)["extractor"], _last_job(graph_home)["model"]) == ("llama-server", AUTO.model)
+
+
+def test_auto_job_fails_when_llama_server_stops_and_the_next_job_uses_claude(
+    graph_home: Path,
+    vault: Vault,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_llama_health: FakeLlamaHealth,
+) -> None:
+    built: list[FactsSettings] = []
+
+    class Extractor:
+        def __init__(self, settings: FactsSettings) -> None:
+            self.settings = settings
+
+        def extract(self, exchanges: Any) -> list[ExtractedFact]:
+            if self.settings.extractor == "llama-server":
+                raise FactExtractorUnavailable("llama-server stopped")
+            return [fact("Fact.", item.exchange_id) for item in exchanges]
+
+    def construct(settings: FactsSettings) -> Extractor:
+        built.append(settings)
+        return Extractor(settings)
+
+    monkeypatch.setattr(fact_extractor_selection, "_construct", construct)
+    vault.add_part(PART1, part_text(1, EX1))
+    vault.add_part(PART2, part_text(2, EX2))
+    first_job = enqueue(graph_home, vault, PART1)
+    enqueue(graph_home, vault, PART2)
+    fake_llama_health.up = True
+
+    result = run(graph_home, settings=AUTO)
+
+    assert [(item.status, item.reason) for item in result.results] == [
+        ("waiting", "extractor_unavailable"),
+        ("written", None),
+    ]
+    assert built == [LLAMA_NOW, CLAUDE_NOW]
+    assert len(fake_llama_health.calls) == 1
+    assert first_job.exists()
+    assert vault.calls()[0]["input"]["extractor"] == "claude"
+
+    retried = run(graph_home, START + timedelta(minutes=30), settings=AUTO)
+    assert len(fake_llama_health.calls) == 2
+    assert [item.reason for item in retried.results] == ["extractor_unavailable"]
+
+
+def test_fixed_llama_server_never_falls_back_to_claude(
+    graph_home: Path, vault: Vault, fake_fact_extractor: FakeFactExtractor, fake_llama_health: FakeLlamaHealth
+) -> None:
+    llama = default_facts_settings("llama-server")
+    vault.add_part(PART1, part_text(1, EX1))
+    vault.add_part(PART2, part_text(2, EX2))
+    enqueue(graph_home, vault, PART1)
+    enqueue(graph_home, vault, PART2)
+    fake_fact_extractor.error = FactExtractorUnavailable("llama-server did not answer")
+
+    result = run(graph_home, settings=llama)
+
+    assert [item.reason for item in result.results] == ["extractor_unavailable"] * 2
+    assert fake_fact_extractor.settings == [llama]
+    assert len(fake_fact_extractor.calls) == 1
+    assert fake_llama_health.calls == []
+    assert _last_job(graph_home)["extractor"] == "llama-server"
+
+
+def test_fixed_claude_never_checks_llama_server(
+    graph_home: Path, vault: Vault, fake_fact_extractor: FakeFactExtractor, fake_llama_health: FakeLlamaHealth
+) -> None:
+    vault.add_part(PART1, part_text(1, EX1))
+    enqueue(graph_home, vault, PART1)
+    fake_llama_health.up = True
+
+    run(graph_home)
+
+    assert fake_llama_health.calls == []
+    assert fake_fact_extractor.settings == [SETTINGS]
+
+
+def test_a_job_that_fails_before_picking_writes_no_last_job(graph_home: Path, vault: Vault) -> None:
+    enqueue(graph_home, vault, "raw/sessions/longmemeval/missing-part1.md")
+
+    run(graph_home, settings=AUTO)
+
+    assert not (graph_home / "logs" / "facts-last-job.json").exists()

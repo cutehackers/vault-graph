@@ -21,9 +21,14 @@ REAL_FACT_EXTRACTORS: dict[str, tuple[str, str]] = {
 
 
 def select_fact_extractor(settings: FactsSettings) -> FactExtractor:
-    """Build the extractor `settings` names. Turned-off settings raise `CatalogError`."""
+    """Build the extractor `settings` names. Turned-off settings and `auto` raise `CatalogError`.
+
+    `auto` is turned into a real extractor first, per job, by `facts_settings.resolve_facts_settings`.
+    """
     if not settings.enabled:
         raise CatalogError("fact extraction is off; run `vg facts on` to turn it on")
+    if settings.extractor == "auto":
+        raise CatalogError("the auto fact extractor must be resolved to claude or llama-server before it is built")
     return _construct(settings)
 
 

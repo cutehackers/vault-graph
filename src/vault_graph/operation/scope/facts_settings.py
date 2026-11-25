@@ -1,9 +1,13 @@
 """Read and write the session fact extraction settings file `<graph-home>/configs/facts.json`.
 
-Spec 2026-11-16 D18, D19, F13. The file holds `version`, `enabled`, `extractor` (`claude` or `llama-server`),
-`endpoint` and `model`. A missing file means extraction is on with the `claude` extractor (D19, the user chose
-"on by default"). A broken file means extraction is off, and the reading carries the reason so `vg facts status`
-can show it (F13). The default extractor changes to the local one only after the task 22 measurement (D18).
+Spec 2026-11-16 D18, D19, F13 and spec 2026-11-25-facts-extractor-auto D4, D7. The file holds `version`,
+`enabled`, `extractor` (`auto`, `claude` or `llama-server`), `endpoint` and `model`. A missing file means extraction
+is on with the `auto` extractor. A broken file means extraction is off, and the reading carries the reason so
+`vg facts status` can show it (F13).
+
+`auto` uses `llama-server` at `endpoint` with `model` when that server answers, otherwise `claude` with
+`CLAUDE_FACTS_MODEL`. `resolve_facts_settings` turns `auto` into the settings of the extractor that runs; whoever
+calls it decides how to check the server (`interface/composition/adapters/llama_health.py`).
 
 This module also names the other Graph Home paths of fact extraction, the job queue folder and the failure
 log, so the worker and `vg facts status` use the same paths. It does not read those two.
@@ -15,14 +19,15 @@ import json
 import os
 import stat
 import tempfile
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
 from vault_graph.errors import CatalogError
 
-FACT_EXTRACTORS = ("claude", "llama-server")
-"""Extractor names the settings file may name."""
+FACT_EXTRACTORS = ("auto", "claude", "llama-server")
+"""Extractor names the settings file may name. `auto` picks `llama-server` when it answers, else `claude`."""
 
 CLAUDE_FACTS_MODEL = "claude-sonnet-5-5"
 """Model the Claude CLI extractor runs (D17)."""
@@ -69,6 +74,11 @@ def facts_failures_path(graph_home_path: Path) -> Path:
     return graph_home_path / "logs" / "facts-failures.json"
 
 
+def facts_last_job_path(graph_home_path: Path) -> Path:
+    """Record of the last job that chose an extractor (spec 2026-11-25-facts-extractor-auto D9)."""
+    return graph_home_path / "logs" / "facts-last-job.json"
+
+
 def local_facts_model() -> str:
     """Default local model file for `llama-server` (D18)."""
     return str(Path.home() / "llm" / "models" / "Qwen3.5-27B-Q4_K_M.gguf")
@@ -78,9 +88,9 @@ def default_facts_settings(extractor: str) -> FactsSettings:
     """Turned-on settings with the default endpoint and model of `extractor`."""
     if extractor == "claude":
         return FactsSettings(enabled=True, extractor="claude", endpoint=None, model=CLAUDE_FACTS_MODEL)
-    if extractor == "llama-server":
+    if extractor in ("auto", "llama-server"):
         return FactsSettings(
-            enabled=True, extractor="llama-server", endpoint=LOCAL_FACTS_ENDPOINT, model=local_facts_model()
+            enabled=True, extractor=extractor, endpoint=LOCAL_FACTS_ENDPOINT, model=local_facts_model()
         )
     raise CatalogError(f"unknown fact extractor {extractor!r}; available: {', '.join(FACT_EXTRACTORS)}")
 
@@ -88,17 +98,33 @@ def default_facts_settings(extractor: str) -> FactsSettings:
 def read_facts_settings(path: Path) -> FactsSettingsReading:
     """Return the settings to act on. Never raises for file problems.
 
-    A missing file is not created and reads as on with `claude`. Any other problem reads as off, with the
+    A missing file is not created and reads as on with `auto`. Any other problem reads as off, with the
     reason in `problem`.
     """
     try:
         settings = _load(path)
     except CatalogError as exc:
-        off = FactsSettings(enabled=False, extractor="claude", endpoint=None, model=CLAUDE_FACTS_MODEL)
+        off = replace(default_facts_settings("auto"), enabled=False)
         return FactsSettingsReading(settings=off, source="broken", problem=str(exc))
     if settings is None:
-        return FactsSettingsReading(settings=default_facts_settings("claude"), source="default")
+        return FactsSettingsReading(settings=default_facts_settings("auto"), source="default")
     return FactsSettingsReading(settings=settings, source="file")
+
+
+def resolve_facts_settings(settings: FactsSettings, *, local_answers: Callable[[str], bool]) -> FactsSettings:
+    """The settings of the extractor that runs. Never `auto`.
+
+    `auto` becomes `llama-server` with its endpoint and model when `local_answers(endpoint)` is true, otherwise
+    `claude` with `CLAUDE_FACTS_MODEL`. Other settings come back unchanged and `local_answers` is not called.
+    """
+    if settings.extractor != "auto":
+        return settings
+    endpoint = settings.endpoint or LOCAL_FACTS_ENDPOINT
+    if local_answers(endpoint):
+        return FactsSettings(
+            enabled=settings.enabled, extractor="llama-server", endpoint=endpoint, model=settings.model
+        )
+    return FactsSettings(enabled=settings.enabled, extractor="claude", endpoint=None, model=CLAUDE_FACTS_MODEL)
 
 
 def save_facts_settings(path: Path, settings: FactsSettings) -> None:
@@ -179,8 +205,8 @@ def _settings_from_payload(path: Path, payload: Any) -> FactsSettings:
     endpoint = payload["endpoint"]
     if extractor == "claude" and endpoint is not None:
         raise CatalogError(f"facts settings file endpoint must be null for the claude extractor: {path}")
-    if extractor == "llama-server" and (
+    if extractor in ("auto", "llama-server") and (
         not isinstance(endpoint, str) or not endpoint.startswith(("http://", "https://"))
     ):
-        raise CatalogError(f"facts settings file endpoint must be an http(s) URL for llama-server: {path}")
+        raise CatalogError(f"facts settings file endpoint must be an http(s) URL for {extractor}: {path}")
     return FactsSettings(enabled=enabled, extractor=extractor, endpoint=endpoint, model=model)
