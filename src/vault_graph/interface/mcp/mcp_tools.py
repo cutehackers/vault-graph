@@ -187,6 +187,7 @@ class ExploreProjectInput:
     max_tokens: int = DEFAULT_PROJECT_CONTEXT_TOKENS
     depth: int = DEFAULT_PROJECT_CONTEXT_DEPTH
     limit: int = DEFAULT_PROJECT_CONTEXT_LIMIT
+    cwd: str | None = None
 
     def to_project_context_request(self) -> ProjectContextRequest:
         return ProjectContextRequest(
@@ -196,6 +197,7 @@ class ExploreProjectInput:
             max_tokens=self.max_tokens,
             depth=self.depth,
             limit=self.limit,
+            cwd=self.cwd,
         )
 
 
@@ -1090,7 +1092,15 @@ def register_mcp_tools(
         max_tokens: int | None = None,
         depth: int = DEFAULT_PROJECT_CONTEXT_DEPTH,
         limit: int = DEFAULT_PROJECT_CONTEXT_LIMIT,
+        cwd: str | None = None,
     ) -> dict[str, object]:
+        """Bounded code and Vault evidence for a coding task.
+
+        Pass ``cwd`` set to the project folder. A registered repository that holds it is used with its
+        code index; otherwise the git repository that holds it is read directly, without registration.
+        ``repository_id`` selects a registered repository and wins over ``cwd``; ``project_path`` wins
+        over ``cwd``. Outside any git repository the tool returns ``not_a_git_repository``.
+        """
         request = parse_explore_project_input(
             task=task,
             project_path=project_path,
@@ -1098,6 +1108,7 @@ def register_mcp_tools(
             max_tokens=max_tokens,
             depth=depth,
             limit=limit,
+            cwd=cwd,
         )
         return registry.explore_project(request).to_json_dict()
 
@@ -1397,6 +1408,7 @@ def parse_explore_project_input(
     max_tokens: int | None = None,
     depth: int = DEFAULT_PROJECT_CONTEXT_DEPTH,
     limit: int = DEFAULT_PROJECT_CONTEXT_LIMIT,
+    cwd: str | None = None,
 ) -> ExploreProjectInput:
     if project_path is not None and repository_id is not None:
         raise _invalid_arguments("Use either project_path or repository_id, not both.")
@@ -1407,6 +1419,7 @@ def parse_explore_project_input(
         max_tokens=_project_token_budget(max_tokens),
         depth=_project_depth(depth),
         limit=_project_limit(limit),
+        cwd=_optional_cwd(cwd),
     )
     _validate_explore_project_request(request)
     return request
@@ -1493,6 +1506,7 @@ def _validate_explore_project_request(request: ExploreProjectInput) -> None:
     _project_task(request.task)
     _optional_project_scope(request.project_path, "project_path")
     _optional_project_scope(request.repository_id, "repository_id")
+    _optional_cwd(request.cwd)
     if request.project_path is not None and request.repository_id is not None:
         raise _invalid_arguments("Use either project_path or repository_id, not both.")
     _project_token_budget(request.max_tokens)
@@ -1699,6 +1713,17 @@ def _project_scope_error(exc: ValueError) -> McpProtocolError:
     if raw_message.startswith("missing project binding"):
         code = "scope_required"
         detail = "An explicit repository-to-Vault binding is required."
+    if code == "not_a_git_repository":
+        return McpProtocolError(
+            kind="invalid_parameter",
+            payload=McpErrorPayload(
+                code=code,
+                message=detail.strip() or "The folder is not inside a git repository.",
+                severity="error",
+                affected_vault_ids=(),
+                recovery_hint="Pass cwd set to a folder inside a git repository.",
+            ),
+        )
     recovery_hint = (
         "Register a repository and bind it to its Vault with `vg project bind`, then pass repository_id."
         if code == "scope_required"
@@ -1721,6 +1746,7 @@ def _is_project_scope_error(exc: ValueError) -> bool:
     return message.startswith(
         (
             "scope_required",
+            "not_a_git_repository",
             "unregistered_project_path",
             "conflicting_project_scope",
             "missing project binding",

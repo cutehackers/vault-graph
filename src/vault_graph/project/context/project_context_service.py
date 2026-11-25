@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
-from typing import Protocol
+from typing import Literal, Protocol
 from urllib.parse import quote
 
 from vault_graph.context.pack.context_pack import ContextPack, ContextPackBudget, ContextPackRequest
@@ -49,6 +50,90 @@ class ProjectRepositoryCatalog(Protocol):
     def entries(self) -> tuple[RepositoryEntry, ...]: ...
 
     def resolve(self, repository_id: str) -> RepositoryEntry: ...
+
+
+class LiveRepositoryRef(Protocol):
+    """A git repository read directly. ``label`` is ``git:<main worktree folder>``."""
+
+    @property
+    def root_path(self) -> Path: ...
+
+    @property
+    def label(self) -> str: ...
+
+    @property
+    def head(self) -> str | None: ...
+
+
+class LiveCodeHitRef(Protocol):
+    @property
+    def kind(self) -> Literal["symbol", "line"]: ...
+
+    @property
+    def relative_path(self) -> str: ...
+
+    @property
+    def start_line(self) -> int: ...
+
+    @property
+    def end_line(self) -> int: ...
+
+    @property
+    def title(self) -> str: ...
+
+    @property
+    def summary(self) -> str: ...
+
+    @property
+    def symbol_id(self) -> str | None: ...
+
+
+class LiveCodeSearchRef(Protocol):
+    @property
+    def hits(self) -> tuple[LiveCodeHitRef, ...]: ...
+
+    @property
+    def warnings(self) -> tuple[str, ...]: ...
+
+    @property
+    def truncated(self) -> bool: ...
+
+
+class ProjectLiveCodeReader(Protocol):
+    """Read an unregistered git repository without writing anything (spec 2026-11-25-explore-project-cwd-git-2)."""
+
+    def find_repository(self, path: Path) -> LiveRepositoryRef | None: ...
+
+    def git_available(self) -> bool: ...
+
+    def search(self, repository: LiveRepositoryRef, task: str, *, limit: int) -> LiveCodeSearchRef: ...
+
+
+class ProjectVaultResolver(Protocol):
+    """Vaults of a folder from vault-map.json, then project bindings. Never the active Vault."""
+
+    def resolve(self, path: Path) -> tuple[str, ...]: ...
+
+
+@dataclass(frozen=True)
+class _LiveTarget:
+    repository: LiveRepositoryRef
+    path: Path
+
+
+NOT_A_GIT_REPOSITORY = "not_a_git_repository; The folder is not inside a git repository."
+GIT_CANNOT_RUN = "not_a_git_repository; git could not be run."
+
+_LIVE_WARNING_MESSAGES = {
+    "code_live_read": (
+        "The git working tree was read without a code index; impact and related tests come only from "
+        "an indexed, registered repository."
+    ),
+    "code_live_files_skipped": "Some candidate files were skipped: symlinks, submodules, large or non-UTF-8 files.",
+    "code_live_read_truncated": "The live code read stopped at its time or file limit; results are partial.",
+    "code_live_no_terms": "The task has no words to search the repository with.",
+    "code_live_no_match": "No repository file matched the words of the task.",
+}
 
 
 class ProjectCodeQueryService(Protocol):
@@ -231,7 +316,13 @@ class ProjectContextService:
         vault_status_service: ProjectVaultStatusService,
         code_query_service: ProjectCodeQueryService | None = None,
         graph_relation_lookup: ProjectGraphRelationLookup | None = None,
+        live_code_reader: ProjectLiveCodeReader | None = None,
+        vault_resolver: ProjectVaultResolver | None = None,
+        working_folder: Callable[[], Path] = Path.cwd,
     ) -> None:
+        self._live_code_reader = live_code_reader
+        self._vault_resolver = vault_resolver
+        self._working_folder = working_folder
         self._repository_catalog = repository_catalog
         self._binding_catalog = binding_catalog
         self._code_query_service = code_query_service
@@ -242,7 +333,10 @@ class ProjectContextService:
     def build(self, request: ProjectContextRequest) -> ProjectContext:
         """Compose deterministic, bounded evidence for one explicit project scope."""
 
-        repository = self._resolve_repository(request)
+        target = self._resolve_repository(request)
+        if isinstance(target, _LiveTarget):
+            return self._build_live(request, target)
+        repository = target
         binding = self._binding_catalog.resolve(repository.repository_id)
         vault_scope = QueryScope(
             vault_ids=binding.vault_ids,
@@ -302,21 +396,22 @@ class ProjectContextService:
             max_tokens=request.max_tokens,
         )
 
-    def _resolve_repository(self, request: ProjectContextRequest) -> RepositoryEntry:
-        repository_from_id = (
-            self._repository_catalog.resolve(request.repository_id) if request.repository_id is not None else None
-        )
-        repository_from_path = (
-            self._repository_for_path(request.project_path) if request.project_path is not None else None
-        )
-        if repository_from_id is not None and repository_from_path is not None:
-            if repository_from_id.repository_id != repository_from_path.repository_id:
-                raise ValueError("conflicting_project_scope; use one registered repository scope")
-            return repository_from_id
-        if repository_from_id is not None:
-            return repository_from_id
-        if repository_from_path is not None:
-            return repository_from_path
+    def _resolve_repository(self, request: ProjectContextRequest) -> RepositoryEntry | _LiveTarget:
+        """``repository_id``, then the registered repository of the path, then its git root (D2, D11)."""
+
+        if request.repository_id is not None:
+            repository = self._repository_catalog.resolve(request.repository_id)
+            if request.project_path is not None:
+                from_path = self._registered_for_path(request.project_path)
+                if from_path is None or from_path.repository_id != repository.repository_id:
+                    raise ValueError("conflicting_project_scope; use one registered repository scope")
+            return repository
+        target_path = request.project_path if request.project_path is not None else request.cwd
+        if target_path is not None:
+            registered = self._registered_for_path(target_path)
+            if registered is not None:
+                return registered
+            return self._live_target(Path(target_path))
         candidates = tuple(
             entry
             for entry in self._repository_catalog.entries()
@@ -324,20 +419,120 @@ class ProjectContextService:
         )
         if len(candidates) == 1:
             return candidates[0]
-        accepted = ", ".join(sorted(item.repository_id for item in candidates)) or "none"
-        raise ValueError(f"scope_required; select a bound repository_id ({accepted})")
+        if self._live_code_reader is None:
+            accepted = ", ".join(sorted(item.repository_id for item in candidates)) or "none"
+            raise ValueError(f"scope_required; select a bound repository_id ({accepted})")
+        working_folder = self._working_folder()
+        registered = self._registered_for_path(str(working_folder))
+        if registered is not None:
+            return registered
+        return self._live_target(working_folder)
 
-    def _repository_for_path(self, project_path: str) -> RepositoryEntry:
+    def _registered_for_path(self, project_path: str) -> RepositoryEntry | None:
         try:
             candidate = Path(project_path).expanduser().resolve(strict=True)
-        except OSError as exc:
-            raise ValueError("unregistered_project_path; provide a registered repository_id") from exc
+        except OSError:
+            return None
         matches = tuple(
             entry for entry in self._repository_catalog.entries() if _contains_path(entry.root_path, candidate)
         )
-        if len(matches) != 1:
-            raise ValueError("unregistered_project_path; provide a registered repository_id")
-        return matches[0]
+        return matches[0] if len(matches) == 1 else None
+
+    def _live_target(self, path: Path) -> _LiveTarget:
+        reader = self._live_code_reader
+        if reader is None:
+            raise ValueError(NOT_A_GIT_REPOSITORY)
+        repository = reader.find_repository(path)
+        if repository is None:
+            raise ValueError(NOT_A_GIT_REPOSITORY if reader.git_available() else GIT_CANNOT_RUN)
+        return _LiveTarget(repository=repository, path=path)
+
+    def _build_live(self, request: ProjectContextRequest, target: _LiveTarget) -> ProjectContext:
+        """Code evidence from the git working tree, Vault evidence only for Vaults the map or bindings name."""
+
+        assert self._live_code_reader is not None
+        repository = target.repository
+        label = repository.label
+        search = self._live_code_reader.search(repository, request.task, limit=_bounded_symbol_work(request))
+        code_freshness: ProjectFreshness = "partial" if search.truncated else "fresh"
+        revision = f"git:{repository.head}" if repository.head else None
+        code_evidence = tuple(
+            ProjectEvidence(
+                evidence_id=(
+                    f"code:{hit.symbol_id}"
+                    if hit.kind == "symbol" and hit.symbol_id
+                    else f"code:line:{hit.relative_path}:{hit.start_line}"
+                ),
+                authority="code",
+                title=hit.title,
+                summary=hit.summary,
+                relationship_status="stated",
+                revision=revision,
+                freshness=code_freshness,
+                source_uri=_live_source_uri(label, hit.relative_path, hit.start_line, hit.end_line),
+                repository_id=label,
+                relative_path=hit.relative_path,
+                start_line=hit.start_line,
+                end_line=hit.end_line,
+                reasons=("live_symbol_match" if hit.kind == "symbol" else "live_line_match", "working_tree"),
+            )
+            for hit in search.hits
+        )
+        warnings: list[ProjectContextWarning] = [
+            ProjectContextWarning(
+                code=code,
+                message=_LIVE_WARNING_MESSAGES.get(code, "The live code read emitted a warning."),
+                freshness=code_freshness,
+                authority_id=label,
+            )
+            for code in ("code_live_read", *sorted(set(search.warnings)))
+        ]
+        vault_ids = self._vault_resolver.resolve(target.path) if self._vault_resolver is not None else ()
+        binding = ProjectBinding(repository_id=label, vault_ids=vault_ids) if vault_ids else None
+        vault_evidence: tuple[ProjectEvidence, ...] = ()
+        vault_freshness: tuple[ProjectAuthorityFreshness, ...] = ()
+        relations: tuple[ProjectEvidenceRelation, ...] = ()
+        if binding is None:
+            warnings.append(
+                ProjectContextWarning(
+                    code="project_vault_scope_unresolved",
+                    message="No vault-map project or project binding selects a Vault for this repository.",
+                    freshness="unknown",
+                    authority_id=label,
+                    recovery_hint="Link the project to its Vaults in vault-map.json.",
+                )
+            )
+        else:
+            vault_freshness = self._vault_status_service.status(binding.vault_ids)
+            self._validate_vault_statuses(binding=binding, statuses=vault_freshness)
+            vault_scope = QueryScope(vault_ids=binding.vault_ids, content_scopes=DEFAULT_CONTENT_SCOPES)
+            vault_evidence, vault_warnings = self._vault_evidence(request, vault_scope, vault_freshness)
+            warnings.extend(vault_warnings)
+            relations = self._relations(
+                request=request,
+                binding=binding,
+                code_evidence=code_evidence,
+                vault_evidence=vault_evidence,
+                warnings=warnings,
+            )
+        authority_freshness = (
+            ProjectAuthorityFreshness("code", label, code_freshness, revision=revision),
+            *tuple(sorted(vault_freshness, key=lambda item: item.authority_id)),
+        )
+        return _fit_context_budget(
+            task=_display_task(request.task, request.max_tokens),
+            repository_id=label,
+            binding=binding,
+            freshness=combine_freshness(tuple(item.state for item in authority_freshness)),
+            code_evidence=code_evidence,
+            impact_evidence=(),
+            test_evidence=(),
+            vault_evidence=vault_evidence,
+            relations=relations,
+            authority_freshness=authority_freshness,
+            warnings=tuple(sorted(warnings, key=lambda item: (item.code, item.authority_id or ""))),
+            max_tokens=request.max_tokens,
+        )
 
     def _code_evidence(
         self, request: ProjectContextRequest, repository_id: str, binding: ProjectBinding
@@ -640,6 +835,12 @@ class ProjectContextService:
             raise ValueError("vault status must include every selected Vault authority")
 
 
+def _live_source_uri(label: str, relative_path: str, start_line: int, end_line: int) -> str:
+    """The same opaque line URI ``SourceEvidenceReader`` emits for indexed code."""
+
+    return f"vg-source://{quote(label, safe='')}/{quote(relative_path, safe='/')}#L{start_line}-L{end_line}"
+
+
 def _has_binding(catalog: ProjectBindingReader, repository_id: str) -> bool:
     try:
         catalog.resolve(repository_id)
@@ -652,7 +853,7 @@ def _fit_context_budget(
     *,
     task: str,
     repository_id: str,
-    binding: ProjectBinding,
+    binding: ProjectBinding | None,
     freshness: ProjectFreshness,
     code_evidence: tuple[ProjectEvidence, ...],
     impact_evidence: tuple[ProjectEvidence, ...],

@@ -280,7 +280,7 @@ candidate names, and nothing is written.
 
   | Tool | CLI | Returns |
   | --- | --- | --- |
-  | `explore_project` | - | For a coding task: current code, related tests, impact, Vault decisions, and freshness warnings. Call it first. Needs a registered, bound repository. |
+  | `explore_project` | - | For a coding task: current code, related tests, impact, Vault decisions, and freshness warnings. Call it first with `cwd`. Reads the git repository of `cwd` when it is not registered. |
   | `search_vault` | `vg search` | Ranked pages with line ranges. `mode` is `knowledge` (default), `evidence`, `operating`, `audit`, or `all`. `include_retired` shows retired pages. |
   | `ask_vault` | `vg ask` | An answer with cited evidence and claim status. |
   | `build_context_pack` | `vg context` | A token-bounded pack of evidence for a task. |
@@ -391,7 +391,7 @@ or local HTTP acceptance tests.
 | Register Code Repository | `vg code repository add ID --path PATH --language LANGUAGE` | - | - | Read-only repository catalog entry |
 | Index And Query Code | `vg code index`, `vg code search`, `vg code symbol`, `vg code outline`, `vg code callers`, `vg code callees`, `vg code impact` | - | `vg-source://{repository_id}/{path}#L{start}-L{end}` | Bounded symbols, source links, traversal, freshness warnings |
 | Bind Project Authorities | `vg project bind REPOSITORY_ID --vault-id ID`, `vg project bindings` | - | - | Explicit Graph-owned repository-to-Vault selection |
-| Explore Project | - | `explore_project(task, project_path=None, repository_id=None, max_tokens=None, depth=2, limit=20)` | repository and Vault evidence links | Bounded code, tests, impact, Vault evidence, revisions, freshness, warnings |
+| Explore Project | - | `explore_project(task, project_path=None, repository_id=None, max_tokens=None, depth=2, limit=20, cwd=None)` | repository and Vault evidence links | Bounded code, tests, impact, Vault evidence, revisions, freshness, warnings |
 | Install Harness Guidance | `vg harness guidance preview/install/remove` | - | - | Explicit marker-fenced `AGENTS.md` or `CLAUDE.md` guidance outside Vault |
 | Session-start recall | `vg hook session-start` (SessionStart hook) | - | - | Markdown memory bundle: pinned pages, project summary, memory list, notices |
 | Session capture | `vg hook capture` (PreCompact and SessionEnd hooks) | - | - | Normalized session handed to the Vault hook launcher |
@@ -418,10 +418,20 @@ Graph signals are opt-in: use `vg related`, `vg decision-trace`, or
 `--include-graph`. Context packs are working briefs, not answers and not durable
 Vault knowledge.
 
-`explore_project` is the preferred coding entry point. It requires a registered
-repository and an explicit Graph-owned binding to one or more Vaults. It never
-guesses an active Vault. When code indexing is unavailable, it returns a
-Vault-only result with a visible warning rather than stale code.
+`explore_project` is the preferred coding entry point. A `repository_id`, or a
+`project_path` or `cwd` inside a registered repository, uses that repository's
+code index, impact, related tests and its Graph-owned Vault binding. Any other
+folder inside a git repository is read directly without registration: git lists
+the files, `git grep` picks candidates for the task's words, and only those
+Python and Dart files are parsed in memory. That result is labelled
+`git:<folder>`, carries the HEAD revision and a `code_live_read` warning, and has
+no impact or related tests. Nothing is written to the repository or the Graph
+Home. Its Vaults come from `vault-map.json` and project bindings; when neither
+names one, `binding` is null and no Vault evidence is returned. It never guesses
+an active Vault. A folder outside any git repository returns
+`not_a_git_repository`. When code indexing is unavailable for a registered
+repository, it returns a Vault-only result with a visible warning rather than
+stale code.
 
 The history of each slice is in `CHANGELOG.md` and `docs/PATCH_LOG.md`.
 

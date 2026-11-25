@@ -283,8 +283,11 @@ class McpServiceFactory:
         """Open code projection services only when project exploration is requested."""
 
         from vault_graph.interface.composition.code_index_factory import CodeIndexFactory
+        from vault_graph.operation.integration.vault_map import vault_map_path
 
-        return CodeIndexFactory(graph_home_path=self._graph_home_path).open_project_context_service()
+        return CodeIndexFactory(graph_home_path=self._graph_home_path).open_project_context_service(
+            vault_map_path=vault_map_path(self._vault_map_path)
+        )
 
 
 def index_one_vault(graph_home_path: Path, vault_id: str) -> bool:

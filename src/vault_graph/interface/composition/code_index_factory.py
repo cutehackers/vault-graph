@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from vault_graph.errors import VaultGraphError
 from vault_graph.interface.composition.adapters.code_projection_storage import (
@@ -113,11 +113,20 @@ class CodeIndexFactory:
             repository_ids=repository_ids,
         )
 
-    def open_project_context_service(self) -> ProjectContextService:
-        """Compose project context through read-only application-service protocols."""
+    def open_project_context_service(self, *, vault_map_path: Path | None = None) -> ProjectContextService:
+        """Compose project context through read-only application-service protocols.
 
-        from vault_graph.interface.composition.read_only_service_factory import ReadOnlyServiceFactory
+        An unregistered git repository is read through ``LiveRepositoryReader``. Its Vaults come from
+        ``vault-map.json`` and project bindings only (spec 2026-11-25-explore-project-cwd-git-2 D7).
+        """
+
+        from vault_graph.interface.composition.read_only_service_factory import (
+            ReadOnlyServiceFactory,
+            _ProjectRecallScope,
+        )
         from vault_graph.operation.integration.project_binding_catalog import ProjectBindingCatalogService
+        from vault_graph.operation.integration.vault_map import vault_map_path as default_vault_map_path
+        from vault_graph.project.code.live_repository_reader import LiveRepositoryReader
         from vault_graph.project.context.project_binding_reader import ProjectBindingReader
         from vault_graph.project.context.project_context_service import (
             IndexStatusVaultFreshness,
@@ -152,7 +161,37 @@ class CodeIndexFactory:
                     graph_home_path=self.graph_home_path
                 ).open_graph_retrieval_service(),
             ),
+            live_code_reader=LiveRepositoryReader(),
+            vault_resolver=_FolderVaults(
+                _ProjectRecallScope(
+                    vault_map_path=vault_map_path if vault_map_path is not None else default_vault_map_path(),
+                    catalog_service=code_services.catalog_service,
+                    catalog=vault_services.catalog,
+                )
+            ),
         )
+
+
+class _FolderScope(Protocol):
+    def resolve(self, cwd: Path) -> _VaultIds: ...
+
+
+class _VaultIds(Protocol):
+    @property
+    def vault_ids(self) -> tuple[str, ...]: ...
+
+
+class _FolderVaults:
+    """Adapt the recall folder scope (vault-map.json, then project bindings) to the project Vault resolver."""
+
+    def __init__(self, scope: _FolderScope) -> None:
+        self._scope = scope
+
+    def resolve(self, path: Path) -> tuple[str, ...]:
+        try:
+            return tuple(self._scope.resolve(path).vault_ids)
+        except (OSError, ValueError, VaultGraphError):
+            return ()
 
 
 CodeIndexServiceFactory = CodeIndexFactory

@@ -144,7 +144,7 @@ def _prepare_implementation_context(task: str, scope: str | None) -> str:
     return _join_prompt_lines(
         *_prompt_header("Implementation Context", scope),
         f"Task: {task}",
-        "Call explore_project first for bounded code and Vault evidence for the registered project.",
+        "Call explore_project first, with cwd set to the project folder, for bounded code and Vault evidence.",
         (
             "If project scope is unavailable, use check_index_status, get_recent_changes, "
             "summarize_project_memory, then build_context_pack."
